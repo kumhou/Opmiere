@@ -57,4 +57,65 @@ def test_ltxv_workflow_frame_rate_flows_to_conditioning_and_output(provider):
 
 def test_submit_rejects_unsupported_kind(provider):
     with pytest.raises(NotImplementedError):
-        provider.submit("audio", "x", {})
+        provider.submit("sfx", "x", {})
+
+
+def test_speech_preset_voice_workflow_has_expected_nodes_and_wiring(provider):
+    wf = provider._build_speech_workflow("hello world", {})
+
+    assert wf["1"]["inputs"]["repo_id"] == "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+    assert wf["2"]["class_type"] == "Qwen3CustomVoice"
+    assert wf["2"]["inputs"]["text"] == "hello world"
+    assert wf["2"]["inputs"]["speaker"] == "Vivian"
+    assert wf["4"]["class_type"] == "SaveAudio"
+    assert wf["4"]["inputs"]["audio"] == ["2", 0]
+
+
+def test_speech_preset_voice_respects_speaker_param(provider):
+    wf = provider._build_speech_workflow("x", {"speaker": "Dylan", "language": "Chinese"})
+
+    assert wf["2"]["inputs"]["speaker"] == "Dylan"
+    assert wf["2"]["inputs"]["language"] == "Chinese"
+
+
+def test_speech_clone_workflow_uploads_reference_and_wires_clone_node(provider, tmp_path):
+    provider.comfyui_input_dir = tmp_path / "comfy_input"
+    provider.comfyui_input_dir.mkdir()
+    ref = tmp_path / "ref.wav"
+    ref.write_bytes(b"not real audio, just testing the copy")
+
+    wf = provider._build_speech_workflow(
+        "cloned speech", {"reference_audio": str(ref), "reference_text": "the reference said this"}
+    )
+
+    assert wf["1"]["inputs"]["repo_id"] == "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+    assert wf["3"]["class_type"] == "Qwen3VoiceClone"
+    assert wf["3"]["inputs"]["text"] == "cloned speech"
+    assert wf["3"]["inputs"]["ref_text"] == "the reference said this"
+    assert wf["3"]["inputs"]["ref_audio"] == ["2", 0]
+    uploaded_name = wf["2"]["inputs"]["audio"]
+    assert (provider.comfyui_input_dir / uploaded_name).exists()
+
+
+def test_speech_clone_requires_reference_text(provider, tmp_path):
+    provider.comfyui_input_dir = tmp_path
+    ref = tmp_path / "ref.wav"
+    ref.write_bytes(b"x")
+    with pytest.raises(ValueError, match="reference_text"):
+        provider._build_speech_workflow("x", {"reference_audio": str(ref)})
+
+
+def test_speech_clone_requires_comfyui_input_dir_configured(provider, tmp_path):
+    ref = tmp_path / "ref.wav"
+    ref.write_bytes(b"x")
+    assert provider.comfyui_input_dir is None
+    with pytest.raises(ValueError, match="comfyui_input_dir"):
+        provider._build_speech_workflow("x", {"reference_audio": str(ref), "reference_text": "hi"})
+
+
+def test_speech_clone_rejects_missing_reference_file(provider, tmp_path):
+    provider.comfyui_input_dir = tmp_path
+    with pytest.raises(FileNotFoundError):
+        provider._build_speech_workflow(
+            "x", {"reference_audio": str(tmp_path / "nope.wav"), "reference_text": "hi"}
+        )

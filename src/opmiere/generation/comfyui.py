@@ -2,29 +2,38 @@
 
 Talks to a running ComfyUI server (default http://127.0.0.1:8188) over its
 plain HTTP API: POST a node-graph workflow to /prompt, poll /history/{id},
-fetch the result bytes via /view. Both graphs below were verified by hand
-against this machine's RTX 3070 before this file supported them:
+fetch the result bytes via /view. Every graph below was verified by hand
+against this machine's RTX 3070 before this file supported it:
   - image (SD1.5, 512x512, 20 steps): ~7s, ~2GB VRAM.
   - video (LTX-Video 2B distilled-fp8, 512x320, 65 frames/25fps, 30 steps):
     ~22s, ~6.4GB VRAM peak - comfortably inside the 8GB budget. Note LTX-2/
     LTX-2.3, the newer flagship model line, needs 16GB+ even quantized and
     was deliberately *not* used here; the original smaller LTX-Video line is
     still maintained and is the one actually suited to this hardware.
-  The video graph was traced from ComfyUI's own bundled
-  ltxv_text_to_video.json template (litegraph UI format) and converted to
-  the API format /prompt expects by hand, rather than guessed from node
-  names alone.
+  - speech (Qwen3-TTS, 0.6B, Apache-2.0 — chosen over XTTS-v2/F5-TTS
+    specifically because those are non-commercial-licensed and this one
+    isn't): preset-voice generation uses the CustomVoice checkpoint; voice
+    cloning needs the *separate* Base checkpoint (confirmed via a real
+    "incompatible model" error before assuming otherwise) plus a reference
+    clip's audio *and* its transcript — the node raises rather than
+    guessing if either is missing.
+  Every graph was traced from ComfyUI's own bundled example templates
+  (litegraph UI format) and converted to the API format /prompt expects by
+  hand, or built from the real node schemas via /object_info, rather than
+  guessed from node names alone.
 
-Scope note: audio generation and the VRAM-adaptive quantization *profiles*
-from section 5.7 (auto-selecting GGUF/fp8/block-swap by detected VRAM) are
-follow-up work — image and video both currently run at whatever precision
-their downloaded checkpoint already is (fp16/fp8), not further quantized.
+Scope note: the VRAM-adaptive quantization *profiles* from section 5.7
+(auto-selecting GGUF/fp8/block-swap by detected VRAM) are follow-up work —
+every kind here runs at whatever precision its downloaded checkpoint already
+is, not further quantized; none of them have needed it yet on this 8GB card.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import random
+import shutil
 import time
 import urllib.error
 import urllib.request
@@ -37,12 +46,15 @@ from .provider import GenerationJob, GenerationProvider, JobStatus
 DEFAULT_IMAGE_CHECKPOINT = "v1-5-pruned-emaonly-fp16.safetensors"
 DEFAULT_VIDEO_CHECKPOINT = "ltxv-2b-0.9.8-distilled-fp8.safetensors"
 DEFAULT_VIDEO_TEXT_ENCODER = "t5xxl_fp8_e4m3fn_scaled.safetensors"
+DEFAULT_SPEECH_CUSTOM_VOICE_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+DEFAULT_SPEECH_CLONE_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
 
-# Which output node each workflow ends at, and which output key holds the
-# result file list - both graphs happen to use "images" for that key (yes,
-# even the video one - that's ComfyUI's real, observed SaveVideo output
-# schema, not a naming choice made here).
-_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79"}
+# Which output node each workflow ends at, and which output dict key holds
+# the result file list. image/video both really do use "images" (confirmed
+# by reading SaveVideo's actual output, not assumed); speech's SaveAudio
+# uses "audio" instead - a real, observed difference, not a typo.
+_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4"}
+_OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio"}
 
 
 class ComfyUIProvider(GenerationProvider):
@@ -55,6 +67,7 @@ class ComfyUIProvider(GenerationProvider):
         image_checkpoint: str = DEFAULT_IMAGE_CHECKPOINT,
         video_checkpoint: str = DEFAULT_VIDEO_CHECKPOINT,
         video_text_encoder: str = DEFAULT_VIDEO_TEXT_ENCODER,
+        comfyui_input_dir: Path | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.output_dir = Path(output_dir) if output_dir else Path.cwd() / ".opmiere_generated"
@@ -62,6 +75,16 @@ class ComfyUIProvider(GenerationProvider):
         self.image_checkpoint = image_checkpoint
         self.video_checkpoint = video_checkpoint
         self.video_text_encoder = video_text_encoder
+        # Voice cloning needs to hand ComfyUI a reference clip. ComfyUI's
+        # LoadAudio node only accepts filenames already inside its own
+        # input/ folder, so a machine-specific filesystem path is
+        # unavoidable here - deliberately not hardcoded (this repo runs on
+        # other people's machines too), read from an env var instead, with
+        # a clear error at generation time if it's needed but unset.
+        env_dir = os.environ.get("OPMIERE_COMFYUI_INPUT_DIR")
+        self.comfyui_input_dir = Path(comfyui_input_dir) if comfyui_input_dir else (
+            Path(env_dir) if env_dir else None
+        )
         self.client_id = str(uuid.uuid4())
         # ComfyUI's /history doesn't echo back a plain-text "kind"/"prompt" in
         # an easily queryable form, so we remember our own request alongside
@@ -162,15 +185,66 @@ class ComfyUIProvider(GenerationProvider):
                 "video": ["78", 0], "filename_prefix": "opmiere_gen_video", "format": "auto", "codec": "auto"}},
         }
 
+    def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+        seed = params.get("seed", random.randint(0, 2**31 - 1))
+        language = params.get("language", "Auto")
+        reference_audio = params.get("reference_audio")
+        reference_text = params.get("reference_text")
+
+        if reference_audio:
+            # Voice cloning: needs the *Base* checkpoint - not CustomVoice,
+            # confirmed by ComfyUI's own "incompatible model" error the
+            # first time this was tried with the wrong one - plus both the
+            # reference clip's audio and its transcript.
+            if not reference_text:
+                raise ValueError(
+                    "kind='speech' with reference_audio also requires reference_text "
+                    "(its transcript) - Qwen3-TTS's own voice-clone node requires both"
+                )
+            if self.comfyui_input_dir is None:
+                raise ValueError(
+                    "voice cloning needs a reference clip uploaded into ComfyUI's own "
+                    "input/ folder, but comfyui_input_dir isn't configured - pass it to "
+                    "ComfyUIProvider() or set the OPMIERE_COMFYUI_INPUT_DIR env var"
+                )
+            src = Path(reference_audio)
+            if not src.exists():
+                raise FileNotFoundError(f"reference_audio not found: {src}")
+            dest_name = f"opmiere_ref_{uuid.uuid4().hex[:8]}{src.suffix}"
+            shutil.copy2(src, self.comfyui_input_dir / dest_name)
+            checkpoint = params.get("checkpoint", DEFAULT_SPEECH_CLONE_MODEL)
+            return {
+                "1": {"class_type": "Qwen3Loader", "inputs": {
+                    "repo_id": checkpoint, "source": "HuggingFace", "precision": "bf16", "attention": "auto"}},
+                "2": {"class_type": "LoadAudio", "inputs": {"audio": dest_name}},
+                "3": {"class_type": "Qwen3VoiceClone", "inputs": {
+                    "model": ["1", 0], "text": prompt, "seed": seed, "language": language,
+                    "ref_audio": ["2", 0], "ref_text": reference_text}},
+                "4": {"class_type": "SaveAudio", "inputs": {"audio": ["3", 0], "filename_prefix": "opmiere_gen_speech"}},
+            }
+
+        # No reference clip: a preset speaker via the CustomVoice checkpoint.
+        speaker = params.get("speaker", "Vivian")
+        checkpoint = params.get("checkpoint", DEFAULT_SPEECH_CUSTOM_VOICE_MODEL)
+        return {
+            "1": {"class_type": "Qwen3Loader", "inputs": {
+                "repo_id": checkpoint, "source": "HuggingFace", "precision": "bf16", "attention": "auto"}},
+            "2": {"class_type": "Qwen3CustomVoice", "inputs": {
+                "model": ["1", 0], "text": prompt, "language": language, "speaker": speaker, "seed": seed}},
+            "4": {"class_type": "SaveAudio", "inputs": {"audio": ["2", 0], "filename_prefix": "opmiere_gen_speech"}},
+        }
+
     def submit(self, kind: str, prompt: str, params: dict[str, Any]) -> str:
         if kind == "image":
             workflow = self._build_txt2img_workflow(prompt, params)
         elif kind == "video":
             workflow = self._build_ltxv_workflow(prompt, params)
+        elif kind == "speech":
+            workflow = self._build_speech_workflow(prompt, params)
         else:
             raise NotImplementedError(
                 f"ComfyUIProvider does not support kind={kind!r} yet "
-                "(audio generation is follow-up work)"
+                "(sfx/music generation are follow-up work)"
             )
         resp = self._post("/prompt", {"prompt": workflow, "client_id": self.client_id})
         if resp.get("node_errors"):
@@ -203,13 +277,17 @@ class ComfyUIProvider(GenerationProvider):
             )
 
         output_node = _OUTPUT_NODE_BY_KIND.get(meta["kind"])
-        images = entry.get("outputs", {}).get(output_node, {}).get("images", []) if output_node else []
-        if not images:
+        output_key = _OUTPUT_KEY_BY_KIND.get(meta["kind"])
+        files = (
+            entry.get("outputs", {}).get(output_node, {}).get(output_key, [])
+            if output_node and output_key else []
+        )
+        if not files:
             return GenerationJob(
                 id=job_id, status=JobStatus.ERROR, kind=meta["kind"], prompt=meta["prompt"],
                 error=f"ComfyUI reported success but produced no output on node {output_node!r}",
             )
-        img = images[0]
+        img = files[0]
         url = (
             f"{self.base_url}/view?filename={img['filename']}"
             f"&subfolder={img.get('subfolder', '')}&type={img['type']}"

@@ -35,6 +35,11 @@ from .render.backend import RenderBackend
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
 
+# Maps a GenerationJob.kind (what an agent asked to generate) to the
+# Media.kind it becomes once it's a file on disk. image/video are their own
+# media kind; speech/sfx/music are all just "audio" once generated.
+_GENERATION_KIND_TO_MEDIA_KIND = {"speech": "audio", "sfx": "audio", "music": "audio"}
+
 
 class Editor:
     """Wraps a Project + Bundle. The only supported way to mutate either."""
@@ -310,22 +315,41 @@ class Editor:
     def job_status(self, job_id: str) -> GenerationJob:
         return self._require_generation_provider().status(job_id)
 
-    def place_generated(self, job_id: str, track_id: str, start: int, duration_frames: int) -> Clip:
+    def place_generated(
+        self, job_id: str, track_id: str, start: int, duration_frames: int | None = None
+    ) -> Clip:
         """Import a finished job's result as Media (origin records provider/
         job/prompt) and place it as a Clip. Raises if the job isn't DONE yet
         — call job_status() first rather than assuming it finished.
+
+        duration_frames is optional for video/speech/sfx/music: leave it out
+        to use the media's full real (ffprobed) duration - the natural
+        choice, since you rarely know a generated clip's exact length in
+        advance (found the hard way: guessing wrong for a TTS clip whose
+        spoken length wasn't known ahead of generation raised a confusing
+        "clip out exceeds media duration" error at add_clip time instead).
+        Images have no intrinsic duration, so it's still required for those.
         """
         job = self._require_generation_provider().status(job_id)
         if job.status != JobStatus.DONE:
             raise ValueError(f"job {job_id} is not done yet (status={job.status.value})")
-        if duration_frames <= 0:
+        if duration_frames is not None and duration_frames <= 0:
             raise ValueError(f"duration_frames must be positive, got {duration_frames}")
+        # job.kind is the *generation* vocabulary (what was requested - e.g.
+        # "speech"); Media.kind is the *file* vocabulary (what it actually
+        # is on disk - "audio"). They coincide for image/video but not for
+        # speech/sfx/music, which are all just audio files once generated.
+        media_kind = _GENERATION_KIND_TO_MEDIA_KIND.get(job.kind, job.kind)
         with self._mutate():
             track = self.project.track_by_id(track_id)
             media = _ffmpeg_import_media(
-                self.bundle, self.project, job.result_path, kind=job.kind,
+                self.bundle, self.project, job.result_path, kind=media_kind,
                 origin={"provider": self.generation_provider.name, "job": job_id, "prompt": job.prompt},
             )
+            if duration_frames is None:
+                if media_kind == "image":
+                    raise ValueError("duration_frames is required for kind='image' (images have no intrinsic duration)")
+                duration_frames = media.duration_frames
             return self.project.add_clip(track, media, start, 0, duration_frames)
 
     # --- render -----------------------------------------------------------

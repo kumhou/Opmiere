@@ -167,12 +167,29 @@ def remove_transition(clip_id: str) -> dict:
 def generate(kind: str, prompt: str, params: dict | None = None) -> str:
     """Submit an async local-GPU generation job and return a job id immediately.
 
-    kind: "image" for now (video/audio are follow-up work). Runs on the local
-    ComfyUI server (SD1.5 checkpoint) - typically a few seconds on an 8GB GPU.
-    Optional params: width/height (default 512), steps (default 20), cfg
-    (default 7.0), seed, negative_prompt. Poll job_status(job_id) until
-    status is "done" (or "error"), then place_generated() to add it to the
-    timeline - do not assume it finished just because submit succeeded.
+    Runs on the local ComfyUI server. Poll job_status(job_id) until status is
+    "done" (or "error"), then place_generated() to add it to the timeline -
+    do not assume it finished just because submit succeeded.
+
+    kind="image": prompt is the image description. Params: width/height
+      (default 512), steps (default 20), cfg (default 7.0), seed,
+      negative_prompt. ~7s on an 8GB GPU.
+
+    kind="video": prompt is the video description (long, descriptive prompts
+      work much better than short ones). Params: width (512)/height (320),
+      num_frames (65), frame_rate (25 - should match the target project's
+      timebase.fps, see get_project_state, or place_generated will reject it
+      as a mismatch later), steps (30), cfg (3.0), seed, negative_prompt.
+      ~20-40s on an 8GB GPU.
+
+    kind="speech": prompt is the text to speak. Two modes:
+      - preset voice (no reference needed): params speaker (default
+        "Vivian"; others: Serena, Uncle_Fu, Dylan, Eric, Ryan, Aiden,
+        Ono_Anna, Sohee), language (default "Auto").
+      - voice cloning: params reference_audio (path to a short 1-10s clean
+        clip of the voice to clone) AND reference_text (its exact
+        transcript - both required together). Only clone a voice with the
+        speaker's knowledge/consent.
     """
     return _require_editor().generate(kind, prompt, params or {})
 
@@ -196,13 +213,18 @@ def job_status(job_id: str) -> dict:
 
 
 @mcp.tool()
-def place_generated(job_id: str, track_id: str, start: int, duration_frames: int) -> dict:
+def place_generated(job_id: str, track_id: str, start: int, duration_frames: int | None = None) -> dict:
     """Import a finished job's result into the project and place it as a clip.
 
     The job must already be "done" (check job_status first - this raises
     rather than silently waiting if it isn't). The resulting Media's origin
     field records the provider/job/prompt that made it, visible later in
     get_project_state.
+
+    duration_frames is optional for video/speech/sfx/music - omit it to use
+    the generated clip's full real duration (you rarely know a generated
+    clip's exact length ahead of time, especially for speech). Required for
+    kind="image", which has no intrinsic duration.
     """
     return _require_editor().place_generated(job_id, track_id, start, duration_frames).to_dict()
 

@@ -58,6 +58,17 @@ def sample_image(tmp_path_factory) -> Path:
     return path
 
 
+@pytest.fixture(scope="module")
+def sample_audio(tmp_path_factory) -> Path:
+    d = tmp_path_factory.mktemp("gen_audio")
+    path = d / "sample.flac"
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", str(path)],
+        capture_output=True, text=True, check=True,
+    )
+    return path
+
+
 @pytest.fixture
 def provider() -> FakeProvider:
     return FakeProvider()
@@ -130,3 +141,40 @@ def test_generated_image_exports_to_real_video(editor, provider, sample_image, t
     result = probe(out)
     assert abs(result.duration_seconds - 1.0) < 0.05  # 30 frames @ 30fps
     assert result.has_video
+
+
+def test_place_generated_maps_speech_kind_to_audio_media(editor, provider, sample_audio):
+    """job.kind='speech' (generation vocabulary) must become Media.kind='audio'
+    (file vocabulary) - place_generated must not pass 'speech' straight
+    through to import_media, which doesn't know that kind."""
+    job_id = editor.generate("speech", "hello there")
+    provider.complete(job_id, sample_audio)
+    track = editor.add_track("audio")
+
+    clip = editor.place_generated(job_id, track.id, start=0, duration_frames=30)
+
+    media = editor.project.media_by_id(clip.media)
+    assert media.kind == "audio"
+    assert media.origin == {"provider": "fake", "job": job_id, "prompt": "hello there"}
+
+
+def test_place_generated_defaults_to_full_media_duration_when_omitted(editor, provider, sample_audio):
+    """A 1s sine wave -> the clip should span exactly the real probed
+    duration when duration_frames is omitted, not a guessed value."""
+    job_id = editor.generate("speech", "hello there")
+    provider.complete(job_id, sample_audio)
+    track = editor.add_track("audio")
+
+    clip = editor.place_generated(job_id, track.id, start=0)
+
+    media = editor.project.media_by_id(clip.media)
+    assert clip.src_out == media.duration_frames
+    assert abs(editor.project.timebase.frames_to_seconds(clip.duration_frames) - 1.0) < 0.05
+
+
+def test_place_generated_requires_duration_for_image(editor, provider, sample_image):
+    job_id = editor.generate("image", "a red square")
+    provider.complete(job_id, sample_image)
+    track = editor.add_track("video")
+    with pytest.raises(ValueError, match="duration_frames is required"):
+        editor.place_generated(job_id, track.id, start=0)
