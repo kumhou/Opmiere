@@ -155,8 +155,11 @@ class Clip:
     - ``start``   : timeline position, in frames.
     - ``src_in``  : first source frame used (JSON: ``in``).
     - ``src_out`` : end source frame, exclusive (JSON: ``out``).
-
-    Timeline duration is ``src_out - src_in``.
+    - ``speed``   : playback rate multiplier (1.0 = normal). Does not change
+      src_in/src_out (still "how much source material"); it changes how many
+      timeline frames that material occupies — see timeline_duration_frames.
+      Kept as its own field rather than an entry in ``effects``, like
+      transition_in: it changes timeline math, not just pixels/samples.
     """
 
     id: str
@@ -169,15 +172,23 @@ class Clip:
     # clip's `start` intentionally overlaps the previous clip on its track by
     # duration_frames — see KNOWN_TRANSITION_TYPES and Editor.add_transition.
     transition_in: dict[str, Any] | None = None
+    speed: float = 1.0
 
     @property
     def duration_frames(self) -> int:
+        """Source frames consumed (src_out - src_in) — NOT the timeline
+        footprint when speed != 1.0. See timeline_duration_frames for that."""
         return self.src_out - self.src_in
+
+    @property
+    def timeline_duration_frames(self) -> int:
+        """How many frames this clip actually occupies on the timeline."""
+        return round(self.duration_frames / self.speed)
 
     @property
     def end(self) -> int:
         """Timeline frame where this clip ends (exclusive)."""
-        return self.start + self.duration_frames
+        return self.start + self.timeline_duration_frames
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -190,6 +201,8 @@ class Clip:
         }
         if self.transition_in is not None:
             d["transition_in"] = self.transition_in
+        if self.speed != 1.0:
+            d["speed"] = self.speed
         return d
 
     @classmethod
@@ -202,6 +215,7 @@ class Clip:
             src_out=d["out"],
             effects=d.get("effects", []),
             transition_in=d.get("transition_in"),
+            speed=d.get("speed", 1.0),
         )
 
 

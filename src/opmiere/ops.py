@@ -295,6 +295,22 @@ class Editor:
             clip.transition_in = None
             return clip
 
+    def set_speed(self, clip_id: str, speed: float) -> Clip:
+        """Change a clip's playback rate (1.0 = normal). src_in/src_out are
+        untouched — this changes how much timeline space the same source
+        material occupies (see Clip.timeline_duration_frames), not which
+        frames are used. Like move_clip/trim_clip, this doesn't proactively
+        re-check contiguity with whatever else is on the track — that's
+        validated at export time (render/ffmpeg.py), consistent with how
+        those two already behave.
+        """
+        with self._mutate():
+            if not isinstance(speed, (int, float)) or speed <= 0:
+                raise ValueError(f"speed must be a positive number, got {speed!r}")
+            clip = self._find_clip(clip_id)
+            clip.speed = float(speed)
+            return clip
+
     # --- generation (ARCHITECTURE.md section 8: async job model) ----------
     def _require_generation_provider(self) -> GenerationProvider:
         if self.generation_provider is None:

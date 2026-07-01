@@ -164,6 +164,18 @@ def remove_transition(clip_id: str) -> dict:
 
 
 @mcp.tool()
+def set_speed(clip_id: str, speed: float) -> dict:
+    """Change a clip's playback rate (1.0 = normal, 2.0 = double speed, 0.5 =
+    half speed). Doesn't change which source frames are used, only how much
+    timeline space they occupy - the clip's duration on the timeline shrinks
+    (speed > 1) or grows (speed < 1) accordingly; check get_project_state
+    afterward if you need the new end position. Audio speed is limited to
+    0.5-2.0 (a real ffmpeg constraint); video speed has no such limit.
+    """
+    return _require_editor().set_speed(clip_id, speed).to_dict()
+
+
+@mcp.tool()
 def generate(kind: str, prompt: str, params: dict | None = None) -> str:
     """Submit an async local-GPU generation job and return a job id immediately.
 

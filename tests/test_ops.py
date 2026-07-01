@@ -351,3 +351,81 @@ def test_export_with_transition_real_crossfade(editor, sample_video, tmp_path):
     result = probe(out)
     expected = (30 + 30 - 10) / FPS  # 50 frames @ 30fps = 1.667s
     assert abs(result.duration_seconds - expected) < 0.05
+
+
+def test_set_speed_changes_timeline_duration_not_source(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=60)  # 60 source frames
+
+    sped_up = editor.set_speed(clip.id, 2.0)
+    assert sped_up.duration_frames == 60  # source frames unchanged
+    assert sped_up.timeline_duration_frames == 30  # timeline footprint halved
+    assert sped_up.end == 30
+    assert editor.duration_frames() == 30
+
+    slowed = editor.set_speed(clip.id, 0.5)
+    assert slowed.timeline_duration_frames == 120  # timeline footprint doubled
+
+
+def test_set_speed_rejects_non_positive(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.set_speed(clip.id, 0)
+    with pytest.raises(ValueError):
+        editor.set_speed(clip.id, -1.0)
+
+
+def test_speed_persists_through_save_reopen(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.set_speed(clip.id, 1.5)
+    editor.save()
+
+    reopened = Editor.open(editor.bundle.root)
+    assert reopened._find_clip(clip.id).speed == 1.5
+
+
+def test_export_with_video_speed_change_real_duration(editor, sample_video, tmp_path):
+    """Real render: a 2x-speed 60-frame clip must produce a 1.0s (30 frame) export."""
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=60)
+    editor.set_speed(clip.id, 2.0)
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05  # 60 source frames / 2x speed / 30fps = 1.0s
+
+
+def test_export_with_audio_speed_change_real_duration(editor, sample_video, tmp_path):
+    """Real render: audio speed uses atempo; must also shrink actual output duration."""
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=60)
+    editor.set_speed(clip.id, 1.5)
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    expected = (60 / 1.5) / FPS  # 40 frames @ 30fps = 1.333s
+    assert abs(result.duration_seconds - expected) < 0.05
+    assert result.has_audio
+
+
+def test_set_speed_rejects_audio_out_of_atempo_range_at_render_time(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=60)
+    editor.set_speed(clip.id, 3.0)  # video-only fine, but this clip has audio -> exceeds atempo's 2.0 max
+
+    with pytest.raises(ValueError, match="atempo"):
+        editor.export(tmp_path / "out.mp4")

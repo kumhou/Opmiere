@@ -371,17 +371,23 @@ Note: **basic deterministic effects land early (P1)** because FFmpeg makes them 
 *advanced* effects wait for P4. This keeps "it's a real editor" true from the first agent-drivable build.
 
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
-transitions) are done. **P2.1 (image) and P2.2 (video) are both proven end to end**: `GenerationProvider`
-interface + a local `ComfyUIProvider` wired through Editor's async job model (`generate` → poll
-`job_status` → `place_generated`) and exposed as MCP tools — a real MCP client can ask for an image or a
-short video, place it on the timeline, and export a real video containing it, over the same stdio path
-Claude Desktop/Cursor use. Video runs on the original LTX-Video 2B line (distilled, fp8), not the newer
+transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from
+`duration_frames` so source-frame math stays untouched; video via `setpts`, audio via `atempo`
+(0.5-2.0, ffmpeg's real single-filter limit, enforced at render time)) are done.
+
+**P2.1 (image), P2.2 (video), and P2.3 (speech + voice cloning) are all proven end to end**:
+`GenerationProvider` interface + a local `ComfyUIProvider` wired through Editor's async job model
+(`generate` → poll `job_status` → `place_generated`) and exposed as MCP tools — a real MCP client can
+ask for an image, a short video, or spoken narration (preset voice or cloned from a reference clip),
+place it on the timeline, and export a real video containing it, over the same stdio path Claude
+Desktop/Cursor use. Video runs on the original LTX-Video 2B line (distilled, fp8), not the newer
 LTX-2/2.3 flagship (19-22B params, 16 GB+ even quantized — verified too heavy for this 8 GB card before
 committing to a download; the "LTX-Video" name now spans two very different model generations, worth
-knowing before reaching for it again). Real numbers on the reference RTX 3070: image ~7s/~2GB VRAM,
-video (512x320, 65 frames/25fps, 30 steps) ~22s/~6.4GB VRAM peak — both comfortably inside the 8 GB
-budget without needing any of section 5.7's offload/quantization techniques yet. Still open within P2:
-audio (TTS/SFX/music, §5.9), a cloud provider, and the VRAM-adaptive quantization *profiles* from §5.7
+knowing before reaching for it again). Speech runs on Qwen3-TTS (Apache-2.0 — chosen specifically over
+XTTS-v2/F5-TTS, both non-commercial-licensed). Real numbers on the reference RTX 3070: image ~7s/~2GB
+VRAM, video (512x320, 65 frames/25fps, 30 steps) ~22s/~6.4GB VRAM peak — both comfortably inside the
+8 GB budget without needing any of section 5.7's offload/quantization techniques yet. Still open within
+P2: SFX/music (§5.9), a cloud provider, and the VRAM-adaptive quantization *profiles* from §5.7
 (everything above runs at whatever precision its checkpoint ships in — the auto-selecting-by-detected-
 VRAM machinery, and pushing a *bigger* model than currently fits via GGUF/block-swap, is not yet built).
 

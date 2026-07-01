@@ -137,6 +137,27 @@ def _effect_filters(
     return parts
 
 
+def _speed_filter(speed: float, stream: Literal["video", "audio"]) -> str | None:
+    """A setpts (video) or atempo (audio) fragment for a clip's speed, or
+    None at normal speed so the filter chain is unchanged for the common
+    (speed == 1.0) case. Must run before effects/scale in the chain, since
+    effect timing (e.g. fade) is computed against the post-speed timeline
+    duration (see Clip.timeline_duration_frames)."""
+    if speed == 1.0:
+        return None
+    if stream == "video":
+        return f"setpts=(PTS-STARTPTS)/{speed}"
+    # atempo supports 0.5-2.0 in a single filter instance; chaining several
+    # instances for a wider range is real, well-known ffmpeg practice but
+    # out of scope for this pass - fail clearly rather than let ffmpeg do it.
+    if not (0.5 <= speed <= 2.0):
+        raise ValueError(
+            f"audio speed {speed} is outside ffmpeg's single-atempo range "
+            "[0.5, 2.0]; chaining atempo filters for a wider range isn't implemented yet"
+        )
+    return f"atempo={speed}"
+
+
 def _validate_contiguous(track: Track) -> list:
     """Each clip must either hard-cut from the previous one (start == prev.end)
     or declare a transition_in whose duration_frames exactly explains the
@@ -193,7 +214,7 @@ def _fold_segments(
     """
     parts: list[str] = []
     running = labels[0]
-    running_duration_frames = clips[0].duration_frames
+    running_duration_frames = clips[0].timeline_duration_frames
     for i in range(1, len(labels)):
         clip = clips[i]
         out_label = final_label if i == len(labels) - 1 else f"{stream[0]}fold{i}"
@@ -209,11 +230,11 @@ def _fold_segments(
                 )
             else:
                 parts.append(f"[{running}][{labels[i]}]acrossfade=d={duration_s:.6f}[{out_label}]")
-            running_duration_frames += clip.duration_frames - t_frames
+            running_duration_frames += clip.timeline_duration_frames - t_frames
         else:
             va = "v=1:a=0" if stream == "video" else "v=0:a=1"
             parts.append(f"[{running}][{labels[i]}]concat=n=2:{va}[{out_label}]")
-            running_duration_frames += clip.duration_frames
+            running_duration_frames += clip.timeline_duration_frames
         running = out_label
     return parts
 
@@ -289,10 +310,11 @@ class FFmpegBackend(RenderBackend):
                 for n, clip in enumerate(video_clips):
                     idx = media_index[clip.media]
                     label = f"v{n}"
-                    fx = _effect_filters(clip.effects, clip.duration_frames, fps, "video", text_dir)
+                    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "video", text_dir)
+                    speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
                     chain = (
                         f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},"
-                        f"setpts=PTS-STARTPTS"
+                        f"{speed_pts}"
                     )
                     for filt in fx:
                         chain += f",{filt}"
@@ -320,11 +342,14 @@ class FFmpegBackend(RenderBackend):
                     label = f"a{n}"
                     start_s = tb.frames_to_seconds(clip.src_in)
                     end_s = tb.frames_to_seconds(clip.src_out)
-                    fx = _effect_filters(clip.effects, clip.duration_frames, fps, "audio", text_dir)
+                    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "audio", text_dir)
                     chain = (
                         f"[{idx}:a]atrim=start={start_s:.6f}:end={end_s:.6f},"
                         f"asetpts=PTS-STARTPTS"
                     )
+                    speed_tempo = _speed_filter(clip.speed, "audio")
+                    if speed_tempo:
+                        chain += f",{speed_tempo}"
                     for filt in fx:
                         chain += f",{filt}"
                     chain += f",aresample={sample_rate}[{label}]"
