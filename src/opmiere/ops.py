@@ -18,7 +18,16 @@ from pathlib import Path
 from typing import Iterator
 
 from .bundle import Bundle
-from .model import Clip, Media, MediaKind, Project, Track, TrackKind, new_id
+from .model import (
+    KNOWN_EFFECT_TYPES,
+    Clip,
+    Media,
+    MediaKind,
+    Project,
+    Track,
+    TrackKind,
+    new_id,
+)
 from .render.backend import RenderBackend
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
@@ -165,6 +174,37 @@ class Editor:
         with self._mutate():
             track, clip = self._find_clip_and_track(clip_id)
             track.clips.remove(clip)
+            return clip
+
+    def apply_effect(self, clip_id: str, effect: dict) -> Clip:
+        """Append a deterministic effect (ARCHITECTURE.md section 5.8) to a clip.
+
+        Validated here so an agent gets an immediate, specific error instead of
+        a cryptic ffmpeg failure at export time. See KNOWN_EFFECT_TYPES for the
+        supported vocabulary; each type documents its own required fields.
+        """
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            etype = effect.get("type")
+            if etype not in KNOWN_EFFECT_TYPES:
+                raise ValueError(
+                    f"unknown effect type {etype!r}; supported: {sorted(KNOWN_EFFECT_TYPES)}"
+                )
+            if etype == "fade":
+                direction = effect.get("direction")
+                if direction not in ("in", "out"):
+                    raise ValueError("fade effect requires direction 'in' or 'out'")
+                duration_frames = effect.get("duration_frames")
+                if not isinstance(duration_frames, int) or duration_frames <= 0:
+                    raise ValueError(
+                        "fade effect requires a positive integer duration_frames"
+                    )
+                if duration_frames > clip.duration_frames:
+                    raise ValueError(
+                        f"fade duration_frames ({duration_frames}) exceeds clip "
+                        f"duration ({clip.duration_frames})"
+                    )
+            clip.effects.append(dict(effect))
             return clip
 
     # --- render -----------------------------------------------------------

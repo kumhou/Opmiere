@@ -27,12 +27,21 @@ __all__ = [
     "MediaKind",
     "TrackKind",
     "new_id",
+    "KNOWN_EFFECT_TYPES",
 ]
 
 SCHEMA_VERSION = 1
 
 MediaKind = Literal["video", "image", "audio"]
 TrackKind = Literal["video", "audio"]
+
+# The deterministic-effect vocabulary (ARCHITECTURE.md section 5.8). Single
+# source of truth: ops.py validates against this set, render/ffmpeg.py
+# interprets it. Effects that would change a clip's timeline duration (e.g.
+# speed/time-remap) are deliberately excluded until Clip's duration accounting
+# supports them — adding them here without that would silently desync the
+# timeline math the P0 render backend relies on.
+KNOWN_EFFECT_TYPES = {"color", "fade"}
 
 
 def new_id(prefix: str) -> str:

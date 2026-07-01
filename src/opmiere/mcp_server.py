@@ -113,6 +113,19 @@ def delete_clip(clip_id: str) -> dict:
 
 
 @mcp.tool()
+def apply_effect(clip_id: str, effect: dict) -> dict:
+    """Apply a deterministic effect to a clip (rendered by ffmpeg, no AI generation).
+
+    Effects stack in the order applied. Supported ``effect`` shapes:
+      {"type": "color", "brightness": -1..1 (default 0), "contrast": 0..2 (default 1), "saturation": 0..3 (default 1)}
+      {"type": "fade", "direction": "in"|"out", "duration_frames": N}
+    A fade's duration_frames must not exceed the clip's own duration_frames
+    (visible in get_project_state).
+    """
+    return _require_editor().apply_effect(clip_id, effect).to_dict()
+
+
+@mcp.tool()
 def undo() -> bool:
     """Undo the last edit. Returns False if there is nothing to undo."""
     return _require_editor().undo()

@@ -136,3 +136,76 @@ def test_export_produces_real_file(editor, sample_video, tmp_path):
     out = tmp_path / "out.mp4"
     editor.export(out)
     assert out.exists() and out.stat().st_size > 0
+
+
+def test_apply_effect_color(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+
+    updated = editor.apply_effect(clip.id, {"type": "color", "brightness": 0.2})
+    assert updated.effects == [{"type": "color", "brightness": 0.2}]
+
+
+def test_apply_effect_fade(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+
+    updated = editor.apply_effect(
+        clip.id, {"type": "fade", "direction": "in", "duration_frames": 10}
+    )
+    assert updated.effects[-1]["direction"] == "in"
+
+
+def test_apply_effect_rejects_unknown_type(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "chroma_key"})
+
+
+def test_apply_effect_fade_rejects_bad_direction(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "fade", "direction": "sideways", "duration_frames": 5})
+
+
+def test_apply_effect_fade_rejects_duration_exceeding_clip(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "fade", "direction": "out", "duration_frames": 999})
+
+
+def test_apply_effect_persists_through_save_reopen(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "color", "saturation": 0.0})
+    editor.save()
+
+    reopened = Editor.open(editor.bundle.root)
+    reopened_clip = reopened._find_clip(clip.id)
+    assert reopened_clip.effects == [{"type": "color", "saturation": 0.0}]
+
+
+def test_export_with_effects_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    """Color/fade must not change how long the exported clip is."""
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "color", "contrast": 1.3})
+    editor.apply_effect(clip.id, {"type": "fade", "direction": "in", "duration_frames": 5})
+    editor.apply_effect(clip.id, {"type": "fade", "direction": "out", "duration_frames": 5})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05  # 30 frames @ 30fps

@@ -1,10 +1,13 @@
 """FFmpegBackend — the P0/P1 render engine (ARCHITECTURE.md section 5.2).
 
-P0 scope, deliberately narrow (see ARCHITECTURE.md section 9):
+P0/P1 scope, deliberately narrow (see ARCHITECTURE.md section 9):
   - at most one video track and one audio track
   - clips on a track must be placed back-to-back with no gaps or overlaps,
     starting at frame 0 ("sequential placement")
-  - trim + concat only; no transitions/effects yet (section 5.8 lands in P1)
+  - trim + concat, plus the section 5.8 deterministic effects that don't
+    change a clip's timeline duration: color (video) and fade in/out (video
+    + audio). Speed/time-remap and cross-clip transitions are later work —
+    see model.KNOWN_EFFECT_TYPES for why they're excluded for now.
 
 Also provides ``import_media``: probes a source file with ffprobe and registers
 it on the project, refusing to guess values ffprobe doesn't confirm.
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any, Literal
 
 from ..bundle import Bundle
 from ..model import Media, MediaKind, Project, Track
@@ -21,6 +25,54 @@ from .backend import RenderBackend
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
 __all__ = ["FFmpegBackend", "import_media"]
+
+
+def _effect_filters(
+    effects: list[dict[str, Any]],
+    clip_duration_frames: int,
+    fps: float,
+    stream: Literal["video", "audio"],
+) -> list[str]:
+    """Translate a clip's ``effects`` list into ffmpeg filter fragments.
+
+    Each effect dict may contribute to the video chain, the audio chain, both,
+    or neither, depending on ``stream`` — e.g. "fade" produces a video `fade`
+    filter when building the video stream and an `afade` filter when building
+    the audio stream from the very same effect dict, so "fade this clip" does
+    what it sounds like on both picture and sound.
+    """
+    parts: list[str] = []
+    for effect in effects:
+        etype = effect.get("type")
+        if etype == "color":
+            if stream != "video":
+                continue
+            brightness = effect.get("brightness", 0.0)
+            contrast = effect.get("contrast", 1.0)
+            saturation = effect.get("saturation", 1.0)
+            parts.append(f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}")
+        elif etype == "fade":
+            direction = effect.get("direction")
+            duration_frames = effect.get("duration_frames")
+            # Editor.apply_effect already validated these; re-checking here
+            # means a render is never corrupted by a project.json hand-edited
+            # (or trimmed shorter after the fade was applied) outside the API.
+            if direction not in ("in", "out"):
+                raise ValueError(f"fade effect has invalid direction {direction!r}")
+            if not isinstance(duration_frames, int) or duration_frames <= 0:
+                raise ValueError("fade effect has invalid duration_frames")
+            if duration_frames > clip_duration_frames:
+                raise ValueError(
+                    f"fade duration_frames ({duration_frames}) exceeds clip "
+                    f"duration ({clip_duration_frames}) at render time"
+                )
+            duration_s = duration_frames / fps
+            start_s = 0.0 if direction == "in" else (clip_duration_frames - duration_frames) / fps
+            filter_name = "fade" if stream == "video" else "afade"
+            parts.append(f"{filter_name}=t={direction}:st={start_s:.6f}:d={duration_s:.6f}")
+        else:
+            raise NotImplementedError(f"effect type {etype!r} is not supported by FFmpegBackend yet")
+    return parts
 
 
 def _validate_contiguous(track: Track) -> list:
@@ -104,13 +156,19 @@ class FFmpegBackend(RenderBackend):
             for n, clip in enumerate(video_clips):
                 idx = media_index[clip.media]
                 label = f"v{n}"
-                filter_parts.append(
+                fx = _effect_filters(clip.effects, clip.duration_frames, fps, "video")
+                chain = (
                     f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},"
-                    f"setpts=PTS-STARTPTS,"
-                    f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+                    f"setpts=PTS-STARTPTS"
+                )
+                for filt in fx:
+                    chain += f",{filt}"
+                chain += (
+                    f",scale={W}:{H}:force_original_aspect_ratio=decrease,"
                     f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
                     f"setsar=1,fps={fps}[{label}]"
                 )
+                filter_parts.append(chain)
                 vlabels.append(f"[{label}]")
             filter_parts.append(
                 "".join(vlabels) + f"concat=n={len(vlabels)}:v=1:a=0[vout]"
@@ -125,10 +183,15 @@ class FFmpegBackend(RenderBackend):
                 label = f"a{n}"
                 start_s = tb.frames_to_seconds(clip.src_in)
                 end_s = tb.frames_to_seconds(clip.src_out)
-                filter_parts.append(
+                fx = _effect_filters(clip.effects, clip.duration_frames, fps, "audio")
+                chain = (
                     f"[{idx}:a]atrim=start={start_s:.6f}:end={end_s:.6f},"
-                    f"asetpts=PTS-STARTPTS,aresample={sample_rate}[{label}]"
+                    f"asetpts=PTS-STARTPTS"
                 )
+                for filt in fx:
+                    chain += f",{filt}"
+                chain += f",aresample={sample_rate}[{label}]"
+                filter_parts.append(chain)
                 alabels.append(f"[{label}]")
             filter_parts.append(
                 "".join(alabels) + f"concat=n={len(alabels)}:v=0:a=1[aout]"
