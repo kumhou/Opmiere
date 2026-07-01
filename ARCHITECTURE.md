@@ -14,16 +14,21 @@ the single source of truth for *why* the system is shaped the way it is.
 
 Existing open-source NLEs (Shotcut, Kdenlive, OpenShot, Olive) are excellent editors but have **no
 agent interface** — you cannot tell an LLM "cut the dead air, generate a B-roll clip of a sunrise,
-drop it at 0:12, and color-match it to the previous shot." Palmier Pro proved the agent-native NLE
-concept but is **macOS-only, closed-source, and its generation is a paid subscription**.
+drop it at 0:12, and color-match it to the previous shot." Palmier Pro (GPL-3.0, ~10k stars) proved
+the agent-native NLE concept, but it is **macOS / Apple-Silicon only** and its generation leans on
+**cloud APIs**. Opmiere's distinction is therefore *not* "open vs closed" — both are open source — but
+**Windows + NVIDIA/CUDA, with local-GPU generation as the core capability, not a fallback**.
 
 Opmiere targets the gap:
 
 1. **Agent-native.** Every edit a human can do, an agent can do, through one shared operation API.
-2. **Local-first generation.** Generative AI runs on the user's own GPU (free) via ComfyUI; cloud
-   APIs are pluggable providers for when quality matters and the user is willing to pay.
-3. **Open source, Windows-first.** The audience is ordinary creators priced out of Runway/Sora/Kling
-   subscriptions who have a gaming GPU sitting idle.
+2. **Local-GPU generation as a first-class capability.** The explicit goal is to make a *modest* card
+   (RTX 3070 / 8 GB) produce *high-quality* output by aggressively applying quantization + memory
+   offload, trading generation *time* for *quality and model reach* — longer waits are acceptable.
+   Cloud APIs remain pluggable providers for when the user wants speed or the absolute top tier.
+3. **Windows-first, NVIDIA/CUDA.** The audience is ordinary creators priced out of Runway/Sora/Kling
+   subscriptions who have a capable gaming GPU sitting idle. Both editors are open source; the
+   differentiation is platform + depth of local generation.
 
 ---
 
@@ -38,14 +43,17 @@ Primary dev/reference machine: **NVIDIA RTX 3070, 8 GB VRAM, 32 GB RAM, Windows 
 | Image gen (SDXL, SD1.5) | comfortable | ✅ primary local path |
 | Image gen (Flux, 12B) | needs GGUF quant, slow | ⚠️ usable |
 | Video gen — LTX-Video | designed for consumer GPUs | ✅ primary local video path |
-| Video gen — CogVideoX-2B / Wan-1.3B | with CPU offload, slow, short/low-res | ⚠️ draft only |
-| Video gen — Hunyuan, Wan-14B | does not fit | ❌ cloud only |
+| Video gen — CogVideoX-2B / Wan-1.3B | GGUF + CPU offload | ✅ solid local path |
+| Video gen — Wan-14B / Hunyuan (~13B) | GGUF Q4 + block-swap → 32 GB RAM | ⚠️ reachable, slow (minutes/clip) |
 
-**Consequence (DECIDED):** local generation is positioned as *draft / previz / storyboard* tier;
-final-quality video is expected to come from cloud providers. This is not a limitation to hide — it
-*is* the product: cheap local iteration, pay only for the shots you commit to. The architecture
-therefore treats local and cloud generation as **interchangeable providers behind one interface**,
-never hard-wiring either.
+**Consequence (DECIDED):** local generation is a **first-class path, not a draft-only fallback**. With
+the low-VRAM stack (§5.7) — GGUF / FP8 / SVDQuant quantization, CPU + block-swap offload into the
+32 GB of system RAM, tiled VAE decode, memory-efficient attention, and step-distilled models — even
+13–14B video models become *reachable* on an 8 GB card. The cost is paid in **time, not quality**,
+which is JH's explicitly accepted trade. Cloud providers exist for when the user wants speed or the
+very top tier. The architecture treats local and cloud generation as **interchangeable providers
+behind one interface**, and **auto-selects the best local strategy for the detected VRAM** (§5.7) so
+ordinary users never have to hand-assemble ComfyUI graphs.
 
 ---
 
@@ -144,6 +152,47 @@ never hard-wiring either.
 - FFmpeg (GPL full build) and MLT (LGPL/GPL) are invoked as **separate processes / at arms length**,
   never statically linked, so their copyleft does not propagate into Opmiere's own code. libopenshot
   (LGPL-3) is acceptable to link. ComfyUI runs as a separate process.
+
+### 5.7 VRAM-adaptive generation — the local-quality bet — DECIDED (direction)
+
+The core wager: **a modest GPU should reach high quality by spending *time*, not *money*.** The
+techniques to run big models on small VRAM are known in the ComfyUI community but require expert
+hand-assembly of node graphs — precisely the friction ordinary users cannot cross. Opmiere's value-add
+is to **abstract that dark art into automatic, VRAM-aware generation profiles.** The techniques it
+orchestrates:
+
+**A. Quantize the weights** (shrink the model — the diffusion analogue of LLM quantization):
+- **GGUF** (Q8 → Q2) via ComfyUI-GGUF; Flux / SD3 / Wan / Hunyuan all have GGUF builds.
+- **FP8 (e4m3fn)** weight storage — saves memory even on Ampere (RTX 3070), where compute upcasts.
+- **SVDQuant / NF4** 4-bit — near-FP16 quality at 4-bit; SVDQuant (Nunchaku) can be *faster*, not just smaller.
+
+**B. Offload** (use the 32 GB of system RAM as overflow):
+- **CPU / sequential offload** — keep only the active submodule resident in VRAM.
+- **Block swapping** — stream transformer blocks VRAM↔RAM during the forward pass; the knob that lets
+  13–14B video models run on 8 GB. `#blocks swapped` is a direct time-vs-VRAM dial.
+- **Tiled VAE decode** — removes the decode-time VRAM spike that OOMs long / high-res video.
+
+**C. Cheaper compute**:
+- **Memory-efficient attention** (xFormers, SageAttention INT8) — less VRAM, faster.
+- **Step-distilled / Turbo / LCM / Lightning** models — 4–8 steps vs 30–50 → far less wall-clock and
+  lower sustained VRAM.
+
+**D. Staged quality (draft → finish)** — maps perfectly onto the agent loop:
+- Generate a fast low-res / low-step **draft**; the agent or user approves; only the *committed* shot
+  is re-run at full quality or **upscaled** (tiled, dedicated video upscaler). The weak card pays the
+  full cost only on shots that survive — cheap iteration, expensive commit.
+
+**The product layer** (the actual differentiator — the techniques above are community-known):
+1. On first run, detect **GPU + VRAM + system RAM**.
+2. Define **generation profiles** (`8GB/quality-max-slow`, `8GB/balanced`, `24GB/fast`, …) that
+   pre-bake the right combination of the above into ComfyUI workflow templates.
+3. Expose a single **`quality: draft | balanced | max`** dial to the user *and the agent*. The user
+   picks *what* and *how patient*; Opmiere picks *how* to make the card do it — no node-graph assembly.
+
+> Honest caveat: the exact model + quant choices per profile are **validated empirically on the
+> reference RTX 3070 at P2** — real benchmarks beat spec-sheet guesses, and this space moves monthly.
+> What is decided *now* is the architecture (auto profiles + draft/finish staging + a quality dial);
+> the *contents* of each profile are tuned during P2.
 
 ---
 

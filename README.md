@@ -16,10 +16,12 @@ drafts; pay only for the shots you commit to.
 
 ## Why
 
-Open-source editors (Shotcut, Kdenlive, OpenShot) have no agent interface. Palmier Pro pioneered the
-agent-native NLE but is macOS-only, closed-source, and subscription-gated for generation. Opmiere is
-the open, Windows-first, local-GPU answer — built for creators priced out of cloud AI subscriptions
-who have a capable GPU already.
+Open-source editors (Shotcut, Kdenlive, OpenShot) have no agent interface. Palmier Pro (GPL-3.0)
+pioneered the agent-native NLE, but it is macOS / Apple-Silicon only and its generation leans on cloud
+APIs. Both projects are open source — Opmiere's difference is **Windows + NVIDIA/CUDA with local-GPU
+generation as the core capability**: making a modest 8 GB card reach high quality via quantization and
+memory offload (trading time for quality), built for creators priced out of cloud AI subscriptions who
+have a capable GPU sitting idle.
 
 ## Design in one breath
 
