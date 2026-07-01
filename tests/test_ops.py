@@ -429,3 +429,36 @@ def test_set_speed_rejects_audio_out_of_atempo_range_at_render_time(editor, samp
 
     with pytest.raises(ValueError, match="atempo"):
         editor.export(tmp_path / "out.mp4")
+
+
+def test_apply_effect_blur_and_vignette(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "blur", "amount": 8.0})
+    editor.apply_effect(clip.id, {"type": "vignette", "strength": 2.0})
+    assert clip.effects[0] == {"type": "blur", "amount": 8.0}
+    assert clip.effects[1] == {"type": "vignette", "strength": 2.0}
+
+
+def test_apply_effect_blur_rejects_non_positive_amount(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "blur", "amount": -1})
+
+
+def test_export_with_blur_and_vignette_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "blur", "amount": 6.0})
+    editor.apply_effect(clip.id, {"type": "vignette"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05

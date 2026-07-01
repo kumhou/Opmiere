@@ -45,7 +45,7 @@ TrackKind = Literal["video", "audio"]
 # speed/time-remap) are deliberately excluded until Clip's duration accounting
 # supports them — adding them here without that would silently desync the
 # timeline math the P0 render backend relies on.
-KNOWN_EFFECT_TYPES = {"color", "fade", "gain", "text"}
+KNOWN_EFFECT_TYPES = {"color", "fade", "gain", "text", "blur", "vignette"}
 
 # "text" effect defaults. A CJK-capable font is the right default for this
 # product (JH's primary language is Chinese) — Arial-style defaults would

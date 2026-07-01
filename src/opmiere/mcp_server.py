@@ -138,8 +138,12 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
       {"type": "fade", "direction": "in"|"out", "duration_frames": N}
       {"type": "gain", "db": float}  (audio volume in decibels, e.g. 6.0 louder, -6.0 quieter)
       {"type": "text", "content": str, "position": "top"|"center"|"bottom" (default bottom), "size": int (default 48), "color": "white" (default), "font": optional path to a .ttf/.ttc (default is a CJK-capable font)}
+      {"type": "blur", "amount": float (default 5.0, gaussian blur sigma - bigger is blurrier)}
+      {"type": "vignette", "strength": float (default 1.0, bigger is a more visible dark-corner effect)}
     A fade's duration_frames must not exceed the clip's own duration_frames
-    (visible in get_project_state).
+    (visible in get_project_state). Chroma key / green-screen isn't
+    supported yet - it needs multi-track compositing (a second layer to key
+    onto), which the render backend doesn't have.
     """
     return _require_editor().apply_effect(clip_id, effect).to_dict()
 

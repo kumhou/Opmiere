@@ -113,6 +113,23 @@ def _effect_filters(
                 f"textfile='{_escape_filter_path(str(caption_path))}':"
                 f"fontcolor={color}:fontsize={size}:x={x_expr}:y={y_expr}:expansion=none"
             )
+        elif etype == "blur":
+            if stream != "video":
+                continue
+            amount = effect.get("amount", 5.0)
+            if not isinstance(amount, (int, float)) or amount <= 0:
+                raise ValueError("blur effect has invalid 'amount'")
+            parts.append(f"gblur=sigma={amount}")
+        elif etype == "vignette":
+            if stream != "video":
+                continue
+            strength = effect.get("strength", 1.0)
+            if not isinstance(strength, (int, float)) or strength <= 0:
+                raise ValueError("vignette effect has invalid 'strength'")
+            # ffmpeg's vignette angle param: PI/5 is its own default "normal"
+            # strength: scale that by 1/strength so bigger strength = a
+            # smaller (more aggressive) angle = a more visible vignette.
+            parts.append(f"vignette=angle=PI/5/{strength}")
         elif etype == "fade":
             direction = effect.get("direction")
             duration_frames = effect.get("duration_frames")

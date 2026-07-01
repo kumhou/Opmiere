@@ -239,6 +239,14 @@ class Editor:
                 size = effect.get("size", 48)
                 if not isinstance(size, int) or size <= 0:
                     raise ValueError("text effect 'size' must be a positive integer")
+            elif etype == "blur":
+                amount = effect.get("amount", 5.0)
+                if not isinstance(amount, (int, float)) or amount <= 0:
+                    raise ValueError("blur effect 'amount' must be a positive number")
+            elif etype == "vignette":
+                strength = effect.get("strength", 1.0)
+                if not isinstance(strength, (int, float)) or strength <= 0:
+                    raise ValueError("vignette effect 'strength' must be a positive number")
             clip.effects.append(dict(effect))
             return clip
 
