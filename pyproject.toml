@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "opmiere"
+version = "0.0.1"
+description = "Open Premiere — an open-source, agent-native video editor for Windows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "kumhou" }]
+keywords = ["video", "editor", "nle", "ai", "agent", "mcp", "ffmpeg"]
+
+# P0 core has zero runtime dependencies: the render backend shells out to the
+# system `ffmpeg` / `ffprobe` binaries. Heavier subsystems (MCP, generation)
+# add their own optional deps in later phases.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/kumhou/Opmiere"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/opmiere"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
