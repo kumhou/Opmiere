@@ -20,6 +20,7 @@ from typing import Iterator
 from .bundle import Bundle
 from .model import (
     KNOWN_EFFECT_TYPES,
+    KNOWN_TRANSITION_TYPES,
     TEXT_POSITIONS,
     Clip,
     Media,
@@ -223,6 +224,59 @@ class Editor:
                 if not isinstance(size, int) or size <= 0:
                     raise ValueError("text effect 'size' must be a positive integer")
             clip.effects.append(dict(effect))
+            return clip
+
+    def add_transition(self, clip_id: str, transition_type: str, duration_frames: int) -> Clip:
+        """Dissolve ``clip_id`` in from whatever clip precedes it on its track.
+
+        Requires the boundary to currently be a clean hard cut (this clip's
+        start exactly equals the previous clip's end) — you can only *add* a
+        transition where there's an existing clean edit, not arbitrarily
+        overlap unrelated clips. Shortens the combined timeline by
+        duration_frames (start moves earlier by that much; see render/ffmpeg.py
+        for how this overlap is rendered as an actual crossfade).
+        """
+        with self._mutate():
+            if transition_type not in KNOWN_TRANSITION_TYPES:
+                raise ValueError(
+                    f"unknown transition type {transition_type!r}; "
+                    f"supported: {sorted(KNOWN_TRANSITION_TYPES)}"
+                )
+            if not isinstance(duration_frames, int) or duration_frames <= 0:
+                raise ValueError("add_transition requires a positive integer duration_frames")
+
+            track, clip = self._find_clip_and_track(clip_id)
+            if clip.transition_in is not None:
+                raise ValueError(f"clip {clip_id} already has a transition_in; remove it first")
+
+            ordered = track.clips_in_order()
+            idx = ordered.index(clip)
+            if idx == 0:
+                raise ValueError(f"clip {clip_id} is first on its track — nothing to dissolve from")
+            prev = ordered[idx - 1]
+            if clip.start != prev.end:
+                raise ValueError(
+                    f"clip {clip_id} is not a clean cut from {prev.id} "
+                    f"(start={clip.start}, prev.end={prev.end}) — "
+                    "transitions can only be added at an existing hard cut"
+                )
+            if duration_frames > min(prev.duration_frames, clip.duration_frames):
+                raise ValueError(
+                    f"transition duration_frames ({duration_frames}) exceeds the "
+                    f"shorter of the two clips ({min(prev.duration_frames, clip.duration_frames)})"
+                )
+
+            clip.transition_in = {"type": transition_type, "duration_frames": duration_frames}
+            clip.start -= duration_frames
+            return clip
+
+    def remove_transition(self, clip_id: str) -> Clip:
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if clip.transition_in is None:
+                raise ValueError(f"clip {clip_id} has no transition_in to remove")
+            clip.start += clip.transition_in["duration_frames"]
+            clip.transition_in = None
             return clip
 
     # --- render -----------------------------------------------------------

@@ -30,6 +30,7 @@ __all__ = [
     "KNOWN_EFFECT_TYPES",
     "DEFAULT_TEXT_FONT",
     "TEXT_POSITIONS",
+    "KNOWN_TRANSITION_TYPES",
 ]
 
 SCHEMA_VERSION = 1
@@ -52,6 +53,11 @@ KNOWN_EFFECT_TYPES = {"color", "fade", "gain", "text"}
 # rather than letting ffmpeg fail with an opaque filter-parse error.
 DEFAULT_TEXT_FONT = r"C:\Windows\Fonts\msyh.ttc"
 TEXT_POSITIONS = {"top", "center", "bottom"}
+
+# Transitions between adjacent clips on a track (ARCHITECTURE.md section 5.8).
+# Kept separate from KNOWN_EFFECT_TYPES: an effect is about one clip's own
+# pixels, a transition is about the *relationship* between two clips.
+KNOWN_TRANSITION_TYPES = {"cross_dissolve"}
 
 
 def new_id(prefix: str) -> str:
@@ -151,6 +157,10 @@ class Clip:
     src_in: int
     src_out: int
     effects: list[dict[str, Any]] = field(default_factory=list)
+    # {"type": "cross_dissolve", "duration_frames": N} or None. When set, this
+    # clip's `start` intentionally overlaps the previous clip on its track by
+    # duration_frames — see KNOWN_TRANSITION_TYPES and Editor.add_transition.
+    transition_in: dict[str, Any] | None = None
 
     @property
     def duration_frames(self) -> int:
@@ -162,7 +172,7 @@ class Clip:
         return self.start + self.duration_frames
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "id": self.id,
             "media": self.media,
             "start": self.start,
@@ -170,6 +180,9 @@ class Clip:
             "out": self.src_out,
             "effects": self.effects,
         }
+        if self.transition_in is not None:
+            d["transition_in"] = self.transition_in
+        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Clip":
@@ -180,6 +193,7 @@ class Clip:
             src_in=d["in"],
             src_out=d["out"],
             effects=d.get("effects", []),
+            transition_in=d.get("transition_in"),
         )
 
 

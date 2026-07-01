@@ -264,3 +264,90 @@ def test_export_with_gain_and_text_keeps_duration_unchanged(editor, sample_video
     from opmiere.render import probe
     result = probe(out)
     assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+def test_add_transition_shifts_clip_start_and_declares_it(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip_a = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    clip_b = editor.add_clip(track.id, media.id, start=30, src_in=0, src_out=30)
+
+    updated_b = editor.add_transition(clip_b.id, "cross_dissolve", duration_frames=10)
+
+    assert updated_b.start == 20  # 30 - 10
+    assert updated_b.transition_in == {"type": "cross_dissolve", "duration_frames": 10}
+    # total timeline shrinks by the overlap
+    assert editor.duration_frames() == clip_a.duration_frames + clip_b.duration_frames - 10
+
+
+def test_add_transition_rejects_on_first_clip(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip_a = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.add_transition(clip_a.id, "cross_dissolve", duration_frames=5)
+
+
+def test_add_transition_rejects_unknown_type(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    clip_b = editor.add_clip(track.id, media.id, start=30, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.add_transition(clip_b.id, "star_wipe", duration_frames=5)
+
+
+def test_add_transition_rejects_duration_exceeding_shorter_clip(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=10)  # short clip
+    clip_b = editor.add_clip(track.id, media.id, start=10, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.add_transition(clip_b.id, "cross_dissolve", duration_frames=20)  # > clip_a's 10
+
+
+def test_add_transition_rejects_non_clean_cut(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    clip_b = editor.add_clip(track.id, media.id, start=30, src_in=0, src_out=30)
+    editor.move_clip(clip_b.id, new_start=40)  # introduces a gap
+    with pytest.raises(ValueError):
+        editor.add_transition(clip_b.id, "cross_dissolve", duration_frames=5)
+
+
+def test_remove_transition_restores_start(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    clip_b = editor.add_clip(track.id, media.id, start=30, src_in=0, src_out=30)
+    editor.add_transition(clip_b.id, "cross_dissolve", duration_frames=10)
+
+    restored = editor.remove_transition(clip_b.id)
+    assert restored.start == 30
+    assert restored.transition_in is None
+
+
+def test_remove_transition_rejects_when_none_present(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip_a = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.remove_transition(clip_a.id)
+
+
+def test_export_with_transition_real_crossfade(editor, sample_video, tmp_path):
+    """Real render: duration must shrink by exactly the transition overlap."""
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)  # 1.0s
+    clip_b = editor.add_clip(track.id, media.id, start=30, src_in=0, src_out=30)  # 1.0s
+    editor.add_transition(clip_b.id, "cross_dissolve", duration_frames=10)  # 1/3s overlap
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    expected = (30 + 30 - 10) / FPS  # 50 frames @ 30fps = 1.667s
+    assert abs(result.duration_seconds - expected) < 0.05

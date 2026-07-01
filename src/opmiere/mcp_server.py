@@ -128,6 +128,25 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
 
 
 @mcp.tool()
+def add_transition(clip_id: str, transition_type: str, duration_frames: int) -> dict:
+    """Dissolve clip_id in from whatever clip precedes it on its track.
+
+    transition_type: currently only "cross_dissolve". The boundary must
+    currently be a clean hard cut (this clip's start == the previous clip's
+    end) - check get_project_state first. This shortens the combined
+    timeline by duration_frames, since the two clips now overlap by that
+    much instead of playing back to back.
+    """
+    return _require_editor().add_transition(clip_id, transition_type, duration_frames).to_dict()
+
+
+@mcp.tool()
+def remove_transition(clip_id: str) -> dict:
+    """Remove a previously-added transition_in from a clip, restoring its start."""
+    return _require_editor().remove_transition(clip_id).to_dict()
+
+
+@mcp.tool()
 def undo() -> bool:
     """Undo the last edit. Returns False if there is nothing to undo."""
     return _require_editor().undo()

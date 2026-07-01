@@ -138,6 +138,11 @@ def _effect_filters(
 
 
 def _validate_contiguous(track: Track) -> list:
+    """Each clip must either hard-cut from the previous one (start == prev.end)
+    or declare a transition_in whose duration_frames exactly explains the
+    overlap (start == prev.end - duration_frames). Anything else — an
+    undeclared overlap or a gap — is rejected rather than silently rendered.
+    """
     clips = track.clips_in_order()
     if not clips:
         raise ValueError(f"track {track.id} has no clips")
@@ -147,12 +152,17 @@ def _validate_contiguous(track: Track) -> list:
             f"(sequential placement only); first clip starts at {clips[0].start}"
         )
     for prev, nxt in zip(clips, clips[1:]):
-        if nxt.start != prev.end:
-            raise ValueError(
-                f"P0 limitation: track {track.id} clips must be contiguous "
-                f"(no gaps/overlaps); clip {prev.id} ends at frame {prev.end} "
-                f"but {nxt.id} starts at frame {nxt.start}"
-            )
+        if nxt.start == prev.end:
+            continue
+        transition = nxt.transition_in
+        if transition is not None and nxt.start == prev.end - transition["duration_frames"]:
+            continue
+        raise ValueError(
+            f"P0 limitation: track {track.id} clips must be contiguous, "
+            f"optionally overlapping by exactly a declared transition_in "
+            f"duration; clip {prev.id} ends at frame {prev.end} but {nxt.id} "
+            f"starts at frame {nxt.start}"
+        )
     return clips
 
 
@@ -160,6 +170,52 @@ def _track_all_media_have_audio(project: Project, track: Track) -> bool:
     return bool(track.clips) and all(
         project.media_by_id(c.media).has_audio for c in track.clips
     )
+
+
+def _fold_segments(
+    labels: list[str],
+    clips: list,
+    fps: float,
+    stream: Literal["video", "audio"],
+    final_label: str,
+) -> list[str]:
+    """Pairwise-fold N already-processed segment labels into one.
+
+    Each boundary is either a plain hard-cut (ffmpeg `concat`) or, when the
+    next clip declares a transition_in, a real crossfade (`xfade` for video,
+    `acrossfade` for audio) — verified empirically: xfade needs an explicit
+    `offset` in seconds (how far into the *running* combined stream the
+    dissolve starts) while acrossfade infers it from `duration` alone; get
+    either wrong and the dissolve lands at the wrong point or not at all.
+    concat is associative, so pairwise-folding hard cuts produces the same
+    output as one big concat=n=N — this only changes behavior at declared
+    transitions.
+    """
+    parts: list[str] = []
+    running = labels[0]
+    running_duration_frames = clips[0].duration_frames
+    for i in range(1, len(labels)):
+        clip = clips[i]
+        out_label = final_label if i == len(labels) - 1 else f"{stream[0]}fold{i}"
+        transition = clip.transition_in
+        if transition is not None:
+            t_frames = transition["duration_frames"]
+            duration_s = t_frames / fps
+            if stream == "video":
+                offset_s = running_duration_frames / fps - duration_s
+                parts.append(
+                    f"[{running}][{labels[i]}]xfade=transition=fade:"
+                    f"duration={duration_s:.6f}:offset={offset_s:.6f}[{out_label}]"
+                )
+            else:
+                parts.append(f"[{running}][{labels[i]}]acrossfade=d={duration_s:.6f}[{out_label}]")
+            running_duration_frames += clip.duration_frames - t_frames
+        else:
+            va = "v=1:a=0" if stream == "video" else "v=0:a=1"
+            parts.append(f"[{running}][{labels[i]}]concat=n=2:{va}[{out_label}]")
+            running_duration_frames += clip.duration_frames
+        running = out_label
+    return parts
 
 
 class FFmpegBackend(RenderBackend):
@@ -219,6 +275,7 @@ class FFmpegBackend(RenderBackend):
         with tempfile.TemporaryDirectory(prefix="opmiere_render_") as _text_dir:
             text_dir = Path(_text_dir)
 
+            video_final_label: str | None = None
             vlabels: list[str] = []
             if video_track is not None:
                 for n, clip in enumerate(video_clips):
@@ -237,16 +294,20 @@ class FFmpegBackend(RenderBackend):
                         f"setsar=1,fps={fps}[{label}]"
                     )
                     filter_parts.append(chain)
-                    vlabels.append(f"[{label}]")
-                filter_parts.append(
-                    "".join(vlabels) + f"concat=n={len(vlabels)}:v=1:a=0[vout]"
-                )
+                    vlabels.append(label)
+                if len(vlabels) == 1:
+                    video_final_label = vlabels[0]
+                else:
+                    filter_parts.extend(_fold_segments(vlabels, video_clips, fps, "video", "vout"))
+                    video_final_label = "vout"
 
+            audio_final_label: str | None = None
             alabels: list[str] = []
             if audio_source_track is not None:
                 sample_rate = project.timebase.sample_rate
                 tb = project.timebase
-                for n, clip in enumerate(audio_source_track.clips_in_order()):
+                audio_clips = audio_source_track.clips_in_order()
+                for n, clip in enumerate(audio_clips):
                     idx = media_index[clip.media]
                     label = f"a{n}"
                     start_s = tb.frames_to_seconds(clip.src_in)
@@ -260,18 +321,20 @@ class FFmpegBackend(RenderBackend):
                         chain += f",{filt}"
                     chain += f",aresample={sample_rate}[{label}]"
                     filter_parts.append(chain)
-                    alabels.append(f"[{label}]")
-                filter_parts.append(
-                    "".join(alabels) + f"concat=n={len(alabels)}:v=0:a=1[aout]"
-                )
+                    alabels.append(label)
+                if len(alabels) == 1:
+                    audio_final_label = alabels[0]
+                else:
+                    filter_parts.extend(_fold_segments(alabels, audio_clips, fps, "audio", "aout"))
+                    audio_final_label = "aout"
 
             filter_complex = ";".join(filter_parts)
 
             cmd = ["ffmpeg", "-y", *input_args, "-filter_complex", filter_complex]
-            if vlabels:
-                cmd += ["-map", "[vout]"]
-            if alabels:
-                cmd += ["-map", "[aout]"]
+            if video_final_label:
+                cmd += ["-map", f"[{video_final_label}]"]
+            if audio_final_label:
+                cmd += ["-map", f"[{audio_final_label}]"]
             else:
                 cmd += ["-an"]
             cmd += ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac", str(output_path)]
