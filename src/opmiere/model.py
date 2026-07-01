@@ -28,6 +28,8 @@ __all__ = [
     "TrackKind",
     "new_id",
     "KNOWN_EFFECT_TYPES",
+    "DEFAULT_TEXT_FONT",
+    "TEXT_POSITIONS",
 ]
 
 SCHEMA_VERSION = 1
@@ -41,7 +43,15 @@ TrackKind = Literal["video", "audio"]
 # speed/time-remap) are deliberately excluded until Clip's duration accounting
 # supports them — adding them here without that would silently desync the
 # timeline math the P0 render backend relies on.
-KNOWN_EFFECT_TYPES = {"color", "fade"}
+KNOWN_EFFECT_TYPES = {"color", "fade", "gain", "text"}
+
+# "text" effect defaults. A CJK-capable font is the right default for this
+# product (JH's primary language is Chinese) — Arial-style defaults would
+# silently render CJK captions as tofu boxes. Verified present on Windows
+# 10/11 by default. Render-time raises a clear error if it's ever missing
+# rather than letting ffmpeg fail with an opaque filter-parse error.
+DEFAULT_TEXT_FONT = r"C:\Windows\Fonts\msyh.ttc"
+TEXT_POSITIONS = {"top", "center", "bottom"}
 
 
 def new_id(prefix: str) -> str:

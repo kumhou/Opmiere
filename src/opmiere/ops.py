@@ -20,6 +20,7 @@ from typing import Iterator
 from .bundle import Bundle
 from .model import (
     KNOWN_EFFECT_TYPES,
+    TEXT_POSITIONS,
     Clip,
     Media,
     MediaKind,
@@ -204,6 +205,23 @@ class Editor:
                         f"fade duration_frames ({duration_frames}) exceeds clip "
                         f"duration ({clip.duration_frames})"
                     )
+            elif etype == "gain":
+                db = effect.get("db")
+                if not isinstance(db, (int, float)):
+                    raise ValueError("gain effect requires a numeric 'db' field")
+            elif etype == "text":
+                content = effect.get("content")
+                if not isinstance(content, str) or not content.strip():
+                    raise ValueError("text effect requires non-empty string 'content'")
+                position = effect.get("position", "bottom")
+                if position not in TEXT_POSITIONS:
+                    raise ValueError(
+                        f"text effect position must be one of {sorted(TEXT_POSITIONS)}, "
+                        f"got {position!r}"
+                    )
+                size = effect.get("size", 48)
+                if not isinstance(size, int) or size <= 0:
+                    raise ValueError("text effect 'size' must be a positive integer")
             clip.effects.append(dict(effect))
             return clip
 

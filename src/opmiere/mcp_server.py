@@ -119,6 +119,8 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
     Effects stack in the order applied. Supported ``effect`` shapes:
       {"type": "color", "brightness": -1..1 (default 0), "contrast": 0..2 (default 1), "saturation": 0..3 (default 1)}
       {"type": "fade", "direction": "in"|"out", "duration_frames": N}
+      {"type": "gain", "db": float}  (audio volume in decibels, e.g. 6.0 louder, -6.0 quieter)
+      {"type": "text", "content": str, "position": "top"|"center"|"bottom" (default bottom), "size": int (default 48), "color": "white" (default), "font": optional path to a .ttf/.ttc (default is a CJK-capable font)}
     A fade's duration_frames must not exceed the clip's own duration_frames
     (visible in get_project_state).
     """

@@ -209,3 +209,58 @@ def test_export_with_effects_keeps_duration_unchanged(editor, sample_video, tmp_
     from opmiere.render import probe
     result = probe(out)
     assert abs(result.duration_seconds - 1.0) < 0.05  # 30 frames @ 30fps
+
+
+def test_apply_effect_gain(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    updated = editor.apply_effect(clip.id, {"type": "gain", "db": -6.0})
+    assert updated.effects == [{"type": "gain", "db": -6.0}]
+
+
+def test_apply_effect_gain_rejects_non_numeric_db(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "gain", "db": "loud"})
+
+
+def test_apply_effect_text(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    updated = editor.apply_effect(clip.id, {"type": "text", "content": "你好 Opmiere"})
+    assert updated.effects[-1]["content"] == "你好 Opmiere"
+
+
+def test_apply_effect_text_rejects_empty_content(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "text", "content": "   "})
+
+
+def test_apply_effect_text_rejects_bad_position(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "text", "content": "hi", "position": "middle-ish"})
+
+
+def test_export_with_gain_and_text_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "gain", "db": 3.0})
+    editor.apply_effect(clip.id, {"type": "text", "content": "你好 Opmiere: test's"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05

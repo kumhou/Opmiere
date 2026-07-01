@@ -5,9 +5,9 @@ P0/P1 scope, deliberately narrow (see ARCHITECTURE.md section 9):
   - clips on a track must be placed back-to-back with no gaps or overlaps,
     starting at frame 0 ("sequential placement")
   - trim + concat, plus the section 5.8 deterministic effects that don't
-    change a clip's timeline duration: color (video) and fade in/out (video
-    + audio). Speed/time-remap and cross-clip transitions are later work —
-    see model.KNOWN_EFFECT_TYPES for why they're excluded for now.
+    change a clip's timeline duration: color/text (video), gain (audio), and
+    fade in/out (video + audio). Speed/time-remap and cross-clip transitions
+    are later work — see model.KNOWN_EFFECT_TYPES for why they're excluded.
 
 Also provides ``import_media``: probes a source file with ffprobe and registers
 it on the project, refusing to guess values ffprobe doesn't confirm.
@@ -16,15 +16,35 @@ it on the project, refusing to guess values ffprobe doesn't confirm.
 from __future__ import annotations
 
 import subprocess
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
 from ..bundle import Bundle
-from ..model import Media, MediaKind, Project, Track
+from ..model import DEFAULT_TEXT_FONT, Media, MediaKind, Project, Track
 from .backend import RenderBackend
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
 __all__ = ["FFmpegBackend", "import_media"]
+
+# x/y position expressions for the "text" effect's ffmpeg drawtext filter.
+_TEXT_POSITION_EXPRESSIONS = {
+    "top": ("(w-text_w)/2", "40"),
+    "center": ("(w-text_w)/2", "(h-text_h)/2"),
+    "bottom": ("(w-text_w)/2", "h-text_h-40"),
+}
+
+
+def _escape_filter_path(path: str) -> str:
+    """Make a filesystem path safe inside a single-quoted ffmpeg filter value.
+
+    Verified empirically on Windows (drive-letter colons and backslashes are
+    both filtergraph metacharacters and are *not* reliably escapable when the
+    value is left unquoted — quoting the whole value plus this escaping is
+    the combination that actually parses).
+    """
+    return path.replace("\\", "/").replace(":", "\\:")
 
 
 def _effect_filters(
@@ -32,6 +52,7 @@ def _effect_filters(
     clip_duration_frames: int,
     fps: float,
     stream: Literal["video", "audio"],
+    text_dir: Path | None = None,
 ) -> list[str]:
     """Translate a clip's ``effects`` list into ffmpeg filter fragments.
 
@@ -40,6 +61,13 @@ def _effect_filters(
     filter when building the video stream and an `afade` filter when building
     the audio stream from the very same effect dict, so "fade this clip" does
     what it sounds like on both picture and sound.
+
+    ``text_dir`` is a scratch directory the caller owns for the render's
+    lifetime: caption text is written there as a UTF-8 file and referenced via
+    drawtext's ``textfile=``, sidestepping two real problems verified on
+    Windows — CJK characters getting mangled when passed through subprocess
+    argv (the OS console codepage, not UTF-8, decides that), and having to
+    hand-escape arbitrary user text for the filtergraph's own mini-syntax.
     """
     parts: list[str] = []
     for effect in effects:
@@ -51,6 +79,40 @@ def _effect_filters(
             contrast = effect.get("contrast", 1.0)
             saturation = effect.get("saturation", 1.0)
             parts.append(f"eq=brightness={brightness}:contrast={contrast}:saturation={saturation}")
+        elif etype == "gain":
+            if stream != "audio":
+                continue
+            db = effect.get("db")
+            if not isinstance(db, (int, float)):
+                raise ValueError("gain effect has invalid 'db' value")
+            parts.append(f"volume={db}dB")
+        elif etype == "text":
+            if stream != "video":
+                continue
+            content = effect.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("text effect has invalid 'content'")
+            position = effect.get("position", "bottom")
+            if position not in _TEXT_POSITION_EXPRESSIONS:
+                raise ValueError(f"text effect has invalid position {position!r}")
+            size = effect.get("size", 48)
+            color = effect.get("color", "white")
+            font = effect.get("font", DEFAULT_TEXT_FONT)
+            if not Path(font).exists():
+                raise FileNotFoundError(
+                    f"text effect font not found: {font} "
+                    "(pass an explicit 'font' path to an existing .ttf/.ttc)"
+                )
+            if text_dir is None:
+                raise RuntimeError("internal: _effect_filters needs text_dir for a text effect")
+            caption_path = Path(text_dir) / f"caption_{uuid.uuid4().hex[:8]}.txt"
+            caption_path.write_text(content, encoding="utf-8")
+            x_expr, y_expr = _TEXT_POSITION_EXPRESSIONS[position]
+            parts.append(
+                f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                f"textfile='{_escape_filter_path(str(caption_path))}':"
+                f"fontcolor={color}:fontsize={size}:x={x_expr}:y={y_expr}:expansion=none"
+            )
         elif etype == "fade":
             direction = effect.get("direction")
             duration_frames = effect.get("duration_frames")
@@ -151,69 +213,75 @@ class FFmpegBackend(RenderBackend):
         W, H = project.resolution.w, project.resolution.h
         fps = project.timebase.fps
 
-        vlabels: list[str] = []
-        if video_track is not None:
-            for n, clip in enumerate(video_clips):
-                idx = media_index[clip.media]
-                label = f"v{n}"
-                fx = _effect_filters(clip.effects, clip.duration_frames, fps, "video")
-                chain = (
-                    f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},"
-                    f"setpts=PTS-STARTPTS"
+        # Scratch dir for "text" effect caption files (see _effect_filters);
+        # must outlive the ffmpeg subprocess call below, so it wraps everything
+        # that reads from it.
+        with tempfile.TemporaryDirectory(prefix="opmiere_render_") as _text_dir:
+            text_dir = Path(_text_dir)
+
+            vlabels: list[str] = []
+            if video_track is not None:
+                for n, clip in enumerate(video_clips):
+                    idx = media_index[clip.media]
+                    label = f"v{n}"
+                    fx = _effect_filters(clip.effects, clip.duration_frames, fps, "video", text_dir)
+                    chain = (
+                        f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},"
+                        f"setpts=PTS-STARTPTS"
+                    )
+                    for filt in fx:
+                        chain += f",{filt}"
+                    chain += (
+                        f",scale={W}:{H}:force_original_aspect_ratio=decrease,"
+                        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                        f"setsar=1,fps={fps}[{label}]"
+                    )
+                    filter_parts.append(chain)
+                    vlabels.append(f"[{label}]")
+                filter_parts.append(
+                    "".join(vlabels) + f"concat=n={len(vlabels)}:v=1:a=0[vout]"
                 )
-                for filt in fx:
-                    chain += f",{filt}"
-                chain += (
-                    f",scale={W}:{H}:force_original_aspect_ratio=decrease,"
-                    f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
-                    f"setsar=1,fps={fps}[{label}]"
+
+            alabels: list[str] = []
+            if audio_source_track is not None:
+                sample_rate = project.timebase.sample_rate
+                tb = project.timebase
+                for n, clip in enumerate(audio_source_track.clips_in_order()):
+                    idx = media_index[clip.media]
+                    label = f"a{n}"
+                    start_s = tb.frames_to_seconds(clip.src_in)
+                    end_s = tb.frames_to_seconds(clip.src_out)
+                    fx = _effect_filters(clip.effects, clip.duration_frames, fps, "audio", text_dir)
+                    chain = (
+                        f"[{idx}:a]atrim=start={start_s:.6f}:end={end_s:.6f},"
+                        f"asetpts=PTS-STARTPTS"
+                    )
+                    for filt in fx:
+                        chain += f",{filt}"
+                    chain += f",aresample={sample_rate}[{label}]"
+                    filter_parts.append(chain)
+                    alabels.append(f"[{label}]")
+                filter_parts.append(
+                    "".join(alabels) + f"concat=n={len(alabels)}:v=0:a=1[aout]"
                 )
-                filter_parts.append(chain)
-                vlabels.append(f"[{label}]")
-            filter_parts.append(
-                "".join(vlabels) + f"concat=n={len(vlabels)}:v=1:a=0[vout]"
-            )
 
-        alabels: list[str] = []
-        if audio_source_track is not None:
-            sample_rate = project.timebase.sample_rate
-            tb = project.timebase
-            for n, clip in enumerate(audio_source_track.clips_in_order()):
-                idx = media_index[clip.media]
-                label = f"a{n}"
-                start_s = tb.frames_to_seconds(clip.src_in)
-                end_s = tb.frames_to_seconds(clip.src_out)
-                fx = _effect_filters(clip.effects, clip.duration_frames, fps, "audio")
-                chain = (
-                    f"[{idx}:a]atrim=start={start_s:.6f}:end={end_s:.6f},"
-                    f"asetpts=PTS-STARTPTS"
+            filter_complex = ";".join(filter_parts)
+
+            cmd = ["ffmpeg", "-y", *input_args, "-filter_complex", filter_complex]
+            if vlabels:
+                cmd += ["-map", "[vout]"]
+            if alabels:
+                cmd += ["-map", "[aout]"]
+            else:
+                cmd += ["-an"]
+            cmd += ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac", str(output_path)]
+
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    "ffmpeg export failed (exit "
+                    f"{proc.returncode}):\ncmd: {' '.join(cmd)}\nstderr:\n{proc.stderr}"
                 )
-                for filt in fx:
-                    chain += f",{filt}"
-                chain += f",aresample={sample_rate}[{label}]"
-                filter_parts.append(chain)
-                alabels.append(f"[{label}]")
-            filter_parts.append(
-                "".join(alabels) + f"concat=n={len(alabels)}:v=0:a=1[aout]"
-            )
-
-        filter_complex = ";".join(filter_parts)
-
-        cmd = ["ffmpeg", "-y", *input_args, "-filter_complex", filter_complex]
-        if vlabels:
-            cmd += ["-map", "[vout]"]
-        if alabels:
-            cmd += ["-map", "[aout]"]
-        else:
-            cmd += ["-an"]
-        cmd += ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac", str(output_path)]
-
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise RuntimeError(
-                "ffmpeg export failed (exit "
-                f"{proc.returncode}):\ncmd: {' '.join(cmd)}\nstderr:\n{proc.stderr}"
-            )
         return output_path
 
 
