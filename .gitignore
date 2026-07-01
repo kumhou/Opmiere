@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node (GUI, later)
+node_modules/
+.vite/
+dist-gui/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Opmiere runtime / user data
+*.opm/          # project bundles are user data, not source
+media_cache/
+outputs/
+models/         # local model weights — never commit
+*.log
+.env
