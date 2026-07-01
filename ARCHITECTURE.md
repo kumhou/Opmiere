@@ -371,14 +371,19 @@ Note: **basic deterministic effects land early (P1)** because FFmpeg makes them 
 *advanced* effects wait for P4. This keeps "it's a real editor" true from the first agent-drivable build.
 
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
-transitions) are done. **P2.1 is proven end to end**: `GenerationProvider` interface + a local
-`ComfyUIProvider` (SD1.5, RTX 3070) wired through Editor's async job model (`generate` → poll
-`job_status` → `place_generated`) and exposed as MCP tools — a real MCP client can ask for an image,
-place it on the timeline, and export a real video containing it, over the same stdio path Claude
-Desktop/Cursor use. Still open within P2: video generation (LTX-Video), audio (TTS/SFX/music, §5.9), a
-cloud provider, and the actual VRAM-adaptive quantization profiles from §5.7 (P2.1 runs SD1.5 at
-default precision — the quantization work that lets an 8 GB card punch above its weight is not yet
-built, just architecturally provided for).
+transitions) are done. **P2.1 (image) and P2.2 (video) are both proven end to end**: `GenerationProvider`
+interface + a local `ComfyUIProvider` wired through Editor's async job model (`generate` → poll
+`job_status` → `place_generated`) and exposed as MCP tools — a real MCP client can ask for an image or a
+short video, place it on the timeline, and export a real video containing it, over the same stdio path
+Claude Desktop/Cursor use. Video runs on the original LTX-Video 2B line (distilled, fp8), not the newer
+LTX-2/2.3 flagship (19-22B params, 16 GB+ even quantized — verified too heavy for this 8 GB card before
+committing to a download; the "LTX-Video" name now spans two very different model generations, worth
+knowing before reaching for it again). Real numbers on the reference RTX 3070: image ~7s/~2GB VRAM,
+video (512x320, 65 frames/25fps, 30 steps) ~22s/~6.4GB VRAM peak — both comfortably inside the 8 GB
+budget without needing any of section 5.7's offload/quantization techniques yet. Still open within P2:
+audio (TTS/SFX/music, §5.9), a cloud provider, and the VRAM-adaptive quantization *profiles* from §5.7
+(everything above runs at whatever precision its checkpoint ships in — the auto-selecting-by-detected-
+VRAM machinery, and pushing a *bigger* model than currently fits via GGUF/block-swap, is not yet built).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
