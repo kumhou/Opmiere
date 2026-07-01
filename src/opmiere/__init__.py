@@ -1,5 +1,6 @@
 from .bundle import Bundle
 from .model import Clip, Media, Project, Resolution, Timebase, Track
+from .ops import Editor
 
 __all__ = [
     "Project",
@@ -9,6 +10,7 @@ __all__ = [
     "Track",
     "Clip",
     "Bundle",
+    "Editor",
 ]
 
 __version__ = "0.0.1"

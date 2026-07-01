@@ -12,16 +12,20 @@ license = "Apache-2.0"
 authors = [{ name = "kumhou" }]
 keywords = ["video", "editor", "nle", "ai", "agent", "mcp", "ffmpeg"]
 
-# P0 core has zero runtime dependencies: the render backend shells out to the
-# system `ffmpeg` / `ffprobe` binaries. Heavier subsystems (MCP, generation)
-# add their own optional deps in later phases.
-dependencies = []
+# The editing core (model/bundle/render/ops) shells out to the system
+# `ffmpeg`/`ffprobe` binaries and needs nothing else. `mcp` is here because the
+# agent-facing MCP server (mcp_server.py) is a P1 headline deliverable, not an
+# add-on. Generation backends (ComfyUI, cloud providers) add their own deps in P2.
+dependencies = ["mcp[cli]>=1.28"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [project.urls]
 Homepage = "https://github.com/kumhou/Opmiere"
+
+[project.scripts]
+opmiere-mcp = "opmiere.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/opmiere"]

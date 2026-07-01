@@ -26,6 +26,7 @@ __all__ = [
     "Project",
     "MediaKind",
     "TrackKind",
+    "new_id",
 ]
 
 SCHEMA_VERSION = 1
@@ -34,8 +35,12 @@ MediaKind = Literal["video", "image", "audio"]
 TrackKind = Literal["video", "audio"]
 
 
-def _new_id(prefix: str) -> str:
-    """A short, stable, human-readable id, e.g. ``clp_9f3a1c``."""
+def new_id(prefix: str) -> str:
+    """A short, stable, human-readable id, e.g. ``clp_9f3a1c``.
+
+    Public: the Operation API (ops.py) needs to mint new clip ids too (e.g.
+    ``split_clip`` creating a second clip), not just this module.
+    """
     return f"{prefix}_{uuid.uuid4().hex[:6]}"
 
 
@@ -188,7 +193,7 @@ class Track:
 class Project:
     """Root document. Serialised as ``project.json`` inside a ``.opm`` bundle."""
 
-    id: str = field(default_factory=lambda: _new_id("prj"))
+    id: str = field(default_factory=lambda: new_id("prj"))
     timebase: Timebase = field(default_factory=Timebase)
     resolution: Resolution = field(default_factory=Resolution)
     media: list[Media] = field(default_factory=list)
@@ -217,12 +222,12 @@ class Project:
         has_audio: bool = False,
         origin: dict[str, Any] | None = None,
     ) -> Media:
-        m = Media(_new_id("med"), kind, path, duration_frames, has_audio, origin)
+        m = Media(new_id("med"), kind, path, duration_frames, has_audio, origin)
         self.media.append(m)
         return m
 
     def add_track(self, kind: TrackKind) -> Track:
-        t = Track(_new_id("trk"), kind)
+        t = Track(new_id("trk"), kind)
         self.tracks.append(t)
         return t
 
@@ -241,7 +246,7 @@ class Project:
                 f"clip out ({src_out}) exceeds media duration "
                 f"({media.duration_frames}) of {media.id}"
             )
-        c = Clip(_new_id("clp"), media.id, start, src_in, src_out)
+        c = Clip(new_id("clp"), media.id, start, src_in, src_out)
         track.clips.append(c)
         return c
 
