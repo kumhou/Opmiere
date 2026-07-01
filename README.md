@@ -29,8 +29,11 @@ have a capable GPU sitting idle.
   Anything a human can do, an agent can do, by construction.
 - **Engine-independent project model** — Opmiere owns its timeline; render engines (FFmpeg now,
   libopenshot/MLT later) are pluggable backends.
-- **Everything is a provider** — local ComfyUI and cloud APIs implement one generation interface; the
-  user picks per shot.
+- **Everything is a provider** — local ComfyUI and cloud APIs implement one generation interface for
+  image, video, **and audio (TTS / SFX / music)**; the user picks per shot.
+- **Editor-first, generation-additive** — a curated deterministic toolset (cut, color, chroma key,
+  transitions, text, audio) means quality does *not* depend only on AI generation; the agent does
+  reliable tool-work and reserves generation for genuinely-new imagery.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md).
 

@@ -194,6 +194,48 @@ orchestrates:
 > What is decided *now* is the architecture (auto profiles + draft/finish staging + a quality dial);
 > the *contents* of each profile are tuned during P2.
 
+### 5.8 Deterministic effects & tools — editor-first, generation-additive — DECIDED
+
+**Principle:** final quality must *not* rest solely on generative models. Most of what reads as
+"professional" is achieved by **deterministic tools** that are instant, perfect, and free — no GPU
+generation involved. Opmiere is a real editor first; generation is additive. This means it is useful
+on day one, useful on machines with no capable GPU, and it lets an **agent do reliable deterministic
+work with tools instead of gambling on generation for everything** — reserving expensive generation
+for genuinely-new imagery only. This is the smarter, cheaper agent workflow.
+
+Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-per-effort):
+- **Editing:** cut / trim / ripple / roll / slip, split, speed & time-remap (slow-mo, ramps).
+- **Transitions:** cross-dissolve, dip-to-black/white, wipes.
+- **Color:** curves, LUT/3D-LUT, white balance, saturation/contrast — carries most of the "pro look".
+- **Transform:** crop, scale, position, rotate, Ken-Burns pan/zoom; (stabilization — later).
+- **Keying/masking:** chroma key (green screen), luma key, shape masks.
+- **Text:** titles, lower-thirds, captions/subtitles.
+- **Stylize:** blur, sharpen, vignette, glow, film grain.
+- **Audio:** gain, EQ, compression, ducking, noise reduction, fades.
+
+Two facts make this cheap to deliver:
+1. It **slots into the existing abstractions** — each is a clip `effect` + an `apply_effect` operation;
+   the agent gets the exact same tools over MCP as the human.
+2. The **FFmpeg-first render backend already provides most of it** (`curves`, `lut3d`, `chromakey`,
+   `xfade`, `drawtext`, `zoompan`, `eq`, `acompressor`, `afade`, `arnndn` denoise, …) with zero new
+   dependencies. Real-time interactive versions arrive with the P3 preview backend (GPU shaders /
+   frei0r / movit). Advanced keying, motion tracking, and stabilization are explicitly **later**.
+
+### 5.9 Local audio generation — speech / SFX / music — DECIDED (direction)
+
+Not just image and video — audio is a first-class generation `kind`, same `GenerationProvider`
+interface, same VRAM-adaptive quantization treatment (§5.7). All local-first, cloud-optional.
+- **Speech / TTS:** Kokoro (small, strong, 8 GB-friendly), XTTS-v2 / F5-TTS (**voice cloning**), Piper
+  (ultra-light). Voice cloning directly serves an existing need — narration in *the user's own voice*,
+  not a canned preset, kept entirely local (no voice uploaded to the cloud).
+- **Music:** MusicGen, Stable Audio Open — local, fine for short cues.
+- **SFX:** Stable Audio Open / AudioGen — clips are short, so 8 GB copes well.
+
+Honest tiering (consistent with §2): local TTS is near-cloud quality; local music is good-not-top-tier;
+local SFX is fine. Cloud (ElevenLabs, Suno) remains the pluggable top-tier option. Some of this can run
+*through* the existing ComfyUI provider (it has audio nodes); the rest via thin local model wrappers —
+either way it is "another provider / kind", not new architecture.
+
 ---
 
 ## 6. The project model (the crown jewel)
@@ -277,14 +319,19 @@ agent/GUI ─ job_status(job_id) ─► {queued|running|done|error, progress, re
 
 | Phase | Goal | Proves |
 |-------|------|--------|
-| **P0 Foundation** | Project model + `.opm` bundle + FFmpeg render backend. Import → place clips → export a video, headless. | The engine path works on Windows. |
-| **P1 Agent control** | Operation API + MCP server. Claude Code can build/edit a timeline and export it with no GUI. | The core differentiator, front-loaded. |
-| **P2 Generation** | `GenerationProvider` + ComfyUI local (image, then LTX-Video) + one cloud provider. Agent: "generate X → place on timeline." | Local-first + cloud-optional thesis. |
-| **P3 GUI** | Web frontend: timeline, preview player, media bin, generation panel, agent chat. Interactive render backend for scrubbing. | Ordinary-user usability. |
-| **P4 Depth** | Effects/transitions/color, semantic media search, packaging/installer, docs, OSS release hygiene. | Ready for the world. |
+| **P0 Foundation** | Project model + `.opm` bundle + FFmpeg render backend. Import → place → trim/cut → export, headless. | The engine path works on Windows. |
+| **P1 Agent control + core tools** | Operation API + MCP server. Claude Code builds/edits a timeline and exports it, no GUI. Includes the cheap **deterministic tools** (§5.8) FFmpeg already gives: transitions, color, text, audio basics. | Core differentiator + editor-first, front-loaded. |
+| **P2 Generation (incl. audio)** | `GenerationProvider` + ComfyUI local (image → LTX-Video) + **audio: TTS / SFX / music** (§5.9) + one cloud provider, all VRAM-adaptive (§5.7). Agent: "generate X → place on timeline." | Local-first + cloud-optional thesis, across media types. |
+| **P3 GUI** | Web frontend: timeline, preview player, media bin, generation panel, agent chat. Interactive render backend for scrubbing + real-time effects. | Ordinary-user usability. |
+| **P4 Depth** | *Advanced* effects (keying, motion tracking, stabilization), semantic media search, packaging/installer, docs, OSS release hygiene. | Ready for the world. |
 
-The P0→P2 headless demo — *"Claude, generate a 5-second sunrise, put it at 0:12, and export a 1080p
-cut"* — is the proof-of-concept that de-risks the entire vision before a single pixel of GUI exists.
+Note: **basic deterministic effects land early (P1)** because FFmpeg makes them nearly free; only the
+*advanced* effects wait for P4. This keeps "it's a real editor" true from the first agent-drivable build.
+
+The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
+voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
+cut"* — mixes generation *and* deterministic tools, and de-risks the entire vision before a single
+pixel of GUI exists.
 
 ---
 
