@@ -12,6 +12,15 @@ the single source of truth for *why* the system is shaped the way it is.
 
 ## 1. Why this exists
 
+> **North star.** The market generates a whole video in *one shot*. Opmiere instead builds a film from
+> **many small, controlled generations, assembled with real editing craft and sound design** — directed
+> end-to-end by a frontier LLM agent. The bet: a *directed, assembled* piece **beats a one-shot clip
+> from an even stronger model**, because control, continuity, audio, and craft add quality that raw
+> generation cannot — and it can run to any length. Every tool and abstraction in Opmiere exists to give
+> that agent perfect hands and feet. This also fits the hardware: an 8 GB card struggles with one long
+> big generation but handles short fragments fine — so the philosophy *and* the constraint point the
+> same way.
+
 Existing open-source NLEs (Shotcut, Kdenlive, OpenShot, Olive) are excellent editors but have **no
 agent interface** — you cannot tell an LLM "cut the dead air, generate a B-roll clip of a sunrise,
 drop it at 0:12, and color-match it to the previous shot." Palmier Pro (GPL-3.0, ~10k stars) proved
@@ -235,6 +244,39 @@ Honest tiering (consistent with §2): local TTS is near-cloud quality; local mus
 local SFX is fine. Cloud (ElevenLabs, Suno) remains the pluggable top-tier option. Some of this can run
 *through* the existing ComfyUI provider (it has audio nodes); the rest via thin local model wrappers —
 either way it is "another provider / kind", not new architecture.
+
+### 5.10 Compositional generation & the agent-director loop — the north-star workflow
+
+This is the *why* behind every abstraction above (§1 north star). The product is not a generator with a
+timeline bolted on; it is a **director's toolkit** where a frontier LLM agent assembles a film from many
+controlled fragments. The agent's real intelligence is not "stringing clips" — it is **maintaining
+continuity** and **judging its own output**.
+
+**Cross-fragment consistency (the hard problem).** Independently generated shots drift in character,
+style, and lighting. The agent must actively counter this, and the framework must expose the levers:
+- **Seed reuse**, **reference images (IP-Adapter)**, **LoRAs** for stable character/style.
+- **ControlNet** (pose / depth / edge) to pin composition.
+- **Frame chaining** for video continuity — generate shot B conditioned on shot A's last frame
+  (first-frame / last-frame conditioning), so motion and look carry across the cut.
+- **Deterministic color-match / grade** (§5.8) to harmonize fragments after the fact.
+These are exposed as generation `params` and `apply_effect` tools so the agent *plans for* consistency
+rather than firing blind, independent generations.
+
+**The agent needs eyes (feedback loop).** Compositional direction requires the agent to *see* what it
+made and decide keep / regenerate / adjust. The framework therefore supports an **inspect loop**: the
+core can render a frame, thumbnail strip, or short preview of any clip/range and hand it back to a
+**multimodal** agent for critique. Generate → render preview → inspect → decide → iterate. (This reuses
+the same media-understanding capability as P4 semantic search, but its primary purpose is quality
+control, not indexing.)
+
+**Model-agnostic orchestration.** The director is whatever frontier agent is strongest — Claude
+(Opus 4.8), GPT-5.5, future models — reached through **MCP**, never hard-wired. Opmiere supplies the
+hands and feet; the user brings the brain.
+
+**Why the assembled result can beat one-shot.** Length is unbounded; every cut, transition, grade, and
+audio layer is deliberate; continuity is managed; and the expensive generation budget is spent only on
+fragments that survive the agent's own critique (draft→finish, §5.7 D). Craft + control + audio, stacked
+by a capable director, exceed what a single uncontrolled generation — even from a larger model — returns.
 
 ---
 
