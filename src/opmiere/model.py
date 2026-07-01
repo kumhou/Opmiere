@@ -31,6 +31,7 @@ __all__ = [
     "DEFAULT_TEXT_FONT",
     "TEXT_POSITIONS",
     "KNOWN_TRANSITION_TYPES",
+    "IMAGE_VIRTUAL_DURATION_FRAMES",
 ]
 
 SCHEMA_VERSION = 1
@@ -58,6 +59,13 @@ TEXT_POSITIONS = {"top", "center", "bottom"}
 # Kept separate from KNOWN_EFFECT_TYPES: an effect is about one clip's own
 # pixels, a transition is about the *relationship* between two clips.
 KNOWN_TRANSITION_TYPES = {"cross_dissolve"}
+
+# A still image has no intrinsic duration the way video/audio do (there's
+# nothing to probe). This is a deliberate virtual/sentinel value — not a
+# guessed fact — generous enough that any reasonable on-screen duration an
+# agent picks fits within add_clip's src_out <= media.duration_frames check.
+# ~1 hour at 30fps.
+IMAGE_VIRTUAL_DURATION_FRAMES = 108_000
 
 
 def new_id(prefix: str) -> str:

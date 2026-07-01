@@ -370,6 +370,16 @@ agent/GUI ─ job_status(job_id) ─► {queued|running|done|error, progress, re
 Note: **basic deterministic effects land early (P1)** because FFmpeg makes them nearly free; only the
 *advanced* effects wait for P4. This keeps "it's a real editor" true from the first agent-drivable build.
 
+**P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
+transitions) are done. **P2.1 is proven end to end**: `GenerationProvider` interface + a local
+`ComfyUIProvider` (SD1.5, RTX 3070) wired through Editor's async job model (`generate` → poll
+`job_status` → `place_generated`) and exposed as MCP tools — a real MCP client can ask for an image,
+place it on the timeline, and export a real video containing it, over the same stdio path Claude
+Desktop/Cursor use. Still open within P2: video generation (LTX-Video), audio (TTS/SFX/music, §5.9), a
+cloud provider, and the actual VRAM-adaptive quantization profiles from §5.7 (P2.1 runs SD1.5 at
+default precision — the quantization work that lets an 8 GB card punch above its weight is not yet
+built, just architecturally provided for).
+
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
 cut"* — mixes generation *and* deterministic tools, and de-risks the entire vision before a single

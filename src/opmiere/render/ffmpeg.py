@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ..bundle import Bundle
-from ..model import DEFAULT_TEXT_FONT, Media, MediaKind, Project, Track
+from ..model import DEFAULT_TEXT_FONT, IMAGE_VIRTUAL_DURATION_FRAMES, Media, MediaKind, Project, Track
 from .backend import RenderBackend
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
@@ -258,16 +258,24 @@ class FFmpegBackend(RenderBackend):
                     seen.add(clip.media)
                     media_order.append(clip.media)
 
+        fps = project.timebase.fps
+
         input_args: list[str] = []
         media_index: dict[str, int] = {}
         for i, media_id in enumerate(media_order):
             media = project.media_by_id(media_id)
-            input_args += ["-i", str(bundle.media_path(media.path))]
+            if media.kind == "image":
+                # -loop turns the single still frame into an indefinite video
+                # stream at the project's fps; everything downstream (trim,
+                # effects, scale/pad) then treats it exactly like any other
+                # [idx:v] video stream — no other change needed.
+                input_args += ["-loop", "1", "-framerate", str(fps), "-i", str(bundle.media_path(media.path))]
+            else:
+                input_args += ["-i", str(bundle.media_path(media.path))]
             media_index[media_id] = i
 
         filter_parts: list[str] = []
         W, H = project.resolution.w, project.resolution.h
-        fps = project.timebase.fps
 
         # Scratch dir for "text" effect caption files (see _effect_filters);
         # must outlive the ffmpeg subprocess call below, so it wraps everything
@@ -354,16 +362,39 @@ def import_media(
     src_path: Path,
     kind: MediaKind,
     dest_name: str | None = None,
+    origin: dict[str, Any] | None = None,
 ) -> Media:
     """Copy ``src_path`` into the bundle and register it on the project.
 
-    Every field is filled from a real ffprobe result — never guessed. For
-    kind="video", the source fps must match the project's timebase fps; P0's
-    FFmpegBackend trims by frame number and assumes they agree (frame-rate
-    conversion is future work).
+    For kind="video"/"audio", every field is filled from a real ffprobe
+    result — never guessed. For kind="video" specifically, the source fps
+    must match the project's timebase fps; P0's FFmpegBackend trims by frame
+    number and assumes they agree (frame-rate conversion is future work).
+
+    kind="image" is different in kind, not just degree: a still image has no
+    intrinsic duration to probe, so it gets IMAGE_VIRTUAL_DURATION_FRAMES
+    instead (see model.py for why that's a deliberate convention, not a
+    guess) and skips ffprobe entirely.
+
+    ``origin`` records how a generated asset came to exist (see model.Media);
+    None for ordinary imports of the user's own files.
     """
     require_ffmpeg_tools()
     src_path = Path(src_path)
+
+    if kind == "image":
+        if not src_path.exists():
+            raise FileNotFoundError(src_path)
+        dest = bundle.import_file(src_path, dest_name=dest_name)
+        rel_path = dest.relative_to(bundle.media_dir).as_posix()
+        return project.add_media(
+            kind="image",
+            path=rel_path,
+            duration_frames=IMAGE_VIRTUAL_DURATION_FRAMES,
+            has_audio=False,
+            origin=origin,
+        )
+
     result: ProbeResult = probe(src_path)
 
     if kind == "video":
@@ -380,10 +411,7 @@ def import_media(
         if not result.has_audio:
             raise ValueError(f"{src_path} has no audio stream; cannot import as kind='audio'")
     else:
-        raise NotImplementedError(
-            f"P0 import_media does not support kind={kind!r} yet "
-            "(image import lands with generation in P2)"
-        )
+        raise ValueError(f"unknown media kind {kind!r}")
 
     dest = bundle.import_file(src_path, dest_name=dest_name)
     duration_frames = project.timebase.seconds_to_frames(result.duration_seconds)
@@ -393,4 +421,5 @@ def import_media(
         path=rel_path,
         duration_frames=duration_frames,
         has_audio=result.has_audio,
+        origin=origin,
     )

@@ -40,3 +40,6 @@ examples/_*_run/
 
 # JH's personal test footage/photos — large binaries, never commit
 /test_materials/
+
+# ComfyUIProvider's default local output dir (generated images/video)
+.opmiere_generated/

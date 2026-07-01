@@ -11,8 +11,9 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: pre-alpha / design phase.** Not usable yet. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
-> full design and roadmap.
+> **Status: pre-alpha.** Headless core only (no GUI yet). Working today: agent-driven timeline editing
+> (cut/trim/split/effects/transitions) and local AI image generation, both over MCP, both exporting
+> real video. See [ARCHITECTURE.md](ARCHITECTURE.md) section 9 for exactly what's built vs. planned.
 
 ## Why
 

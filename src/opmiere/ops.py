@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .bundle import Bundle
+from .generation.provider import GenerationJob, GenerationProvider, JobStatus
 from .model import (
     KNOWN_EFFECT_TYPES,
     KNOWN_TRANSITION_TYPES,
@@ -38,10 +39,19 @@ from .render.ffmpeg import import_media as _ffmpeg_import_media
 class Editor:
     """Wraps a Project + Bundle. The only supported way to mutate either."""
 
-    def __init__(self, bundle: Bundle, render_backend: RenderBackend | None = None):
+    def __init__(
+        self,
+        bundle: Bundle,
+        render_backend: RenderBackend | None = None,
+        generation_provider: GenerationProvider | None = None,
+    ):
         self.bundle = bundle
         self.project: Project = bundle.load()
         self.render_backend = render_backend or FFmpegBackend()
+        # No default provider: generation is optional and pluggable (section
+        # 4 principle 3) - unlike rendering, there's no single obvious
+        # default (local vs cloud, which model), so the caller must choose.
+        self.generation_provider = generation_provider
         self._undo_stack: list[dict] = []
         self._redo_stack: list[dict] = []
 
@@ -52,16 +62,17 @@ class Editor:
         fps: float = 30.0,
         width: int = 1920,
         height: int = 1080,
+        generation_provider: GenerationProvider | None = None,
     ) -> "Editor":
         project = Project()
         project.timebase.fps = fps
         project.resolution.w, project.resolution.h = width, height
         bundle = Bundle.create(Path(root), project=project)
-        return cls(bundle)
+        return cls(bundle, generation_provider=generation_provider)
 
     @classmethod
-    def open(cls, root: Path) -> "Editor":
-        return cls(Bundle.open(Path(root)))
+    def open(cls, root: Path, generation_provider: GenerationProvider | None = None) -> "Editor":
+        return cls(Bundle.open(Path(root)), generation_provider=generation_provider)
 
     def save(self) -> None:
         self.bundle.save(self.project)
@@ -278,6 +289,44 @@ class Editor:
             clip.start += clip.transition_in["duration_frames"]
             clip.transition_in = None
             return clip
+
+    # --- generation (ARCHITECTURE.md section 8: async job model) ----------
+    def _require_generation_provider(self) -> GenerationProvider:
+        if self.generation_provider is None:
+            raise RuntimeError(
+                "no generation_provider configured on this Editor — pass one "
+                "to Editor.create()/open() (e.g. ComfyUIProvider) to use generate()"
+            )
+        return self.generation_provider
+
+    def generate(self, kind: str, prompt: str, params: dict | None = None) -> str:
+        """Submit an async generation job; returns a job id immediately.
+
+        Does not mutate the project — a job only enters the timeline once
+        place_generated() imports its finished result.
+        """
+        return self._require_generation_provider().submit(kind, prompt, params or {})
+
+    def job_status(self, job_id: str) -> GenerationJob:
+        return self._require_generation_provider().status(job_id)
+
+    def place_generated(self, job_id: str, track_id: str, start: int, duration_frames: int) -> Clip:
+        """Import a finished job's result as Media (origin records provider/
+        job/prompt) and place it as a Clip. Raises if the job isn't DONE yet
+        — call job_status() first rather than assuming it finished.
+        """
+        job = self._require_generation_provider().status(job_id)
+        if job.status != JobStatus.DONE:
+            raise ValueError(f"job {job_id} is not done yet (status={job.status.value})")
+        if duration_frames <= 0:
+            raise ValueError(f"duration_frames must be positive, got {duration_frames}")
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            media = _ffmpeg_import_media(
+                self.bundle, self.project, job.result_path, kind=job.kind,
+                origin={"provider": self.generation_provider.name, "job": job_id, "prompt": job.prompt},
+            )
+            return self.project.add_clip(track, media, start, 0, duration_frames)
 
     # --- render -----------------------------------------------------------
     def export(self, output_path: Path) -> Path:

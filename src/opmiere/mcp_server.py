@@ -16,6 +16,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from .generation import ComfyUIProvider
 from .model import MediaKind, TrackKind
 from .ops import Editor
 from .render.probe import probe as _probe
@@ -27,11 +28,14 @@ mcp = FastMCP(
         "open_project first. get_project_state shows the current timeline "
         "(track/clip/media ids) - call it whenever you need to see what "
         "exists before referencing an id. All positions and trims are in "
-        "frames at the project's fps (see get_project_state)."
+        "frames at the project's fps (see get_project_state). To add "
+        "AI-generated media: generate() a job, poll job_status() until "
+        "'done', then place_generated() to add it as a clip."
     ),
 )
 
 _editor: Editor | None = None
+_generation_provider: ComfyUIProvider | None = None
 
 
 def _require_editor() -> Editor:
@@ -40,13 +44,26 @@ def _require_editor() -> Editor:
     return _editor
 
 
+def _get_generation_provider() -> ComfyUIProvider:
+    # One provider instance per server process, reused across projects - it
+    # holds no per-project state, just where to reach the (also persistent)
+    # local ComfyUI server.
+    global _generation_provider
+    if _generation_provider is None:
+        _generation_provider = ComfyUIProvider()
+    return _generation_provider
+
+
 @mcp.tool()
 def create_project(
     bundle_path: str, fps: float = 30.0, width: int = 1920, height: int = 1080
 ) -> dict:
     """Create a new .opm project bundle and make it the active project."""
     global _editor
-    _editor = Editor.create(Path(bundle_path), fps=fps, width=width, height=height)
+    _editor = Editor.create(
+        Path(bundle_path), fps=fps, width=width, height=height,
+        generation_provider=_get_generation_provider(),
+    )
     return _editor.describe()
 
 
@@ -54,7 +71,7 @@ def create_project(
 def open_project(bundle_path: str) -> dict:
     """Open an existing .opm project bundle and make it the active project."""
     global _editor
-    _editor = Editor.open(Path(bundle_path))
+    _editor = Editor.open(Path(bundle_path), generation_provider=_get_generation_provider())
     return _editor.describe()
 
 
@@ -144,6 +161,50 @@ def add_transition(clip_id: str, transition_type: str, duration_frames: int) -> 
 def remove_transition(clip_id: str) -> dict:
     """Remove a previously-added transition_in from a clip, restoring its start."""
     return _require_editor().remove_transition(clip_id).to_dict()
+
+
+@mcp.tool()
+def generate(kind: str, prompt: str, params: dict | None = None) -> str:
+    """Submit an async local-GPU generation job and return a job id immediately.
+
+    kind: "image" for now (video/audio are follow-up work). Runs on the local
+    ComfyUI server (SD1.5 checkpoint) - typically a few seconds on an 8GB GPU.
+    Optional params: width/height (default 512), steps (default 20), cfg
+    (default 7.0), seed, negative_prompt. Poll job_status(job_id) until
+    status is "done" (or "error"), then place_generated() to add it to the
+    timeline - do not assume it finished just because submit succeeded.
+    """
+    return _require_editor().generate(kind, prompt, params or {})
+
+
+@mcp.tool()
+def job_status(job_id: str) -> dict:
+    """Poll a generation job. status is one of queued/running/done/error.
+
+    result_path is only set once status == "done"; error is only set once
+    status == "error" (with the real underlying message, not a guess).
+    """
+    job = _require_editor().job_status(job_id)
+    return {
+        "id": job.id,
+        "status": job.status.value,
+        "kind": job.kind,
+        "prompt": job.prompt,
+        "result_path": str(job.result_path) if job.result_path else None,
+        "error": job.error,
+    }
+
+
+@mcp.tool()
+def place_generated(job_id: str, track_id: str, start: int, duration_frames: int) -> dict:
+    """Import a finished job's result into the project and place it as a clip.
+
+    The job must already be "done" (check job_status first - this raises
+    rather than silently waiting if it isn't). The resulting Media's origin
+    field records the provider/job/prompt that made it, visible later in
+    get_project_state.
+    """
+    return _require_editor().place_generated(job_id, track_id, start, duration_frames).to_dict()
 
 
 @mcp.tool()
