@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ..bundle import Bundle
-from ..model import DEFAULT_TEXT_FONT, IMAGE_VIRTUAL_DURATION_FRAMES, Media, MediaKind, Project, Track
+from ..model import DEFAULT_TEXT_FONT, IMAGE_VIRTUAL_DURATION_FRAMES, Clip, Media, MediaKind, Project, Track
 from .backend import RenderBackend
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
@@ -204,6 +204,39 @@ def _validate_contiguous(track: Track) -> list:
     return clips
 
 
+def _validate_no_overlaps(track: Track) -> list:
+    """Overlay video tracks (any video track after the first — see export()'s
+    z-order convention) may have gaps on purpose: the layer(s) below show
+    through wherever an overlay track has nothing. Clips on the *same*
+    overlay track still can't overlap each other in time, though.
+    """
+    clips = track.clips_in_order()
+    for prev, nxt in zip(clips, clips[1:]):
+        if nxt.start < prev.end:
+            raise ValueError(
+                f"overlay track {track.id} has overlapping clips: {prev.id} "
+                f"ends at frame {prev.end} but {nxt.id} starts at frame {nxt.start}"
+            )
+    return clips
+
+
+def _video_clip_chain(clip: Clip, idx: int, fps: float, W: int, H: int, text_dir: Path, label: str) -> str:
+    """The trim -> speed -> effects -> scale/pad chain for one clip's video
+    stream. Shared by the base track and overlay layers — a clip gets the
+    same treatment either way."""
+    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "video", text_dir)
+    speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
+    chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
+    for filt in fx:
+        chain += f",{filt}"
+    chain += (
+        f",scale={W}:{H}:force_original_aspect_ratio=decrease,"
+        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
+        f"setsar=1,fps={fps}[{label}]"
+    )
+    return chain
+
+
 def _track_all_media_have_audio(project: Project, track: Track) -> bool:
     return bool(track.clips) and all(
         project.media_by_id(c.media).has_audio for c in track.clips
@@ -261,34 +294,43 @@ class FFmpegBackend(RenderBackend):
         require_ffmpeg_tools()
         output_path = Path(output_path)
 
+        # z-order convention: the first video track on the project is the
+        # base/background layer (rendered exactly as P0 always has); any
+        # video tracks after it are overlay layers, stacked in list order,
+        # each full-frame and active only during its own clips' windows —
+        # see _video_clip_chain/_validate_no_overlaps and the overlay loop
+        # below. Nothing about Editor/model changed for this: it never
+        # restricted track counts, only this backend did.
         video_tracks = [t for t in project.tracks if t.kind == "video"]
         audio_tracks = [t for t in project.tracks if t.kind == "audio"]
-        if len(video_tracks) > 1 or len(audio_tracks) > 1:
+        if len(audio_tracks) > 1:
             raise NotImplementedError(
-                "P0 FFmpegBackend supports at most one video track and one "
-                "audio track (multi-track lands in a later phase)"
+                "P0 FFmpegBackend supports at most one audio track "
+                "(mixing multiple audio tracks together is later work)"
             )
-        video_track = video_tracks[0] if video_tracks else None
+        base_video_track = video_tracks[0] if video_tracks else None
+        overlay_video_tracks = video_tracks[1:]
         audio_track = audio_tracks[0] if audio_tracks else None
-        if video_track is None and audio_track is None:
+        if base_video_track is None and audio_track is None:
             raise ValueError("project has no tracks to render")
 
-        video_clips = _validate_contiguous(video_track) if video_track else []
+        base_video_clips = _validate_contiguous(base_video_track) if base_video_track else []
+        overlay_clips_by_track = [_validate_no_overlaps(t) for t in overlay_video_tracks]
         if audio_track:
             _validate_contiguous(audio_track)
 
-        # Separate audio track wins; otherwise fall back to the video track's
-        # own embedded audio if every clip on it actually has audio.
+        # Separate audio track wins; otherwise fall back to the base video
+        # track's own embedded audio if every clip on it actually has audio.
         audio_source_track = audio_track
-        if audio_source_track is None and video_track is not None:
+        if audio_source_track is None and base_video_track is not None:
             audio_source_track = (
-                video_track if _track_all_media_have_audio(project, video_track) else None
+                base_video_track if _track_all_media_have_audio(project, base_video_track) else None
             )
 
         # One -i per unique media file, in order of first appearance.
         media_order: list[str] = []
         seen: set[str] = set()
-        for track in (video_track, audio_source_track):
+        for track in (base_video_track, *overlay_video_tracks, audio_source_track):
             if track is None:
                 continue
             for clip in track.clips_in_order():
@@ -323,30 +365,39 @@ class FFmpegBackend(RenderBackend):
 
             video_final_label: str | None = None
             vlabels: list[str] = []
-            if video_track is not None:
-                for n, clip in enumerate(video_clips):
+            if base_video_track is not None:
+                for n, clip in enumerate(base_video_clips):
                     idx = media_index[clip.media]
                     label = f"v{n}"
-                    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "video", text_dir)
-                    speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
-                    chain = (
-                        f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},"
-                        f"{speed_pts}"
-                    )
-                    for filt in fx:
-                        chain += f",{filt}"
-                    chain += (
-                        f",scale={W}:{H}:force_original_aspect_ratio=decrease,"
-                        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
-                        f"setsar=1,fps={fps}[{label}]"
-                    )
-                    filter_parts.append(chain)
+                    filter_parts.append(_video_clip_chain(clip, idx, fps, W, H, text_dir, label))
                     vlabels.append(label)
                 if len(vlabels) == 1:
                     video_final_label = vlabels[0]
                 else:
-                    filter_parts.extend(_fold_segments(vlabels, video_clips, fps, "video", "vout"))
+                    filter_parts.extend(_fold_segments(vlabels, base_video_clips, fps, "video", "vout"))
                     video_final_label = "vout"
+
+                # Overlay layers, stacked in track order. Each clip gets its
+                # own full-frame chain, then an `overlay` step with an
+                # `enable` window - outside that window the composite so far
+                # passes through untouched, which is what lets overlay
+                # tracks have gaps (no chroma-key/alpha needed for this).
+                tb = project.timebase
+                overlay_n = 0
+                for track_clips in overlay_clips_by_track:
+                    for clip in track_clips:
+                        idx = media_index[clip.media]
+                        src_label = f"ov{overlay_n}"
+                        filter_parts.append(_video_clip_chain(clip, idx, fps, W, H, text_dir, src_label))
+                        start_s = tb.frames_to_seconds(clip.start)
+                        end_s = tb.frames_to_seconds(clip.end)
+                        out_label = f"vcomp{overlay_n}"
+                        filter_parts.append(
+                            f"[{video_final_label}][{src_label}]overlay=x=0:y=0:"
+                            f"enable='between(t,{start_s:.6f},{end_s:.6f})'[{out_label}]"
+                        )
+                        video_final_label = out_label
+                        overlay_n += 1
 
             audio_final_label: str | None = None
             alabels: list[str] = []

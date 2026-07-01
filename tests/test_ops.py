@@ -462,3 +462,34 @@ def test_export_with_blur_and_vignette_keeps_duration_unchanged(editor, sample_v
     from opmiere.render import probe
     result = probe(out)
     assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+def test_second_video_track_is_a_gapped_overlay_layer(editor, sample_video, tmp_path):
+    """Real render: base track (2s) + a second video track with a clip that
+    only covers part of that span. Total duration must follow the base
+    track (overlay tracks are allowed gaps), and the export must not error
+    just because a second video track has a shorter/partial clip."""
+    media = editor.import_media(sample_video, kind="video")
+    base = editor.add_track("video")
+    overlay = editor.add_track("video")
+    editor.add_clip(base.id, media.id, start=0, src_in=0, src_out=60)  # full 2s base
+    editor.add_clip(overlay.id, media.id, start=20, src_in=0, src_out=20)  # overlay covers frames 20-40 only
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 2.0) < 0.05  # driven by the base track, not the overlay
+
+
+def test_overlapping_clips_on_same_overlay_track_rejected(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    base = editor.add_track("video")
+    overlay = editor.add_track("video")
+    editor.add_clip(base.id, media.id, start=0, src_in=0, src_out=60)
+    editor.add_clip(overlay.id, media.id, start=0, src_in=0, src_out=20)
+    editor.add_clip(overlay.id, media.id, start=10, src_in=0, src_out=20)  # overlaps the first overlay clip
+
+    with pytest.raises(ValueError, match="overlapping"):
+        editor.export(tmp_path / "out.mp4")

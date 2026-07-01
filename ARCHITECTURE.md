@@ -370,6 +370,12 @@ agent/GUI ─ job_status(job_id) ─► {queued|running|done|error, progress, re
 Note: **basic deterministic effects land early (P1)** because FFmpeg makes them nearly free; only the
 *advanced* effects wait for P4. This keeps "it's a real editor" true from the first agent-drivable build.
 
+**Multi-track video** landed too, ahead of schedule: the render backend now composites N video tracks
+(first = base/background, later ones = full-frame overlay layers active only during their own clips'
+windows via ffmpeg's `overlay` + `enable`), unblocking anything that needs a second visual layer. Editor
+and the model never needed changes — they never restricted track counts, only `render/ffmpeg.py` did.
+Chroma key still isn't built (no alpha/keying yet), but it's no longer blocked on "nowhere to composite."
+
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from
 `duration_frames` so source-frame math stays untouched; video via `setpts`, audio via `atempo`

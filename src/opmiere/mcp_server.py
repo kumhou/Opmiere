@@ -94,7 +94,17 @@ def import_media(src_path: str, kind: MediaKind) -> dict:
 
 @mcp.tool()
 def add_track(kind: TrackKind) -> dict:
-    """Add a new track ('video' or 'audio') to the timeline."""
+    """Add a new track ('video' or 'audio') to the timeline.
+
+    Video tracks stack by creation order: the *first* video track is the
+    base/background layer (clips must be contiguous from frame 0, like P0
+    always required). Any video track added after it is an overlay layer,
+    full-frame, shown only during its own clips' [start, end) windows -
+    the base (or lower overlays) show through elsewhere, so overlay tracks
+    are allowed gaps and don't need to start at frame 0. Clips on the same
+    overlay track still can't overlap each other. No chroma-key/PiP sizing
+    yet - overlay clips always cover the whole frame while active.
+    """
     return _require_editor().add_track(kind).to_dict()
 
 
