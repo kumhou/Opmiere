@@ -413,7 +413,14 @@ Note: **basic deterministic effects land early (P1)** because FFmpeg makes them 
 (first = base/background, later ones = full-frame overlay layers active only during their own clips'
 windows via ffmpeg's `overlay` + `enable`), unblocking anything that needs a second visual layer. Editor
 and the model never needed changes — they never restricted track counts, only `render/ffmpeg.py` did.
-Chroma key still isn't built (no alpha/keying yet), but it's no longer blocked on "nowhere to composite."
+**Chroma key is now built too**: a new `chroma_key` effect (`color`/`similarity`/`blend`, ffmpeg's own
+`chromakey` filter) on any clip. The real gotcha, caught with a spike script before touching production
+code: the alpha `chromakey` produces gets silently killed by the existing `pad=...:color=black` step
+(opaque padding) unless a chroma-keyed clip's chain switches to `pad=...:color=black@0.0` + an explicit
+`format=yuva420p` — otherwise it either errors or, worse, renders opaque black bars. The `overlay` step
+itself needed no change; it already respects incoming alpha with no `format=` option. Verified with a
+real render (blue background + green screen "subject" clip), sampling actual output pixels (blue
+showing through, red subject intact) rather than just "no ffmpeg error."
 
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from

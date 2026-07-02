@@ -149,6 +149,25 @@ def _effect_filters(
             start_s = 0.0 if direction == "in" else (clip_duration_frames - duration_frames) / fps
             filter_name = "fade" if stream == "video" else "afade"
             parts.append(f"{filter_name}=t={direction}:st={start_s:.6f}:d={duration_s:.6f}")
+        elif etype == "chroma_key":
+            if stream != "video":
+                continue
+            color = effect.get("color", "green")
+            similarity = effect.get("similarity", 0.15)
+            blend = effect.get("blend", 0.05)
+            if not isinstance(similarity, (int, float)) or not (0.0 < similarity <= 1.0):
+                raise ValueError("chroma_key effect has invalid 'similarity'")
+            if not isinstance(blend, (int, float)) or not (0.0 <= blend <= 1.0):
+                raise ValueError("chroma_key effect has invalid 'blend'")
+            # Keys transparency into the frame - _video_clip_chain switches to
+            # a transparent pad color + an explicit alpha pixel format for any
+            # clip carrying this effect, or the alpha this produces would be
+            # silently dropped (or worse, padded with *opaque* black) before
+            # the overlay compositing step ever sees it. Verified with a real
+            # spike (solid-color background + greenscreen "subject" clip,
+            # composited and eyeballed) before wiring this in - alpha survival
+            # through scale/pad/overlay is not something to assume.
+            parts.append(f"chromakey=color={color}:similarity={similarity}:blend={blend}")
         else:
             raise NotImplementedError(f"effect type {etype!r} is not supported by FFmpegBackend yet")
     return parts
@@ -229,11 +248,12 @@ def _video_clip_chain(clip: Clip, idx: int, fps: float, W: int, H: int, text_dir
     chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
     for filt in fx:
         chain += f",{filt}"
-    chain += (
-        f",scale={W}:{H}:force_original_aspect_ratio=decrease,"
-        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
-        f"setsar=1,fps={fps}[{label}]"
-    )
+    has_alpha = any(e.get("type") == "chroma_key" for e in clip.effects)
+    pad_color = "black@0.0" if has_alpha else "black"
+    chain += f",scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={pad_color},"
+    if has_alpha:
+        chain += "format=yuva420p,"
+    chain += f"setsar=1,fps={fps}[{label}]"
     return chain
 
 

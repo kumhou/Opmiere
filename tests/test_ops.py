@@ -29,6 +29,33 @@ def editor(tmp_path) -> Editor:
     return Editor.create(tmp_path / "demo.opm", fps=FPS, width=160, height=90)
 
 
+@pytest.fixture(scope="module")
+def blue_video(tmp_path_factory) -> Path:
+    """Solid blue background clip, for real chroma-key compositing tests."""
+    d = tmp_path_factory.mktemp("media")
+    path = d / "blue.mp4"
+    cmd = [
+        "ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=blue:size=160x90:duration=2:rate={FPS}",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+    ]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return path
+
+
+@pytest.fixture(scope="module")
+def greenscreen_video(tmp_path_factory) -> Path:
+    """Green background with a red box "subject" - a synthetic greenscreen clip."""
+    d = tmp_path_factory.mktemp("media")
+    path = d / "green.mp4"
+    cmd = [
+        "ffmpeg", "-y", "-f", "lavfi",
+        "-i", f"color=c=green:size=160x90:duration=2:rate={FPS},drawbox=x=55:y=35:w=50:h=25:color=red:t=fill",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+    ]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return path
+
+
 def test_add_track_and_clip(editor, sample_video):
     media = editor.import_media(sample_video, kind="video")
     track = editor.add_track("video")
@@ -163,7 +190,7 @@ def test_apply_effect_rejects_unknown_type(editor, sample_video):
     track = editor.add_track("video")
     clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
     with pytest.raises(ValueError):
-        editor.apply_effect(clip.id, {"type": "chroma_key"})
+        editor.apply_effect(clip.id, {"type": "not_a_real_effect"})
 
 
 def test_apply_effect_fade_rejects_bad_direction(editor, sample_video):
@@ -493,3 +520,46 @@ def test_overlapping_clips_on_same_overlay_track_rejected(editor, sample_video, 
 
     with pytest.raises(ValueError, match="overlapping"):
         editor.export(tmp_path / "out.mp4")
+
+
+def test_apply_effect_chroma_key_rejects_bad_similarity(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "chroma_key", "similarity": 1.5})
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "chroma_key", "blend": -0.1})
+
+
+def test_chroma_key_composites_transparently_over_base_track(editor, blue_video, greenscreen_video, tmp_path):
+    """Real render: blue base track + a greenscreen overlay clip with
+    chroma_key applied. The composited output must show blue where the
+    overlay clip was green, and the red "subject" box unaffected - proof
+    the alpha this produces actually survives scale/pad/overlay, not just
+    that ffmpeg didn't error."""
+    blue = editor.import_media(blue_video, kind="video")
+    green = editor.import_media(greenscreen_video, kind="video")
+    base = editor.add_track("video")
+    overlay = editor.add_track("video")
+    editor.add_clip(base.id, blue.id, start=0, src_in=0, src_out=60)
+    clip = editor.add_clip(overlay.id, green.id, start=0, src_in=0, src_out=60)
+    editor.apply_effect(clip.id, {"type": "chroma_key"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    frame_path = tmp_path / "frame.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,15)", "-update", "1",
+         "-vframes", "1", str(frame_path)],
+        capture_output=True, text=True, check=True,
+    )
+    # Sample a corner pixel (should be the blue background showing through
+    # where the greenscreen was keyed out) and the center pixel (the red box).
+    from PIL import Image
+    img = Image.open(frame_path).convert("RGB")
+    corner = img.getpixel((5, 5))
+    center = img.getpixel((80, 45))
+    assert corner[2] > corner[0] and corner[2] > corner[1]  # blue dominant, not green
+    assert center[0] > center[1] and center[0] > center[2]  # red dominant

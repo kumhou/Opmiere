@@ -19,7 +19,7 @@ keywords = ["video", "editor", "nle", "ai", "agent", "mcp", "ffmpeg"]
 dependencies = ["mcp[cli]>=1.28"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pillow>=10"]
 
 [project.urls]
 Homepage = "https://github.com/kumhou/Opmiere"

@@ -247,6 +247,13 @@ class Editor:
                 strength = effect.get("strength", 1.0)
                 if not isinstance(strength, (int, float)) or strength <= 0:
                     raise ValueError("vignette effect 'strength' must be a positive number")
+            elif etype == "chroma_key":
+                similarity = effect.get("similarity", 0.15)
+                if not isinstance(similarity, (int, float)) or not (0.0 < similarity <= 1.0):
+                    raise ValueError("chroma_key effect 'similarity' must be in (0, 1]")
+                blend = effect.get("blend", 0.05)
+                if not isinstance(blend, (int, float)) or not (0.0 <= blend <= 1.0):
+                    raise ValueError("chroma_key effect 'blend' must be in [0, 1]")
             clip.effects.append(dict(effect))
             return clip
 
