@@ -414,15 +414,31 @@ checkpoints a normal option, not just a fallback for oversized models. Flux.1-de
 higher quality still, non-commercial license — see §5.6) is wired in alongside it as the quality-max
 image option. `generate(kind="image")` now takes `model: sd1.5 | flux-schnell | flux-dev`. The
 license-tracking mechanism (§5.6) shipped in the same pass, since flux-dev was the first checkpoint that
-actually needed it. Still open within P2: SFX/music (§5.9), a cloud provider, a quality-tier *video*
-model (Wan2.1/2.2, HunyuanVideo, and the LTX-2 flagship are candidates — real GGUF file sizes put all of
-them at 11GB+ even at Q4, i.e. offload-tier on this 8 GB card, unlike the image case), and the full
-auto-selecting-by-detected-VRAM *profiles* machinery from §5.7 (JH's ask: split recommendations into two
-tracks, **non-offload** (fits VRAM outright, current default) and **offload** (deliberately trades speed
-for a bigger/better model via RAM or disk as overflow — ComfyUI's own `--novram`/`--reserve-vram`/
-`--fast-disk` plus community tooling like ComfyUI-MultiGPU's DisTorch2 for spreading load across a
-secondary GPU, relevant once JH's spare GTX 1660 Super is physically installed — rather than one
-single "best pick per VRAM tier" table).
+actually needed it. `generate(kind="image")` now takes `model: sd1.5 | flux-schnell | flux-dev`.
+
+**Video's quality-tier, non-offload option: Wan2.1 T2V 1.3B.** Same pattern as Flux for images —
+`generate(kind="video")` now takes `model: ltx-video | wan2.1`, LTX-Video 2B staying the fast default.
+Real side-by-side on this RTX 3070 (different prompts, so a qualitative not pixel-diff comparison, but
+the gap is visually obvious): Wan2.1 renders noticeably sharper detail and more physically coherent
+lighting than LTX-Video's softer, more motion-blurred output. The cost: ~139s vs LTX's ~22s (~6x
+slower) and a tighter VRAM margin (~7.7GB peak vs ~6.4GB, both measured the same way - absolute
+`nvidia-smi` peak including ~1.5GB OS/desktop baseline - so Wan2.1 leaves under 500MB of headroom on
+an 8GB card, still technically non-offload but with much less margin than LTX-Video). License is
+Apache-2.0 (verified via the HF API, not assumed) - strictly more permissive than LTX-Video's
+ARR-conditional terms. Given JH's explicit priority (quality first, slowness acceptable), this is
+offered as the quality option rather than replacing the fast default, mirroring flux-schnell/dev
+sitting alongside sd1.5.
+
+Still open within P2: SFX/music (§5.9), a cloud provider, an *offload-tier* video model one step up
+from Wan2.1-1.3B (Wan2.1/2.2's own 14B variants, HunyuanVideo, and the LTX-2 flagship are candidates —
+real GGUF file sizes put all of them at 11GB+ even at Q4, i.e. genuinely offload-tier on this 8 GB
+card, unlike Wan2.1-1.3B or the image case), and the full auto-selecting-by-detected-VRAM *profiles*
+machinery from §5.7 (JH's ask: split recommendations into two tracks, **non-offload** (fits VRAM
+outright - sd1.5/flux-schnell/flux-dev/ltx-video/wan2.1 all qualify today, distinguished only by
+*how much* headroom they leave) and **offload** (deliberately trades speed for a bigger/better model
+via RAM or disk as overflow — ComfyUI's own `--novram`/`--reserve-vram`/`--fast-disk` plus community
+tooling like ComfyUI-MultiGPU's DisTorch2 for spreading load across a secondary GPU, relevant once JH's
+spare GTX 1660 Super is physically installed — rather than one single "best pick per VRAM tier" table).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

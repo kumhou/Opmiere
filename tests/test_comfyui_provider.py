@@ -17,6 +17,7 @@ from opmiere.generation.comfyui import (
     DEFAULT_SPEECH_CLONE_MODEL,
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL,
     DEFAULT_VIDEO_CHECKPOINT,
+    DEFAULT_WAN21_T2V_CHECKPOINT,
     ComfyUIProvider,
 )
 from opmiere.generation.provider import JobStatus
@@ -181,6 +182,7 @@ def test_checkpoint_licenses_cover_every_default_checkpoint():
     for checkpoint in (
         DEFAULT_IMAGE_CHECKPOINT, DEFAULT_VIDEO_CHECKPOINT, DEFAULT_FLUX_SCHNELL_CHECKPOINT,
         DEFAULT_FLUX_DEV_CHECKPOINT, DEFAULT_SPEECH_CUSTOM_VOICE_MODEL, DEFAULT_SPEECH_CLONE_MODEL,
+        DEFAULT_WAN21_T2V_CHECKPOINT,
     ):
         assert checkpoint in CHECKPOINT_LICENSES, f"{checkpoint} generates real output with no tracked license"
         assert CHECKPOINT_LICENSES[checkpoint].commercial_use in ("yes", "no", "conditional")
@@ -237,3 +239,57 @@ def test_status_done_attaches_license_for_known_checkpoint(provider, monkeypatch
     assert job.license is not None
     assert job.license.name == "FLUX.1-dev Non-Commercial License"
     assert job.license.commercial_use == "no"
+
+
+def test_wan_workflow_has_expected_nodes_and_wiring(provider):
+    wf, checkpoint = provider._build_wan_workflow("a paper boat", {})
+
+    assert checkpoint == DEFAULT_WAN21_T2V_CHECKPOINT
+    assert wf["37"]["class_type"] == "UNETLoader"
+    assert wf["37"]["inputs"]["unet_name"] == DEFAULT_WAN21_T2V_CHECKPOINT
+    assert wf["38"]["class_type"] == "CLIPLoader"
+    assert wf["38"]["inputs"]["type"] == "wan"
+    assert wf["6"]["inputs"]["text"] == "a paper boat"
+    assert wf["48"]["class_type"] == "ModelSamplingSD3"
+    assert wf["48"]["inputs"]["model"] == ["37", 0]
+    assert wf["3"]["inputs"]["model"] == ["48", 0]
+    assert wf["79"]["class_type"] == "SaveVideo"
+    assert wf["78"]["class_type"] == "CreateVideo"
+
+
+def test_wan_workflow_respects_params(provider):
+    wf, _ = provider._build_wan_workflow("x", {"width": 480, "height": 480, "num_frames": 17, "shift": 5.0})
+
+    assert wf["40"]["inputs"]["width"] == 480
+    assert wf["40"]["inputs"]["height"] == 480
+    assert wf["40"]["inputs"]["length"] == 17
+    assert wf["48"]["inputs"]["shift"] == 5.0
+
+
+def test_submit_dispatches_video_model_param_to_wan_and_records_checkpoint(provider, monkeypatch):
+    captured = {}
+
+    def fake_post(path, payload):
+        captured["prompt"] = payload["prompt"]
+        return {"prompt_id": "job-4"}
+
+    monkeypatch.setattr(provider, "_post", fake_post)
+
+    job_id = provider.submit("video", "a paper boat", {"model": "wan2.1"})
+
+    assert job_id == "job-4"
+    assert captured["prompt"]["37"]["inputs"]["unet_name"] == DEFAULT_WAN21_T2V_CHECKPOINT
+    assert provider._jobs["job-4"]["checkpoint"] == DEFAULT_WAN21_T2V_CHECKPOINT
+
+
+def test_submit_defaults_video_model_to_ltx(provider, monkeypatch):
+    monkeypatch.setattr(provider, "_post", lambda path, payload: {"prompt_id": "job-5"})
+
+    provider.submit("video", "x", {})
+
+    assert provider._jobs["job-5"]["checkpoint"] == provider.video_checkpoint
+
+
+def test_submit_rejects_unknown_video_model(provider):
+    with pytest.raises(ValueError, match="ltx-video, wan2.1"):
+        provider.submit("video", "x", {"model": "veo"})

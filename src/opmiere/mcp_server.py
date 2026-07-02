@@ -208,11 +208,17 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
       sd1.5, 1.0 for flux models), seed, negative_prompt.
 
     kind="video": prompt is the video description (long, descriptive prompts
-      work much better than short ones). Params: width (512)/height (320),
-      num_frames (65), frame_rate (25 - should match the target project's
-      timebase.fps, see get_project_state, or place_generated will reject it
-      as a mismatch later), steps (30), cfg (3.0), seed, negative_prompt.
-      ~20-40s on an 8GB GPU.
+      work much better than short ones). Params: model - one of "ltx-video"
+      (default, fast, ~22s, Lightricks Open Weights License - free only
+      below $10M company ARR, see get_license_report()) or "wan2.1"
+      (visibly sharper/more coherent in side-by-side testing, Apache-2.0,
+      but ~6x slower (~140s) and closer to the 8GB ceiling (~7.7GB peak vs
+      ~6.4GB) - still non-offload, just less headroom). Also: width/height
+      (ltx-video default 512/320, wan2.1 default 832/480), num_frames
+      (ltx-video 65, wan2.1 33), frame_rate (ltx-video 25, wan2.1 16 - should
+      match the target project's timebase.fps, see get_project_state, or
+      place_generated will reject it as a mismatch later), steps (30), cfg
+      (ltx-video 3.0, wan2.1 6.0), seed, negative_prompt.
 
     kind="speech": prompt is the text to speak. Two modes:
       - preset voice (no reference needed): params speaker (default

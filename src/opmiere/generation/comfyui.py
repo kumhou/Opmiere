@@ -52,6 +52,9 @@ DEFAULT_FLUX_SCHNELL_CHECKPOINT = "flux1-schnell-Q4_K_S.gguf"
 DEFAULT_FLUX_DEV_CHECKPOINT = "flux1-dev-Q4_K_S.gguf"
 FLUX_CLIP_L = "clip_l.safetensors"
 FLUX_VAE = "ae.safetensors"
+DEFAULT_WAN21_T2V_CHECKPOINT = "wan2.1_t2v_1.3B_fp16.safetensors"
+WAN21_CLIP = "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+WAN21_VAE = "wan_2.1_vae.safetensors"
 
 # Which output node each workflow ends at, and which output dict key holds
 # the result file list. image/video both really do use "images" (confirmed
@@ -81,6 +84,8 @@ CHECKPOINT_LICENSES: dict[str, ModelLicense] = {
         "FLUX.1-dev Non-Commercial License", "no",
         "Free for personal/research use only. Commercial use requires a separate "
         "license from Black Forest Labs."),
+    DEFAULT_WAN21_T2V_CHECKPOINT: ModelLicense(
+        "Apache-2.0", "yes", "Fully permissive, no restrictions."),
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
     DEFAULT_SPEECH_CLONE_MODEL: ModelLicense(
@@ -265,6 +270,53 @@ class ComfyUIProvider(GenerationProvider):
         }
         return workflow, checkpoint
 
+    def _build_wan_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Wan2.1 T2V 1.3B - the quality-over-speed video option (vs. the
+        LTX-Video 2B default): Apache-2.0, visibly sharper/more coherent
+        output in side-by-side testing, but ~6x slower (139s vs 22s on this
+        RTX 3070) and closer to the 8GB ceiling (~7.7GB peak vs ~6.4GB).
+        Graph traced from ComfyUI's own bundled text_to_video_wan.json
+        template; node ids 78/79 deliberately match _build_ltxv_workflow's
+        CreateVideo/SaveVideo so _OUTPUT_NODE_BY_KIND["video"] stays a single
+        constant regardless of which video model built the graph (same trick
+        _build_flux_workflow uses for SaveImage="9").
+        """
+        width = params.get("width", 832)
+        height = params.get("height", 480)
+        num_frames = params.get("num_frames", 33)
+        frame_rate = params.get("frame_rate", 16)
+        steps = params.get("steps", 30)
+        cfg = params.get("cfg", 6.0)
+        shift = params.get("shift", 8.0)
+        seed = params.get("seed", random.randint(0, 2**31 - 1))
+        negative = params.get(
+            "negative_prompt",
+            "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，"
+            "整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，畸形的",
+        )
+        checkpoint = params.get("checkpoint", DEFAULT_WAN21_T2V_CHECKPOINT)
+        clip_name = params.get("clip_name", WAN21_CLIP)
+        vae_name = params.get("vae_name", WAN21_VAE)
+        workflow = {
+            "37": {"class_type": "UNETLoader", "inputs": {"unet_name": checkpoint, "weight_dtype": "default"}},
+            "38": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip_name, "type": "wan", "device": "default"}},
+            "39": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["38", 0], "text": prompt}},
+            "7": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["38", 0], "text": negative}},
+            "40": {"class_type": "EmptyHunyuanLatentVideo", "inputs": {
+                "width": width, "height": height, "length": num_frames, "batch_size": 1}},
+            "48": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["37", 0], "shift": shift}},
+            "3": {"class_type": "KSampler", "inputs": {
+                "model": ["48", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["40", 0],
+                "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": "uni_pc", "scheduler": "simple",
+                "denoise": 1.0}},
+            "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["39", 0]}},
+            "78": {"class_type": "CreateVideo", "inputs": {"images": ["8", 0], "fps": frame_rate}},
+            "79": {"class_type": "SaveVideo", "inputs": {
+                "video": ["78", 0], "filename_prefix": "opmiere_gen_video", "format": "auto", "codec": "auto"}},
+        }
+        return workflow, checkpoint
+
     def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         seed = params.get("seed", random.randint(0, 2**31 - 1))
         language = params.get("language", "Auto")
@@ -326,7 +378,13 @@ class ComfyUIProvider(GenerationProvider):
             else:
                 raise ValueError(f"unknown image model {model!r}; choices: sd1.5, flux-schnell, flux-dev")
         elif kind == "video":
-            workflow, checkpoint = self._build_ltxv_workflow(prompt, params)
+            video_model = params.get("model", "ltx-video")
+            if video_model == "ltx-video":
+                workflow, checkpoint = self._build_ltxv_workflow(prompt, params)
+            elif video_model == "wan2.1":
+                workflow, checkpoint = self._build_wan_workflow(prompt, params)
+            else:
+                raise ValueError(f"unknown video model {video_model!r}; choices: ltx-video, wan2.1")
         elif kind == "speech":
             workflow, checkpoint = self._build_speech_workflow(prompt, params)
         else:
