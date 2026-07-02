@@ -301,12 +301,26 @@ style, and lighting. The agent must actively counter this, and the framework mus
 These are exposed as generation `params` and `apply_effect` tools so the agent *plans for* consistency
 rather than firing blind, independent generations.
 
-**The agent needs eyes (feedback loop).** Compositional direction requires the agent to *see* what it
-made and decide keep / regenerate / adjust. The framework therefore supports an **inspect loop**: the
-core can render a frame, thumbnail strip, or short preview of any clip/range and hand it back to a
-**multimodal** agent for critique. Generate → render preview → inspect → decide → iterate. (This reuses
-the same media-understanding capability as P4 semantic search, but its primary purpose is quality
-control, not indexing.)
+**Free gate before the agent's eyes get involved — IMPLEMENTED.** JH's explicit worry: a full inspect
+loop that sends every generated fragment to a multimodal agent burns tokens fast. Most outright failures
+(a generation that's just a static frame, silence where narration should be, solid black, out of focus)
+are catchable with zero model calls. `render.quality_check` runs ffmpeg's own `blackdetect`/
+`freezedetect`/`blurdetect`/`silencedetect` filters (real thresholds, verified against actual sharp vs.
+blurred output, not guessed) and returns `passed`/`issues` - exposed as the `quality_check` MCP tool.
+Call it on a job's `result_path` before `place_generated` ever commits a broken generation to the
+timeline. This is the first, cheapest stage of the funnel below; the agent's actual attention is reserved
+for what this can't catch (composition, subject fidelity, style match).
+
+**The agent needs eyes (feedback loop) — design, not yet built.** Compositional direction requires the
+agent to *see* what it made and decide keep / regenerate / adjust, for judgments quality_check can't
+make. The framework will support an **inspect loop**: the core can render a frame, thumbnail strip, or
+short preview of any clip/range and hand it back to a **multimodal** agent for critique. Generate →
+quality_check (free) → render preview → inspect (agent, spent carefully) → decide → iterate. Kept
+token-cheap on purpose: contact sheets/thumbnails instead of full-res frames, draft→finish (§5.7 D) so
+the agent reviews cheap drafts before a full-quality rerun, and mechanical consistency (seed reuse,
+frame-chaining, color-match) doing as much of the "does this look continuous" work as possible so the
+agent isn't asked to eyeball it. (This reuses the same media-understanding capability as P4 semantic
+search, but its primary purpose is quality control, not indexing.)
 
 **Model-agnostic orchestration.** The director is whatever frontier agent is strongest — Claude
 (Opus 4.8), GPT-5.5, future models — reached through **MCP**, never hard-wired. Opmiere supplies the

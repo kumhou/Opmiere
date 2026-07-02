@@ -327,6 +327,24 @@ def get_license_report() -> dict:
 
 
 @mcp.tool()
+def quality_check(path: str) -> dict:
+    """Free, deterministic checks a media file passes/fails before spending
+    an agent's own attention on it: is_black, is_static (frozen picture -
+    the "generated video that's just one still frame" failure mode),
+    is_blurry, is_silent. No model call, no pixels sent anywhere - plain
+    ffmpeg analysis (blackdetect/freezedetect/blurdetect/silencedetect).
+
+    Call this on a generation job's result_path (from job_status) before
+    place_generated commits it to the timeline - catching an obviously
+    broken generation for free beats discovering it after export. issues
+    lists what failed in plain language; passed is the overall verdict.
+    is_blurry/is_silent are None when that check doesn't apply (no video or
+    no audio stream).
+    """
+    return _require_editor().quality_check(path)
+
+
+@mcp.tool()
 def undo() -> bool:
     """Undo the last edit. Returns False if there is nothing to undo."""
     return _require_editor().undo()

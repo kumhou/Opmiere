@@ -34,6 +34,7 @@ from .model import (
 from .render.backend import RenderBackend
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
+from .render.quality_check import quality_check as _quality_check
 
 # Maps a GenerationJob.kind (what an agent asked to generate) to the
 # Media.kind it becomes once it's a file on disk. image/video are their own
@@ -405,6 +406,17 @@ class Editor:
             "safe_for_commercial_use": len(flagged) == 0,
             "flagged": flagged,
         }
+
+    def quality_check(self, path: str | Path) -> dict[str, Any]:
+        """Free, deterministic checks (black/frozen/blurry/silent — see
+        render.quality_check) a media file can pass before anything gets an
+        agent's expensive attention (ARCHITECTURE.md 5.10's agent-director
+        loop). Works on any file path, most usefully a generation job's
+        result_path (from job_status) before place_generated commits it to
+        the timeline — catch a "static frame passed off as motion" failure
+        for free, not after it's already imported.
+        """
+        return _quality_check(Path(path)).to_dict()
 
     # --- render -----------------------------------------------------------
     def export(self, output_path: Path) -> Path:
