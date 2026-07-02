@@ -32,6 +32,7 @@ from .model import (
     new_id,
 )
 from .render.backend import RenderBackend
+from .render.contact_sheet import make_contact_sheet as _make_contact_sheet
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
 from .render.quality_check import quality_check as _quality_check
@@ -417,6 +418,17 @@ class Editor:
         for free, not after it's already imported.
         """
         return _quality_check(Path(path)).to_dict()
+
+    def make_contact_sheet(
+        self, path: str | Path, output_path: str | Path, cols: int = 3, rows: int = 3
+    ) -> str:
+        """Tile cols*rows evenly-spaced thumbnails from a video into one
+        small grid image at output_path — the agent's cheap "eyes" for
+        judging a shot's motion/composition (ARCHITECTURE.md 5.10), without
+        the token cost of sending full-res frames or many separate images.
+        Read the returned path to actually look at it.
+        """
+        return str(_make_contact_sheet(Path(path), Path(output_path), cols=cols, rows=rows))
 
     # --- render -----------------------------------------------------------
     def export(self, output_path: Path) -> Path:

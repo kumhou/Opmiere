@@ -1,4 +1,5 @@
 from .backend import RenderBackend
+from .contact_sheet import make_contact_sheet
 from .ffmpeg import FFmpegBackend, import_media
 from .probe import FFmpegNotFoundError, ProbeResult, probe
 from .quality_check import QualityCheckResult, quality_check
@@ -12,4 +13,5 @@ __all__ = [
     "FFmpegNotFoundError",
     "quality_check",
     "QualityCheckResult",
+    "make_contact_sheet",
 ]

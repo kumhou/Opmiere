@@ -345,6 +345,19 @@ def quality_check(path: str) -> dict:
 
 
 @mcp.tool()
+def make_contact_sheet(path: str, output_path: str, cols: int = 3, rows: int = 3) -> str:
+    """Tile cols*rows evenly-spaced thumbnails from a video into one small
+    grid image - the cheap way to actually *look* at a shot's motion/
+    composition (ARCHITECTURE.md 5.10's agent-director loop) without the
+    token cost of many full-res frames. Returns the written image path -
+    read it (as an image) to judge the shot. Use after quality_check passes,
+    for the judgment calls quality_check can't make (composition, subject
+    fidelity, does the motion look right).
+    """
+    return _require_editor().make_contact_sheet(path, output_path, cols=cols, rows=rows)
+
+
+@mcp.tool()
 def undo() -> bool:
     """Undo the last edit. Returns False if there is nothing to undo."""
     return _require_editor().undo()

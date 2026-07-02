@@ -311,16 +311,19 @@ Call it on a job's `result_path` before `place_generated` ever commits a broken 
 timeline. This is the first, cheapest stage of the funnel below; the agent's actual attention is reserved
 for what this can't catch (composition, subject fidelity, style match).
 
-**The agent needs eyes (feedback loop) — design, not yet built.** Compositional direction requires the
-agent to *see* what it made and decide keep / regenerate / adjust, for judgments quality_check can't
-make. The framework will support an **inspect loop**: the core can render a frame, thumbnail strip, or
-short preview of any clip/range and hand it back to a **multimodal** agent for critique. Generate →
-quality_check (free) → render preview → inspect (agent, spent carefully) → decide → iterate. Kept
-token-cheap on purpose: contact sheets/thumbnails instead of full-res frames, draft→finish (§5.7 D) so
-the agent reviews cheap drafts before a full-quality rerun, and mechanical consistency (seed reuse,
-frame-chaining, color-match) doing as much of the "does this look continuous" work as possible so the
-agent isn't asked to eyeball it. (This reuses the same media-understanding capability as P4 semantic
-search, but its primary purpose is quality control, not indexing.)
+**The agent's eyes (feedback loop) — contact sheets IMPLEMENTED, full inspect loop still open.**
+Compositional direction requires the agent to *see* what it made and decide keep / regenerate / adjust,
+for judgments quality_check can't make (composition, subject fidelity, does the motion look right).
+`render.make_contact_sheet` tiles cols*rows evenly-spaced thumbnails from a clip into one small grid
+image (`make_contact_sheet` MCP tool) - a shot's whole motion arc in one small image the agent reads,
+instead of many full-res frames. Verified on a real generated clip (Wan2.1's paper-boat video): the tiled
+frames show the boat's drift and water reflections changing coherently across the grid, exactly the
+"does this look like continuous motion" signal the agent needs, at a fraction of the token cost of
+several large frames. Generate → quality_check (free) → make_contact_sheet → agent inspects → decide →
+iterate. The rest of the loop (wiring this into an actual agent-facing regenerate/accept decision flow,
+plus draft→finish from §5.7 D) is still open design, not yet built - what exists now is the *tool*, not
+yet the *policy* of when an agent should reach for it. (Contact sheets reuse the same media-understanding
+capability as P4 semantic search, but their primary purpose here is quality control, not indexing.)
 
 **Model-agnostic orchestration.** The director is whatever frontier agent is strongest — Claude
 (Opus 4.8), GPT-5.5, future models — reached through **MCP**, never hard-wired. Opmiere supplies the
