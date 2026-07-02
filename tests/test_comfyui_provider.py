@@ -344,3 +344,28 @@ def test_submit_dispatches_video_model_param_to_wan22_moe(provider, monkeypatch)
     assert job_id == "job-6"
     assert captured["prompt"]["75"]["inputs"]["unet_name"] == DEFAULT_WAN22_HIGHNOISE_CHECKPOINT
     assert provider._jobs["job-6"]["checkpoint"] == WAN22_MOE_LICENSE_KEY
+
+
+def test_detect_vram_gb_reads_system_stats(provider, monkeypatch):
+    monkeypatch.setattr(provider, "_get", lambda path: {
+        "devices": [{"vram_total": 8589279232}],
+    })
+
+    assert provider.detect_vram_gb() == pytest.approx(8.0, abs=0.01)
+
+
+def test_detect_vram_gb_raises_when_no_devices_reported(provider, monkeypatch):
+    monkeypatch.setattr(provider, "_get", lambda path: {"devices": []})
+
+    with pytest.raises(RuntimeError, match="no devices"):
+        provider.detect_vram_gb()
+
+
+def test_recommend_profile_uses_detected_vram(provider, monkeypatch):
+    monkeypatch.setattr(provider, "_get", lambda path: {
+        "devices": [{"vram_total": 8589279232}],
+    })
+
+    profile = provider.recommend_profile("image")
+
+    assert profile.model == "flux-dev"

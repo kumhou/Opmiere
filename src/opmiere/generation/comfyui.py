@@ -41,6 +41,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .profiles import GenerationProfile, recommend as _recommend_profile
 from .provider import GenerationJob, GenerationProvider, JobStatus, ModelLicense
 
 DEFAULT_IMAGE_CHECKPOINT = "v1-5-pruned-emaonly-fp16.safetensors"
@@ -164,6 +165,29 @@ class ComfyUIProvider(GenerationProvider):
             raise ConnectionError(
                 f"could not reach ComfyUI at {self.base_url} — is the server running?"
             ) from e
+
+    def detect_vram_gb(self) -> float:
+        """Real detected VRAM (GB) of this ComfyUI server's primary device,
+        via /system_stats - the same endpoint this provider already talks
+        to, no new dependency. Feeds recommend_profile(); also useful on
+        its own for an agent sanity-checking what hardware it's driving.
+        """
+        stats = self._get("/system_stats")
+        devices = stats.get("devices", [])
+        if not devices:
+            raise RuntimeError("ComfyUI /system_stats reported no devices")
+        return devices[0]["vram_total"] / (1024**3)
+
+    def recommend_profile(self, kind: str, offload: bool = False) -> GenerationProfile:
+        """Which model to pass as generate(kind, params={"model": ...}) on
+        *this* machine, given real detected VRAM - ARCHITECTURE.md 5.7's
+        "generation profiles" auto-recommendation, split into non-offload
+        (fits VRAM outright) vs. offload (trades speed for a bigger model
+        via RAM/disk paging) tracks per JH's ask, rather than one single
+        best-pick-per-tier table. See generation/profiles.py for the actual
+        data (all measured, not guessed) and selection logic.
+        """
+        return _recommend_profile(kind, self.detect_vram_gb(), offload=offload)
 
     def _build_txt2img_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         width = params.get("width", 512)

@@ -190,6 +190,30 @@ def set_speed(clip_id: str, speed: float) -> dict:
 
 
 @mcp.tool()
+def recommend_generation_profile(kind: str, offload: bool = False) -> dict:
+    """Which model to pass as generate(kind, params={"model": ...}) on this
+    machine, based on real detected VRAM (ComfyUI's /system_stats) rather
+    than a guess - ARCHITECTURE.md 5.7's generation-profiles system.
+
+    kind: "image", "video", or "speech".
+    offload=False (default): the best model that actually fits detected
+      VRAM outright - fast and safe, no swapping.
+    offload=True: the best model in the offload track regardless of fit -
+      deliberately trades speed for quality via ComfyUI's own automatic
+      model paging (RAM/disk as VRAM overflow, confirmed real - see
+      generation/profiles.py). Only "video" has an offload-tier profile
+      today (wan2.2-moe); image/speech will raise until one exists.
+
+    Call this before generate() when unsure which model param to pass,
+    especially on hardware other than the reference RTX 3070 (8GB) these
+    profiles were measured on - the recommendation adapts, the underlying
+    measurements don't (yet re-benchmarked per machine).
+    """
+    profile = _get_generation_provider().recommend_profile(kind, offload=offload)
+    return profile.to_dict()
+
+
+@mcp.tool()
 def generate(kind: str, prompt: str, params: dict | None = None) -> str:
     """Submit an async local-GPU generation job and return a job id immediately.
 

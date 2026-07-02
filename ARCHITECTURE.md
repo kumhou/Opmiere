@@ -175,7 +175,7 @@ flows `GenerationJob.license` → `Media.origin["license"]` at `place_generated(
 is metadata only** — it is never watermarked or otherwise mixed into the generated pixels/audio
 themselves; nothing about the output content changes based on license.
 
-### 5.7 VRAM-adaptive generation — the local-quality bet — DECIDED (direction)
+### 5.7 VRAM-adaptive generation — the local-quality bet — DECIDED, profiles system IMPLEMENTED
 
 The core wager: **a modest GPU should reach high quality by spending *time*, not *money*.** The
 techniques to run big models on small VRAM are known in the ComfyUI community but require expert
@@ -211,10 +211,25 @@ orchestrates:
 3. Expose a single **`quality: draft | balanced | max`** dial to the user *and the agent*. The user
    picks *what* and *how patient*; Opmiere picks *how* to make the card do it — no node-graph assembly.
 
-> Honest caveat: the exact model + quant choices per profile are **validated empirically on the
-> reference RTX 3070 at P2** — real benchmarks beat spec-sheet guesses, and this space moves monthly.
-> What is decided *now* is the architecture (auto profiles + draft/finish staging + a quality dial);
-> the *contents* of each profile are tuned during P2.
+**Implemented in `opmiere.generation.profiles`** (P2, this session): a real `GENERATION_PROFILES` table
+and `recommend(kind, vram_gb, offload) -> GenerationProfile` function, exposed as the
+`recommend_generation_profile` MCP tool + `ComfyUIProvider.recommend_profile()`. JH's structural ask —
+split by **offload vs. non-offload as two tracks**, not one "best pick per tier" table — is exactly how
+selection works: `offload=False` returns the highest tier that fits detected VRAM outright (via
+`ComfyUIProvider.detect_vram_gb()`, reading ComfyUI's own `/system_stats` — ~8.0GB detected on the
+reference RTX 3070, matching spec); `offload=True` returns the best profile in the offload track
+regardless of fit, since that track's whole point is not needing to fit. Every number in the table is a
+real measurement from this session (§9), not a spec-sheet guess — this also directly answers the
+"validate empirically" caveat this section used to carry: image has 3 tiers (sd1.5 draft → flux-schnell
+balanced → flux-dev max, all non-offload), video has 2 non-offload tiers (ltx-video draft → wan2.1
+balanced) plus 1 offload tier (wan2.2-moe max), speech has 1 tier so far (qwen3-tts). One real fix worth
+recording: the first version of `recommend()` applied a 10% VRAM safety margin on top of each measured
+peak, which wrongly excluded wan2.1 (7.7GB peak) on the exact 8.0GB card it was proven to run on —
+removed, since each `vram_gb` is already an absolute observed peak, not a theoretical minimum;
+stacking a margin on top just double-counts caution against JH's explicit "tight fit is fine, quality
+is what matters" stance. Re-benchmarking on other hardware (the 1660 Super, once installed; any other
+card a user runs this on) is real follow-up work — the *mechanism* generalizes, the *table contents*
+don't until measured there too.
 
 ### 5.8 Deterministic effects & tools — editor-first, generation-additive — DECIDED
 
@@ -448,13 +463,16 @@ spare GTX 1660 Super, via e.g. ComfyUI-MultiGPU/DisTorch2) remains untested sinc
 physically installed - installing it was explicitly the last-resort option, not yet needed since
 software-only paging already delivers a working offload tier.
 
-Still open within P2: SFX/music (§5.9), a cloud provider, and the full auto-selecting-by-detected-VRAM
-*profiles* machinery from §5.7 (JH's ask: split recommendations into two tracks, **non-offload** (fits
-VRAM outright - sd1.5/flux-schnell/flux-dev/ltx-video/wan2.1 all qualify today, distinguished only by
-*how much* headroom they leave) and **offload** (deliberately trades speed for a bigger/better model -
-wan2.2-moe is the first proof this tier works at all on this hardware; HunyuanVideo and the LTX-2
-flagship remain uninvestigated further candidates for it) - rather than one single "best pick per VRAM
-tier" table).
+**The auto-selecting-by-detected-VRAM *profiles* machinery from §5.7 is now built**, not just designed:
+`opmiere.generation.profiles.recommend(kind, vram_gb, offload)` + the `recommend_generation_profile` MCP
+tool, real-measurement-backed, split into non-offload/offload tracks exactly as JH asked (see §5.7 for
+the full writeup, including a real bug caught and fixed: an initial safety margin wrongly excluded
+wan2.1 on the exact card it was proven to work on).
+
+Still open within P2: SFX/music (§5.9), a cloud provider, re-benchmarking the profiles table on hardware
+other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first non-8GB
+data point), and further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the LTX-2
+flagship) if an even-higher ceiling is ever wanted.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
