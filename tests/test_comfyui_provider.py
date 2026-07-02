@@ -17,6 +17,7 @@ from opmiere.generation.comfyui import (
     DEFAULT_MUSIC_CHECKPOINT,
     DEFAULT_SPEECH_CLONE_MODEL,
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL,
+    DEFAULT_UPSCALE_CHECKPOINT,
     DEFAULT_VIDEO_CHECKPOINT,
     DEFAULT_WAN21_T2V_CHECKPOINT,
     DEFAULT_WAN22_HIGHNOISE_CHECKPOINT,
@@ -187,6 +188,7 @@ def test_checkpoint_licenses_cover_every_default_checkpoint():
         DEFAULT_IMAGE_CHECKPOINT, DEFAULT_VIDEO_CHECKPOINT, DEFAULT_FLUX_SCHNELL_CHECKPOINT,
         DEFAULT_FLUX_DEV_CHECKPOINT, DEFAULT_SPEECH_CUSTOM_VOICE_MODEL, DEFAULT_SPEECH_CLONE_MODEL,
         DEFAULT_WAN21_T2V_CHECKPOINT, WAN22_MOE_LICENSE_KEY, DEFAULT_MUSIC_CHECKPOINT,
+        DEFAULT_UPSCALE_CHECKPOINT,
     ):
         assert checkpoint in CHECKPOINT_LICENSES, f"{checkpoint} generates real output with no tracked license"
         assert CHECKPOINT_LICENSES[checkpoint].commercial_use in ("yes", "no", "conditional")
@@ -420,3 +422,64 @@ def test_submit_dispatches_music_kind_and_records_checkpoint(provider, monkeypat
 def test_submit_rejects_sfx_as_still_unimplemented(provider):
     with pytest.raises(NotImplementedError, match="sfx"):
         provider.submit("sfx", "x", {})
+
+
+def test_upscale_workflow_uploads_source_and_wires_nodes(provider, tmp_path):
+    provider.comfyui_input_dir = tmp_path / "comfy_input"
+    provider.comfyui_input_dir.mkdir()
+    src = tmp_path / "draft.png"
+    src.write_bytes(b"not a real png, just testing the copy")
+
+    wf, checkpoint = provider._build_upscale_workflow("", {"source_path": str(src)})
+
+    assert checkpoint == DEFAULT_UPSCALE_CHECKPOINT
+    assert wf["1"]["class_type"] == "LoadImage"
+    uploaded_name = wf["1"]["inputs"]["image"]
+    assert (provider.comfyui_input_dir / uploaded_name).exists()
+    assert wf["2"]["class_type"] == "UpscaleModelLoader"
+    assert wf["2"]["inputs"]["model_name"] == DEFAULT_UPSCALE_CHECKPOINT
+    assert wf["3"]["class_type"] == "ImageUpscaleWithModel"
+    assert wf["3"]["inputs"]["upscale_model"] == ["2", 0]
+    assert wf["3"]["inputs"]["image"] == ["1", 0]
+    assert wf["4"]["class_type"] == "SaveImage"
+    assert wf["4"]["inputs"]["images"] == ["3", 0]
+
+
+def test_upscale_requires_source_path(provider, tmp_path):
+    provider.comfyui_input_dir = tmp_path
+    with pytest.raises(ValueError, match="source_path"):
+        provider._build_upscale_workflow("", {})
+
+
+def test_upscale_requires_comfyui_input_dir_configured(provider, tmp_path):
+    src = tmp_path / "draft.png"
+    src.write_bytes(b"x")
+    assert provider.comfyui_input_dir is None
+    with pytest.raises(ValueError, match="comfyui_input_dir"):
+        provider._build_upscale_workflow("", {"source_path": str(src)})
+
+
+def test_upscale_rejects_missing_source_file(provider, tmp_path):
+    provider.comfyui_input_dir = tmp_path
+    with pytest.raises(FileNotFoundError):
+        provider._build_upscale_workflow("", {"source_path": str(tmp_path / "nope.png")})
+
+
+def test_submit_dispatches_upscale_kind_and_records_checkpoint(provider, monkeypatch, tmp_path):
+    provider.comfyui_input_dir = tmp_path / "comfy_input"
+    provider.comfyui_input_dir.mkdir()
+    src = tmp_path / "draft.png"
+    src.write_bytes(b"x")
+    captured = {}
+
+    def fake_post(path, payload):
+        captured["prompt"] = payload["prompt"]
+        return {"prompt_id": "job-8"}
+
+    monkeypatch.setattr(provider, "_post", fake_post)
+
+    job_id = provider.submit("upscale", "", {"source_path": str(src)})
+
+    assert job_id == "job-8"
+    assert captured["prompt"]["2"]["inputs"]["model_name"] == DEFAULT_UPSCALE_CHECKPOINT
+    assert provider._jobs["job-8"]["checkpoint"] == DEFAULT_UPSCALE_CHECKPOINT

@@ -68,14 +68,19 @@ DEFAULT_WAN22_LOWNOISE_CHECKPOINT = "Wan2.2-T2V-A14B-LowNoise-Q4_K_S.gguf"
 # simplification that loses information).
 WAN22_MOE_LICENSE_KEY = "Wan2.2-T2V-A14B (HighNoise+LowNoise)"
 DEFAULT_MUSIC_CHECKPOINT = "ace_step_v1_3.5b.safetensors"
+# ESRGAN-family upscaler (ARCHITECTURE.md 5.7 D: "re-run at full quality OR
+# upscaled" - this is the upscale half). Deterministic, no sampling/steps/
+# seed - cheap relative to a full regenerate, the point of offering it as an
+# alternative "finish" path for an approved draft.
+DEFAULT_UPSCALE_CHECKPOINT = "RealESRGAN_x4plus.pth"
 
 # Which output node each workflow ends at, and which output dict key holds
 # the result file list. image/video both really do use "images" (confirmed
 # by reading SaveVideo's actual output, not assumed); speech's SaveAudio and
 # music's SaveAudioMP3 both use "audio" - also confirmed by reading the real
 # /history response, not assumed just because the class names rhyme.
-_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4", "music": "59"}
-_OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio", "music": "audio"}
+_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4", "music": "59", "upscale": "4"}
+_OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio", "music": "audio", "upscale": "images"}
 
 # Every checkpoint this provider knows how to load, and its real license -
 # verified against the actual license text/terms page, not assumed from the
@@ -108,6 +113,10 @@ CHECKPOINT_LICENSES: dict[str, ModelLicense] = {
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
     DEFAULT_MUSIC_CHECKPOINT: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+    DEFAULT_UPSCALE_CHECKPOINT: ModelLicense(
+        "BSD-3-Clause", "yes",
+        "Fully permissive, no restrictions (verified via GitHub's repo license API, "
+        "xinntao/Real-ESRGAN)."),
 }
 
 
@@ -515,6 +524,44 @@ class ComfyUIProvider(GenerationProvider):
         }
         return workflow, checkpoint
 
+    def _build_upscale_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Deterministic 4x image upscale (ARCHITECTURE.md 5.7 D's "or upscaled"
+        alternative to a full regenerate-at-max-quality re-run) - no sampling,
+        no seed, no steps: just a fixed super-resolution model pass, so it's
+        cheap relative to re-running a whole diffusion job. `prompt` is unused
+        for the graph itself, kept only because every kind flows through the
+        same submit(kind, prompt, params) signature and GenerationJob.prompt/
+        Media.origin provenance expects *some* string.
+
+        source_path (required) is any local image file - typically a draft
+        job's own result_path from a prior generate(kind="image") call, the
+        "approved draft" half of the draft->finish loop. Uploaded into
+        ComfyUI's own input/ folder first, same constraint and copy-in
+        pattern as speech's reference_audio.
+        """
+        source_path = params.get("source_path")
+        if not source_path:
+            raise ValueError("kind='upscale' requires params['source_path'] (the image to upscale)")
+        if self.comfyui_input_dir is None:
+            raise ValueError(
+                "upscale needs the source image uploaded into ComfyUI's own input/ "
+                "folder, but comfyui_input_dir isn't configured - pass it to "
+                "ComfyUIProvider() or set the OPMIERE_COMFYUI_INPUT_DIR env var"
+            )
+        src = Path(source_path)
+        if not src.exists():
+            raise FileNotFoundError(f"source_path not found: {src}")
+        dest_name = f"opmiere_upscale_src_{uuid.uuid4().hex[:8]}{src.suffix}"
+        shutil.copy2(src, self.comfyui_input_dir / dest_name)
+        checkpoint = params.get("checkpoint", DEFAULT_UPSCALE_CHECKPOINT)
+        workflow = {
+            "1": {"class_type": "LoadImage", "inputs": {"image": dest_name}},
+            "2": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": checkpoint}},
+            "3": {"class_type": "ImageUpscaleWithModel", "inputs": {"upscale_model": ["2", 0], "image": ["1", 0]}},
+            "4": {"class_type": "SaveImage", "inputs": {"filename_prefix": "opmiere_upscale", "images": ["3", 0]}},
+        }
+        return workflow, checkpoint
+
     def submit(self, kind: str, prompt: str, params: dict[str, Any]) -> str:
         if kind == "image":
             model = params.get("model", "sd1.5")
@@ -539,6 +586,8 @@ class ComfyUIProvider(GenerationProvider):
             workflow, checkpoint = self._build_speech_workflow(prompt, params)
         elif kind == "music":
             workflow, checkpoint = self._build_music_workflow(prompt, params)
+        elif kind == "upscale":
+            workflow, checkpoint = self._build_upscale_workflow(prompt, params)
         else:
             raise NotImplementedError(
                 f"ComfyUIProvider does not support kind={kind!r} yet (sfx generation is follow-up work)"

@@ -203,6 +203,10 @@ orchestrates:
 - Generate a fast low-res / low-step **draft**; the agent or user approves; only the *committed* shot
   is re-run at full quality or **upscaled** (tiled, dedicated video upscaler). The weak card pays the
   full cost only on shots that survive — cheap iteration, expensive commit.
+- **The "upscaled" half is implemented for images** (§9): `generate(kind="upscale")` runs a
+  deterministic ESRGAN pass over an approved draft — no sampling/seed/steps, so it's cheap relative to
+  a full re-generate at a higher tier. Video upscale remains open — no single ComfyUI node covers it the
+  way `ImageUpscaleWithModel` does for images; would need frame-extract + upscale + reassemble.
 
 **The product layer** (the actual differentiator — the techniques above are community-known):
 1. On first run, detect **GPU + VRAM + system RAM**.
@@ -320,9 +324,17 @@ instead of many full-res frames. Verified on a real generated clip (Wan2.1's pap
 frames show the boat's drift and water reflections changing coherently across the grid, exactly the
 "does this look like continuous motion" signal the agent needs, at a fraction of the token cost of
 several large frames. Generate → quality_check (free) → make_contact_sheet → agent inspects → decide →
-iterate. The rest of the loop (wiring this into an actual agent-facing regenerate/accept decision flow,
-plus draft→finish from §5.7 D) is still open design, not yet built - what exists now is the *tool*, not
-yet the *policy* of when an agent should reach for it. (Contact sheets reuse the same media-understanding
+iterate. The draft→finish half (§5.7 D) now has its missing tool too: `generate(kind="upscale")` turns
+an approved draft straight into a finished asset without a full re-generate. Deliberately **not** wrapped
+in a new combined "accept/regenerate" method — that would either force `make_contact_sheet` to run right
+after `quality_check` every time (defeating the free-gate-before-expensive-step staging this section
+argued for) or duplicate what `generate`/`place_generated` already do. The decision itself stays agent
+policy over existing tools: quality_check fails → regenerate; passes but composition/fidelity is off on
+the contact sheet → regenerate (optionally with a higher-tier `model`, same `seed`, for continuity) or
+adjust params; looks right → `generate(kind="upscale", params={"source_path": ...})` (cheap) or a
+higher-tier regenerate (expensive) → place_generated. What's genuinely still open is *encoding* that
+policy somewhere an agent reliably follows it (an MCP tool description, a skill/system-prompt), not a
+missing capability. (Contact sheets reuse the same media-understanding
 capability as P4 semantic search, but their primary purpose here is quality control, not indexing.)
 
 **Model-agnostic orchestration.** The director is whatever frontier agent is strongest — Claude
@@ -468,6 +480,25 @@ error — yuv420p's chroma subsampling needs even width/height, so box dimension
 even. Verified with a real render (blue base + a red overlay pinned bottom-right at half size): the box
 lands exactly where requested, blue everywhere outside it, red only inside.
 
+**Image upscale is now built too** — `generate(kind="upscale")`, the "or upscaled" half of §5.7 D's
+draft→finish staged-quality idea (§5.10 also updated). A new `ComfyUIProvider._build_upscale_workflow`
+wraps ComfyUI's core `UpscaleModelLoader`/`ImageUpscaleWithModel` nodes around a fresh checkpoint,
+**RealESRGAN_x4plus** (BSD-3-Clause, verified via GitHub's repo-license API — commercial-safe, no
+restrictions), downloaded this session (67MB, official `xinntao/Real-ESRGAN` v0.1.0 release asset). No
+sampler/seed/steps/cfg — a fixed super-resolution pass, not a diffusion job — so it's stable and, real
+numbers on this RTX 3070: **256×256 → 1024×1024 (exactly 4x) in 1.3s, ~2.6GB VRAM peak** (most of that
+the ~1.5GB OS/desktop baseline every measurement here already nets out against elsewhere), dramatically
+cheaper than any full regenerate (compare flux-dev 82s/7GB, wan2.1 139s/7.7GB, wan2.2-moe 283s/17.5GB
+combined). Verified end to end against the live server (not mocked): real dimension check plus pixel-
+extrema sampling on both the draft and the upscaled result (full 0–255 range on every channel, so
+neither is a blank/flat placeholder). Reuses the source_path-upload pattern speech's `reference_audio`
+established (copy into ComfyUI's own `input/` folder first) rather than inventing a new upload path.
+Deliberately scoped to images only — video upscale has no equivalent single ComfyUI node and stays open
+(§5.7 D). Slots into the *existing* async job model unchanged: `generate(kind="upscale", params=
+{"source_path": ...})` → poll `job_status` → `place_generated` — no new Editor method, since an upscale
+is, mechanically, just another generation job whose "prompt" happens to be an image instead of text (see
+§5.10 for why this deliberately isn't wrapped in a new combined accept/regenerate abstraction).
+
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from
 `duration_frames` so source-frame math stays untouched; video via `setpts`, audio via `atempo`
@@ -542,8 +573,9 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 Still open within P2: SFX (§5.9 - blocked on Stable Audio Open's gating needing an HF auth token this
 session didn't set up, not a technical blocker), a cloud provider, re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first
-non-8GB data point), and further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the
-LTX-2 flagship) if an even-higher ceiling is ever wanted.
+non-8GB data point), further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the
+LTX-2 flagship) if an even-higher ceiling is ever wanted, and video upscale (image upscale is done; video
+needs frame-extract + upscale + reassemble, no single ComfyUI node covers it).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

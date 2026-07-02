@@ -40,8 +40,10 @@ from .render.quality_check import quality_check as _quality_check
 
 # Maps a GenerationJob.kind (what an agent asked to generate) to the
 # Media.kind it becomes once it's a file on disk. image/video are their own
-# media kind; speech/sfx/music are all just "audio" once generated.
-_GENERATION_KIND_TO_MEDIA_KIND = {"speech": "audio", "sfx": "audio", "music": "audio"}
+# media kind; speech/sfx/music are all just "audio" once generated; upscale
+# always produces an "image" (video upscale is not implemented - see
+# _build_upscale_workflow).
+_GENERATION_KIND_TO_MEDIA_KIND = {"speech": "audio", "sfx": "audio", "music": "audio", "upscale": "image"}
 
 
 class Editor:

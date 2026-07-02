@@ -159,6 +159,21 @@ def test_place_generated_maps_speech_kind_to_audio_media(editor, provider, sampl
     assert media.origin == {"provider": "fake", "job": job_id, "prompt": "hello there", "license": None}
 
 
+def test_place_generated_maps_upscale_kind_to_image_media(editor, provider, sample_image):
+    """job.kind='upscale' (generation vocabulary) must become Media.kind='image'
+    (file vocabulary), same reasoning as the speech->audio mapping above -
+    an upscale job produces an image file, not a distinct 'upscale' media
+    kind that import_media wouldn't recognize."""
+    job_id = editor.generate("upscale", "", {"source_path": "unused-by-fake-provider"})
+    provider.complete(job_id, sample_image)
+    track = editor.add_track("video")
+
+    clip = editor.place_generated(job_id, track.id, start=0, duration_frames=45)
+
+    media = editor.project.media_by_id(clip.media)
+    assert media.kind == "image"
+
+
 def test_place_generated_records_license_in_media_origin(editor, provider, sample_image):
     job_id = editor.generate("image", "a red square")
     license = ModelLicense("FLUX.1-dev Non-Commercial License", "no", "personal/research only")

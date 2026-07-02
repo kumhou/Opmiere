@@ -305,6 +305,17 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
       with [verse]/[chorus] markers for a sung track), lyrics_strength
       (default 1.0), steps (default 50), cfg (default 5.0), seed.
       Apache-2.0, ~7.5GB VRAM, ~24s for 30s of audio on an 8GB GPU.
+
+    kind="upscale": the "finish" half of the draft->finish workflow
+      (ARCHITECTURE.md 5.7 D) as an alternative to re-running a full
+      generation at a higher quality tier - a deterministic 4x super-
+      resolution pass over an already-approved draft image (no seed/steps/
+      cfg, so results are stable and it's cheap relative to a re-generate).
+      prompt is ignored (pass ""); required param source_path - the local
+      image file to upscale (typically a draft job's own result_path, after
+      it passed quality_check and looked right on inspection). Only image
+      is supported (not video) - see get_license_report for source
+      RealESRGAN_x4plus (BSD-3-Clause, commercial-safe).
     """
     return _require_editor().generate(kind, prompt, params or {})
 
