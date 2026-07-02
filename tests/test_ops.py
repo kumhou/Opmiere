@@ -605,6 +605,44 @@ def test_export_with_compression_and_noise_reduction_keeps_duration_unchanged(ed
     assert abs(result.duration_seconds - 1.0) < 0.05
 
 
+def test_apply_effect_audio_eq(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    updated = editor.apply_effect(clip.id, {"type": "audio_eq", "frequency_hz": 1000.0, "gain_db": -12.0})
+    assert updated.effects == [{"type": "audio_eq", "frequency_hz": 1000.0, "gain_db": -12.0}]
+
+
+def test_apply_effect_audio_eq_requires_frequency(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "audio_eq", "gain_db": 6.0})
+
+
+def test_apply_effect_audio_eq_rejects_out_of_range_gain(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "audio_eq", "frequency_hz": 1000.0, "gain_db": 40.0})
+
+
+def test_export_with_audio_eq_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "audio_eq", "frequency_hz": 440.0, "gain_db": 6.0})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05
+
+
 def test_second_video_track_is_a_gapped_overlay_layer(editor, sample_video, tmp_path):
     """Real render: base track (2s) + a second video track with a clip that
     only covers part of that span. Total duration must follow the base

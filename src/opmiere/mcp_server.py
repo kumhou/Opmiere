@@ -171,6 +171,11 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
       {"type": "noise_reduction", "amount": 0.01..97 (default 12.0, dB of noise reduction - bigger
         is more aggressive, can start eating the wanted signal past a point)}
         - spectral denoise (ffmpeg's afftdn) for hiss/hum in a recording, not video.
+      {"type": "audio_eq", "frequency_hz": 20..20000 (required, center of the band), "gain_db": -24..24
+        (default 0, positive boosts that frequency, negative cuts it), "q": 0..10 (default 1.0, bigger
+        is a narrower/more surgical band, smaller is broader)}
+        - one parametric EQ band; apply_effect it again at a different frequency_hz to stack more bands
+          (effects apply in the order added, same as everything else here) for a multi-band EQ.
     A fade's duration_frames must not exceed the clip's own duration_frames
     (visible in get_project_state).
     """

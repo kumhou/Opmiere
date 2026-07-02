@@ -272,6 +272,24 @@ def _effect_filters(
             # `ffmpeg -h filter=afftdn`) - single-knob curation, same as
             # every other effect here; noise_floor/noise_type stay default.
             parts.append(f"afftdn=nr={amount}")
+        elif etype == "audio_eq":
+            if stream != "audio":
+                continue
+            frequency_hz = effect.get("frequency_hz")
+            gain_db = effect.get("gain_db", 0.0)
+            q = effect.get("q", 1.0)
+            if not isinstance(frequency_hz, (int, float)) or not (20.0 <= frequency_hz <= 20000.0):
+                raise ValueError("audio_eq effect has invalid 'frequency_hz'")
+            if not isinstance(gain_db, (int, float)) or not (-24.0 <= gain_db <= 24.0):
+                raise ValueError("audio_eq effect has invalid 'gain_db'")
+            if not isinstance(q, (int, float)) or not (0.0 < q <= 10.0):
+                raise ValueError("audio_eq effect has invalid 'q'")
+            # A single parametric (peaking) band - ffmpeg's own `equalizer`
+            # filter, width_type=q is its own Q-factor mode (verified via
+            # `ffmpeg -h filter=equalizer`). Multi-band EQ needs no separate
+            # mechanism: apply_effect this multiple times at different
+            # frequencies, same as any other stacked effect.
+            parts.append(f"equalizer=frequency={frequency_hz}:width_type=q:width={q}:gain={gain_db}")
         else:
             raise NotImplementedError(f"effect type {etype!r} is not supported by FFmpegBackend yet")
     return parts

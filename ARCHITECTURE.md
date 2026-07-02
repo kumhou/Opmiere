@@ -254,7 +254,7 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Text:** titles, lower-thirds, captions/subtitles.
 - **Stylize:** blur, sharpen, vignette, film grain **done**; glow still open (needs a multi-stage
   blur+screen-blend filtergraph, not a single filter like the rest here).
-- **Audio:** gain, compression, noise reduction, fades **done**; EQ, ducking still open (ducking needs
+- **Audio:** gain, compression, noise reduction, fades, EQ **done**; only ducking still open (needs
   a sidechain keyed by a second track - a bigger architectural piece, not a per-clip effect).
 
 Two facts make this cheap to deliver:
@@ -528,9 +528,20 @@ each slotting into an existing mechanism rather than a new one:
   real: on a loud-clip/quiet-clip pair (30dB apart), aggressive compression (ratio 20, threshold -40dB)
   narrowed the gap to 9.9dB; on a sine tone mixed with real injected white noise (`anoisesrc`),
   `noise_reduction` measurably dropped RMS energy (-24.90dB → -25.14dB - a small honest delta, since
-  afftdn targets the noise floor under a signal rather than the signal itself, not a red flag). EQ and
-  ducking stay open; ducking specifically needs a sidechain keyed by a second track, which is a bigger
-  architectural piece (like multi-track compositing was) rather than a per-clip effect.
+  afftdn targets the noise floor under a signal rather than the signal itself, not a red flag). Ducking
+  stays open - it needs a sidechain keyed by a second track, which is a bigger architectural piece (like
+  multi-track compositing was) rather than a per-clip effect.
+
+**Audio EQ landed too**: a new `audio_eq` effect (ffmpeg's `equalizer`, one peaking band -
+`frequency_hz`/`gain_db`/`q`) - named `audio_eq` rather than the shorter `eq` specifically because the
+existing `color` effect already uses ffmpeg's own *different*, unrelated `eq` filter (video brightness/
+contrast/saturation); reusing the name on an agent-facing surface would invite exactly the kind of
+same-name-different-thing confusion this project's license/model-name mixups (§5.6, §9) already show is
+a real failure mode, not a hypothetical one. Multi-band EQ needed no new mechanism: apply_effect this at
+several `frequency_hz` values and they stack, same as every other effect already does. Verified real: a
+1000Hz test tone with a band centered on 1000Hz measured **+17.2dB at a +18dB boost setting and exactly
+-18.0dB at a -18dB cut setting** (volumedetect mean_volume, before/after) - close to 1:1 because the tone
+sits exactly on the band's own center frequency, the case where a peaking filter's effect is most direct.
 
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from

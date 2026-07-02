@@ -289,6 +289,20 @@ class Editor:
                 amount = effect.get("amount", 12.0)
                 if not isinstance(amount, (int, float)) or not (0.01 <= amount <= 97.0):
                     raise ValueError("noise_reduction effect 'amount' must be in [0.01, 97]")
+            elif etype == "audio_eq":
+                # Named audio_eq, not eq: the "color" effect above already
+                # uses ffmpeg's own (unrelated, video) `eq` filter - a same-
+                # named Opmiere effect here would be genuinely confusing on
+                # an agent-facing surface, not just an internal detail.
+                frequency_hz = effect.get("frequency_hz")
+                if not isinstance(frequency_hz, (int, float)) or not (20.0 <= frequency_hz <= 20000.0):
+                    raise ValueError("audio_eq effect requires 'frequency_hz' in [20, 20000]")
+                gain_db = effect.get("gain_db", 0.0)
+                if not isinstance(gain_db, (int, float)) or not (-24.0 <= gain_db <= 24.0):
+                    raise ValueError("audio_eq effect 'gain_db' must be in [-24, 24]")
+                q = effect.get("q", 1.0)
+                if not isinstance(q, (int, float)) or not (0.0 < q <= 10.0):
+                    raise ValueError("audio_eq effect 'q' must be in (0, 10]")
             elif etype == "crop":
                 width, height = effect.get("width"), effect.get("height")
                 if not isinstance(width, int) or width <= 0:
