@@ -222,6 +222,56 @@ def _effect_filters(
             # rotation works in most simple video editors, and keeps every
             # clip's frame size predictable for the scale/pad step after it.
             parts.append(f"rotate={degrees}*PI/180:fillcolor={fill}")
+        elif etype == "sharpen":
+            if stream != "video":
+                continue
+            amount = effect.get("amount", 1.0)
+            if not isinstance(amount, (int, float)) or not (0.0 < amount <= 5.0):
+                raise ValueError("sharpen effect has invalid 'amount'")
+            # unsharp's own luma_amount range is [-2, 5] (verified via
+            # `ffmpeg -h filter=unsharp`); this effect only exposes the
+            # sharpening (positive) half - matrix sizes stay at ffmpeg's own
+            # 5x5 default, same one-knob curation as blur/vignette.
+            parts.append(f"unsharp=luma_amount={amount}")
+        elif etype == "film_grain":
+            if stream != "video":
+                continue
+            amount = effect.get("amount", 20.0)
+            if not isinstance(amount, (int, float)) or not (0.0 < amount <= 100.0):
+                raise ValueError("film_grain effect has invalid 'amount'")
+            # noise's alls/allf (verified via `ffmpeg -h filter=noise`):
+            # allf=t+u (temporal + uniform) is what actually reads as film
+            # grain - flickering per-frame, not one static dead-pixel pattern.
+            parts.append(f"noise=alls={amount}:allf=t+u")
+        elif etype == "compression":
+            if stream != "audio":
+                continue
+            threshold_db = effect.get("threshold_db", -18.0)
+            ratio = effect.get("ratio", 4.0)
+            attack_ms = effect.get("attack_ms", 20.0)
+            release_ms = effect.get("release_ms", 250.0)
+            makeup_db = effect.get("makeup_db", 0.0)
+            if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
+                raise ValueError("compression effect has invalid 'ratio'")
+            # acompressor's threshold/makeup are natively linear amplitude,
+            # but (verified empirically - a real ffmpeg run, not assumed from
+            # docs) both accept a "<n>dB" suffix same as the volume filter
+            # gain's own effect already uses, so the effect's public API
+            # stays dB throughout rather than mixing linear and dB knobs.
+            parts.append(
+                f"acompressor=threshold={threshold_db}dB:ratio={ratio}:"
+                f"attack={attack_ms}:release={release_ms}:makeup={makeup_db}dB"
+            )
+        elif etype == "noise_reduction":
+            if stream != "audio":
+                continue
+            amount = effect.get("amount", 12.0)
+            if not isinstance(amount, (int, float)) or not (0.01 <= amount <= 97.0):
+                raise ValueError("noise_reduction effect has invalid 'amount'")
+            # afftdn's own nr range is [0.01, 97] dB (verified via
+            # `ffmpeg -h filter=afftdn`) - single-knob curation, same as
+            # every other effect here; noise_floor/noise_type stay default.
+            parts.append(f"afftdn=nr={amount}")
         else:
             raise NotImplementedError(f"effect type {etype!r} is not supported by FFmpegBackend yet")
     return parts
@@ -344,6 +394,20 @@ def _track_all_media_have_audio(project: Project, track: Track) -> bool:
     )
 
 
+# Opmiere transition_type -> ffmpeg xfade's own `transition` option (verified
+# via `ffmpeg -h filter=xfade`: 57 real values exist, this is the curated
+# subset model.KNOWN_TRANSITION_TYPES actually exposes - not guessed names).
+_XFADE_TRANSITION_BY_TYPE = {
+    "cross_dissolve": "fade",
+    "dip_to_black": "fadeblack",
+    "dip_to_white": "fadewhite",
+    "wipe_left": "wipeleft",
+    "wipe_right": "wiperight",
+    "wipe_up": "wipeup",
+    "wipe_down": "wipedown",
+}
+
+
 def _fold_segments(
     labels: list[str],
     clips: list,
@@ -375,8 +439,9 @@ def _fold_segments(
             duration_s = t_frames / fps
             if stream == "video":
                 offset_s = running_duration_frames / fps - duration_s
+                xfade_name = _XFADE_TRANSITION_BY_TYPE[transition["type"]]
                 parts.append(
-                    f"[{running}][{labels[i]}]xfade=transition=fade:"
+                    f"[{running}][{labels[i]}]xfade=transition={xfade_name}:"
                     f"duration={duration_s:.6f}:offset={offset_s:.6f}[{out_label}]"
                 )
             else:

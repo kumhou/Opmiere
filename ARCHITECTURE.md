@@ -246,13 +246,16 @@ for genuinely-new imagery only. This is the smarter, cheaper agent workflow.
 
 Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-per-effort):
 - **Editing:** cut / trim / ripple / roll / slip, split, speed & time-remap (slow-mo, ramps).
-- **Transitions:** cross-dissolve, dip-to-black/white, wipes.
+- **Transitions:** cross-dissolve, dip-to-black/white, wipes — **all done** (§9), via ffmpeg xfade's
+  own transition vocabulary (`_XFADE_TRANSITION_BY_TYPE`), not a separate implementation per style.
 - **Color:** curves, LUT/3D-LUT, white balance, saturation/contrast — carries most of the "pro look".
 - **Transform:** crop, scale, position, rotate, Ken-Burns pan/zoom; (stabilization — later).
 - **Keying/masking:** chroma key (green screen), luma key, shape masks.
 - **Text:** titles, lower-thirds, captions/subtitles.
-- **Stylize:** blur, sharpen, vignette, glow, film grain.
-- **Audio:** gain, EQ, compression, ducking, noise reduction, fades.
+- **Stylize:** blur, sharpen, vignette, film grain **done**; glow still open (needs a multi-stage
+  blur+screen-blend filtergraph, not a single filter like the rest here).
+- **Audio:** gain, compression, noise reduction, fades **done**; EQ, ducking still open (ducking needs
+  a sidechain keyed by a second track - a bigger architectural piece, not a per-clip effect).
 
 Two facts make this cheap to deliver:
 1. It **slots into the existing abstractions** — each is a clip `effect` + an `apply_effect` operation;
@@ -498,6 +501,36 @@ Deliberately scoped to images only — video upscale has no equivalent single Co
 {"source_path": ...})` → poll `job_status` → `place_generated` — no new Editor method, since an upscale
 is, mechanically, just another generation job whose "prompt" happens to be an image instead of text (see
 §5.10 for why this deliberately isn't wrapped in a new combined accept/regenerate abstraction).
+
+**§5.8's curated effects/transitions list is now substantially closed out.** Three independent additions,
+each slotting into an existing mechanism rather than a new one:
+- **Transitions:** `KNOWN_TRANSITION_TYPES` grew from just `cross_dissolve` to `dip_to_black`,
+  `dip_to_white`, `wipe_left/right/up/down` - all free, since the render side was already parameterizing
+  ffmpeg's own `xfade` filter (`_XFADE_TRANSITION_BY_TYPE` maps each Opmiere name to one of xfade's real
+  57 transition values, verified via `ffmpeg -h filter=xfade`, not guessed) - previously hardcoded to
+  `transition=fade`. `add_transition`/`remove_transition`/the overlap-shrinks-the-timeline math needed no
+  changes at all. Verified with real pixel sampling on a red-clip→green-clip cut, sampling left/right
+  quarter-frame pixels mid-transition: `cross_dissolve` gave an identical muddy blend on both sides
+  (126,62,0 both), `dip_to_black` gave identical near-black on both sides (0,30,0 both), `wipe_left` gave
+  *different* values per side (pure red vs. green-dominant) - proof the three genuinely render distinct
+  transition types, not all silently falling back to one.
+- **Stylize:** `sharpen` (ffmpeg `unsharp`, one knob: `amount` → `luma_amount`) and `film_grain` (ffmpeg
+  `noise`, one knob: `amount` → `alls`, fixed `allf=t+u` for temporal+uniform grain rather than a static
+  dead-pixel pattern). Verified real, not a no-op: sharpen roughly doubled a crude edge-energy proxy
+  (sum of horizontal adjacent-pixel deltas) on real footage (96471 → 224361); film_grain took a
+  perfectly static flat-color source (frame-to-frame diff = 0, confirmed) to a frame-to-frame diff of
+  208263 - real per-frame noise, not a single baked-in pattern. Glow stays open - needs a multi-stage
+  blur+screen-blend filtergraph, not a single filter like every other stylize effect landed so far.
+- **Audio:** `compression` (ffmpeg `acompressor` - `threshold_db`/`ratio`/`attack_ms`/`release_ms`/
+  `makeup_db`; confirmed empirically that `threshold`/`makeup` accept a `dB` suffix same as the existing
+  `gain` effect's own `db` field, so the effect's public API stays dB-only rather than mixing linear and
+  dB knobs) and `noise_reduction` (ffmpeg `afftdn`, one knob: `amount` → `nr`, dB of reduction). Verified
+  real: on a loud-clip/quiet-clip pair (30dB apart), aggressive compression (ratio 20, threshold -40dB)
+  narrowed the gap to 9.9dB; on a sine tone mixed with real injected white noise (`anoisesrc`),
+  `noise_reduction` measurably dropped RMS energy (-24.90dB → -25.14dB - a small honest delta, since
+  afftdn targets the noise floor under a signal rather than the signal itself, not a red flag). EQ and
+  ducking stay open; ducking specifically needs a sidechain keyed by a second track, which is a bigger
+  architectural piece (like multi-track compositing was) rather than a per-clip effect.
 
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from

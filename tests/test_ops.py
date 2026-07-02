@@ -380,6 +380,38 @@ def test_export_with_transition_real_crossfade(editor, sample_video, tmp_path):
     assert abs(result.duration_seconds - expected) < 0.05
 
 
+def test_every_known_transition_type_maps_to_a_real_xfade_name():
+    """model.KNOWN_TRANSITION_TYPES and ffmpeg.py's xfade mapping must stay in
+    lockstep - an entry in one without the other either can't be used
+    (validated but unmapped -> KeyError at render time) or renders silently
+    as ffmpeg's default 'fade' (mapped but unvalidated -> add_transition
+    would reject it before it ever reaches render, so that direction is
+    already safe; this test covers the direction that isn't)."""
+    from opmiere.model import KNOWN_TRANSITION_TYPES
+    from opmiere.render.ffmpeg import _XFADE_TRANSITION_BY_TYPE
+
+    assert set(_XFADE_TRANSITION_BY_TYPE) == KNOWN_TRANSITION_TYPES
+
+
+def test_export_with_wipe_transition_real_render(editor, sample_video, tmp_path):
+    """A non-dissolve xfade name (wipe_left) must actually render - the
+    dissolve case (test_export_with_transition_real_crossfade) doesn't prove
+    every entry in _XFADE_TRANSITION_BY_TYPE is a real, working ffmpeg value."""
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    clip_b = editor.add_clip(track.id, media.id, start=30, src_in=0, src_out=30)
+    editor.add_transition(clip_b.id, "wipe_left", duration_frames=10)
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    expected = (30 + 30 - 10) / FPS
+    assert abs(result.duration_seconds - expected) < 0.05
+
+
 def test_set_speed_changes_timeline_duration_not_source(editor, sample_video):
     media = editor.import_media(sample_video, kind="video")
     track = editor.add_track("video")
@@ -482,6 +514,88 @@ def test_export_with_blur_and_vignette_keeps_duration_unchanged(editor, sample_v
     clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
     editor.apply_effect(clip.id, {"type": "blur", "amount": 6.0})
     editor.apply_effect(clip.id, {"type": "vignette"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+def test_apply_effect_sharpen_and_film_grain(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "sharpen", "amount": 3.0})
+    editor.apply_effect(clip.id, {"type": "film_grain", "amount": 40.0})
+    assert clip.effects[0] == {"type": "sharpen", "amount": 3.0}
+    assert clip.effects[1] == {"type": "film_grain", "amount": 40.0}
+
+
+def test_apply_effect_sharpen_rejects_out_of_range_amount(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "sharpen", "amount": 8.0})  # > ffmpeg's 5 max
+
+
+def test_apply_effect_film_grain_rejects_out_of_range_amount(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "film_grain", "amount": 0})
+
+
+def test_export_with_sharpen_and_film_grain_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "sharpen"})
+    editor.apply_effect(clip.id, {"type": "film_grain"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+def test_apply_effect_compression_and_noise_reduction(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "compression", "ratio": 8.0, "threshold_db": -24.0})
+    editor.apply_effect(clip.id, {"type": "noise_reduction", "amount": 20.0})
+    assert clip.effects[0] == {"type": "compression", "ratio": 8.0, "threshold_db": -24.0}
+    assert clip.effects[1] == {"type": "noise_reduction", "amount": 20.0}
+
+
+def test_apply_effect_compression_rejects_out_of_range_ratio(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "compression", "ratio": 25.0})  # > ffmpeg's 20 max
+
+
+def test_apply_effect_noise_reduction_rejects_out_of_range_amount(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "noise_reduction", "amount": 0.0})  # < ffmpeg's 0.01 min
+
+
+def test_export_with_compression_and_noise_reduction_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "compression"})
+    editor.apply_effect(clip.id, {"type": "noise_reduction"})
 
     out = tmp_path / "out.mp4"
     editor.export(out)

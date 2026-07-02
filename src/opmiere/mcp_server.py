@@ -162,6 +162,15 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
       {"type": "crop", "width": int, "height": int, "x": int (default centered), "y": int (default centered)}
       {"type": "rotate", "degrees": float, "fill": "black" (default) - color for corners the rotation
         exposes. Output frame size is unchanged (corners may clip), not auto-expanded.}
+      {"type": "sharpen", "amount": 0..5 (default 1.0, bigger is a stronger sharpen)}
+      {"type": "film_grain", "amount": 0..100 (default 20.0, bigger is heavier/coarser grain)}
+      {"type": "compression", "threshold_db": float (default -18.0, level where compression kicks in),
+        "ratio": 1..20 (default 4.0), "attack_ms": float (default 20.0), "release_ms": float
+        (default 250.0), "makeup_db": float (default 0.0, gain added back after compressing)}
+        - audio dynamic range compression (evens out loud/quiet parts), not video.
+      {"type": "noise_reduction", "amount": 0.01..97 (default 12.0, dB of noise reduction - bigger
+        is more aggressive, can start eating the wanted signal past a point)}
+        - spectral denoise (ffmpeg's afftdn) for hiss/hum in a recording, not video.
     A fade's duration_frames must not exceed the clip's own duration_frames
     (visible in get_project_state).
     """
@@ -170,13 +179,17 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
 
 @mcp.tool()
 def add_transition(clip_id: str, transition_type: str, duration_frames: int) -> dict:
-    """Dissolve clip_id in from whatever clip precedes it on its track.
+    """Transition clip_id in from whatever clip precedes it on its track.
 
-    transition_type: currently only "cross_dissolve". The boundary must
-    currently be a clean hard cut (this clip's start == the previous clip's
-    end) - check get_project_state first. This shortens the combined
-    timeline by duration_frames, since the two clips now overlap by that
-    much instead of playing back to back.
+    transition_type: "cross_dissolve" (classic dissolve), "dip_to_black" or
+    "dip_to_white" (fade through a solid color, not directly into the next
+    shot), or "wipe_left"/"wipe_right"/"wipe_up"/"wipe_down" (the new shot
+    slides in over the old one). Video-only styling - the audio underneath
+    always crossfades the same way regardless of which visual type you pick.
+    The boundary must currently be a clean hard cut (this clip's start == the
+    previous clip's end) - check get_project_state first. This shortens the
+    combined timeline by duration_frames, since the two clips now overlap by
+    that much instead of playing back to back.
     """
     return _require_editor().add_transition(clip_id, transition_type, duration_frames).to_dict()
 

@@ -48,7 +48,7 @@ TrackKind = Literal["video", "audio"]
 # timeline math the P0 render backend relies on.
 KNOWN_EFFECT_TYPES = {
     "color", "fade", "gain", "text", "blur", "vignette", "chroma_key", "luma_key", "curves",
-    "crop", "rotate",
+    "crop", "rotate", "sharpen", "film_grain", "compression", "noise_reduction",
 }
 
 # "text" effect defaults. A CJK-capable font is the right default for this
@@ -68,8 +68,15 @@ CURVES_PRESETS = {
 
 # Transitions between adjacent clips on a track (ARCHITECTURE.md section 5.8).
 # Kept separate from KNOWN_EFFECT_TYPES: an effect is about one clip's own
-# pixels, a transition is about the *relationship* between two clips.
-KNOWN_TRANSITION_TYPES = {"cross_dissolve"}
+# pixels, a transition is about the *relationship* between two clips. Each
+# maps to one of ffmpeg xfade's own transition names (see render/ffmpeg.py's
+# _XFADE_TRANSITION_BY_TYPE) - this is a curated subset of xfade's real 57,
+# picked to match §5.8's own wishlist ("dip-to-black/white, wipes"), not
+# exhaustive.
+KNOWN_TRANSITION_TYPES = {
+    "cross_dissolve", "dip_to_black", "dip_to_white",
+    "wipe_left", "wipe_right", "wipe_up", "wipe_down",
+}
 
 # A still image has no intrinsic duration the way video/audio do (there's
 # nothing to probe). This is a deliberate virtual/sentinel value — not a

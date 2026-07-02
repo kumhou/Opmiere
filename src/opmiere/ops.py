@@ -270,6 +270,25 @@ class Editor:
                 preset = effect.get("preset")
                 if preset not in CURVES_PRESETS:
                     raise ValueError(f"curves effect 'preset' must be one of {sorted(CURVES_PRESETS)}")
+            elif etype == "sharpen":
+                amount = effect.get("amount", 1.0)
+                if not isinstance(amount, (int, float)) or not (0.0 < amount <= 5.0):
+                    raise ValueError("sharpen effect 'amount' must be in (0, 5]")
+            elif etype == "film_grain":
+                amount = effect.get("amount", 20.0)
+                if not isinstance(amount, (int, float)) or not (0.0 < amount <= 100.0):
+                    raise ValueError("film_grain effect 'amount' must be in (0, 100]")
+            elif etype == "compression":
+                ratio = effect.get("ratio", 4.0)
+                if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
+                    raise ValueError("compression effect 'ratio' must be in [1, 20]")
+                for field_name in ("threshold_db", "attack_ms", "release_ms", "makeup_db"):
+                    if field_name in effect and not isinstance(effect[field_name], (int, float)):
+                        raise ValueError(f"compression effect {field_name!r} must be numeric")
+            elif etype == "noise_reduction":
+                amount = effect.get("amount", 12.0)
+                if not isinstance(amount, (int, float)) or not (0.01 <= amount <= 97.0):
+                    raise ValueError("noise_reduction effect 'amount' must be in [0.01, 97]")
             elif etype == "crop":
                 width, height = effect.get("width"), effect.get("height")
                 if not isinstance(width, int) or width <= 0:
