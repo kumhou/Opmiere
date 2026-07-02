@@ -261,6 +261,15 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
         clip of the voice to clone) AND reference_text (its exact
         transcript - both required together). Only clone a voice with the
         speaker's knowledge/consent.
+
+    kind="music": prompt is the tags description - comma-separated genre/
+      mood/instrument descriptors (ACE-Step's own vocabulary), e.g. "warm
+      acoustic guitar, gentle piano, hopeful, cinematic underscore" - not a
+      natural-language sentence. Params: seconds (default 30), lyrics
+      (default "[instrumental]" for background-score use; pass real lyrics
+      with [verse]/[chorus] markers for a sung track), lyrics_strength
+      (default 1.0), steps (default 50), cfg (default 5.0), seed.
+      Apache-2.0, ~7.5GB VRAM, ~24s for 30s of audio on an 8GB GPU.
     """
     return _require_editor().generate(kind, prompt, params or {})
 

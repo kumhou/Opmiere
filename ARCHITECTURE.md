@@ -258,20 +258,31 @@ Two facts make this cheap to deliver:
    dependencies. Real-time interactive versions arrive with the P3 preview backend (GPU shaders /
    frei0r / movit). Advanced keying, motion tracking, and stabilization are explicitly **later**.
 
-### 5.9 Local audio generation — speech / SFX / music — DECIDED (direction)
+### 5.9 Local audio generation — speech / SFX / music — speech + music IMPLEMENTED, SFX open
 
 Not just image and video — audio is a first-class generation `kind`, same `GenerationProvider`
 interface, same VRAM-adaptive quantization treatment (§5.7). All local-first, cloud-optional.
-- **Speech / TTS:** Kokoro (small, strong, 8 GB-friendly), XTTS-v2 / F5-TTS (**voice cloning**), Piper
-  (ultra-light). Voice cloning directly serves an existing need — narration in *the user's own voice*,
-  not a canned preset, kept entirely local (no voice uploaded to the cloud).
-- **Music:** MusicGen, Stable Audio Open — local, fine for short cues.
-- **SFX:** Stable Audio Open / AudioGen — clips are short, so 8 GB copes well.
+- **Speech / TTS — done (P2.3):** Qwen3-TTS (Apache-2.0, preset voices + reference-clip cloning).
+- **Music — done:** **ACE-Step** (Apache-2.0, ComfyUI-bundled all-in-one 3.5B checkpoint), not the
+  originally-speculated MusicGen/Stable Audio Open — Stable Audio Open turned out to be gated + a
+  custom "other" license (checked via the HF API, not assumed) needing an auth token this session
+  didn't set up, while ACE-Step is clean and ungated. `generate(kind="music")`: prompt is the *tags*
+  description (comma-separated genre/mood/instrument descriptors, ACE-Step's own vocabulary, not a
+  sentence); `lyrics` defaults to `"[instrumental]"` for background-score use (the common case for a
+  video editor), or pass real `[verse]`/`[chorus]` lyrics for a sung track. Real result on the RTX
+  3070: 30s of audio, 50 steps, **~24s generation, ~7.5GB VRAM peak** — comfortably non-offload.
+  Verified as real audio (not silence/noise) via volume analysis (mean -16.8dB) and a waveform plot
+  showing real musical dynamics + a natural fade-out, since generated audio can't be "eyeballed" the
+  way a frame can.
+- **SFX — still open:** Stable Audio Open's own general text-to-audio capability (not just music) is
+  the natural fit, but its gating means the download needs an HF account + accepted-terms auth token,
+  unlike every other model this project has pulled so far (all anonymous/ungated). Deferred until that
+  auth flow is worth setting up, not for a technical reason.
 
-Honest tiering (consistent with §2): local TTS is near-cloud quality; local music is good-not-top-tier;
-local SFX is fine. Cloud (ElevenLabs, Suno) remains the pluggable top-tier option. Some of this can run
-*through* the existing ComfyUI provider (it has audio nodes); the rest via thin local model wrappers —
-either way it is "another provider / kind", not new architecture.
+Honest tiering (consistent with §2): local TTS is near-cloud quality; local music (ACE-Step) is
+good-not-top-tier but real and fast. Cloud (ElevenLabs, Suno) remains the pluggable top-tier option.
+Both implemented kinds run *through* the existing ComfyUI provider (it has native audio nodes) — no new
+architecture, exactly as predicted: "another provider / kind."
 
 ### 5.10 Compositional generation & the agent-director loop — the north-star workflow
 
@@ -469,10 +480,17 @@ tool, real-measurement-backed, split into non-offload/offload tracks exactly as 
 the full writeup, including a real bug caught and fixed: an initial safety margin wrongly excluded
 wan2.1 on the exact card it was proven to work on).
 
-Still open within P2: SFX/music (§5.9), a cloud provider, re-benchmarking the profiles table on hardware
-other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first non-8GB
-data point), and further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the LTX-2
-flagship) if an even-higher ceiling is ever wanted.
+**Music generation is also done (§5.9): ACE-Step**, Apache-2.0, `generate(kind="music")` - 30s
+instrumental/song, ~24s generation, ~7.5GB VRAM peak, comfortably non-offload alongside every other
+kind's default. Real audio verified via volume analysis + waveform plot (generated audio can't be
+eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's own `probe()`/
+`import_media` path, not just raw ComfyUI.
+
+Still open within P2: SFX (§5.9 - blocked on Stable Audio Open's gating needing an HF auth token this
+session didn't set up, not a technical blocker), a cloud provider, re-benchmarking the profiles table on
+hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first
+non-8GB data point), and further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the
+LTX-2 flagship) if an even-higher ceiling is ever wanted.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

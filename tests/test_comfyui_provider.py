@@ -14,6 +14,7 @@ from opmiere.generation.comfyui import (
     DEFAULT_FLUX_DEV_CHECKPOINT,
     DEFAULT_FLUX_SCHNELL_CHECKPOINT,
     DEFAULT_IMAGE_CHECKPOINT,
+    DEFAULT_MUSIC_CHECKPOINT,
     DEFAULT_SPEECH_CLONE_MODEL,
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL,
     DEFAULT_VIDEO_CHECKPOINT,
@@ -185,7 +186,7 @@ def test_checkpoint_licenses_cover_every_default_checkpoint():
     for checkpoint in (
         DEFAULT_IMAGE_CHECKPOINT, DEFAULT_VIDEO_CHECKPOINT, DEFAULT_FLUX_SCHNELL_CHECKPOINT,
         DEFAULT_FLUX_DEV_CHECKPOINT, DEFAULT_SPEECH_CUSTOM_VOICE_MODEL, DEFAULT_SPEECH_CLONE_MODEL,
-        DEFAULT_WAN21_T2V_CHECKPOINT, WAN22_MOE_LICENSE_KEY,
+        DEFAULT_WAN21_T2V_CHECKPOINT, WAN22_MOE_LICENSE_KEY, DEFAULT_MUSIC_CHECKPOINT,
     ):
         assert checkpoint in CHECKPOINT_LICENSES, f"{checkpoint} generates real output with no tracked license"
         assert CHECKPOINT_LICENSES[checkpoint].commercial_use in ("yes", "no", "conditional")
@@ -369,3 +370,53 @@ def test_recommend_profile_uses_detected_vram(provider, monkeypatch):
     profile = provider.recommend_profile("image")
 
     assert profile.model == "flux-dev"
+
+
+def test_music_workflow_has_expected_nodes_and_wiring(provider):
+    wf, checkpoint = provider._build_music_workflow(
+        "warm acoustic guitar, gentle piano, hopeful, cinematic underscore", {}
+    )
+
+    assert checkpoint == DEFAULT_MUSIC_CHECKPOINT
+    assert wf["40"]["class_type"] == "CheckpointLoaderSimple"
+    assert wf["40"]["inputs"]["ckpt_name"] == DEFAULT_MUSIC_CHECKPOINT
+    assert wf["14"]["class_type"] == "TextEncodeAceStepAudio"
+    assert wf["14"]["inputs"]["tags"] == "warm acoustic guitar, gentle piano, hopeful, cinematic underscore"
+    assert wf["14"]["inputs"]["lyrics"] == "[instrumental]"
+    assert wf["44"]["class_type"] == "ConditioningZeroOut"
+    assert wf["52"]["inputs"]["positive"] == ["14", 0]
+    assert wf["52"]["inputs"]["negative"] == ["44", 0]
+    assert wf["59"]["class_type"] == "SaveAudioMP3"
+    assert wf["59"]["inputs"]["audio"] == ["18", 0]
+
+
+def test_music_workflow_respects_params(provider):
+    wf, _ = provider._build_music_workflow("x", {
+        "seconds": 60.0, "steps": 30, "lyrics": "[verse]\nhello world", "lyrics_strength": 0.5,
+    })
+
+    assert wf["17"]["inputs"]["seconds"] == 60.0
+    assert wf["52"]["inputs"]["steps"] == 30
+    assert wf["14"]["inputs"]["lyrics"] == "[verse]\nhello world"
+    assert wf["14"]["inputs"]["lyrics_strength"] == 0.5
+
+
+def test_submit_dispatches_music_kind_and_records_checkpoint(provider, monkeypatch):
+    captured = {}
+
+    def fake_post(path, payload):
+        captured["prompt"] = payload["prompt"]
+        return {"prompt_id": "job-7"}
+
+    monkeypatch.setattr(provider, "_post", fake_post)
+
+    job_id = provider.submit("music", "gentle piano, cinematic", {})
+
+    assert job_id == "job-7"
+    assert captured["prompt"]["40"]["inputs"]["ckpt_name"] == DEFAULT_MUSIC_CHECKPOINT
+    assert provider._jobs["job-7"]["checkpoint"] == DEFAULT_MUSIC_CHECKPOINT
+
+
+def test_submit_rejects_sfx_as_still_unimplemented(provider):
+    with pytest.raises(NotImplementedError, match="sfx"):
+        provider.submit("sfx", "x", {})

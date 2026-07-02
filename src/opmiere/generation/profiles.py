@@ -77,6 +77,12 @@ GENERATION_PROFILES: dict[str, list[GenerationProfile]] = {
             "Preset voice or reference-clip cloning. Apache-2.0, "
             "commercial-safe."),
     ],
+    "music": [
+        GenerationProfile(
+            "ace-step", "balanced", False, 7.5, 24,
+            "30s instrumental/song, 50 steps. Apache-2.0, commercial-safe. "
+            "Real audio confirmed via waveform + volume check, not silence."),
+    ],
 }
 
 

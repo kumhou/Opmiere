@@ -56,6 +56,12 @@ def test_recommend_rejects_unknown_kind():
         recommend("sfx", vram_gb=8.0, offload=False)
 
 
+def test_recommend_music_picks_ace_step():
+    profile = recommend("music", vram_gb=8.0, offload=False)
+
+    assert profile.model == "ace-step"
+
+
 def test_every_profile_serializes_to_dict():
     for profiles in GENERATION_PROFILES.values():
         for profile in profiles:

@@ -67,13 +67,15 @@ DEFAULT_WAN22_LOWNOISE_CHECKPOINT = "Wan2.2-T2V-A14B-LowNoise-Q4_K_S.gguf"
 # under the same Wan2.2 release/license, so one entry is accurate, not a
 # simplification that loses information).
 WAN22_MOE_LICENSE_KEY = "Wan2.2-T2V-A14B (HighNoise+LowNoise)"
+DEFAULT_MUSIC_CHECKPOINT = "ace_step_v1_3.5b.safetensors"
 
 # Which output node each workflow ends at, and which output dict key holds
 # the result file list. image/video both really do use "images" (confirmed
-# by reading SaveVideo's actual output, not assumed); speech's SaveAudio
-# uses "audio" instead - a real, observed difference, not a typo.
-_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4"}
-_OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio"}
+# by reading SaveVideo's actual output, not assumed); speech's SaveAudio and
+# music's SaveAudioMP3 both use "audio" - also confirmed by reading the real
+# /history response, not assumed just because the class names rhyme.
+_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4", "music": "59"}
+_OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio", "music": "audio"}
 
 # Every checkpoint this provider knows how to load, and its real license -
 # verified against the actual license text/terms page, not assumed from the
@@ -103,6 +105,8 @@ CHECKPOINT_LICENSES: dict[str, ModelLicense] = {
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
     DEFAULT_SPEECH_CLONE_MODEL: ModelLicense(
+        "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+    DEFAULT_MUSIC_CHECKPOINT: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
 }
 
@@ -421,6 +425,45 @@ class ComfyUIProvider(GenerationProvider):
         }
         return workflow, WAN22_MOE_LICENSE_KEY
 
+    def _build_music_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """ACE-Step (Apache-2.0) - music/score generation, the last unbuilt
+        GenerationProvider kind. prompt is the tags description (genre/
+        mood/instruments, e.g. "warm acoustic guitar, gentle piano, hopeful,
+        cinematic underscore") - ACE-Step's own vocabulary, comma-separated
+        descriptors rather than a natural-language sentence. lyrics defaults
+        to "[instrumental]" (background-score use is the common case for a
+        video editor); pass real lyrics with [verse]/[chorus] structure
+        markers for a sung track instead. Graph traced from ComfyUI's own
+        bundled audio_ace_step_1_t2a_song.json/t2a_instrumentals.json
+        templates and verified node-by-node via /object_info.
+        """
+        seconds = params.get("seconds", 30.0)
+        steps = params.get("steps", 50)
+        cfg = params.get("cfg", 5.0)
+        shift = params.get("shift", 5.0)
+        seed = params.get("seed", random.randint(0, 2**31 - 1))
+        lyrics = params.get("lyrics", "[instrumental]")
+        lyrics_strength = params.get("lyrics_strength", 1.0)
+        checkpoint = params.get("checkpoint", DEFAULT_MUSIC_CHECKPOINT)
+        workflow = {
+            "40": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
+            "14": {"class_type": "TextEncodeAceStepAudio", "inputs": {
+                "clip": ["40", 1], "tags": prompt, "lyrics": lyrics, "lyrics_strength": lyrics_strength}},
+            "44": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["14", 0]}},
+            "17": {"class_type": "EmptyAceStepLatentAudio", "inputs": {"seconds": seconds, "batch_size": 1}},
+            "51": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["40", 0], "shift": shift}},
+            "50": {"class_type": "LatentOperationTonemapReinhard", "inputs": {"multiplier": 1.0}},
+            "49": {"class_type": "LatentApplyOperationCFG", "inputs": {"model": ["51", 0], "operation": ["50", 0]}},
+            "52": {"class_type": "KSampler", "inputs": {
+                "model": ["49", 0], "positive": ["14", 0], "negative": ["44", 0], "latent_image": ["17", 0],
+                "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": "euler", "scheduler": "simple",
+                "denoise": 1.0}},
+            "18": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["52", 0], "vae": ["40", 2]}},
+            "59": {"class_type": "SaveAudioMP3", "inputs": {
+                "audio": ["18", 0], "filename_prefix": "opmiere_gen_music", "quality": "V0"}},
+        }
+        return workflow, checkpoint
+
     def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         seed = params.get("seed", random.randint(0, 2**31 - 1))
         language = params.get("language", "Auto")
@@ -494,10 +537,11 @@ class ComfyUIProvider(GenerationProvider):
                     f"unknown video model {video_model!r}; choices: ltx-video, wan2.1, wan2.2-moe")
         elif kind == "speech":
             workflow, checkpoint = self._build_speech_workflow(prompt, params)
+        elif kind == "music":
+            workflow, checkpoint = self._build_music_workflow(prompt, params)
         else:
             raise NotImplementedError(
-                f"ComfyUIProvider does not support kind={kind!r} yet "
-                "(sfx/music generation are follow-up work)"
+                f"ComfyUIProvider does not support kind={kind!r} yet (sfx generation is follow-up work)"
             )
         resp = self._post("/prompt", {"prompt": workflow, "client_id": self.client_id})
         if resp.get("node_errors"):
