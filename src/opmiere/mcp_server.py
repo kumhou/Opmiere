@@ -153,6 +153,12 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
       {"type": "chroma_key", "color": "green" (default), "similarity": 0..1 (default 0.15), "blend": 0..1 (default 0.05)}
         - keys the color transparent; put this clip on a video track above another
           (see add_track/add_clip) so the track underneath shows through.
+      {"type": "luma_key", "threshold": 0..1 (default 0.1), "tolerance": 0..1 (default 0.1)}
+        - same idea as chroma_key but keys by brightness, not a specific color
+          (e.g. a white/black backdrop instead of green/blue).
+      {"type": "curves", "preset": one of color_negative|cross_process|darker|increase_contrast|
+        lighter|linear_contrast|medium_contrast|negative|strong_contrast|vintage}
+        - a full-frame color-grade preset (ffmpeg's own curves vocabulary).
     A fade's duration_frames must not exceed the clip's own duration_frames
     (visible in get_project_state).
     """

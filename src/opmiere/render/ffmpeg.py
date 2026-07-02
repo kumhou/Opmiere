@@ -22,7 +22,16 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ..bundle import Bundle
-from ..model import DEFAULT_TEXT_FONT, IMAGE_VIRTUAL_DURATION_FRAMES, Clip, Media, MediaKind, Project, Track
+from ..model import (
+    CURVES_PRESETS,
+    DEFAULT_TEXT_FONT,
+    IMAGE_VIRTUAL_DURATION_FRAMES,
+    Clip,
+    Media,
+    MediaKind,
+    Project,
+    Track,
+)
 from .backend import RenderBackend
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
@@ -168,6 +177,25 @@ def _effect_filters(
             # composited and eyeballed) before wiring this in - alpha survival
             # through scale/pad/overlay is not something to assume.
             parts.append(f"chromakey=color={color}:similarity={similarity}:blend={blend}")
+        elif etype == "luma_key":
+            if stream != "video":
+                continue
+            threshold = effect.get("threshold", 0.1)
+            tolerance = effect.get("tolerance", 0.1)
+            if not isinstance(threshold, (int, float)) or not (0.0 <= threshold <= 1.0):
+                raise ValueError("luma_key effect has invalid 'threshold'")
+            if not isinstance(tolerance, (int, float)) or not (0.0 <= tolerance <= 1.0):
+                raise ValueError("luma_key effect has invalid 'tolerance'")
+            # Same alpha-survival requirement as chroma_key (see above) -
+            # _video_clip_chain's has_alpha check covers both.
+            parts.append(f"lumakey=threshold={threshold}:tolerance={tolerance}")
+        elif etype == "curves":
+            if stream != "video":
+                continue
+            preset = effect.get("preset")
+            if preset not in CURVES_PRESETS:
+                raise ValueError(f"curves effect has invalid 'preset' {preset!r}")
+            parts.append(f"curves=preset={preset}")
         else:
             raise NotImplementedError(f"effect type {etype!r} is not supported by FFmpegBackend yet")
     return parts
@@ -248,7 +276,7 @@ def _video_clip_chain(clip: Clip, idx: int, fps: float, W: int, H: int, text_dir
     chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
     for filt in fx:
         chain += f",{filt}"
-    has_alpha = any(e.get("type") == "chroma_key" for e in clip.effects)
+    has_alpha = any(e.get("type") in ("chroma_key", "luma_key") for e in clip.effects)
     pad_color = "black@0.0" if has_alpha else "black"
     chain += f",scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={pad_color},"
     if has_alpha:

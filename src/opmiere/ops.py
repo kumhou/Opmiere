@@ -20,6 +20,7 @@ from typing import Any, Iterator
 from .bundle import Bundle
 from .generation.provider import GenerationJob, GenerationProvider, JobStatus
 from .model import (
+    CURVES_PRESETS,
     KNOWN_EFFECT_TYPES,
     KNOWN_TRANSITION_TYPES,
     TEXT_POSITIONS,
@@ -256,6 +257,17 @@ class Editor:
                 blend = effect.get("blend", 0.05)
                 if not isinstance(blend, (int, float)) or not (0.0 <= blend <= 1.0):
                     raise ValueError("chroma_key effect 'blend' must be in [0, 1]")
+            elif etype == "luma_key":
+                threshold = effect.get("threshold", 0.1)
+                if not isinstance(threshold, (int, float)) or not (0.0 <= threshold <= 1.0):
+                    raise ValueError("luma_key effect 'threshold' must be in [0, 1]")
+                tolerance = effect.get("tolerance", 0.1)
+                if not isinstance(tolerance, (int, float)) or not (0.0 <= tolerance <= 1.0):
+                    raise ValueError("luma_key effect 'tolerance' must be in [0, 1]")
+            elif etype == "curves":
+                preset = effect.get("preset")
+                if preset not in CURVES_PRESETS:
+                    raise ValueError(f"curves effect 'preset' must be one of {sorted(CURVES_PRESETS)}")
             clip.effects.append(dict(effect))
             return clip
 

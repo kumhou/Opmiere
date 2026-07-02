@@ -439,6 +439,11 @@ itself needed no change; it already respects incoming alpha with no `format=` op
 real render (blue background + green screen "subject" clip), sampling actual output pixels (blue
 showing through, red subject intact) rather than just "no ffmpeg error."
 
+**`luma_key` and `curves` are built too** — `luma_key` reuses chroma_key's alpha-survival handling
+(`_video_clip_chain`'s `has_alpha` check now covers both), verified with the same real-pixel-sampling
+render (white background keyed transparent, black subject box intact). `curves` wraps ffmpeg's own
+`preset` vocabulary (vintage, cross_process, negative, …) for one-shot full-frame color grading.
+
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from
 `duration_frames` so source-frame math stays untouched; video via `setpts`, audio via `atempo`

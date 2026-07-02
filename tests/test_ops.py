@@ -563,3 +563,76 @@ def test_chroma_key_composites_transparently_over_base_track(editor, blue_video,
     center = img.getpixel((80, 45))
     assert corner[2] > corner[0] and corner[2] > corner[1]  # blue dominant, not green
     assert center[0] > center[1] and center[0] > center[2]  # red dominant
+
+
+@pytest.fixture(scope="module")
+def white_video(tmp_path_factory) -> Path:
+    """White background with a black box "subject" - for luma_key tests."""
+    d = tmp_path_factory.mktemp("media")
+    path = d / "white.mp4"
+    cmd = [
+        "ffmpeg", "-y", "-f", "lavfi",
+        "-i", f"color=c=white:size=160x90:duration=2:rate={FPS},drawbox=x=55:y=30:w=50:h=30:color=black:t=fill",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+    ]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return path
+
+
+def test_apply_effect_luma_key_rejects_bad_threshold(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "luma_key", "threshold": 1.5})
+
+
+def test_luma_key_composites_transparently_over_base_track(editor, blue_video, white_video, tmp_path):
+    """Real render: blue base + a white-background overlay clip with
+    luma_key applied. White should key transparent (showing blue through),
+    the black box should survive (low luma, below threshold)."""
+    blue = editor.import_media(blue_video, kind="video")
+    white = editor.import_media(white_video, kind="video")
+    base = editor.add_track("video")
+    overlay = editor.add_track("video")
+    editor.add_clip(base.id, blue.id, start=0, src_in=0, src_out=60)
+    clip = editor.add_clip(overlay.id, white.id, start=0, src_in=0, src_out=60)
+    editor.apply_effect(clip.id, {"type": "luma_key", "threshold": 0.9, "tolerance": 0.1})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    frame_path = tmp_path / "frame.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,15)", "-update", "1",
+         "-vframes", "1", str(frame_path)],
+        capture_output=True, text=True, check=True,
+    )
+    from PIL import Image
+    img = Image.open(frame_path).convert("RGB")
+    corner = img.getpixel((5, 5))  # was white - should show blue background
+    center = img.getpixel((80, 45))  # the black box - should survive, near-black
+    assert corner[2] > corner[0] and corner[2] > corner[1]
+    assert sum(center) < 60  # near-black, not keyed out
+
+
+def test_apply_effect_curves_rejects_unknown_preset(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "curves", "preset": "not_a_real_preset"})
+
+
+def test_export_with_curves_preset_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "curves", "preset": "vintage"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05
