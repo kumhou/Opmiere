@@ -41,13 +41,17 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .provider import GenerationJob, GenerationProvider, JobStatus
+from .provider import GenerationJob, GenerationProvider, JobStatus, ModelLicense
 
 DEFAULT_IMAGE_CHECKPOINT = "v1-5-pruned-emaonly-fp16.safetensors"
 DEFAULT_VIDEO_CHECKPOINT = "ltxv-2b-0.9.8-distilled-fp8.safetensors"
 DEFAULT_VIDEO_TEXT_ENCODER = "t5xxl_fp8_e4m3fn_scaled.safetensors"
 DEFAULT_SPEECH_CUSTOM_VOICE_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
 DEFAULT_SPEECH_CLONE_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+DEFAULT_FLUX_SCHNELL_CHECKPOINT = "flux1-schnell-Q4_K_S.gguf"
+DEFAULT_FLUX_DEV_CHECKPOINT = "flux1-dev-Q4_K_S.gguf"
+FLUX_CLIP_L = "clip_l.safetensors"
+FLUX_VAE = "ae.safetensors"
 
 # Which output node each workflow ends at, and which output dict key holds
 # the result file list. image/video both really do use "images" (confirmed
@@ -55,6 +59,33 @@ DEFAULT_SPEECH_CLONE_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
 # uses "audio" instead - a real, observed difference, not a typo.
 _OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4"}
 _OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio"}
+
+# Every checkpoint this provider knows how to load, and its real license -
+# verified against the actual license text/terms page, not assumed from the
+# model's reputation. Metadata only: flows into Media.origin (see
+# ops.place_generated) so a project can be audited before commercial use: it
+# never touches the generated pixels/audio themselves.
+CHECKPOINT_LICENSES: dict[str, ModelLicense] = {
+    DEFAULT_IMAGE_CHECKPOINT: ModelLicense(
+        "CreativeML OpenRAIL-M", "yes",
+        "Commercial use permitted, no revenue cap; use-based restrictions only "
+        "(no illegal/harmful content)."),
+    DEFAULT_VIDEO_CHECKPOINT: ModelLicense(
+        "Lightricks Open Weights License", "conditional",
+        "Free for commercial use only if your company's ARR is under $10M USD. "
+        "Above that, requires a paid commercial license from Lightricks "
+        "(ltxv-licensing@lightricks.com)."),
+    DEFAULT_FLUX_SCHNELL_CHECKPOINT: ModelLicense(
+        "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+    DEFAULT_FLUX_DEV_CHECKPOINT: ModelLicense(
+        "FLUX.1-dev Non-Commercial License", "no",
+        "Free for personal/research use only. Commercial use requires a separate "
+        "license from Black Forest Labs."),
+    DEFAULT_SPEECH_CUSTOM_VOICE_MODEL: ModelLicense(
+        "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+    DEFAULT_SPEECH_CLONE_MODEL: ModelLicense(
+        "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+}
 
 
 class ComfyUIProvider(GenerationProvider):
@@ -116,7 +147,7 @@ class ComfyUIProvider(GenerationProvider):
                 f"could not reach ComfyUI at {self.base_url} — is the server running?"
             ) from e
 
-    def _build_txt2img_workflow(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+    def _build_txt2img_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         width = params.get("width", 512)
         height = params.get("height", 512)
         steps = params.get("steps", 20)
@@ -124,7 +155,7 @@ class ComfyUIProvider(GenerationProvider):
         seed = params.get("seed", random.randint(0, 2**31 - 1))
         negative = params.get("negative_prompt", "blurry, low quality, watermark, text")
         checkpoint = params.get("checkpoint", self.image_checkpoint)
-        return {
+        workflow = {
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
@@ -141,8 +172,56 @@ class ComfyUIProvider(GenerationProvider):
             "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
             "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "opmiere_gen", "images": ["8", 0]}},
         }
+        return workflow, checkpoint
 
-    def _build_ltxv_workflow(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+    def _build_flux_workflow(self, prompt: str, params: dict[str, Any], model: str) -> tuple[dict[str, Any], str]:
+        """Flux (schnell or dev) via GGUF. Both share the same graph shape,
+        traced from ComfyUI's own bundled flux_schnell.json and
+        flux_dev_checkpoint_example.json templates: only checkpoint and
+        step count really differ (dev's own example also runs cfg=1, same
+        as schnell - negative conditioning is moot either way, so a plain
+        empty-string CLIPTextEncode is equivalent to dev's usual
+        ConditioningZeroOut trick, not a shortcut that changes behavior).
+        Verified against this RTX 3070 for schnell (Q4_K_S, 1024x1024,
+        34s, ~7GB VRAM peak — dramatically better than SD1.5) before dev
+        was wired in.
+        """
+        width = params.get("width", 1024)
+        height = params.get("height", 1024)
+        seed = params.get("seed", random.randint(0, 2**31 - 1))
+        negative = params.get("negative_prompt", "")
+        clip_name1 = params.get("clip_name1", FLUX_CLIP_L)
+        clip_name2 = params.get("clip_name2", self.video_text_encoder)  # same t5xxl already used for LTX-Video
+        vae_name = params.get("vae_name", FLUX_VAE)
+
+        if model == "flux-schnell":
+            checkpoint = params.get("checkpoint", DEFAULT_FLUX_SCHNELL_CHECKPOINT)
+            steps = params.get("steps", 4)
+        elif model == "flux-dev":
+            checkpoint = params.get("checkpoint", DEFAULT_FLUX_DEV_CHECKPOINT)
+            steps = params.get("steps", 20)
+        else:
+            raise ValueError(f"unknown flux model {model!r}; choices: flux-schnell, flux-dev")
+        cfg = params.get("cfg", 1.0)
+
+        workflow = {
+            "30": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": checkpoint}},
+            "31": {"class_type": "DualCLIPLoader", "inputs": {
+                "clip_name1": clip_name1, "clip_name2": clip_name2, "type": "flux"}},
+            "32": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["31", 0], "text": prompt}},
+            "33": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["31", 0], "text": negative}},
+            "27": {"class_type": "EmptySD3LatentImage", "inputs": {"width": width, "height": height, "batch_size": 1}},
+            "3": {"class_type": "KSampler", "inputs": {
+                "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": "euler", "scheduler": "simple",
+                "denoise": 1.0, "model": ["30", 0], "positive": ["6", 0], "negative": ["33", 0],
+                "latent_image": ["27", 0]}},
+            "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["32", 0]}},
+            "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "opmiere_gen", "images": ["8", 0]}},
+        }
+        return workflow, checkpoint
+
+    def _build_ltxv_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         width = params.get("width", 512)
         height = params.get("height", 320)
         num_frames = params.get("num_frames", 65)
@@ -161,7 +240,7 @@ class ComfyUIProvider(GenerationProvider):
         )
         checkpoint = params.get("checkpoint", self.video_checkpoint)
         text_encoder = params.get("text_encoder", self.video_text_encoder)
-        return {
+        workflow = {
             "38": {"class_type": "CLIPLoader", "inputs": {
                 "clip_name": text_encoder, "type": "ltxv", "device": "default"}},
             "44": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
@@ -184,8 +263,9 @@ class ComfyUIProvider(GenerationProvider):
             "79": {"class_type": "SaveVideo", "inputs": {
                 "video": ["78", 0], "filename_prefix": "opmiere_gen_video", "format": "auto", "codec": "auto"}},
         }
+        return workflow, checkpoint
 
-    def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+    def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         seed = params.get("seed", random.randint(0, 2**31 - 1))
         language = params.get("language", "Auto")
         reference_audio = params.get("reference_audio")
@@ -213,7 +293,7 @@ class ComfyUIProvider(GenerationProvider):
             dest_name = f"opmiere_ref_{uuid.uuid4().hex[:8]}{src.suffix}"
             shutil.copy2(src, self.comfyui_input_dir / dest_name)
             checkpoint = params.get("checkpoint", DEFAULT_SPEECH_CLONE_MODEL)
-            return {
+            workflow = {
                 "1": {"class_type": "Qwen3Loader", "inputs": {
                     "repo_id": checkpoint, "source": "HuggingFace", "precision": "bf16", "attention": "auto"}},
                 "2": {"class_type": "LoadAudio", "inputs": {"audio": dest_name}},
@@ -222,25 +302,33 @@ class ComfyUIProvider(GenerationProvider):
                     "ref_audio": ["2", 0], "ref_text": reference_text}},
                 "4": {"class_type": "SaveAudio", "inputs": {"audio": ["3", 0], "filename_prefix": "opmiere_gen_speech"}},
             }
+            return workflow, checkpoint
 
         # No reference clip: a preset speaker via the CustomVoice checkpoint.
         speaker = params.get("speaker", "Vivian")
         checkpoint = params.get("checkpoint", DEFAULT_SPEECH_CUSTOM_VOICE_MODEL)
-        return {
+        workflow = {
             "1": {"class_type": "Qwen3Loader", "inputs": {
                 "repo_id": checkpoint, "source": "HuggingFace", "precision": "bf16", "attention": "auto"}},
             "2": {"class_type": "Qwen3CustomVoice", "inputs": {
                 "model": ["1", 0], "text": prompt, "language": language, "speaker": speaker, "seed": seed}},
             "4": {"class_type": "SaveAudio", "inputs": {"audio": ["2", 0], "filename_prefix": "opmiere_gen_speech"}},
         }
+        return workflow, checkpoint
 
     def submit(self, kind: str, prompt: str, params: dict[str, Any]) -> str:
         if kind == "image":
-            workflow = self._build_txt2img_workflow(prompt, params)
+            model = params.get("model", "sd1.5")
+            if model == "sd1.5":
+                workflow, checkpoint = self._build_txt2img_workflow(prompt, params)
+            elif model in ("flux-schnell", "flux-dev"):
+                workflow, checkpoint = self._build_flux_workflow(prompt, params, model)
+            else:
+                raise ValueError(f"unknown image model {model!r}; choices: sd1.5, flux-schnell, flux-dev")
         elif kind == "video":
-            workflow = self._build_ltxv_workflow(prompt, params)
+            workflow, checkpoint = self._build_ltxv_workflow(prompt, params)
         elif kind == "speech":
-            workflow = self._build_speech_workflow(prompt, params)
+            workflow, checkpoint = self._build_speech_workflow(prompt, params)
         else:
             raise NotImplementedError(
                 f"ComfyUIProvider does not support kind={kind!r} yet "
@@ -250,7 +338,7 @@ class ComfyUIProvider(GenerationProvider):
         if resp.get("node_errors"):
             raise ValueError(f"ComfyUI rejected the workflow: {resp['node_errors']}")
         job_id = resp["prompt_id"]
-        self._jobs[job_id] = {"kind": kind, "prompt": prompt}
+        self._jobs[job_id] = {"kind": kind, "prompt": prompt, "checkpoint": checkpoint}
         return job_id
 
     def status(self, job_id: str) -> GenerationJob:
@@ -300,6 +388,7 @@ class ComfyUIProvider(GenerationProvider):
 
         return GenerationJob(
             id=job_id, status=JobStatus.DONE, kind=meta["kind"], prompt=meta["prompt"], result_path=dest,
+            license=CHECKPOINT_LICENSES.get(meta["checkpoint"]),
         )
 
     def wait(self, job_id: str, timeout_seconds: float = 180.0, poll_interval: float = 1.0) -> GenerationJob:

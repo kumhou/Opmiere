@@ -162,6 +162,19 @@ ordinary users never have to hand-assemble ComfyUI graphs.
   never statically linked, so their copyleft does not propagate into Opmiere's own code. libopenshot
   (LGPL-3) is acceptable to link. ComfyUI runs as a separate process.
 
+**Generated-model licenses are a different axis, tracked not avoided.** JH's explicit call: pick
+*generation* models for quality first; a non-commercial-licensed checkpoint (e.g. Flux.1-dev) is fine to
+use, but every job must record which checkpoint made it and that checkpoint's real commercial-use terms,
+so a project can be audited before it's sold/published rather than the restriction being silently lost.
+Implementation (`opmiere.generation`): a `CHECKPOINT_LICENSES` registry in `ComfyUIProvider` maps each
+checkpoint filename/repo id → a `ModelLicense` (name, `commercial_use: yes|no|conditional`, notes),
+verified against each model's actual license text (never assumed from reputation — caught real
+surprises this way, e.g. LTX-Video's license is conditional on company ARR, not a flat yes/no). This
+flows `GenerationJob.license` → `Media.origin["license"]` at `place_generated()` time, and
+`Editor.get_license_report()` (also an MCP tool) audits a whole project's placed media at once. **This
+is metadata only** — it is never watermarked or otherwise mixed into the generated pixels/audio
+themselves; nothing about the output content changes based on license.
+
 ### 5.7 VRAM-adaptive generation — the local-quality bet — DECIDED (direction)
 
 The core wager: **a modest GPU should reach high quality by spending *time*, not *money*.** The
@@ -392,10 +405,24 @@ committing to a download; the "LTX-Video" name now spans two very different mode
 knowing before reaching for it again). Speech runs on Qwen3-TTS (Apache-2.0 — chosen specifically over
 XTTS-v2/F5-TTS, both non-commercial-licensed). Real numbers on the reference RTX 3070: image ~7s/~2GB
 VRAM, video (512x320, 65 frames/25fps, 30 steps) ~22s/~6.4GB VRAM peak — both comfortably inside the
-8 GB budget without needing any of section 5.7's offload/quantization techniques yet. Still open within
-P2: SFX/music (§5.9), a cloud provider, and the VRAM-adaptive quantization *profiles* from §5.7
-(everything above runs at whatever precision its checkpoint ships in — the auto-selecting-by-detected-
-VRAM machinery, and pushing a *bigger* model than currently fits via GGUF/block-swap, is not yet built).
+8 GB budget without needing any of section 5.7's offload/quantization techniques yet.
+
+**First real §5.7 quantization result: dramatic, not marginal.** Flux.1-schnell at GGUF Q4_K_S (the
+first quantized model wired in) produces photorealistic image quality far beyond SD1.5, still comfortably
+inside 8 GB (~7GB VRAM peak, 1024x1024, 34s, 4 steps) — this alone justified making quantized GGUF
+checkpoints a normal option, not just a fallback for oversized models. Flux.1-dev (same graph, 20 steps,
+higher quality still, non-commercial license — see §5.6) is wired in alongside it as the quality-max
+image option. `generate(kind="image")` now takes `model: sd1.5 | flux-schnell | flux-dev`. The
+license-tracking mechanism (§5.6) shipped in the same pass, since flux-dev was the first checkpoint that
+actually needed it. Still open within P2: SFX/music (§5.9), a cloud provider, a quality-tier *video*
+model (Wan2.1/2.2, HunyuanVideo, and the LTX-2 flagship are candidates — real GGUF file sizes put all of
+them at 11GB+ even at Q4, i.e. offload-tier on this 8 GB card, unlike the image case), and the full
+auto-selecting-by-detected-VRAM *profiles* machinery from §5.7 (JH's ask: split recommendations into two
+tracks, **non-offload** (fits VRAM outright, current default) and **offload** (deliberately trades speed
+for a bigger/better model via RAM or disk as overflow — ComfyUI's own `--novram`/`--reserve-vram`/
+`--fast-disk` plus community tooling like ComfyUI-MultiGPU's DisTorch2 for spreading load across a
+secondary GPU, relevant once JH's spare GTX 1660 Super is physically installed — rather than one
+single "best pick per VRAM tier" table).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

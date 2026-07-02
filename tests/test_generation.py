@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from opmiere import Editor
-from opmiere.generation.provider import GenerationJob, GenerationProvider, JobStatus
+from opmiere.generation.provider import GenerationJob, GenerationProvider, JobStatus, ModelLicense
 
 FPS = 30
 
@@ -34,10 +34,11 @@ class FakeProvider(GenerationProvider):
     def status(self, job_id: str) -> GenerationJob:
         return self._jobs[job_id]
 
-    def complete(self, job_id: str, result_path: Path) -> None:
+    def complete(self, job_id: str, result_path: Path, license: ModelLicense | None = None) -> None:
         job = self._jobs[job_id]
         self._jobs[job_id] = GenerationJob(
             id=job_id, status=JobStatus.DONE, kind=job.kind, prompt=job.prompt, result_path=result_path,
+            license=license,
         )
 
     def fail(self, job_id: str, error: str) -> None:
@@ -116,7 +117,7 @@ def test_place_generated_imports_and_creates_clip(editor, provider, sample_image
     assert clip.src_out == 45
     media = editor.project.media_by_id(clip.media)
     assert media.kind == "image"
-    assert media.origin == {"provider": "fake", "job": job_id, "prompt": "a red square"}
+    assert media.origin == {"provider": "fake", "job": job_id, "prompt": "a red square", "license": None}
     assert editor.duration_frames() == 45
 
 
@@ -155,7 +156,59 @@ def test_place_generated_maps_speech_kind_to_audio_media(editor, provider, sampl
 
     media = editor.project.media_by_id(clip.media)
     assert media.kind == "audio"
-    assert media.origin == {"provider": "fake", "job": job_id, "prompt": "hello there"}
+    assert media.origin == {"provider": "fake", "job": job_id, "prompt": "hello there", "license": None}
+
+
+def test_place_generated_records_license_in_media_origin(editor, provider, sample_image):
+    job_id = editor.generate("image", "a red square")
+    license = ModelLicense("FLUX.1-dev Non-Commercial License", "no", "personal/research only")
+    provider.complete(job_id, sample_image, license=license)
+    track = editor.add_track("video")
+
+    clip = editor.place_generated(job_id, track.id, start=0, duration_frames=45)
+
+    media = editor.project.media_by_id(clip.media)
+    assert media.origin["license"] == license.to_dict()
+
+
+def test_get_license_report_flags_non_commercial_media(editor, provider, sample_image, tmp_path):
+    track = editor.add_track("video")
+
+    # Two distinct files: place_generated's underlying bundle import refuses
+    # to import two source files that would collide on the same media/
+    # filename, same as it would for two independently-generated real jobs.
+    second_image = tmp_path / "sample2.png"
+    second_image.write_bytes(sample_image.read_bytes())
+
+    ok_job = editor.generate("image", "a permissive image")
+    provider.complete(ok_job, sample_image, license=ModelLicense("Apache-2.0", "yes"))
+    editor.place_generated(ok_job, track.id, start=0, duration_frames=30)
+
+    risky_job = editor.generate("image", "a non-commercial image")
+    provider.complete(
+        risky_job, second_image,
+        license=ModelLicense("FLUX.1-dev Non-Commercial License", "no", "personal/research only"),
+    )
+    editor.place_generated(risky_job, track.id, start=30, duration_frames=30)
+
+    report = editor.get_license_report()
+
+    assert len(report["entries"]) == 2
+    assert report["safe_for_commercial_use"] is False
+    assert len(report["flagged"]) == 1
+    assert report["flagged"][0]["name"] == "FLUX.1-dev Non-Commercial License"
+
+
+def test_get_license_report_safe_when_no_generated_media_has_a_license(editor, provider, sample_image):
+    job_id = editor.generate("image", "a red square")
+    provider.complete(job_id, sample_image)
+    track = editor.add_track("video")
+    editor.place_generated(job_id, track.id, start=0, duration_frames=30)
+
+    report = editor.get_license_report()
+
+    assert report["entries"] == []
+    assert report["safe_for_commercial_use"] is True
 
 
 def test_place_generated_defaults_to_full_media_duration_when_omitted(editor, provider, sample_audio):

@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 
 class JobStatus(str, Enum):
@@ -24,6 +24,24 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     DONE = "done"
     ERROR = "error"
+
+
+@dataclass
+class ModelLicense:
+    """What checkpoint a generation actually used and whether that's safe to
+    use commercially — JH's explicit ask: quality first, but track which
+    generated assets carry non-commercial-friendly licenses so a project can
+    be audited before anyone tries to sell/publish it. This is metadata only
+    (see Media.origin) — it never touches the generated pixels/audio
+    themselves, there's no watermark or forced attribution in the output.
+    """
+
+    name: str  # e.g. "Apache-2.0", "FLUX.1-dev Non-Commercial License"
+    commercial_use: Literal["yes", "no", "conditional"]
+    notes: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        return {"name": self.name, "commercial_use": self.commercial_use, "notes": self.notes}
 
 
 @dataclass
@@ -36,6 +54,9 @@ class GenerationJob:
     result_path: Path | None = None
     # Set if status == ERROR: what went wrong, for the agent to see verbatim.
     error: str | None = None
+    # Set once status == DONE, if the provider knows which checkpoint/model
+    # was used and its license — see ModelLicense.
+    license: ModelLicense | None = None
 
 
 class GenerationProvider(ABC):

@@ -197,9 +197,15 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
     "done" (or "error"), then place_generated() to add it to the timeline -
     do not assume it finished just because submit succeeded.
 
-    kind="image": prompt is the image description. Params: width/height
-      (default 512), steps (default 20), cfg (default 7.0), seed,
-      negative_prompt. ~7s on an 8GB GPU.
+    kind="image": prompt is the image description. Params: model - one of
+      "sd1.5" (default, fast, Apache-friendly OpenRAIL license, ~7s),
+      "flux-schnell" (much higher quality, Apache-2.0, ~34s), "flux-dev"
+      (highest quality, but FLUX.1-dev Non-Commercial License - free for
+      personal/research only; use get_license_report() before shipping/
+      selling anything placed from a flux-dev job). Also: width/height
+      (default 512, flux models default to 1024), steps (default 20 for
+      sd1.5, 4 for flux-schnell, 20 for flux-dev), cfg (default 7.0 for
+      sd1.5, 1.0 for flux models), seed, negative_prompt.
 
     kind="video": prompt is the video description (long, descriptive prompts
       work much better than short ones). Params: width (512)/height (320),
@@ -226,6 +232,8 @@ def job_status(job_id: str) -> dict:
 
     result_path is only set once status == "done"; error is only set once
     status == "error" (with the real underlying message, not a guess).
+    license is only set once status == "done" and the provider knows which
+    checkpoint made it (see get_license_report for a whole-project audit).
     """
     job = _require_editor().job_status(job_id)
     return {
@@ -235,6 +243,7 @@ def job_status(job_id: str) -> dict:
         "prompt": job.prompt,
         "result_path": str(job.result_path) if job.result_path else None,
         "error": job.error,
+        "license": job.license.to_dict() if job.license else None,
     }
 
 
@@ -253,6 +262,19 @@ def place_generated(job_id: str, track_id: str, start: int, duration_frames: int
     kind="image", which has no intrinsic duration.
     """
     return _require_editor().place_generated(job_id, track_id, start, duration_frames).to_dict()
+
+
+@mcp.tool()
+def get_license_report() -> dict:
+    """Audit every generated media asset placed in this project for licenses
+    that restrict commercial use (e.g. flux-dev's non-commercial license).
+
+    Metadata only - sourced from each Media's origin, recorded automatically
+    by place_generated(); never touches the generated content itself.
+    safe_for_commercial_use is False if anything in flagged needs a paid/
+    separate license before the project can be sold or published commercially.
+    """
+    return _require_editor().get_license_report()
 
 
 @mcp.tool()

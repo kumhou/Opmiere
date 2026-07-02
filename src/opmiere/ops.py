@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 from .bundle import Bundle
 from .generation.provider import GenerationJob, GenerationProvider, JobStatus
@@ -368,13 +368,36 @@ class Editor:
             track = self.project.track_by_id(track_id)
             media = _ffmpeg_import_media(
                 self.bundle, self.project, job.result_path, kind=media_kind,
-                origin={"provider": self.generation_provider.name, "job": job_id, "prompt": job.prompt},
+                origin={
+                    "provider": self.generation_provider.name, "job": job_id, "prompt": job.prompt,
+                    "license": job.license.to_dict() if job.license else None,
+                },
             )
             if duration_frames is None:
                 if media_kind == "image":
                     raise ValueError("duration_frames is required for kind='image' (images have no intrinsic duration)")
                 duration_frames = media.duration_frames
             return self.project.add_clip(track, media, start, 0, duration_frames)
+
+    def get_license_report(self) -> dict[str, Any]:
+        """Audit generated media in this project for licenses that restrict
+        commercial use — JH's ask: quality-first model choice is fine, but
+        anything not clearly commercial-safe must be visible before export/
+        sale, not discovered after the fact. Metadata only, sourced from
+        place_generated()/Media.origin["license"]; never touches the
+        generated content itself.
+        """
+        entries = []
+        for m in self.project.media:
+            lic = (m.origin or {}).get("license")
+            if lic:
+                entries.append({"media_id": m.id, "path": m.path, **lic})
+        flagged = [e for e in entries if e["commercial_use"] != "yes"]
+        return {
+            "entries": entries,
+            "safe_for_commercial_use": len(flagged) == 0,
+            "flagged": flagged,
+        }
 
     # --- render -----------------------------------------------------------
     def export(self, output_path: Path) -> Path:
