@@ -196,6 +196,32 @@ def _effect_filters(
             if preset not in CURVES_PRESETS:
                 raise ValueError(f"curves effect has invalid 'preset' {preset!r}")
             parts.append(f"curves=preset={preset}")
+        elif etype == "crop":
+            if stream != "video":
+                continue
+            width, height = effect.get("width"), effect.get("height")
+            if not isinstance(width, int) or width <= 0:
+                raise ValueError("crop effect has invalid 'width'")
+            if not isinstance(height, int) or height <= 0:
+                raise ValueError("crop effect has invalid 'height'")
+            # x/y default to ffmpeg's own centered-crop expressions; always
+            # emitted explicitly (not left to the filter's own defaults) so
+            # "only x given" / "only y given" both do the obvious thing.
+            x_expr = effect.get("x", "(in_w-out_w)/2")
+            y_expr = effect.get("y", "(in_h-out_h)/2")
+            parts.append(f"crop={width}:{height}:{x_expr}:{y_expr}")
+        elif etype == "rotate":
+            if stream != "video":
+                continue
+            degrees = effect.get("degrees")
+            fill = effect.get("fill", "black")
+            if not isinstance(degrees, (int, float)):
+                raise ValueError("rotate effect has invalid 'degrees'")
+            # Output stays the clip's own current size (corners may clip),
+            # not auto-expanded to fit the rotated rectangle - matches how
+            # rotation works in most simple video editors, and keeps every
+            # clip's frame size predictable for the scale/pad step after it.
+            parts.append(f"rotate={degrees}*PI/180:fillcolor={fill}")
         else:
             raise NotImplementedError(f"effect type {etype!r} is not supported by FFmpegBackend yet")
     return parts

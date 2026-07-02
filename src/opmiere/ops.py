@@ -268,6 +268,16 @@ class Editor:
                 preset = effect.get("preset")
                 if preset not in CURVES_PRESETS:
                     raise ValueError(f"curves effect 'preset' must be one of {sorted(CURVES_PRESETS)}")
+            elif etype == "crop":
+                width, height = effect.get("width"), effect.get("height")
+                if not isinstance(width, int) or width <= 0:
+                    raise ValueError("crop effect requires a positive integer 'width'")
+                if not isinstance(height, int) or height <= 0:
+                    raise ValueError("crop effect requires a positive integer 'height'")
+            elif etype == "rotate":
+                degrees = effect.get("degrees")
+                if not isinstance(degrees, (int, float)):
+                    raise ValueError("rotate effect requires a numeric 'degrees'")
             clip.effects.append(dict(effect))
             return clip
 

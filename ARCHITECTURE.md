@@ -444,6 +444,13 @@ showing through, red subject intact) rather than just "no ffmpeg error."
 render (white background keyed transparent, black subject box intact). `curves` wraps ffmpeg's own
 `preset` vocabulary (vintage, cross_process, negative, …) for one-shot full-frame color grading.
 
+**`crop` and `rotate` are built too** — plain per-clip transforms (ffmpeg's own `crop`/`rotate` filters),
+verified the same way (a red/blue split-color clip cropped to exactly the red half; a rotated frame's
+corners correctly filled). Deliberately narrower than the full "transform" idea in §5.8's curated list:
+scaling/positioning a clip smaller than the canvas (for PiP) needs the overlay compositing step itself to
+take a configurable position instead of always `x=0:y=0` full-frame — a real architecture change, not
+just another filter fragment — so that's its own not-yet-built item (see §10/roadmap), not folded in here.
+
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from
 `duration_frames` so source-frame math stays untouched; video via `setpts`, audio via `atempo`

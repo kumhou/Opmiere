@@ -159,6 +159,9 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
       {"type": "curves", "preset": one of color_negative|cross_process|darker|increase_contrast|
         lighter|linear_contrast|medium_contrast|negative|strong_contrast|vintage}
         - a full-frame color-grade preset (ffmpeg's own curves vocabulary).
+      {"type": "crop", "width": int, "height": int, "x": int (default centered), "y": int (default centered)}
+      {"type": "rotate", "degrees": float, "fill": "black" (default) - color for corners the rotation
+        exposes. Output frame size is unchanged (corners may clip), not auto-expanded.}
     A fade's duration_frames must not exceed the clip's own duration_frames
     (visible in get_project_state).
     """

@@ -636,3 +636,79 @@ def test_export_with_curves_preset_keeps_duration_unchanged(editor, sample_video
     from opmiere.render import probe
     result = probe(out)
     assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+@pytest.fixture(scope="module")
+def split_color_video(tmp_path_factory) -> Path:
+    """Left half red, right half blue - for crop precision tests."""
+    d = tmp_path_factory.mktemp("media")
+    path = d / "split.mp4"
+    cmd = [
+        "ffmpeg", "-y", "-f", "lavfi",
+        "-i", f"color=c=red:size=40x80:duration=1:rate={FPS}[l];"
+              f"color=c=blue:size=40x80:duration=1:rate={FPS}[r];[l][r]hstack",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+    ]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return path
+
+
+def test_apply_effect_crop_rejects_bad_dimensions(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "crop", "width": -1, "height": 10})
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "crop", "width": 10})  # missing height
+
+
+def test_crop_keeps_only_the_requested_region(split_color_video, tmp_path):
+    # Project canvas matches the post-crop aspect ratio exactly (40x80), so
+    # the fit-to-canvas scale/pad step downstream doesn't letterbox the
+    # result - otherwise sampled pixels could land in a black pad bar
+    # instead of the actual cropped content.
+    editor = Editor.create(tmp_path / "crop_demo.opm", fps=FPS, width=40, height=80)
+    media = editor.import_media(split_color_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=25)
+    editor.apply_effect(clip.id, {"type": "crop", "width": 40, "height": 80, "x": 0, "y": 0})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    frame_path = tmp_path / "frame.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,10)", "-update", "1",
+         "-vframes", "1", str(frame_path)],
+        capture_output=True, text=True, check=True,
+    )
+    from PIL import Image
+    img = Image.open(frame_path).convert("RGB")
+    left = img.getpixel((5, 40))
+    right = img.getpixel((img.width - 5, 40))
+    # Cropped to the left (red) half only - no blue should have survived anywhere.
+    assert left[0] > left[2]
+    assert right[0] > right[2]
+
+
+def test_apply_effect_rotate_rejects_non_numeric_degrees(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "rotate", "degrees": "not a number"})
+
+
+def test_export_with_rotate_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "rotate", "degrees": 45})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05
