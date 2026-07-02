@@ -55,6 +55,17 @@ FLUX_VAE = "ae.safetensors"
 DEFAULT_WAN21_T2V_CHECKPOINT = "wan2.1_t2v_1.3B_fp16.safetensors"
 WAN21_CLIP = "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
 WAN21_VAE = "wan_2.1_vae.safetensors"
+# Wan2.2's 14B T2V is a mixture-of-experts model shipped as two separate
+# checkpoints (steps 0..split use HighNoise, split..end use LowNoise) - both
+# named here since a job needs both to run, unlike every other model above
+# which is a single file. Reuses Wan2.1's CLIP/VAE (same repo family).
+DEFAULT_WAN22_HIGHNOISE_CHECKPOINT = "Wan2.2-T2V-A14B-HighNoise-Q4_K_S.gguf"
+DEFAULT_WAN22_LOWNOISE_CHECKPOINT = "Wan2.2-T2V-A14B-LowNoise-Q4_K_S.gguf"
+# Not a real filename - a synthetic key so the two-checkpoint MoE job still
+# has exactly one CHECKPOINT_LICENSES entry to look up (both experts ship
+# under the same Wan2.2 release/license, so one entry is accurate, not a
+# simplification that loses information).
+WAN22_MOE_LICENSE_KEY = "Wan2.2-T2V-A14B (HighNoise+LowNoise)"
 
 # Which output node each workflow ends at, and which output dict key holds
 # the result file list. image/video both really do use "images" (confirmed
@@ -85,6 +96,8 @@ CHECKPOINT_LICENSES: dict[str, ModelLicense] = {
         "Free for personal/research use only. Commercial use requires a separate "
         "license from Black Forest Labs."),
     DEFAULT_WAN21_T2V_CHECKPOINT: ModelLicense(
+        "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+    WAN22_MOE_LICENSE_KEY: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
@@ -317,6 +330,73 @@ class ComfyUIProvider(GenerationProvider):
         }
         return workflow, checkpoint
 
+    def _build_wan22_moe_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Wan2.2 T2V A14B - the offload-tier option: two ~8.75GB GGUF
+        experts (17.5GB combined), neither of which fits this 8GB card
+        alongside the other, let alone both at once. Deliberately *not*
+        configuring any special offload mechanism - ComfyUI's own default
+        model management already pages models in/out of VRAM as a workflow
+        references more of them than fit, and real nvidia-smi sampling
+        during testing confirmed it: usage oscillated between ~4GB and
+        ~7.9GB rather than climbing to 17GB+, as the two experts were
+        swapped in turn. Real result: 283s for a small 480x480/17-frame
+        test (vs Wan2.1's 139s for a larger 832x480/33-frame one) - slower,
+        as expected from swap I/O plus a bigger active model per stage, but
+        the visibly best quality of the three video options tested.
+
+        Two-stage KSamplerAdvanced hand-off (standard base/refiner
+        pattern): HighNoise runs steps 0..split_step and hands its latent
+        (with leftover noise) to LowNoise for split_step..steps. Simplified
+        from ComfyUI's own bundled video_wan2_2_14B_t2v.json subgraph
+        template, dropping its LoRA/turbo-mode toggle scaffolding (built
+        for a 4-step lightning fast-path, not this quality-tier default).
+        """
+        width = params.get("width", 480)
+        height = params.get("height", 480)
+        num_frames = params.get("num_frames", 17)
+        frame_rate = params.get("frame_rate", 16)
+        steps = params.get("steps", 20)
+        split_step = params.get("split_step", steps // 2)
+        cfg = params.get("cfg", 3.5)
+        shift = params.get("shift", 5.0)
+        seed = params.get("seed", random.randint(0, 2**31 - 1))
+        negative = params.get(
+            "negative_prompt",
+            "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，"
+            "整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，畸形的",
+        )
+        high_noise_checkpoint = params.get("high_noise_checkpoint", DEFAULT_WAN22_HIGHNOISE_CHECKPOINT)
+        low_noise_checkpoint = params.get("low_noise_checkpoint", DEFAULT_WAN22_LOWNOISE_CHECKPOINT)
+        clip_name = params.get("clip_name", WAN21_CLIP)
+        vae_name = params.get("vae_name", WAN21_VAE)
+        workflow = {
+            "38": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip_name, "type": "wan", "device": "default"}},
+            "39": {"class_type": "VAELoader", "inputs": {"vae_name": vae_name}},
+            "75": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": high_noise_checkpoint}},
+            "76": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": low_noise_checkpoint}},
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["38", 0], "text": prompt}},
+            "7": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["38", 0], "text": negative}},
+            "40": {"class_type": "EmptyHunyuanLatentVideo", "inputs": {
+                "width": width, "height": height, "length": num_frames, "batch_size": 1}},
+            "82": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["75", 0], "shift": shift}},
+            "86": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["76", 0], "shift": shift}},
+            "20": {"class_type": "KSamplerAdvanced", "inputs": {
+                "model": ["82", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["40", 0],
+                "add_noise": "enable", "noise_seed": seed, "steps": steps, "cfg": cfg,
+                "sampler_name": "euler", "scheduler": "simple",
+                "start_at_step": 0, "end_at_step": split_step, "return_with_leftover_noise": "enable"}},
+            "21": {"class_type": "KSamplerAdvanced", "inputs": {
+                "model": ["86", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["20", 0],
+                "add_noise": "disable", "noise_seed": seed, "steps": steps, "cfg": cfg,
+                "sampler_name": "euler", "scheduler": "simple",
+                "start_at_step": split_step, "end_at_step": 10000, "return_with_leftover_noise": "disable"}},
+            "8": {"class_type": "VAEDecode", "inputs": {"samples": ["21", 0], "vae": ["39", 0]}},
+            "78": {"class_type": "CreateVideo", "inputs": {"images": ["8", 0], "fps": frame_rate}},
+            "79": {"class_type": "SaveVideo", "inputs": {
+                "video": ["78", 0], "filename_prefix": "opmiere_gen_video", "format": "auto", "codec": "auto"}},
+        }
+        return workflow, WAN22_MOE_LICENSE_KEY
+
     def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         seed = params.get("seed", random.randint(0, 2**31 - 1))
         language = params.get("language", "Auto")
@@ -383,8 +463,11 @@ class ComfyUIProvider(GenerationProvider):
                 workflow, checkpoint = self._build_ltxv_workflow(prompt, params)
             elif video_model == "wan2.1":
                 workflow, checkpoint = self._build_wan_workflow(prompt, params)
+            elif video_model == "wan2.2-moe":
+                workflow, checkpoint = self._build_wan22_moe_workflow(prompt, params)
             else:
-                raise ValueError(f"unknown video model {video_model!r}; choices: ltx-video, wan2.1")
+                raise ValueError(
+                    f"unknown video model {video_model!r}; choices: ltx-video, wan2.1, wan2.2-moe")
         elif kind == "speech":
             workflow, checkpoint = self._build_speech_workflow(prompt, params)
         else:

@@ -18,6 +18,9 @@ from opmiere.generation.comfyui import (
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL,
     DEFAULT_VIDEO_CHECKPOINT,
     DEFAULT_WAN21_T2V_CHECKPOINT,
+    DEFAULT_WAN22_HIGHNOISE_CHECKPOINT,
+    DEFAULT_WAN22_LOWNOISE_CHECKPOINT,
+    WAN22_MOE_LICENSE_KEY,
     ComfyUIProvider,
 )
 from opmiere.generation.provider import JobStatus
@@ -182,7 +185,7 @@ def test_checkpoint_licenses_cover_every_default_checkpoint():
     for checkpoint in (
         DEFAULT_IMAGE_CHECKPOINT, DEFAULT_VIDEO_CHECKPOINT, DEFAULT_FLUX_SCHNELL_CHECKPOINT,
         DEFAULT_FLUX_DEV_CHECKPOINT, DEFAULT_SPEECH_CUSTOM_VOICE_MODEL, DEFAULT_SPEECH_CLONE_MODEL,
-        DEFAULT_WAN21_T2V_CHECKPOINT,
+        DEFAULT_WAN21_T2V_CHECKPOINT, WAN22_MOE_LICENSE_KEY,
     ):
         assert checkpoint in CHECKPOINT_LICENSES, f"{checkpoint} generates real output with no tracked license"
         assert CHECKPOINT_LICENSES[checkpoint].commercial_use in ("yes", "no", "conditional")
@@ -291,5 +294,53 @@ def test_submit_defaults_video_model_to_ltx(provider, monkeypatch):
 
 
 def test_submit_rejects_unknown_video_model(provider):
-    with pytest.raises(ValueError, match="ltx-video, wan2.1"):
+    with pytest.raises(ValueError, match="ltx-video, wan2.1, wan2.2-moe"):
         provider.submit("video", "x", {"model": "veo"})
+
+
+def test_wan22_moe_workflow_has_expected_nodes_and_wiring(provider):
+    wf, license_key = provider._build_wan22_moe_workflow("a paper boat", {})
+
+    assert license_key == WAN22_MOE_LICENSE_KEY
+    assert wf["75"]["class_type"] == "UnetLoaderGGUF"
+    assert wf["75"]["inputs"]["unet_name"] == DEFAULT_WAN22_HIGHNOISE_CHECKPOINT
+    assert wf["76"]["class_type"] == "UnetLoaderGGUF"
+    assert wf["76"]["inputs"]["unet_name"] == DEFAULT_WAN22_LOWNOISE_CHECKPOINT
+    assert wf["6"]["inputs"]["text"] == "a paper boat"
+    # Two-stage hand-off: stage 1 (high-noise) ends where stage 2 (low-noise)
+    # picks up, sharing the same latent chain.
+    assert wf["20"]["inputs"]["model"] == ["82", 0]
+    assert wf["20"]["inputs"]["add_noise"] == "enable"
+    assert wf["20"]["inputs"]["return_with_leftover_noise"] == "enable"
+    assert wf["21"]["inputs"]["model"] == ["86", 0]
+    assert wf["21"]["inputs"]["latent_image"] == ["20", 0]
+    assert wf["21"]["inputs"]["add_noise"] == "disable"
+    assert wf["20"]["inputs"]["end_at_step"] == wf["21"]["inputs"]["start_at_step"]
+    assert wf["79"]["class_type"] == "SaveVideo"
+    assert wf["78"]["class_type"] == "CreateVideo"
+
+
+def test_wan22_moe_workflow_respects_params(provider):
+    wf, _ = provider._build_wan22_moe_workflow("x", {"width": 640, "height": 640, "steps": 10, "split_step": 4})
+
+    assert wf["40"]["inputs"]["width"] == 640
+    assert wf["40"]["inputs"]["height"] == 640
+    assert wf["20"]["inputs"]["steps"] == 10
+    assert wf["20"]["inputs"]["end_at_step"] == 4
+    assert wf["21"]["inputs"]["start_at_step"] == 4
+
+
+def test_submit_dispatches_video_model_param_to_wan22_moe(provider, monkeypatch):
+    captured = {}
+
+    def fake_post(path, payload):
+        captured["prompt"] = payload["prompt"]
+        return {"prompt_id": "job-6"}
+
+    monkeypatch.setattr(provider, "_post", fake_post)
+
+    job_id = provider.submit("video", "a paper boat", {"model": "wan2.2-moe"})
+
+    assert job_id == "job-6"
+    assert captured["prompt"]["75"]["inputs"]["unet_name"] == DEFAULT_WAN22_HIGHNOISE_CHECKPOINT
+    assert provider._jobs["job-6"]["checkpoint"] == WAN22_MOE_LICENSE_KEY

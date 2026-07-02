@@ -414,31 +414,47 @@ checkpoints a normal option, not just a fallback for oversized models. Flux.1-de
 higher quality still, non-commercial license — see §5.6) is wired in alongside it as the quality-max
 image option. `generate(kind="image")` now takes `model: sd1.5 | flux-schnell | flux-dev`. The
 license-tracking mechanism (§5.6) shipped in the same pass, since flux-dev was the first checkpoint that
-actually needed it. `generate(kind="image")` now takes `model: sd1.5 | flux-schnell | flux-dev`.
+actually needed it.
 
 **Video's quality-tier, non-offload option: Wan2.1 T2V 1.3B.** Same pattern as Flux for images —
-`generate(kind="video")` now takes `model: ltx-video | wan2.1`, LTX-Video 2B staying the fast default.
-Real side-by-side on this RTX 3070 (different prompts, so a qualitative not pixel-diff comparison, but
-the gap is visually obvious): Wan2.1 renders noticeably sharper detail and more physically coherent
-lighting than LTX-Video's softer, more motion-blurred output. The cost: ~139s vs LTX's ~22s (~6x
-slower) and a tighter VRAM margin (~7.7GB peak vs ~6.4GB, both measured the same way - absolute
-`nvidia-smi` peak including ~1.5GB OS/desktop baseline - so Wan2.1 leaves under 500MB of headroom on
-an 8GB card, still technically non-offload but with much less margin than LTX-Video). License is
-Apache-2.0 (verified via the HF API, not assumed) - strictly more permissive than LTX-Video's
-ARR-conditional terms. Given JH's explicit priority (quality first, slowness acceptable), this is
-offered as the quality option rather than replacing the fast default, mirroring flux-schnell/dev
-sitting alongside sd1.5.
+`generate(kind="video")` now takes a `model` param, LTX-Video 2B staying the fast default. Real
+side-by-side on this RTX 3070 (different prompts, so a qualitative not pixel-diff comparison, but the
+gap is visually obvious): Wan2.1 renders noticeably sharper detail and more physically coherent lighting
+than LTX-Video's softer, more motion-blurred output. The cost: ~139s vs LTX's ~22s (~6x slower) and a
+tighter VRAM margin (~7.7GB peak vs ~6.4GB, both measured the same way - absolute `nvidia-smi` peak
+including ~1.5GB OS/desktop baseline - so Wan2.1 leaves under 500MB of headroom on an 8GB card, still
+technically non-offload but with much less margin than LTX-Video). License is Apache-2.0 (verified via
+the HF API, not assumed) - strictly more permissive than LTX-Video's ARR-conditional terms.
 
-Still open within P2: SFX/music (§5.9), a cloud provider, an *offload-tier* video model one step up
-from Wan2.1-1.3B (Wan2.1/2.2's own 14B variants, HunyuanVideo, and the LTX-2 flagship are candidates —
-real GGUF file sizes put all of them at 11GB+ even at Q4, i.e. genuinely offload-tier on this 8 GB
-card, unlike Wan2.1-1.3B or the image case), and the full auto-selecting-by-detected-VRAM *profiles*
-machinery from §5.7 (JH's ask: split recommendations into two tracks, **non-offload** (fits VRAM
-outright - sd1.5/flux-schnell/flux-dev/ltx-video/wan2.1 all qualify today, distinguished only by
-*how much* headroom they leave) and **offload** (deliberately trades speed for a bigger/better model
-via RAM or disk as overflow — ComfyUI's own `--novram`/`--reserve-vram`/`--fast-disk` plus community
-tooling like ComfyUI-MultiGPU's DisTorch2 for spreading load across a secondary GPU, relevant once JH's
-spare GTX 1660 Super is physically installed — rather than one single "best pick per VRAM tier" table).
+**Video's offload-tier option, proven real: Wan2.2 T2V A14B (MoE).** This is the direct answer to JH's
+"can offload actually get me a bigger/better model" question - and it works, with no special
+configuration. Wan2.2's 14B model ships as two GGUF experts (HighNoise + LowNoise, ~8.75GB each, 17.5GB
+combined - neither fits this 8GB card alongside the other, let alone both at once). Rather than building
+any offload mechanism, the workflow just references both UnetLoaderGGUF checkpoints and lets ComfyUI's
+own default model management page them in and out of VRAM as needed. Real `nvidia-smi` sampling during
+a test run confirmed this happening automatically: usage oscillated between ~4GB and ~7.9GB rather than
+climbing toward 17GB+, as the two experts were swapped in turn for their respective sampling stages
+(standard two-stage `KSamplerAdvanced` hand-off, same pattern as an SDXL base/refiner pair). Cost: ~283s
+for a small 480x480/17-frame test (vs Wan2.1's 139s for a larger 832x480/33-frame one) - slower, from
+swap I/O plus a bigger active model per stage, exactly the tradeoff JH said was worth it. Quality was
+the best of the three video options tested, visibly - more scene complexity and depth of field than
+either LTX-Video or Wan2.1 produced. License: Apache-2.0 (verified via the HF API). `generate(kind=
+"video")` now takes `model: ltx-video | wan2.1 | wan2.2-moe`.
+
+**What this proves about JH's original research question** (no hardware upgrade, GPU cluster or RAM/
+disk as VRAM overflow): the RAM-overflow half needed zero new code - ComfyUI's stock model manager
+already does it whenever a workflow's combined model footprint exceeds VRAM. The GPU-cluster half (the
+spare GTX 1660 Super, via e.g. ComfyUI-MultiGPU/DisTorch2) remains untested since the card isn't
+physically installed - installing it was explicitly the last-resort option, not yet needed since
+software-only paging already delivers a working offload tier.
+
+Still open within P2: SFX/music (§5.9), a cloud provider, and the full auto-selecting-by-detected-VRAM
+*profiles* machinery from §5.7 (JH's ask: split recommendations into two tracks, **non-offload** (fits
+VRAM outright - sd1.5/flux-schnell/flux-dev/ltx-video/wan2.1 all qualify today, distinguished only by
+*how much* headroom they leave) and **offload** (deliberately trades speed for a bigger/better model -
+wan2.2-moe is the first proof this tier works at all on this hardware; HunyuanVideo and the LTX-2
+flagship remain uninvestigated further candidates for it) - rather than one single "best pick per VRAM
+tier" table).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

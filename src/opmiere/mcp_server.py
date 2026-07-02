@@ -210,15 +210,24 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
     kind="video": prompt is the video description (long, descriptive prompts
       work much better than short ones). Params: model - one of "ltx-video"
       (default, fast, ~22s, Lightricks Open Weights License - free only
-      below $10M company ARR, see get_license_report()) or "wan2.1"
-      (visibly sharper/more coherent in side-by-side testing, Apache-2.0,
-      but ~6x slower (~140s) and closer to the 8GB ceiling (~7.7GB peak vs
-      ~6.4GB) - still non-offload, just less headroom). Also: width/height
-      (ltx-video default 512/320, wan2.1 default 832/480), num_frames
-      (ltx-video 65, wan2.1 33), frame_rate (ltx-video 25, wan2.1 16 - should
-      match the target project's timebase.fps, see get_project_state, or
-      place_generated will reject it as a mismatch later), steps (30), cfg
-      (ltx-video 3.0, wan2.1 6.0), seed, negative_prompt.
+      below $10M company ARR, see get_license_report()), "wan2.1" (visibly
+      sharper/more coherent than ltx-video, Apache-2.0, ~6x slower (~140s)
+      and closer to the 8GB ceiling (~7.7GB peak vs ~6.4GB) - still
+      non-offload, just less headroom), or "wan2.2-moe" (the offload-tier
+      option: two 8.75GB GGUF experts, 17.5GB combined, neither fits this
+      8GB card alongside the other - ComfyUI's own model paging swaps them
+      in/out automatically (confirmed via real VRAM sampling: it oscillates
+      ~4-8GB, never needs both at once), no special config required. Best
+      quality of the three in testing, ~283s for a small 480x480/17-frame
+      run - noticeably slower, the accepted tradeoff for going past what
+      fits natively. Apache-2.0). Also: width/height (ltx-video 512/320,
+      wan2.1 832/480, wan2.2-moe 480/480), num_frames (ltx-video 65, wan2.1
+      33, wan2.2-moe 17), frame_rate (ltx-video 25, wan2.1/wan2.2-moe 16 -
+      should match the target project's timebase.fps, see get_project_state,
+      or place_generated will reject it as a mismatch later), steps
+      (ltx-video/wan2.1 30, wan2.2-moe 20 split across both experts via
+      split_step, default half), cfg (ltx-video 3.0, wan2.1 6.0, wan2.2-moe
+      3.5), seed, negative_prompt.
 
     kind="speech": prompt is the text to speak. Two modes:
       - preset voice (no reference needed): params speaker (default
