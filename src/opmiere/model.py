@@ -184,6 +184,16 @@ class Clip:
     # duration_frames — see KNOWN_TRANSITION_TYPES and Editor.add_transition.
     transition_in: dict[str, Any] | None = None
     speed: float = 1.0
+    # {"x": 0..1, "y": 0..1, "scale": 0..1} or None (= full-frame, the
+    # historical default). Only meaningful for a clip on an overlay video
+    # track (any video track after the first — see render/ffmpeg.py's
+    # z-order convention); the base track always renders full-frame
+    # regardless of this field. scale shrinks the clip to that fraction of
+    # the canvas (aspect preserved, same fit-then-pad approach as the
+    # full-frame case); x/y place the shrunk box's top-left corner as a
+    # fraction of the *room it has to move in* (canvas size minus box size),
+    # so 0..1 always keeps the whole box on-canvas — see Editor.set_position.
+    position: dict[str, Any] | None = None
 
     @property
     def duration_frames(self) -> int:
@@ -214,6 +224,8 @@ class Clip:
             d["transition_in"] = self.transition_in
         if self.speed != 1.0:
             d["speed"] = self.speed
+        if self.position is not None:
+            d["position"] = self.position
         return d
 
     @classmethod
@@ -227,6 +239,7 @@ class Clip:
             effects=d.get("effects", []),
             transition_in=d.get("transition_in"),
             speed=d.get("speed", 1.0),
+            position=d.get("position"),
         )
 
 

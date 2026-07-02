@@ -350,6 +350,35 @@ class Editor:
             clip.speed = float(speed)
             return clip
 
+    def set_position(self, clip_id: str, x: float, y: float, scale: float) -> Clip:
+        """Place a clip as a picture-in-picture box instead of full-frame —
+        only takes effect when the clip is on an overlay video track (any
+        video track after the first; see render/ffmpeg.py's z-order
+        convention). ``scale`` (0 < scale <= 1) is the box's size as a
+        fraction of the canvas, aspect preserved. ``x``/``y`` (each 0..1)
+        place the box's top-left corner as a fraction of the room it has to
+        move in (canvas size minus box size) — 0 is flush against that edge,
+        1 is flush against the opposite edge, so any value in range keeps the
+        whole box on-canvas by construction.
+        """
+        with self._mutate():
+            if not isinstance(scale, (int, float)) or not (0.0 < scale <= 1.0):
+                raise ValueError(f"scale must be in (0, 1], got {scale!r}")
+            if not isinstance(x, (int, float)) or not (0.0 <= x <= 1.0):
+                raise ValueError(f"x must be in [0, 1], got {x!r}")
+            if not isinstance(y, (int, float)) or not (0.0 <= y <= 1.0):
+                raise ValueError(f"y must be in [0, 1], got {y!r}")
+            clip = self._find_clip(clip_id)
+            clip.position = {"x": float(x), "y": float(y), "scale": float(scale)}
+            return clip
+
+    def clear_position(self, clip_id: str) -> Clip:
+        """Restore a clip to full-frame (remove a previously set position)."""
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.position = None
+            return clip
+
     # --- generation (ARCHITECTURE.md section 8: async job model) ----------
     def _require_generation_provider(self) -> GenerationProvider:
         if self.generation_provider is None:

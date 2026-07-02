@@ -200,6 +200,31 @@ def set_speed(clip_id: str, speed: float) -> dict:
 
 
 @mcp.tool()
+def set_position(clip_id: str, x: float, y: float, scale: float) -> dict:
+    """Place a clip as picture-in-picture instead of full-frame. Only has a
+    visible effect when the clip is on an overlay video track (any video
+    track after the first one on the project - see add_track/add_clip and
+    the "chroma_key" note under apply_effect); the base track always renders
+    full-frame regardless.
+
+    scale: 0 < scale <= 1, the box's size as a fraction of the canvas
+    (aspect preserved, matching how full-frame clips already fit).
+    x, y: each 0..1, the box's top-left corner as a fraction of the room it
+    has to move in (canvas size minus box size) - 0 is flush against that
+    edge, 1 is flush against the opposite edge, so any value keeps the whole
+    box on-canvas. E.g. x=1, y=1, scale=0.25 puts a quarter-size box in the
+    bottom-right corner.
+    """
+    return _require_editor().set_position(clip_id, x, y, scale).to_dict()
+
+
+@mcp.tool()
+def clear_position(clip_id: str) -> dict:
+    """Restore a clip (previously set via set_position) to full-frame."""
+    return _require_editor().clear_position(clip_id).to_dict()
+
+
+@mcp.tool()
 def recommend_generation_profile(kind: str, offload: bool = False) -> dict:
     """Which model to pass as generate(kind, params={"model": ...}) on this
     machine, based on real detected VRAM (ComfyUI's /system_stats) rather

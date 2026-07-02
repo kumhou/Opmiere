@@ -451,6 +451,23 @@ scaling/positioning a clip smaller than the canvas (for PiP) needs the overlay c
 take a configurable position instead of always `x=0:y=0` full-frame — a real architecture change, not
 just another filter fragment — so that's its own not-yet-built item (see §10/roadmap), not folded in here.
 
+**PiP position/scale is now built** — the item flagged above. `Clip.position` (`{"x", "y", "scale"}`,
+`None` = full-frame, unchanged default) is a clip-level field like `transition_in`/`speed`, not an
+`effects` entry, since it changes the overlay compositing step itself rather than one clip's own pixel
+chain. `Editor.set_position(clip_id, x, y, scale)`/`clear_position` (MCP tools of the same names): `scale`
+(0,1] is the box size as a fraction of the canvas, aspect preserved via the same fit-then-pad approach
+full-frame clips already use; `x`/`y` (each [0,1]) place the box's top-left corner as a fraction of the
+*room it has to move in* (canvas minus box size) so the whole box always stays on-canvas by construction
+— e.g. `x=1,y=1,scale=0.25` is a quarter-size box flush in the bottom-right corner. Only takes visual
+effect on an overlay video track (any track after the first); the base track keeps rendering full-frame,
+`_video_clip_chain` now takes the target box size as a parameter instead of always the canvas size, so
+overlay clips scale/pad to their own smaller box before the `overlay=x=..:y=..` step places it. Real bug
+caught and fixed before landing: an odd box dimension (e.g. `scale=0.5` on a 90px-tall canvas → 45)
+broke ffmpeg's pad/encode with an opaque "Padded dimensions cannot be smaller than input dimensions"
+error — yuv420p's chroma subsampling needs even width/height, so box dimensions are now rounded down to
+even. Verified with a real render (blue base + a red overlay pinned bottom-right at half size): the box
+lands exactly where requested, blue everywhere outside it, red only inside.
+
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from
 `duration_frames` so source-frame math stays untouched; video via `setpts`, audio via `atempo`

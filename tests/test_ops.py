@@ -712,3 +712,70 @@ def test_export_with_rotate_keeps_duration_unchanged(editor, sample_video, tmp_p
     from opmiere.render import probe
     result = probe(out)
     assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+@pytest.fixture(scope="module")
+def red_video(tmp_path_factory) -> Path:
+    """Solid red foreground clip, for picture-in-picture position tests."""
+    d = tmp_path_factory.mktemp("media")
+    path = d / "red.mp4"
+    cmd = [
+        "ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=red:size=160x90:duration=2:rate={FPS}",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+    ]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return path
+
+
+def test_set_position_rejects_out_of_range_values(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.set_position(clip.id, x=0.5, y=0.5, scale=1.5)  # scale out of (0, 1]
+    with pytest.raises(ValueError):
+        editor.set_position(clip.id, x=1.1, y=0.5, scale=0.5)  # x out of [0, 1]
+    with pytest.raises(ValueError):
+        editor.set_position(clip.id, x=0.5, y=0.5, scale=0.0)  # scale must be > 0
+
+
+def test_clear_position_restores_full_frame(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.set_position(clip.id, x=1.0, y=1.0, scale=0.25)
+    assert clip.position is not None
+    editor.clear_position(clip.id)
+    assert clip.position is None
+
+
+def test_set_position_renders_a_pip_box_in_the_requested_corner(editor, blue_video, red_video, tmp_path):
+    """Real render: blue base track (160x90) + a red overlay clip pinned to
+    the bottom-right corner at half size via set_position(x=1, y=1,
+    scale=0.5). The box should be exactly 80x45 flush against the
+    bottom-right edge - blue everywhere else, red only inside that box."""
+    blue = editor.import_media(blue_video, kind="video")
+    red = editor.import_media(red_video, kind="video")
+    base = editor.add_track("video")
+    overlay = editor.add_track("video")
+    editor.add_clip(base.id, blue.id, start=0, src_in=0, src_out=60)
+    clip = editor.add_clip(overlay.id, red.id, start=0, src_in=0, src_out=60)
+    editor.set_position(clip.id, x=1.0, y=1.0, scale=0.5)
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    frame_path = tmp_path / "frame.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,15)", "-update", "1",
+         "-vframes", "1", str(frame_path)],
+        capture_output=True, text=True, check=True,
+    )
+    from PIL import Image
+    img = Image.open(frame_path).convert("RGB")
+    top_left = img.getpixel((5, 5))  # outside the box - must stay blue
+    inside_box = img.getpixel((150, 85))  # bottom-right corner - inside the box
+    just_outside_box_left = img.getpixel((75, 85))  # left of the 80px-wide box - must stay blue
+    assert top_left[2] > top_left[0]  # blue dominant
+    assert inside_box[0] > inside_box[2]  # red dominant
+    assert just_outside_box_left[2] > just_outside_box_left[0]  # blue dominant

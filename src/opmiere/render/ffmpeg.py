@@ -293,10 +293,15 @@ def _validate_no_overlaps(track: Track) -> list:
     return clips
 
 
-def _video_clip_chain(clip: Clip, idx: int, fps: float, W: int, H: int, text_dir: Path, label: str) -> str:
+def _video_clip_chain(
+    clip: Clip, idx: int, fps: float, box_w: int, box_h: int, text_dir: Path, label: str
+) -> str:
     """The trim -> speed -> effects -> scale/pad chain for one clip's video
     stream. Shared by the base track and overlay layers — a clip gets the
-    same treatment either way."""
+    same treatment either way, just against a different target box size
+    (``box_w``/``box_h``): the full canvas for the base track and
+    non-positioned overlay clips, or a smaller picture-in-picture box for an
+    overlay clip with ``position`` set (see Clip.position, export())."""
     fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "video", text_dir)
     speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
     chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
@@ -304,11 +309,33 @@ def _video_clip_chain(clip: Clip, idx: int, fps: float, W: int, H: int, text_dir
         chain += f",{filt}"
     has_alpha = any(e.get("type") in ("chroma_key", "luma_key") for e in clip.effects)
     pad_color = "black@0.0" if has_alpha else "black"
-    chain += f",scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={pad_color},"
+    chain += (
+        f",scale={box_w}:{box_h}:force_original_aspect_ratio=decrease,"
+        f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color={pad_color},"
+    )
     if has_alpha:
         chain += "format=yuva420p,"
     chain += f"setsar=1,fps={fps}[{label}]"
     return chain
+
+
+def _overlay_box(clip: Clip, W: int, H: int) -> tuple[int, int, int, int]:
+    """(box_w, box_h, x_px, y_px) for one overlay clip: full canvas at (0, 0)
+    if ``clip.position`` is unset, else a scaled-down box placed per
+    Editor.set_position's x/y-as-fraction-of-available-room convention."""
+    pos = clip.position
+    if pos is None:
+        return W, H, 0, 0
+    scale = pos["scale"]
+    # yuv420p (chroma subsampling) requires even width/height - an odd box
+    # size (e.g. scale=0.5 on a 90px-tall canvas -> 45) breaks pad/encode
+    # with an opaque "Padded dimensions cannot be smaller than input
+    # dimensions" error, verified empirically. Round down to even, floor 2.
+    box_w = max(2, round(W * scale)) // 2 * 2
+    box_h = max(2, round(H * scale)) // 2 * 2
+    x_px = round(pos["x"] * (W - box_w))
+    y_px = round(pos["y"] * (H - box_h))
+    return box_w, box_h, x_px, y_px
 
 
 def _track_all_media_have_audio(project: Project, track: Track) -> bool:
@@ -462,12 +489,15 @@ class FFmpegBackend(RenderBackend):
                     for clip in track_clips:
                         idx = media_index[clip.media]
                         src_label = f"ov{overlay_n}"
-                        filter_parts.append(_video_clip_chain(clip, idx, fps, W, H, text_dir, src_label))
+                        box_w, box_h, x_px, y_px = _overlay_box(clip, W, H)
+                        filter_parts.append(
+                            _video_clip_chain(clip, idx, fps, box_w, box_h, text_dir, src_label)
+                        )
                         start_s = tb.frames_to_seconds(clip.start)
                         end_s = tb.frames_to_seconds(clip.end)
                         out_label = f"vcomp{overlay_n}"
                         filter_parts.append(
-                            f"[{video_final_label}][{src_label}]overlay=x=0:y=0:"
+                            f"[{video_final_label}][{src_label}]overlay=x={x_px}:y={y_px}:"
                             f"enable='between(t,{start_s:.6f},{end_s:.6f})'[{out_label}]"
                         )
                         video_final_label = out_label
