@@ -106,6 +106,12 @@ def _effect_filters(
                 raise ValueError(f"text effect has invalid position {position!r}")
             size = effect.get("size", 48)
             color = effect.get("color", "white")
+            # A dark border by default: captions almost always need one to stay
+            # readable over bright/busy footage (found the hard way on《雨后》's
+            # golden shot3 — plain white text washed out). drawtext gives this
+            # natively via borderw/bordercolor; border_width=0 opts out.
+            border_width = effect.get("border_width", 2)
+            border_color = effect.get("border_color", "black")
             font = effect.get("font", DEFAULT_TEXT_FONT)
             if not Path(font).exists():
                 raise FileNotFoundError(
@@ -120,7 +126,9 @@ def _effect_filters(
             parts.append(
                 f"drawtext=fontfile='{_escape_filter_path(font)}':"
                 f"textfile='{_escape_filter_path(str(caption_path))}':"
-                f"fontcolor={color}:fontsize={size}:x={x_expr}:y={y_expr}:expansion=none"
+                f"fontcolor={color}:fontsize={size}:"
+                f"borderw={border_width}:bordercolor={border_color}:"
+                f"x={x_expr}:y={y_expr}:expansion=none"
             )
         elif etype == "blur":
             if stream != "video":

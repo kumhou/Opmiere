@@ -244,6 +244,9 @@ class Editor:
                 size = effect.get("size", 48)
                 if not isinstance(size, int) or size <= 0:
                     raise ValueError("text effect 'size' must be a positive integer")
+                border_width = effect.get("border_width", 2)
+                if not isinstance(border_width, int) or border_width < 0:
+                    raise ValueError("text effect 'border_width' must be a non-negative integer")
             elif etype == "blur":
                 amount = effect.get("amount", 5.0)
                 if not isinstance(amount, (int, float)) or amount <= 0:

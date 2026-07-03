@@ -643,6 +643,37 @@ def test_export_with_audio_eq_keeps_duration_unchanged(editor, sample_video, tmp
     assert abs(result.duration_seconds - 1.0) < 0.05
 
 
+def test_apply_effect_text_accepts_border(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    updated = editor.apply_effect(
+        clip.id, {"type": "text", "content": "hi", "border_width": 4, "border_color": "red"})
+    assert updated.effects[-1]["border_width"] == 4
+
+
+def test_apply_effect_text_rejects_negative_border(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "text", "content": "hi", "border_width": -1})
+
+
+def test_text_effect_renders_border_into_drawtext(tmp_path):
+    from opmiere.render.ffmpeg import _effect_filters
+    explicit = _effect_filters(
+        [{"type": "text", "content": "hi", "border_width": 3, "border_color": "navy"}],
+        clip_duration_frames=30, fps=30, stream="video", text_dir=tmp_path)
+    dt = next(p for p in explicit if p.startswith("drawtext"))
+    assert "borderw=3" in dt and "bordercolor=navy" in dt
+    # default border is applied when unspecified (captions need it by default)
+    default = _effect_filters(
+        [{"type": "text", "content": "hi"}],
+        clip_duration_frames=30, fps=30, stream="video", text_dir=tmp_path)
+    assert "borderw=2" in next(p for p in default if p.startswith("drawtext"))
+
+
 def test_second_video_track_is_a_gapped_overlay_layer(editor, sample_video, tmp_path):
     """Real render: base track (2s) + a second video track with a clip that
     only covers part of that span. Total duration must follow the base

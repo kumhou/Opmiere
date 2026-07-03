@@ -147,7 +147,7 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
       {"type": "color", "brightness": -1..1 (default 0), "contrast": 0..2 (default 1), "saturation": 0..3 (default 1)}
       {"type": "fade", "direction": "in"|"out", "duration_frames": N}
       {"type": "gain", "db": float}  (audio volume in decibels, e.g. 6.0 louder, -6.0 quieter)
-      {"type": "text", "content": str, "position": "top"|"center"|"bottom" (default bottom), "size": int (default 48), "color": "white" (default), "font": optional path to a .ttf/.ttc (default is a CJK-capable font)}
+      {"type": "text", "content": str, "position": "top"|"center"|"bottom" (default bottom), "size": int (default 48), "color": "white" (default), "border_width": int (default 2, a dark outline so text stays readable over bright/busy footage; 0 = no outline), "border_color": "black" (default), "font": optional path to a .ttf/.ttc (default is a CJK-capable font)}
       {"type": "blur", "amount": float (default 5.0, gaussian blur sigma - bigger is blurrier)}
       {"type": "vignette", "strength": float (default 1.0, bigger is a more visible dark-corner effect)}
       {"type": "chroma_key", "color": "green" (default), "similarity": 0..1 (default 0.15), "blend": 0..1 (default 0.05)}
