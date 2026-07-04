@@ -132,17 +132,28 @@ def add_clip(track_id: str, media_id: str, start: int, src_in: int, src_out: int
 
 @mcp.tool()
 def place_from_file(
-    src_path: str, kind: MediaKind, track_id: str, start: int, duration_frames: int | None = None
+    src_path: str,
+    kind: MediaKind,
+    track_id: str,
+    start: int,
+    duration_frames: int | None = None,
+    origin: dict | None = None,
 ) -> dict:
     """Import a local file and place it on a track in one step (one undo) -
     the local-file twin of place_generated. kind: 'video', 'audio', or
     'image'. Omit duration_frames to use the file's full real (ffprobed)
     duration - the usual case for a whole song/voiceover/shot; it's required
     for kind='image' (no intrinsic duration). The clip starts from the
-    file's beginning; use trim_clip afterwards to cut into it."""
+    file's beginning; use trim_clip afterwards to cut into it.
+
+    origin: optional provenance dict for a *generated* file placed after the
+    generating session ended (place_generated needs its provider's live job;
+    this doesn't) - pass the provider/job/prompt/license info so
+    get_license_report and get_project_state still tell the truth about
+    where the media came from. Leave it out for the user's own files."""
     return (
         _require_editor()
-        .place_from_file(Path(src_path), kind, track_id, start, duration_frames)
+        .place_from_file(Path(src_path), kind, track_id, start, duration_frames, origin=origin)
         .to_dict()
     )
 

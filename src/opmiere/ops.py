@@ -172,6 +172,7 @@ class Editor:
         track_id: str,
         start: int,
         duration_frames: int | None = None,
+        origin: dict[str, Any] | None = None,
     ) -> Clip:
         """Import a local file and place it as a clip in one operation.
 
@@ -181,6 +182,12 @@ class Editor:
         stays required for kind="image" (no intrinsic duration to fall back
         on). One operation instead of import_media + add_clip also means one
         undo step, matching what "place this file" means to the caller.
+
+        ``origin`` lets provenance survive a process restart: place_generated
+        needs the provider's in-memory job, so a finished job's result_path
+        placed from a *later* session comes through here instead — pass the
+        provider/job/prompt (and license) metadata yourself and the Media
+        record stays as auditable as if place_generated had done it.
         """
         if duration_frames is not None and duration_frames <= 0:
             raise ValueError(f"duration_frames must be positive, got {duration_frames}")
@@ -195,7 +202,9 @@ class Editor:
             )
         with self._mutate():
             track = self.project.track_by_id(track_id)
-            media = _ffmpeg_import_media(self.bundle, self.project, Path(src_path), kind)
+            media = _ffmpeg_import_media(
+                self.bundle, self.project, Path(src_path), kind, origin=origin
+            )
             if duration_frames is None:
                 duration_frames = media.duration_frames
             return self.project.add_clip(track, media, start, 0, duration_frames)
