@@ -252,19 +252,32 @@ class Clip:
 
 @dataclass
 class Track:
+    """``duck`` is a track-level relationship, not a clip effect (ARCHITECTURE.md
+    section 5.8's note: ducking "needs a sidechain keyed by a second track").
+    When set: {"against": other_audio_track_id, "threshold_db", "ratio",
+    "attack_ms", "release_ms", "makeup_db"} — this track's mixed audio is
+    compressed whenever the ``against`` track's (pre-duck) signal exceeds the
+    threshold. Classic use: a music track ducks against the voiceover track.
+    See Editor.set_ducking for validation and render/ffmpeg.py for how it
+    compiles to a sidechaincompress keyed by a split of the other track."""
+
     id: str
     kind: TrackKind
     clips: list[Clip] = field(default_factory=list)
+    duck: dict[str, Any] | None = None
 
     def clips_in_order(self) -> list[Clip]:
         return sorted(self.clips, key=lambda c: c.start)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "id": self.id,
             "kind": self.kind,
             "clips": [c.to_dict() for c in self.clips],
         }
+        if self.duck is not None:
+            d["duck"] = self.duck
+        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Track":
@@ -272,6 +285,7 @@ class Track:
             id=d["id"],
             kind=d["kind"],
             clips=[Clip.from_dict(c) for c in d.get("clips", [])],
+            duck=d.get("duck"),
         )
 
 

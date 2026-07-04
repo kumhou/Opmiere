@@ -32,6 +32,7 @@ from .model import (
     TrackKind,
     new_id,
 )
+from .render.audio_critic import analyze_audio as _analyze_audio
 from .render.backend import RenderBackend
 from .render.contact_sheet import make_contact_sheet as _make_contact_sheet
 from .render.ffmpeg import FFmpegBackend
@@ -141,6 +142,21 @@ class Editor:
         with self._mutate():
             return self.project.add_track(kind)
 
+    def delete_track(self, track_id: str) -> Track:
+        """Remove a track and every clip on it. Undoable like any mutation.
+
+        Also clears any *other* track's duck-against reference to this track —
+        leaving a dangling reference would make every later export fail on a
+        track the user already decided to throw away.
+        """
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            self.project.tracks.remove(track)
+            for other in self.project.tracks:
+                if other.duck is not None and other.duck.get("against") == track_id:
+                    other.duck = None
+            return track
+
     def add_clip(
         self, track_id: str, media_id: str, start: int, src_in: int, src_out: int
     ) -> Clip:
@@ -148,6 +164,41 @@ class Editor:
             track = self.project.track_by_id(track_id)
             media = self.project.media_by_id(media_id)
             return self.project.add_clip(track, media, start, src_in, src_out)
+
+    def place_from_file(
+        self,
+        src_path: Path,
+        kind: MediaKind,
+        track_id: str,
+        start: int,
+        duration_frames: int | None = None,
+    ) -> Clip:
+        """Import a local file and place it as a clip in one operation.
+
+        The local-file twin of place_generated, with the same duration rule:
+        omit duration_frames to use the media's full real (ffprobed) duration
+        — the common case when placing a whole song/voiceover/shot — but it
+        stays required for kind="image" (no intrinsic duration to fall back
+        on). One operation instead of import_media + add_clip also means one
+        undo step, matching what "place this file" means to the caller.
+        """
+        if duration_frames is not None and duration_frames <= 0:
+            raise ValueError(f"duration_frames must be positive, got {duration_frames}")
+        if duration_frames is None and kind == "image":
+            # Checked before the import, not after: _mutate rolls back the
+            # *project* on failure but a file already copied into the
+            # bundle's media/ dir stays there, and retrying would then hit
+            # "media file already exists in bundle".
+            raise ValueError(
+                "duration_frames is required for kind='image' "
+                "(images have no intrinsic duration)"
+            )
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            media = _ffmpeg_import_media(self.bundle, self.project, Path(src_path), kind)
+            if duration_frames is None:
+                duration_frames = media.duration_frames
+            return self.project.add_clip(track, media, start, 0, duration_frames)
 
     def move_clip(self, clip_id: str, new_start: int) -> Clip:
         with self._mutate():
@@ -417,6 +468,63 @@ class Editor:
             clip.position = None
             return clip
 
+    def set_ducking(
+        self,
+        track_id: str,
+        against_track_id: str,
+        threshold_db: float = -30.0,
+        ratio: float = 8.0,
+        attack_ms: float = 20.0,
+        release_ms: float = 300.0,
+        makeup_db: float = 0.0,
+    ) -> Track:
+        """Duck ``track_id`` under ``against_track_id``: whenever the against-
+        track's signal exceeds threshold_db, this track's level is compressed
+        by ratio (music-under-voiceover being the classic case). A track-level
+        relationship, not a clip effect — see model.Track.duck. The against
+        track's own audio is untouched; it only *keys* the compression.
+
+        Defaults are tuned for speech over music: threshold low enough that
+        normal speech triggers it, ratio high enough to be clearly audible,
+        release slow enough not to pump between words.
+        """
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            against = self.project.track_by_id(against_track_id)
+            if track.kind != "audio" or against.kind != "audio":
+                raise ValueError(
+                    "set_ducking needs two audio tracks; got "
+                    f"{track_id}={track.kind!r}, {against_track_id}={against.kind!r}"
+                )
+            if track_id == against_track_id:
+                raise ValueError("a track cannot duck against itself")
+            if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
+                raise ValueError("set_ducking 'ratio' must be in [1, 20]")
+            for name, value in (
+                ("threshold_db", threshold_db), ("attack_ms", attack_ms),
+                ("release_ms", release_ms), ("makeup_db", makeup_db),
+            ):
+                if not isinstance(value, (int, float)):
+                    raise ValueError(f"set_ducking {name!r} must be numeric")
+            track.duck = {
+                "against": against_track_id,
+                "threshold_db": float(threshold_db),
+                "ratio": float(ratio),
+                "attack_ms": float(attack_ms),
+                "release_ms": float(release_ms),
+                "makeup_db": float(makeup_db),
+            }
+            return track
+
+    def clear_ducking(self, track_id: str) -> Track:
+        """Remove a previously-set duck relationship from a track."""
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.duck is None:
+                raise ValueError(f"track {track_id} has no ducking to clear")
+            track.duck = None
+            return track
+
     # --- generation (ARCHITECTURE.md section 8: async job model) ----------
     def _require_generation_provider(self) -> GenerationProvider:
         if self.generation_provider is None:
@@ -507,6 +615,28 @@ class Editor:
         for free, not after it's already imported.
         """
         return _quality_check(Path(path)).to_dict()
+
+    def analyze_audio(
+        self,
+        path: str | Path,
+        image_path: str | Path | None = None,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.5,
+    ) -> dict[str, Any]:
+        """The agent's cheap "ears", pairing make_contact_sheet's eyes
+        (ARCHITECTURE.md 5.10): meter any audio file — mean/max volume,
+        integrated LUFS, loudness range, true peak, silence regions — and
+        optionally write a waveform+spectrogram image to actually look at
+        the sound's shape. Use it on generated audio before placing it, and
+        on exports to check the mix (e.g. did ducking actually make room
+        for the voiceover). Plain ffmpeg analysis; no model call.
+        """
+        return _analyze_audio(
+            Path(path),
+            Path(image_path) if image_path is not None else None,
+            silence_threshold_db=silence_threshold_db,
+            min_silence_seconds=min_silence_seconds,
+        )
 
     def make_contact_sheet(
         self, path: str | Path, output_path: str | Path, cols: int = 3, rows: int = 3

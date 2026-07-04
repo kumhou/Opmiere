@@ -96,22 +96,55 @@ def import_media(src_path: str, kind: MediaKind) -> dict:
 def add_track(kind: TrackKind) -> dict:
     """Add a new track ('video' or 'audio') to the timeline.
 
-    Video tracks stack by creation order: the *first* video track is the
-    base/background layer (clips must be contiguous from frame 0, like P0
-    always required). Any video track added after it is an overlay layer,
-    full-frame, shown only during its own clips' [start, end) windows -
-    the base (or lower overlays) show through elsewhere, so overlay tracks
-    are allowed gaps and don't need to start at frame 0. Clips on the same
-    overlay track still can't overlap each other. No chroma-key/PiP sizing
-    yet - overlay clips always cover the whole frame while active.
+    Tracks of a kind stack by creation order, video and audio alike: the
+    *first* track of a kind is the base layer (clips must be contiguous from
+    frame 0), and every one added after it is an overlay layer that allows
+    gaps and doesn't need to start at frame 0 (clips on the same overlay
+    track still can't overlap each other).
+
+    Video: overlays composite over the base, full-frame, during their own
+    clips' [start, end) windows - the base (or lower overlays) show through
+    elsewhere. See set_position for picture-in-picture sizing and the
+    "chroma_key" effect for transparency.
+
+    Audio: every audio track plays at once, mixed together - e.g. a music
+    bed on the first audio track, voiceover lines placed at any frame on a
+    second, SFX on a third. Levels are preserved as authored (no automatic
+    re-balancing): use the "gain" effect per clip to balance the mix, and
+    set_ducking to automatically dip one track under another.
     """
     return _require_editor().add_track(kind).to_dict()
+
+
+@mcp.tool()
+def delete_track(track_id: str) -> dict:
+    """Remove a track and every clip on it. Any other track that was ducking
+    against it has its ducking cleared too (rather than leaving a broken
+    reference that would fail every later export). Undoable."""
+    return _require_editor().delete_track(track_id).to_dict()
 
 
 @mcp.tool()
 def add_clip(track_id: str, media_id: str, start: int, src_in: int, src_out: int) -> dict:
     """Place the trimmed range [src_in, src_out) of media_id onto track_id at frame `start`."""
     return _require_editor().add_clip(track_id, media_id, start, src_in, src_out).to_dict()
+
+
+@mcp.tool()
+def place_from_file(
+    src_path: str, kind: MediaKind, track_id: str, start: int, duration_frames: int | None = None
+) -> dict:
+    """Import a local file and place it on a track in one step (one undo) -
+    the local-file twin of place_generated. kind: 'video', 'audio', or
+    'image'. Omit duration_frames to use the file's full real (ffprobed)
+    duration - the usual case for a whole song/voiceover/shot; it's required
+    for kind='image' (no intrinsic duration). The clip starts from the
+    file's beginning; use trim_clip afterwards to cut into it."""
+    return (
+        _require_editor()
+        .place_from_file(Path(src_path), kind, track_id, start, duration_frames)
+        .to_dict()
+    )
 
 
 @mcp.tool()
@@ -240,6 +273,72 @@ def set_position(clip_id: str, x: float, y: float, scale: float) -> dict:
 def clear_position(clip_id: str) -> dict:
     """Restore a clip (previously set via set_position) to full-frame."""
     return _require_editor().clear_position(clip_id).to_dict()
+
+
+@mcp.tool()
+def set_ducking(
+    track_id: str,
+    against_track_id: str,
+    threshold_db: float = -30.0,
+    ratio: float = 8.0,
+    attack_ms: float = 20.0,
+    release_ms: float = 300.0,
+    makeup_db: float = 0.0,
+) -> dict:
+    """Automatically dip track_id's volume whenever against_track_id has
+    signal - the classic "music ducks under the voiceover" move, without
+    hand-placing gain changes around every spoken line. Both must be audio
+    tracks; the against-track's own sound is unchanged (it only *triggers*
+    the dip). One duck relationship per track (calling again replaces it).
+
+    threshold_db: level the against-track must exceed to trigger (default
+    -30, low enough that normal speech triggers reliably). ratio: how hard
+    the dip is (default 8 - clearly audible; 2-3 is gentle). attack_ms /
+    release_ms: how fast the dip engages / lets go (defaults 20/300 - the
+    slow release avoids pumping between words). makeup_db: gain added back
+    after compression (default 0). Verify the result with analyze_audio on
+    the export."""
+    return (
+        _require_editor()
+        .set_ducking(
+            track_id, against_track_id,
+            threshold_db=threshold_db, ratio=ratio,
+            attack_ms=attack_ms, release_ms=release_ms, makeup_db=makeup_db,
+        )
+        .to_dict()
+    )
+
+
+@mcp.tool()
+def clear_ducking(track_id: str) -> dict:
+    """Remove a duck relationship previously set on track_id via set_ducking."""
+    return _require_editor().clear_ducking(track_id).to_dict()
+
+
+@mcp.tool()
+def analyze_audio(
+    path: str,
+    image_path: str | None = None,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.5,
+) -> dict:
+    """The audio counterpart of make_contact_sheet - the agent's "ears".
+    Meters any audio-bearing file: mean/max volume (dB), integrated loudness
+    (LUFS - streaming targets sit around -14, music beds under speech much
+    lower), loudness range (LU), true peak (dBFS - near 0 warns of clipping),
+    and silence regions longer than min_silence_seconds below
+    silence_threshold_db. Pass image_path (a .png) to also get a waveform +
+    spectrogram picture - read it as an image to see dynamics over time and
+    frequency content (hiss, harshness, missing bass) that single numbers
+    hide. Use on generated audio before placing it, and on exports to verify
+    the mix (e.g. that ducking actually made room for the voiceover).
+    Deterministic ffmpeg analysis - free, local, no model call."""
+    return _require_editor().analyze_audio(
+        path,
+        image_path,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+    )
 
 
 @mcp.tool()

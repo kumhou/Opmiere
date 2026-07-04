@@ -1,3 +1,4 @@
+from .audio_critic import analyze_audio
 from .backend import RenderBackend
 from .contact_sheet import make_contact_sheet
 from .ffmpeg import FFmpegBackend, import_media
@@ -14,4 +15,5 @@ __all__ = [
     "quality_check",
     "QualityCheckResult",
     "make_contact_sheet",
+    "analyze_audio",
 ]

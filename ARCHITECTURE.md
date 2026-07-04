@@ -254,8 +254,9 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Text:** titles, lower-thirds, captions/subtitles.
 - **Stylize:** blur, sharpen, vignette, film grain **done**; glow still open (needs a multi-stage
   blur+screen-blend filtergraph, not a single filter like the rest here).
-- **Audio:** gain, compression, noise reduction, fades, EQ **done**; only ducking still open (needs
-  a sidechain keyed by a second track - a bigger architectural piece, not a per-clip effect).
+- **Audio:** gain, compression, noise reduction, fades, EQ **done**; ducking **done** too, as the
+  track-level relationship it always needed to be (`Track.duck` + `set_ducking`, compiled to a
+  sidechain keyed by a second track - see the audio-subsystem writeup below).
 
 Two facts make this cheap to deliver:
 1. It **slots into the existing abstractions** — each is a clip `effect` + an `apply_effect` operation;
@@ -529,8 +530,9 @@ each slotting into an existing mechanism rather than a new one:
   narrowed the gap to 9.9dB; on a sine tone mixed with real injected white noise (`anoisesrc`),
   `noise_reduction` measurably dropped RMS energy (-24.90dB → -25.14dB - a small honest delta, since
   afftdn targets the noise floor under a signal rather than the signal itself, not a red flag). Ducking
-  stays open - it needs a sidechain keyed by a second track, which is a bigger architectural piece (like
-  multi-track compositing was) rather than a per-clip effect.
+  landed later as part of the audio subsystem (next writeup below) - it needed a sidechain keyed by a
+  second track, which made it a track-level piece (like multi-track compositing was), not a per-clip
+  effect.
 
 **Audio EQ landed too**: a new `audio_eq` effect (ffmpeg's `equalizer`, one peaking band -
 `frequency_hz`/`gain_db`/`q`) - named `audio_eq` rather than the shorter `eq` specifically because the
@@ -542,6 +544,39 @@ several `frequency_hz` values and they stack, same as every other effect already
 1000Hz test tone with a band centered on 1000Hz measured **+17.2dB at a +18dB boost setting and exactly
 -18.0dB at a -18dB cut setting** (volumedetect mean_volume, before/after) - close to 1:1 because the tone
 sits exactly on the band's own center frequency, the case where a peaking filter's effect is most direct.
+
+**The audio subsystem proper landed as one coherent piece** - multi-track mixing, ducking, and the
+agent's "ears" - closing out the last "later work" markers on the audio side:
+
+- **Multi-track audio mixing** reuses the base/overlay convention video tracks already established,
+  deliberately (one mental model, not two): the first audio track is the base (contiguous from frame 0,
+  hard cuts or declared transitions), every later one is an overlay allowed gaps - a music bed on the
+  base, voiceover lines dropped at any frame on a second track, SFX on a third. Overlay clips are
+  positioned with `adelay` and summed with `amix normalize=0` - normalize=0 because amix's default 1/N
+  re-scaling would silently re-balance the whole mix every time a track is added, exactly the kind of
+  invisible mutation an agent can't reason about; levels stay as authored, balanced explicitly via the
+  `gain` effect. Every audio clip chain now ends in an explicit `aformat` (float/stereo) so a mono
+  voiceover meeting a stereo bed inside concat/acrossfade/amix/sidechaincompress is a non-event rather
+  than a format-negotiation surprise.
+- **Ducking** (`set_ducking`/`clear_ducking`, stored as `Track.duck`) is a *track-level relationship*,
+  as §5.8 predicted: `sidechaincompress` on the ducked track's submix, keyed by an `asplit` copy of the
+  key track's **pre-duck** submix - pre-duck keys make mutual ducking acyclic by construction, no cycle
+  detection needed. Two empirical findings are baked into the compiled graph: `threshold`/`makeup`
+  accept the same `dB` suffix acompressor does (API stays dB-only), and sidechaincompress ends at its
+  *shortest* input - an unpadded 1s key truncated a 4s main to 1s in testing - so every key is `apad`ed
+  with silence (which is also the right semantics: no key signal = no ducking), with the main input
+  still bounding output length. `delete_track` clears any other track's duck-against reference to the
+  deleted track rather than leaving every later export to fail on a dangling id.
+- **`analyze_audio` - the ears to `make_contact_sheet`'s eyes** (§5.10). Direct answer to JH's dogfood
+  question ("你有什么办法直接拥有'耳朵'来辨别吗？就跟你的眼睛一样"): deterministic ffmpeg metering -
+  volumedetect mean/max, ebur128 integrated LUFS / loudness range / true peak, silencedetect regions -
+  plus an optional waveform-over-spectrogram PNG (`showwavespic`/`showspectrumpic`/`vstack`), because
+  the numbers say "how loud" but the picture says *where* and *what*. Free and local, so it runs before
+  any generated audio earns a place on the timeline and again on the export to verify the mix - e.g.
+  that ducking measurably made room for the voiceover.
+- **`place_from_file`** rounds out the placement paths: import + place as one operation (and one undo),
+  the local-file twin of `place_generated`, with the same omit-duration-to-use-real-duration rule that
+  place_generated already learned the hard way.
 
 **P2 status:** P0, P1, and P1's full deterministic-tools line (color, fade, gain, text, cross-dissolve
 transitions, **plus speed/time-remap** — `Clip.speed` + `timeline_duration_frames`, kept separate from

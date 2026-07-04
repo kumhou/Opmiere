@@ -1,13 +1,16 @@
 """FFmpegBackend — the P0/P1 render engine (ARCHITECTURE.md section 5.2).
 
-P0/P1 scope, deliberately narrow (see ARCHITECTURE.md section 9):
-  - at most one video track and one audio track
-  - clips on a track must be placed back-to-back with no gaps or overlaps,
-    starting at frame 0 ("sequential placement")
-  - trim + concat, plus the section 5.8 deterministic effects that don't
-    change a clip's timeline duration: color/text (video), gain (audio), and
-    fade in/out (video + audio). Speed/time-remap and cross-clip transitions
-    are later work — see model.KNOWN_EFFECT_TYPES for why they're excluded.
+Track semantics (video and audio share one convention):
+  - the *first* track of a kind is the base layer: clips contiguous from
+    frame 0, hard cuts or declared transitions only (_validate_contiguous).
+  - every later track of that kind is an overlay: gaps allowed, clips just
+    can't overlap each other on the same track (_validate_no_overlaps).
+    Overlay video composites via `overlay`; overlay audio is delayed to its
+    timeline position (`adelay`) and summed into the mix (`amix`).
+  - an audio track may duck against another (model.Track.duck) — compiled to
+    `sidechaincompress` keyed by a split of the other track's pre-duck
+    submix (pre-duck keys mean two tracks ducking against each other can
+    never form a filtergraph cycle).
 
 Also provides ``import_media``: probes a source file with ffprobe and registers
 it on the project, refusing to guess values ffprobe doesn't confirm.
@@ -395,6 +398,30 @@ def _video_clip_chain(
     return chain
 
 
+def _audio_clip_chain(clip: Clip, idx: int, tb, sample_rate: int, label: str) -> str:
+    """The atrim -> speed -> effects -> resample/format chain for one clip's
+    audio stream. Ends in an explicit aformat (float stereo): every audio
+    label downstream feeds concat/acrossfade/amix/sidechaincompress, all of
+    which need their inputs to agree on format — normalising here once beats
+    letting a mono voiceover meet a stereo music bed inside amix."""
+    fps = tb.fps
+    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "audio")
+    chain = (
+        f"[{idx}:a]atrim=start={tb.frames_to_seconds(clip.src_in):.6f}:"
+        f"end={tb.frames_to_seconds(clip.src_out):.6f},asetpts=PTS-STARTPTS"
+    )
+    speed_tempo = _speed_filter(clip.speed, "audio")
+    if speed_tempo:
+        chain += f",{speed_tempo}"
+    for filt in fx:
+        chain += f",{filt}"
+    chain += (
+        f",aresample={sample_rate},"
+        f"aformat=sample_fmts=fltp:channel_layouts=stereo[{label}]"
+    )
+    return chain
+
+
 def _overlay_box(clip: Clip, W: int, H: int) -> tuple[int, int, int, int]:
     """(box_w, box_h, x_px, y_px) for one overlay clip: full canvas at (0, 0)
     if ``clip.position`` is unset, else a scaled-down box placed per
@@ -495,25 +522,24 @@ class FFmpegBackend(RenderBackend):
         # restricted track counts, only this backend did.
         video_tracks = [t for t in project.tracks if t.kind == "video"]
         audio_tracks = [t for t in project.tracks if t.kind == "audio"]
-        if len(audio_tracks) > 1:
-            raise NotImplementedError(
-                "P0 FFmpegBackend supports at most one audio track "
-                "(mixing multiple audio tracks together is later work)"
-            )
         base_video_track = video_tracks[0] if video_tracks else None
         overlay_video_tracks = video_tracks[1:]
-        audio_track = audio_tracks[0] if audio_tracks else None
-        if base_video_track is None and audio_track is None:
+        base_audio_track = audio_tracks[0] if audio_tracks else None
+        overlay_audio_tracks = audio_tracks[1:]
+        if base_video_track is None and base_audio_track is None:
             raise ValueError("project has no tracks to render")
 
         base_video_clips = _validate_contiguous(base_video_track) if base_video_track else []
         overlay_clips_by_track = [_validate_no_overlaps(t) for t in overlay_video_tracks]
-        if audio_track:
-            _validate_contiguous(audio_track)
+        if base_audio_track:
+            _validate_contiguous(base_audio_track)
+        # Overlay audio tracks may have gaps (a voiceover line here, an SFX
+        # there); an empty overlay track simply contributes nothing.
+        overlay_audio_clips_by_track = [_validate_no_overlaps(t) for t in overlay_audio_tracks]
 
-        # Separate audio track wins; otherwise fall back to the base video
+        # A real base audio track wins; otherwise fall back to the base video
         # track's own embedded audio if every clip on it actually has audio.
-        audio_source_track = audio_track
+        audio_source_track = base_audio_track
         if audio_source_track is None and base_video_track is not None:
             audio_source_track = (
                 base_video_track if _track_all_media_have_audio(project, base_video_track) else None
@@ -522,7 +548,7 @@ class FFmpegBackend(RenderBackend):
         # One -i per unique media file, in order of first appearance.
         media_order: list[str] = []
         seen: set[str] = set()
-        for track in (base_video_track, *overlay_video_tracks, audio_source_track):
+        for track in (base_video_track, *overlay_video_tracks, audio_source_track, *overlay_audio_tracks):
             if track is None:
                 continue
             for clip in track.clips_in_order():
@@ -595,45 +621,126 @@ class FFmpegBackend(RenderBackend):
                         overlay_n += 1
 
             audio_final_label: str | None = None
-            alabels: list[str] = []
+            sample_rate = project.timebase.sample_rate
+            tb = project.timebase
+            # track.id -> its submix's current filter label, in mix order.
+            audio_track_labels: dict[str, str] = {}
+            mix_order: list[str] = []
+
             if audio_source_track is not None:
-                sample_rate = project.timebase.sample_rate
-                tb = project.timebase
                 audio_clips = audio_source_track.clips_in_order()
+                alabels: list[str] = []
                 for n, clip in enumerate(audio_clips):
-                    idx = media_index[clip.media]
-                    label = f"a{n}"
-                    start_s = tb.frames_to_seconds(clip.src_in)
-                    end_s = tb.frames_to_seconds(clip.src_out)
-                    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "audio", text_dir)
-                    chain = (
-                        f"[{idx}:a]atrim=start={start_s:.6f}:end={end_s:.6f},"
-                        f"asetpts=PTS-STARTPTS"
+                    filter_parts.append(
+                        _audio_clip_chain(clip, media_index[clip.media], tb, sample_rate, f"a{n}")
                     )
-                    speed_tempo = _speed_filter(clip.speed, "audio")
-                    if speed_tempo:
-                        chain += f",{speed_tempo}"
-                    for filt in fx:
-                        chain += f",{filt}"
-                    chain += f",aresample={sample_rate}[{label}]"
-                    filter_parts.append(chain)
-                    alabels.append(label)
+                    alabels.append(f"a{n}")
                 if len(alabels) == 1:
-                    audio_final_label = alabels[0]
+                    base_label = alabels[0]
                 else:
-                    filter_parts.extend(_fold_segments(alabels, audio_clips, fps, "audio", "aout"))
-                    audio_final_label = "aout"
+                    filter_parts.extend(_fold_segments(alabels, audio_clips, fps, "audio", "abase"))
+                    base_label = "abase"
+                audio_track_labels[audio_source_track.id] = base_label
+                mix_order.append(audio_source_track.id)
+
+            for j, (track, track_clips) in enumerate(
+                zip(overlay_audio_tracks, overlay_audio_clips_by_track)
+            ):
+                if not track_clips:
+                    continue
+                seg_labels: list[str] = []
+                for n, clip in enumerate(track_clips):
+                    label = f"ao{j}_{n}"
+                    filter_parts.append(
+                        _audio_clip_chain(clip, media_index[clip.media], tb, sample_rate, label)
+                    )
+                    if clip.start > 0:
+                        delay_ms = round(tb.frames_to_seconds(clip.start) * 1000)
+                        filter_parts.append(f"[{label}]adelay=delays={delay_ms}:all=1[{label}d]")
+                        label = f"{label}d"
+                    seg_labels.append(label)
+                if len(seg_labels) == 1:
+                    track_label = seg_labels[0]
+                else:
+                    # Within one overlay track the (validated non-overlapping,
+                    # individually delayed) clips just sum; normalize=0 keeps
+                    # each at its authored level instead of amix's default
+                    # 1/N scaling.
+                    track_label = f"atrk{j}"
+                    filter_parts.append(
+                        "".join(f"[{s}]" for s in seg_labels)
+                        + f"amix=inputs={len(seg_labels)}:duration=longest:normalize=0[{track_label}]"
+                    )
+                audio_track_labels[track.id] = track_label
+                mix_order.append(track.id)
+
+            # Ducking (model.Track.duck): split every key track's *pre-duck*
+            # submix first, then apply each sidechaincompress — pre-duck keys
+            # are what make mutual ducking acyclic by construction.
+            ducked_tracks = []
+            key_counts: dict[str, int] = {}
+            for track in audio_tracks:
+                if track.duck is None or track.id not in audio_track_labels:
+                    continue
+                against_id = track.duck["against"]
+                if against_id not in audio_track_labels:
+                    raise ValueError(
+                        f"track {track.id} ducks against {against_id}, which has "
+                        "no rendered audio (track missing or empty) — clear_ducking "
+                        "or give the key track clips"
+                    )
+                key_counts[against_id] = key_counts.get(against_id, 0) + 1
+                ducked_tracks.append(track)
+
+            key_labels: dict[str, list[str]] = {}
+            for against_id, count in key_counts.items():
+                src = audio_track_labels[against_id]
+                keys = [f"{src}k{i}" for i in range(count)]
+                filter_parts.append(
+                    f"[{src}]asplit={count + 1}[{src}m]" + "".join(f"[{k}]" for k in keys)
+                )
+                audio_track_labels[against_id] = f"{src}m"
+                key_labels[against_id] = keys
+
+            for track in ducked_tracks:
+                duck = track.duck
+                key = key_labels[duck["against"]].pop()
+                src = audio_track_labels[track.id]
+                # apad the key: sidechaincompress ends at its *shortest* input
+                # (verified empirically — an unpadded 1s key truncated a 4s
+                # main to 1s), so a key shorter than the ducked track would
+                # otherwise cut the mix off. Padding with silence is also the
+                # right semantics (no key signal = no ducking), and the main
+                # input still bounds the output length.
+                filter_parts.append(f"[{key}]apad[{key}p]")
+                filter_parts.append(
+                    f"[{src}][{key}p]sidechaincompress="
+                    f"threshold={duck['threshold_db']}dB:ratio={duck['ratio']}:"
+                    f"attack={duck['attack_ms']}:release={duck['release_ms']}:"
+                    f"makeup={duck['makeup_db']}dB[{src}duck]"
+                )
+                audio_track_labels[track.id] = f"{src}duck"
+
+            final_labels = [audio_track_labels[track_id] for track_id in mix_order]
+            if len(final_labels) == 1:
+                audio_final_label = final_labels[0]
+            elif final_labels:
+                filter_parts.append(
+                    "".join(f"[{s}]" for s in final_labels)
+                    + f"amix=inputs={len(final_labels)}:duration=longest:normalize=0[aout]"
+                )
+                audio_final_label = "aout"
 
             filter_complex = ";".join(filter_parts)
 
             cmd = ["ffmpeg", "-y", *input_args, "-filter_complex", filter_complex]
             if video_final_label:
-                cmd += ["-map", f"[{video_final_label}]"]
+                cmd += ["-map", f"[{video_final_label}]", "-pix_fmt", "yuv420p", "-c:v", "libx264"]
             if audio_final_label:
-                cmd += ["-map", f"[{audio_final_label}]"]
+                cmd += ["-map", f"[{audio_final_label}]", "-c:a", "aac"]
             else:
                 cmd += ["-an"]
-            cmd += ["-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac", str(output_path)]
+            cmd += [str(output_path)]
 
             proc = subprocess.run(cmd, capture_output=True, text=True)
             if proc.returncode != 0:
