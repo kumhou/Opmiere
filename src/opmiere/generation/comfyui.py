@@ -34,6 +34,9 @@ import json
 import os
 import random
 import shutil
+import subprocess
+import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -41,6 +44,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from ..render.probe import probe as _probe
 from .profiles import GenerationProfile, recommend as _recommend_profile
 from .provider import GenerationJob, GenerationProvider, JobStatus, ModelLicense
 
@@ -152,7 +156,9 @@ class ComfyUIProvider(GenerationProvider):
         # ComfyUI's /history doesn't echo back a plain-text "kind"/"prompt" in
         # an easily queryable form, so we remember our own request alongside
         # its job id rather than re-parsing the submitted graph back out.
-        self._jobs: dict[str, dict[str, str]] = {}
+        # Values are mixed (str/Path/JobStatus/bool) — local video-upscale
+        # jobs store more than ComfyUI prompt metadata.
+        self._jobs: dict[str, dict[str, Any]] = {}
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         req = urllib.request.Request(
@@ -538,10 +544,14 @@ class ComfyUIProvider(GenerationProvider):
         "approved draft" half of the draft->finish loop. Uploaded into
         ComfyUI's own input/ folder first, same constraint and copy-in
         pattern as speech's reference_audio.
+
+        For multi-frame *video* sources, submit() routes to
+        ``_submit_video_upscale`` instead (frame-extract → this graph per
+        frame → reassemble); this builder stays single-image only.
         """
         source_path = params.get("source_path")
         if not source_path:
-            raise ValueError("kind='upscale' requires params['source_path'] (the image to upscale)")
+            raise ValueError("kind='upscale' requires params['source_path'] (the image/video to upscale)")
         if self.comfyui_input_dir is None:
             raise ValueError(
                 "upscale needs the source image uploaded into ComfyUI's own input/ "
@@ -561,6 +571,179 @@ class ComfyUIProvider(GenerationProvider):
             "4": {"class_type": "SaveImage", "inputs": {"filename_prefix": "opmiere_upscale", "images": ["3", 0]}},
         }
         return workflow, checkpoint
+
+    @staticmethod
+    def _source_is_video(source_path: Path) -> bool:
+        """True when source_path has a multi-frame video stream (not a still).
+
+        A single-frame "video" container still counts as image-upscale territory
+        — the multi-pad frame pipeline only pays off when there's more than one
+        frame to walk. Duration threshold is 1.5 source frames so a 1-frame
+        encode (duration ≈ 1/fps) never trips the video path.
+        """
+        info = _probe(source_path)
+        if not info.has_video or not info.fps or info.fps <= 0:
+            return False
+        return info.duration_seconds > 1.5 / info.fps
+
+    def _wait_comfy_prompt(self, prompt_id: str, timeout_seconds: float = 180.0) -> dict[str, Any]:
+        """Block until one ComfyUI /prompt id reaches a terminal state.
+
+        Used by the video-upscale frame loop for intermediate per-frame jobs
+        that are *not* registered in self._jobs (only the parent local job is).
+        """
+        deadline = time.time() + timeout_seconds
+        while True:
+            history = self._get(f"/history/{prompt_id}")
+            if prompt_id in history:
+                entry = history[prompt_id]
+                status_str = entry.get("status", {}).get("status_str")
+                if status_str == "success":
+                    return entry
+                if status_str not in (None, "running", "pending"):
+                    messages = entry.get("status", {}).get("messages", [])
+                    raise RuntimeError(
+                        f"ComfyUI frame upscale failed (status_str={status_str!r}): {messages}"
+                    )
+            if time.time() > deadline:
+                raise TimeoutError(
+                    f"ComfyUI prompt {prompt_id} did not finish within {timeout_seconds}s"
+                )
+            time.sleep(0.5)
+
+    def _upscale_one_frame_file(self, frame_path: Path, checkpoint: str) -> Path:
+        """Run the single-image upscale workflow on one extracted frame; return
+        the downloaded result path inside self.output_dir (caller moves it)."""
+        workflow, _ = self._build_upscale_workflow(
+            "", {"source_path": str(frame_path), "checkpoint": checkpoint}
+        )
+        resp = self._post("/prompt", {"prompt": workflow, "client_id": self.client_id})
+        if resp.get("node_errors"):
+            raise ValueError(f"ComfyUI rejected frame upscale workflow: {resp['node_errors']}")
+        prompt_id = resp["prompt_id"]
+        entry = self._wait_comfy_prompt(prompt_id)
+        files = entry.get("outputs", {}).get("4", {}).get("images", [])
+        if not files:
+            raise RuntimeError(f"ComfyUI frame upscale {prompt_id} produced no image output")
+        img = files[0]
+        url = (
+            f"{self.base_url}/view?filename={img['filename']}"
+            f"&subfolder={img.get('subfolder', '')}&type={img['type']}"
+        )
+        dest = self.output_dir / f"{prompt_id}_{img['filename']}"
+        try:
+            urllib.request.urlretrieve(url, dest)
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"could not fetch upscaled frame from ComfyUI: {e}") from e
+        return dest
+
+    def _run_video_upscale(self, job_id: str, source_path: Path, params: dict[str, Any]) -> None:
+        """Background worker: extract frames → RealESRGAN each → reassemble.
+
+        ARCHITECTURE.md 5.7 D: no single ComfyUI node covers video the way
+        ImageUpscaleWithModel covers images, so this is frame-extract + the
+        existing image graph + ffmpeg reassemble (audio from the original
+        source preserved). Registered as a local job (not a ComfyUI prompt
+        id) so status() does not hit /history for the parent id.
+        """
+        work = Path(tempfile.mkdtemp(prefix="opmiere_vup_"))
+        try:
+            info = _probe(source_path)
+            if not info.fps or info.fps <= 0:
+                raise RuntimeError(f"video upscale needs a real fps; probe gave {info.fps!r}")
+            frames_in = work / "in"
+            frames_out = work / "out"
+            frames_in.mkdir()
+            frames_out.mkdir()
+
+            extract = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-i", str(source_path),
+                    "-vsync", "0",
+                    str(frames_in / "frame_%06d.png"),
+                ],
+                capture_output=True, text=True,
+            )
+            if extract.returncode != 0:
+                raise RuntimeError(f"ffmpeg frame extract failed:\n{extract.stderr}")
+
+            frame_files = sorted(frames_in.glob("frame_*.png"))
+            if not frame_files:
+                raise RuntimeError(f"no frames extracted from {source_path}")
+
+            max_frames = params.get("max_frames", 300)
+            if not isinstance(max_frames, int) or max_frames <= 0:
+                raise ValueError("upscale params['max_frames'] must be a positive int")
+            if len(frame_files) > max_frames:
+                raise ValueError(
+                    f"video upscale refuses {len(frame_files)} frames "
+                    f"(max_frames={max_frames}); pass a higher max_frames "
+                    f"explicitly if you really want a long upscale "
+                    f"(~1–2s per frame on an 8GB card)"
+                )
+
+            checkpoint = params.get("checkpoint", DEFAULT_UPSCALE_CHECKPOINT)
+            for i, frame in enumerate(frame_files):
+                upscaled = self._upscale_one_frame_file(frame, checkpoint)
+                # Sequential names so ffmpeg's image2 demuxer can reassemble.
+                dest = frames_out / f"frame_{i + 1:06d}.png"
+                shutil.move(str(upscaled), dest)
+
+            out_path = self.output_dir / f"{job_id}_upscaled.mp4"
+            # Image sequence first input; original second for optional audio.
+            cmd = [
+                "ffmpeg", "-y",
+                "-framerate", str(info.fps),
+                "-i", str(frames_out / "frame_%06d.png"),
+                "-i", str(source_path),
+                "-map", "0:v:0",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            ]
+            if info.has_audio:
+                cmd += ["-map", "1:a:0?", "-c:a", "aac", "-shortest"]
+            else:
+                cmd += ["-an"]
+            cmd.append(str(out_path))
+            reasm = subprocess.run(cmd, capture_output=True, text=True)
+            if reasm.returncode != 0:
+                raise RuntimeError(f"ffmpeg reassemble failed:\n{reasm.stderr}")
+
+            self._jobs[job_id]["status"] = JobStatus.DONE
+            self._jobs[job_id]["result_path"] = out_path
+        except Exception as e:
+            self._jobs[job_id]["status"] = JobStatus.ERROR
+            self._jobs[job_id]["error"] = str(e)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    def _submit_video_upscale(self, prompt: str, params: dict[str, Any], source_path: Path) -> str:
+        """Kick off the frame pipeline on a daemon thread; return a local job id."""
+        if self.comfyui_input_dir is None:
+            raise ValueError(
+                "upscale needs the source frames uploaded into ComfyUI's own input/ "
+                "folder, but comfyui_input_dir isn't configured - pass it to "
+                "ComfyUIProvider() or set the OPMIERE_COMFYUI_INPUT_DIR env var"
+            )
+        checkpoint = params.get("checkpoint", DEFAULT_UPSCALE_CHECKPOINT)
+        job_id = f"vup_{uuid.uuid4().hex}"
+        self._jobs[job_id] = {
+            "kind": "upscale",
+            "prompt": prompt,
+            "checkpoint": checkpoint,
+            "local": True,
+            "status": JobStatus.RUNNING,
+            "result_path": None,
+            "error": None,
+            "result_media_kind": "video",
+        }
+        thread = threading.Thread(
+            target=self._run_video_upscale,
+            args=(job_id, source_path, dict(params)),
+            daemon=True,
+            name=f"opmiere-video-upscale-{job_id[:12]}",
+        )
+        thread.start()
+        return job_id
 
     def submit(self, kind: str, prompt: str, params: dict[str, Any]) -> str:
         if kind == "image":
@@ -587,6 +770,17 @@ class ComfyUIProvider(GenerationProvider):
         elif kind == "music":
             workflow, checkpoint = self._build_music_workflow(prompt, params)
         elif kind == "upscale":
+            source_path = params.get("source_path")
+            if not source_path:
+                raise ValueError("kind='upscale' requires params['source_path'] (the image/video to upscale)")
+            src = Path(source_path)
+            if not src.exists():
+                raise FileNotFoundError(f"source_path not found: {src}")
+            # Auto-route: multi-frame video → frame pipeline; still image →
+            # the existing single-graph path. Same kind="upscale" surface so
+            # the agent doesn't need a second verb for "finish this draft".
+            if self._source_is_video(src):
+                return self._submit_video_upscale(prompt, params, src)
             workflow, checkpoint = self._build_upscale_workflow(prompt, params)
         else:
             raise NotImplementedError(
@@ -603,6 +797,24 @@ class ComfyUIProvider(GenerationProvider):
         if job_id not in self._jobs:
             raise KeyError(f"unknown job id {job_id!r} (not submitted through this provider instance)")
         meta = self._jobs[job_id]
+
+        # Local jobs (video upscale pipeline) never hit ComfyUI /history for
+        # the parent id — the worker thread owns status/result_path/error.
+        if meta.get("local"):
+            status = meta["status"]
+            return GenerationJob(
+                id=job_id,
+                status=status,
+                kind=meta["kind"],
+                prompt=meta["prompt"],
+                result_path=meta.get("result_path") if status == JobStatus.DONE else None,
+                error=meta.get("error") if status == JobStatus.ERROR else None,
+                license=(
+                    CHECKPOINT_LICENSES.get(meta["checkpoint"])
+                    if status == JobStatus.DONE else None
+                ),
+            )
+
         history = self._get(f"/history/{job_id}")
 
         if job_id not in history:

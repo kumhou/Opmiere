@@ -203,10 +203,11 @@ orchestrates:
 - Generate a fast low-res / low-step **draft**; the agent or user approves; only the *committed* shot
   is re-run at full quality or **upscaled** (tiled, dedicated video upscaler). The weak card pays the
   full cost only on shots that survive — cheap iteration, expensive commit.
-- **The "upscaled" half is implemented for images** (§9): `generate(kind="upscale")` runs a
+- **The "upscaled" half is implemented for images *and* video** (§9): `generate(kind="upscale")` runs a
   deterministic ESRGAN pass over an approved draft — no sampling/seed/steps, so it's cheap relative to
-  a full re-generate at a higher tier. Video upscale remains open — no single ComfyUI node covers it the
-  way `ImageUpscaleWithModel` does for images; would need frame-extract + upscale + reassemble.
+  a full re-generate at a higher tier. Images hit ComfyUI's `ImageUpscaleWithModel` once; multi-frame
+  video auto-routes to frame-extract → the same image graph per frame → ffmpeg reassemble (source
+  audio preserved). Same kind surface either way — the agent doesn't need a second verb.
 
 **The product layer** (the actual differentiator — the techniques above are community-known):
 1. On first run, detect **GPU + VRAM + system RAM**.
@@ -329,8 +330,8 @@ instead of many full-res frames. Verified on a real generated clip (Wan2.1's pap
 frames show the boat's drift and water reflections changing coherently across the grid, exactly the
 "does this look like continuous motion" signal the agent needs, at a fraction of the token cost of
 several large frames. Generate → quality_check (free) → make_contact_sheet → agent inspects → decide →
-iterate. The draft→finish half (§5.7 D) now has its missing tool too: `generate(kind="upscale")` turns
-an approved draft straight into a finished asset without a full re-generate. Deliberately **not** wrapped
+iterate. The draft→finish half (§5.7 D) now has its tool too: `generate(kind="upscale")` turns
+an approved draft (image *or* video) straight into a finished asset without a full re-generate. Deliberately **not** wrapped
 in a new combined "accept/regenerate" method — that would either force `make_contact_sheet` to run right
 after `quality_check` every time (defeating the free-gate-before-expensive-step staging this section
 argued for) or duplicate what `generate`/`place_generated` already do. The decision itself stays agent
@@ -485,11 +486,11 @@ error — yuv420p's chroma subsampling needs even width/height, so box dimension
 even. Verified with a real render (blue base + a red overlay pinned bottom-right at half size): the box
 lands exactly where requested, blue everywhere outside it, red only inside.
 
-**Image upscale is now built too** — `generate(kind="upscale")`, the "or upscaled" half of §5.7 D's
-draft→finish staged-quality idea (§5.10 also updated). A new `ComfyUIProvider._build_upscale_workflow`
-wraps ComfyUI's core `UpscaleModelLoader`/`ImageUpscaleWithModel` nodes around a fresh checkpoint,
+**Image upscale is built** — `generate(kind="upscale")`, the "or upscaled" half of §5.7 D's
+draft→finish staged-quality idea (§5.10 also updated). `ComfyUIProvider._build_upscale_workflow`
+wraps ComfyUI's core `UpscaleModelLoader`/`ImageUpscaleWithModel` nodes around
 **RealESRGAN_x4plus** (BSD-3-Clause, verified via GitHub's repo-license API — commercial-safe, no
-restrictions), downloaded this session (67MB, official `xinntao/Real-ESRGAN` v0.1.0 release asset). No
+restrictions), downloaded earlier (67MB, official `xinntao/Real-ESRGAN` v0.1.0 release asset). No
 sampler/seed/steps/cfg — a fixed super-resolution pass, not a diffusion job — so it's stable and, real
 numbers on this RTX 3070: **256×256 → 1024×1024 (exactly 4x) in 1.3s, ~2.6GB VRAM peak** (most of that
 the ~1.5GB OS/desktop baseline every measurement here already nets out against elsewhere), dramatically
@@ -498,11 +499,20 @@ combined). Verified end to end against the live server (not mocked): real dimens
 extrema sampling on both the draft and the upscaled result (full 0–255 range on every channel, so
 neither is a blank/flat placeholder). Reuses the source_path-upload pattern speech's `reference_audio`
 established (copy into ComfyUI's own `input/` folder first) rather than inventing a new upload path.
-Deliberately scoped to images only — video upscale has no equivalent single ComfyUI node and stays open
-(§5.7 D). Slots into the *existing* async job model unchanged: `generate(kind="upscale", params=
-{"source_path": ...})` → poll `job_status` → `place_generated` — no new Editor method, since an upscale
-is, mechanically, just another generation job whose "prompt" happens to be an image instead of text (see
-§5.10 for why this deliberately isn't wrapped in a new combined accept/regenerate abstraction).
+
+**Video upscale is built too** — same `kind="upscale"`, auto-routed when `source_path` probes as a
+multi-frame video. No single ComfyUI node covers video the way `ImageUpscaleWithModel` covers images,
+so the path is exactly what §5.7 D predicted: **frame-extract → image upscale per frame → reassemble**.
+Implementation details that mattered: (1) the parent job is a *local* job id (`vup_…`), not a ComfyUI
+prompt id — a daemon thread owns the pipeline and writes `status`/`result_path`/`error` into
+`_jobs`, so `status()` must not hit `/history/{parent_id}`; (2) intermediate per-frame ComfyUI prompts
+are waited on privately via `_wait_comfy_prompt` and never registered as agent-visible jobs; (3)
+reassemble takes fps from the source probe and remuxes original audio with `-map 1:a:0?` when present;
+(4) default `max_frames=300` refuses longer sources unless the agent opts in (each frame is ~1–2s on
+an 8GB card — a silent 10-minute upscale would look like a hang); (5) `place_generated` maps
+`kind="upscale"` → Media kind by result suffix (`.mp4`/… → video, stills → image) rather than inventing
+a second generation kind. Slots into the *existing* async job model unchanged: `generate(kind=
+"upscale", params={"source_path": ...})` → poll `job_status` → `place_generated` — no new Editor method.
 
 **§5.8's curated effects/transitions list is now substantially closed out.** Three independent additions,
 each slotting into an existing mechanism rather than a new one:
@@ -660,9 +670,8 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 Still open within P2: SFX (§5.9 - blocked on Stable Audio Open's gating needing an HF auth token this
 session didn't set up, not a technical blocker), a cloud provider, re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first
-non-8GB data point), further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the
-LTX-2 flagship) if an even-higher ceiling is ever wanted, and video upscale (image upscale is done; video
-needs frame-extract + upscale + reassemble, no single ComfyUI node covers it).
+non-8GB data point), and further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the
+LTX-2 flagship) if an even-higher ceiling is ever wanted. Video upscale is done (frame pipeline, §9).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

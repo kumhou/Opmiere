@@ -477,9 +477,112 @@ def test_submit_dispatches_upscale_kind_and_records_checkpoint(provider, monkeyp
         return {"prompt_id": "job-8"}
 
     monkeypatch.setattr(provider, "_post", fake_post)
+    # Still images must not be mis-routed to the video frame pipeline.
+    monkeypatch.setattr(provider, "_source_is_video", lambda p: False)
 
     job_id = provider.submit("upscale", "", {"source_path": str(src)})
 
     assert job_id == "job-8"
     assert captured["prompt"]["2"]["inputs"]["model_name"] == DEFAULT_UPSCALE_CHECKPOINT
     assert provider._jobs["job-8"]["checkpoint"] == DEFAULT_UPSCALE_CHECKPOINT
+
+
+def test_submit_upscale_routes_video_to_local_job(provider, monkeypatch, tmp_path):
+    """Multi-frame video sources get a local vup_ job, not a ComfyUI prompt id."""
+    provider.comfyui_input_dir = tmp_path / "comfy_input"
+    provider.comfyui_input_dir.mkdir()
+    src = tmp_path / "draft.mp4"
+    src.write_bytes(b"not a real video")
+
+    monkeypatch.setattr(provider, "_source_is_video", lambda p: True)
+
+    started = {}
+
+    def fake_run(job_id, source_path, params):
+        started["job_id"] = job_id
+        started["source"] = source_path
+        provider._jobs[job_id]["status"] = JobStatus.DONE
+        out = provider.output_dir / f"{job_id}_upscaled.mp4"
+        out.write_bytes(b"fake")
+        provider._jobs[job_id]["result_path"] = out
+
+    monkeypatch.setattr(provider, "_run_video_upscale", fake_run)
+
+    # Run the worker inline instead of on a daemon thread so the test is
+    # deterministic (Thread.start is replaced with an immediate call).
+    import threading
+
+    class ImmediateThread:
+        def __init__(self, target=None, args=(), kwargs=None, **_):
+            self._target = target
+            self._args = args
+            self._kwargs = kwargs or {}
+
+        def start(self):
+            self._target(*self._args, **self._kwargs)
+
+    monkeypatch.setattr(threading, "Thread", ImmediateThread)
+
+    job_id = provider.submit("upscale", "finish this draft", {"source_path": str(src)})
+
+    assert job_id.startswith("vup_")
+    assert provider._jobs[job_id]["local"] is True
+    assert provider._jobs[job_id]["result_media_kind"] == "video"
+    assert started["job_id"] == job_id
+    assert started["source"] == src
+
+    job = provider.status(job_id)
+    assert job.status == JobStatus.DONE
+    assert job.result_path is not None
+    assert job.result_path.name.endswith("_upscaled.mp4")
+    assert job.license is not None
+    assert job.license.name == "BSD-3-Clause"
+
+
+def test_video_upscale_status_does_not_hit_comfy_history(provider, monkeypatch, tmp_path):
+    provider.comfyui_input_dir = tmp_path
+    job_id = "vup_testlocal"
+    provider._jobs[job_id] = {
+        "kind": "upscale",
+        "prompt": "",
+        "checkpoint": DEFAULT_UPSCALE_CHECKPOINT,
+        "local": True,
+        "status": JobStatus.RUNNING,
+        "result_path": None,
+        "error": None,
+    }
+
+    def boom(_path):
+        raise AssertionError("local video-upscale jobs must not query /history")
+
+    monkeypatch.setattr(provider, "_get", boom)
+    job = provider.status(job_id)
+    assert job.status == JobStatus.RUNNING
+    assert job.result_path is None
+
+
+def test_video_upscale_refuses_too_many_frames(provider, monkeypatch, tmp_path):
+    import subprocess
+
+    provider.comfyui_input_dir = tmp_path / "comfy_input"
+    provider.comfyui_input_dir.mkdir()
+    src = tmp_path / "long.mp4"
+    # Minimal real multi-frame source so probe + extract work.
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", "color=c=red:size=32x32:duration=0.2:rate=10",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+
+    # Force the frame loop path with a tiny max_frames budget.
+    # _run_video_upscale runs in-thread here for a direct error assertion.
+    provider._jobs["vup_x"] = {
+        "kind": "upscale", "prompt": "", "checkpoint": DEFAULT_UPSCALE_CHECKPOINT,
+        "local": True, "status": JobStatus.RUNNING, "result_path": None, "error": None,
+    }
+    provider._run_video_upscale("vup_x", src, {"max_frames": 1, "checkpoint": DEFAULT_UPSCALE_CHECKPOINT})
+    assert provider._jobs["vup_x"]["status"] == JobStatus.ERROR
+    assert "max_frames" in provider._jobs["vup_x"]["error"]

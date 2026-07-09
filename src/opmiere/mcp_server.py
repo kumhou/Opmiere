@@ -441,13 +441,15 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
     kind="upscale": the "finish" half of the draft->finish workflow
       (ARCHITECTURE.md 5.7 D) as an alternative to re-running a full
       generation at a higher quality tier - a deterministic 4x super-
-      resolution pass over an already-approved draft image (no seed/steps/
-      cfg, so results are stable and it's cheap relative to a re-generate).
-      prompt is ignored (pass ""); required param source_path - the local
-      image file to upscale (typically a draft job's own result_path, after
-      it passed quality_check and looked right on inspection). Only image
-      is supported (not video) - see get_license_report for source
-      RealESRGAN_x4plus (BSD-3-Clause, commercial-safe).
+      resolution pass (no seed/steps/cfg, so results are stable and it's
+      cheap relative to a re-generate). prompt is ignored (pass "");
+      required param source_path - the local image *or video* file to
+      upscale (typically a draft job's own result_path after quality_check).
+      Images go through ComfyUI's ImageUpscaleWithModel once; multi-frame
+      video is frame-extract → same upscale per frame → reassemble (audio
+      preserved from the source). Optional max_frames (default 300) caps
+      how long a video upscale is willing to run without an explicit opt-in.
+      Model: RealESRGAN_x4plus (BSD-3-Clause, commercial-safe).
     """
     return _require_editor().generate(kind, prompt, params or {})
 

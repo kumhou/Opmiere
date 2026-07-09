@@ -42,9 +42,10 @@ from .render.quality_check import quality_check as _quality_check
 # Maps a GenerationJob.kind (what an agent asked to generate) to the
 # Media.kind it becomes once it's a file on disk. image/video are their own
 # media kind; speech/sfx/music are all just "audio" once generated; upscale
-# always produces an "image" (video upscale is not implemented - see
-# _build_upscale_workflow).
+# defaults to "image" but place_generated overrides to "video" when the
+# result is a video container (frame-pipeline upscale of a multi-frame source).
 _GENERATION_KIND_TO_MEDIA_KIND = {"speech": "audio", "sfx": "audio", "music": "audio", "upscale": "image"}
+_VIDEO_UPSCALE_SUFFIXES = {".mp4", ".webm", ".mov", ".mkv"}
 
 
 class Editor:
@@ -588,7 +589,16 @@ class Editor:
         # "speech"); Media.kind is the *file* vocabulary (what it actually
         # is on disk - "audio"). They coincide for image/video but not for
         # speech/sfx/music, which are all just audio files once generated.
+        # kind="upscale" is special: image drafts finish as stills, video
+        # drafts finish as .mp4 from the frame pipeline — decide by suffix
+        # rather than inventing a second generation kind.
         media_kind = _GENERATION_KIND_TO_MEDIA_KIND.get(job.kind, job.kind)
+        if (
+            job.kind == "upscale"
+            and job.result_path is not None
+            and job.result_path.suffix.lower() in _VIDEO_UPSCALE_SUFFIXES
+        ):
+            media_kind = "video"
         with self._mutate():
             track = self.project.track_by_id(track_id)
             media = _ffmpeg_import_media(
