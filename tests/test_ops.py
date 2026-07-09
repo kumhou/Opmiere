@@ -564,6 +564,92 @@ def test_export_with_sharpen_and_film_grain_keeps_duration_unchanged(editor, sam
     assert abs(result.duration_seconds - 1.0) < 0.05
 
 
+def test_apply_effect_glow(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "glow", "amount": 10.0, "intensity": 0.8})
+    assert clip.effects[0] == {"type": "glow", "amount": 10.0, "intensity": 0.8}
+
+
+def test_apply_effect_glow_rejects_out_of_range(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "glow", "amount": 0})
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "glow", "intensity": 1.5})
+
+
+def test_export_with_glow_keeps_duration_unchanged(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "glow"})
+
+    out = tmp_path / "out.mp4"
+    editor.export(out)
+
+    from opmiere.render import probe
+    result = probe(out)
+    assert abs(result.duration_seconds - 1.0) < 0.05
+
+
+def test_glow_halos_bright_areas_into_dark_neighbors(tmp_path):
+    """Real-pixel proof: a white box on black gets a bright halo under glow.
+
+    Without glow, a pixel just outside the box is pure black. With glow
+    (blur + screen-blend of a copy), that same pixel must lighten — the
+    whole reason glow is multi-stage rather than a single linear filter.
+    """
+    from PIL import Image
+
+    src = tmp_path / "whitebox.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=black:size=160x90:duration=1:rate={FPS},"
+                  f"drawbox=x=60:y=30:w=40:h=30:color=white:t=fill",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+
+    def _export_frame(with_glow: bool) -> Path:
+        ed = Editor.create(tmp_path / f"{'glow' if with_glow else 'plain'}.opm",
+                           fps=FPS, width=160, height=90)
+        media = ed.import_media(src, kind="video")
+        track = ed.add_track("video")
+        clip = ed.add_clip(track.id, media.id, start=0, src_in=0, src_out=15)
+        if with_glow:
+            ed.apply_effect(clip.id, {"type": "glow", "amount": 8.0, "intensity": 0.9})
+        out = tmp_path / f"{'glow' if with_glow else 'plain'}.mp4"
+        ed.export(out)
+        frame = tmp_path / f"{'glow' if with_glow else 'plain'}.png"
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(out), "-frames:v", "1", "-update", "1", str(frame)],
+            capture_output=True, text=True, check=True,
+        )
+        return frame
+
+    plain = Image.open(_export_frame(False)).load()
+    glowed = Image.open(_export_frame(True)).load()
+
+    # Just left of the white box (box starts at x=60): plain must be near-black,
+    # glow must spill light into that pixel.
+    px_plain = plain[55, 45]
+    px_glow = glowed[55, 45]
+    assert max(px_plain) < 15, f"plain neighbor should be black, got {px_plain}"
+    assert sum(px_glow) > sum(px_plain) + 30, (
+        f"glow should lighten the neighbor of a bright area: plain={px_plain} glow={px_glow}"
+    )
+    # Far corner stays dark either way (no light to bloom from).
+    assert max(glowed[5, 5]) < 25, f"far field should stay dark under glow, got {glowed[5, 5]}"
+    # Center of the white box stays bright.
+    assert min(glowed[80, 45]) > 200, f"box center should stay bright, got {glowed[80, 45]}"
+
+
 def test_apply_effect_compression_and_noise_reduction(editor, sample_video):
     media = editor.import_media(sample_video, kind="video")
     track = editor.add_track("video")

@@ -208,6 +208,10 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
         exposes. Output frame size is unchanged (corners may clip), not auto-expanded.}
       {"type": "sharpen", "amount": 0..5 (default 1.0, bigger is a stronger sharpen)}
       {"type": "film_grain", "amount": 0..100 (default 20.0, bigger is heavier/coarser grain)}
+      {"type": "glow", "amount": 0..50 (default 12.0, blur radius of the light halo - bigger is softer/wider),
+        "intensity": 0..1 (default 0.7, how hard the halo is screen-blended onto the base)}
+        - soft bloom around bright areas: blurs a copy of the frame and screen-blends it back
+          (multi-stage filtergraph, not a single ffmpeg filter).
       {"type": "compression", "threshold_db": float (default -18.0, level where compression kicks in),
         "ratio": 1..20 (default 4.0), "attack_ms": float (default 20.0), "release_ms": float
         (default 250.0), "makeup_db": float (default 0.0, gain added back after compressing)}

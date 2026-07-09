@@ -254,6 +254,17 @@ def _effect_filters(
             # allf=t+u (temporal + uniform) is what actually reads as film
             # grain - flickering per-frame, not one static dead-pixel pattern.
             parts.append(f"noise=alls={amount}:allf=t+u")
+        elif etype == "glow":
+            # Glow is multi-pad (split → gblur → screen blend) and cannot be
+            # a single comma-chain fragment. _video_clip_chain expands it;
+            # reaching here means something called _effect_filters on a glow
+            # effect in isolation, which is a programming error.
+            if stream != "video":
+                continue
+            raise NotImplementedError(
+                "glow effect is multi-pad and must be expanded by _video_clip_chain, "
+                "not by _effect_filters"
+            )
         elif etype == "compression":
             if stream != "audio":
                 continue
@@ -380,22 +391,120 @@ def _video_clip_chain(
     same treatment either way, just against a different target box size
     (``box_w``/``box_h``): the full canvas for the base track and
     non-positioned overlay clips, or a smaller picture-in-picture box for an
-    overlay clip with ``position`` set (see Clip.position, export())."""
-    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "video", text_dir)
+    overlay clip with ``position`` set (see Clip.position, export()).
+
+    Most effects are linear filter fragments (comma-joined). ``glow`` is the
+    exception: it needs split → blur → screen-blend (multi-pad), so this
+    function returns one or more filtergraph statements joined by ``;`` when
+    any glow is present. Callers already ``";".join`` clip chains, so an
+    embedded ``;`` is fine.
+    """
     speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
-    chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
-    for filt in fx:
-        chain += f",{filt}"
     has_alpha = any(e.get("type") in ("chroma_key", "luma_key") for e in clip.effects)
     pad_color = "black@0.0" if has_alpha else "black"
-    chain += (
-        f",scale={box_w}:{box_h}:force_original_aspect_ratio=decrease,"
-        f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color={pad_color},"
-    )
+    tail_filters = [
+        f"scale={box_w}:{box_h}:force_original_aspect_ratio=decrease",
+        f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color={pad_color}",
+    ]
     if has_alpha:
-        chain += "format=yuva420p,"
-    chain += f"setsar=1,fps={fps}[{label}]"
-    return chain
+        tail_filters.append("format=yuva420p")
+    tail_filters.append(f"setsar=1")
+    tail_filters.append(f"fps={fps}")
+
+    # Partition effects into linear runs separated by glow barriers.
+    # Linear runs still go through _effect_filters; glow expands here.
+    segments: list[tuple[str, Any]] = []
+    linear_batch: list[dict[str, Any]] = []
+    for effect in clip.effects:
+        if effect.get("type") == "glow":
+            if linear_batch:
+                segments.append(("linear", linear_batch))
+                linear_batch = []
+            segments.append(("glow", effect))
+        else:
+            linear_batch.append(effect)
+    if linear_batch:
+        segments.append(("linear", linear_batch))
+
+    has_glow = any(kind == "glow" for kind, _ in segments)
+    if not has_glow:
+        fx = _effect_filters(
+            clip.effects, clip.timeline_duration_frames, fps, "video", text_dir
+        )
+        chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
+        for filt in fx:
+            chain += f",{filt}"
+        chain += "," + ",".join(tail_filters) + f"[{label}]"
+        return chain
+
+    # Multi-pad path: glow needs RGB (gbrp) for screen blend — verified
+    # spike: screen-blending in yuv420p produced purple-tinted garbage;
+    # format=gbrp before split/blur/blend keeps the halo neutral and the
+    # far-field pure black.
+    statements: list[str] = []
+    mid_n = 0
+
+    def _mid() -> str:
+        nonlocal mid_n
+        mid_n += 1
+        # label is already unique per clip in the export graph (e.g. v0c0);
+        # suffix keeps intermediate pads from colliding across glows.
+        return f"{label}_g{mid_n}"
+
+    # Start: trim + speed into the first mid label, then walk segments.
+    head = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
+    current_src: str | None = None  # None → still on the head chain
+
+    def _flush_linear(filters: list[str], out_label: str) -> None:
+        nonlocal current_src, head
+        if current_src is None:
+            body = head
+            if filters:
+                body += "," + ",".join(filters)
+            statements.append(f"{body}[{out_label}]")
+        else:
+            if filters:
+                statements.append(f"[{current_src}]" + ",".join(filters) + f"[{out_label}]")
+            else:
+                # No-op passthrough — just reuse the label.
+                statements.append(f"[{current_src}]null[{out_label}]")
+        current_src = out_label
+
+    for kind, payload in segments:
+        if kind == "linear":
+            frags = _effect_filters(
+                payload, clip.timeline_duration_frames, fps, "video", text_dir
+            )
+            if not frags and current_src is not None:
+                continue
+            out = _mid()
+            _flush_linear(frags, out)
+        else:
+            # glow: flush any pending head into a label first
+            if current_src is None:
+                out = _mid()
+                _flush_linear([], out)
+            amount = payload.get("amount", 12.0)
+            intensity = payload.get("intensity", 0.7)
+            if not isinstance(amount, (int, float)) or not (0.0 < amount <= 50.0):
+                raise ValueError("glow effect has invalid 'amount'")
+            if not isinstance(intensity, (int, float)) or not (0.0 < intensity <= 1.0):
+                raise ValueError("glow effect has invalid 'intensity'")
+            base_l, tmp_l, blur_l, out_l = _mid(), _mid(), _mid(), _mid()
+            # Convert to RGB *before* split so both legs agree on colorspace.
+            statements.append(f"[{current_src}]format=gbrp,split[{base_l}][{tmp_l}]")
+            statements.append(f"[{tmp_l}]gblur=sigma={amount}[{blur_l}]")
+            statements.append(
+                f"[{base_l}][{blur_l}]blend=all_mode=screen:all_opacity={intensity}[{out_l}]"
+            )
+            current_src = out_l
+
+    # Tail: scale/pad/fps onto the final output label.
+    assert current_src is not None
+    statements.append(
+        f"[{current_src}]" + ",".join(tail_filters) + f"[{label}]"
+    )
+    return ";".join(statements)
 
 
 def _audio_clip_chain(clip: Clip, idx: int, tb, sample_rate: int, label: str) -> str:

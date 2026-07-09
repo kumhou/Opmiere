@@ -48,7 +48,7 @@ TrackKind = Literal["video", "audio"]
 # timeline math the P0 render backend relies on.
 KNOWN_EFFECT_TYPES = {
     "color", "fade", "gain", "text", "blur", "vignette", "chroma_key", "luma_key", "curves",
-    "crop", "rotate", "sharpen", "film_grain", "compression", "noise_reduction", "audio_eq",
+    "crop", "rotate", "sharpen", "film_grain", "glow", "compression", "noise_reduction", "audio_eq",
 }
 
 # "text" effect defaults. A CJK-capable font is the right default for this

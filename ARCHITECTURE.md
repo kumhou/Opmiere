@@ -252,8 +252,9 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Transform:** crop, scale, position, rotate, Ken-Burns pan/zoom; (stabilization — later).
 - **Keying/masking:** chroma key (green screen), luma key, shape masks.
 - **Text:** titles, lower-thirds, captions/subtitles.
-- **Stylize:** blur, sharpen, vignette, film grain **done**; glow still open (needs a multi-stage
-  blur+screen-blend filtergraph, not a single filter like the rest here).
+- **Stylize:** blur, sharpen, vignette, film grain, glow **all done**. Glow is the multi-stage
+  exception (blur a copy + screen-blend it back; see §9) — every other stylize effect is a single
+  ffmpeg filter fragment.
 - **Audio:** gain, compression, noise reduction, fades, EQ **done**; ducking **done** too, as the
   track-level relationship it always needed to be (`Track.duck` + `set_ducking`, compiled to a
   sidechain keyed by a second track - see the audio-subsystem writeup below).
@@ -520,8 +521,15 @@ each slotting into an existing mechanism rather than a new one:
   dead-pixel pattern). Verified real, not a no-op: sharpen roughly doubled a crude edge-energy proxy
   (sum of horizontal adjacent-pixel deltas) on real footage (96471 → 224361); film_grain took a
   perfectly static flat-color source (frame-to-frame diff = 0, confirmed) to a frame-to-frame diff of
-  208263 - real per-frame noise, not a single baked-in pattern. Glow stays open - needs a multi-stage
-  blur+screen-blend filtergraph, not a single filter like every other stylize effect landed so far.
+  208263 - real per-frame noise, not a single baked-in pattern. **`glow` is built too** — the multi-
+  stage exception flagged above: `_video_clip_chain` expands it to `format=gbrp,split` → `gblur` on
+  one leg → `blend=all_mode=screen:all_opacity=…` (two knobs: `amount` = blur radius of the halo,
+  `intensity` = blend opacity). Linear effects stay comma-joined; glow is the only effect that
+  forces the multi-pad path (returns one or more `;`-joined filtergraph statements). Real gotcha
+  caught in a spike before production: screen-blending in yuv420p produces purple-tinted garbage
+  (Y/U/V are not independent RGB channels), so the graph converts to `gbrp` before the split.
+  Verified with real pixels (white box on black): a neighbor just outside the box goes from pure
+  black → clearly lit halo under glow, far-field stays dark, box center stays bright.
 - **Audio:** `compression` (ffmpeg `acompressor` - `threshold_db`/`ratio`/`attack_ms`/`release_ms`/
   `makeup_db`; confirmed empirically that `threshold`/`makeup` accept a `dB` suffix same as the existing
   `gain` effect's own `db` field, so the effect's public API stays dB-only rather than mixing linear and

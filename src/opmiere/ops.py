@@ -341,6 +341,16 @@ class Editor:
                 amount = effect.get("amount", 20.0)
                 if not isinstance(amount, (int, float)) or not (0.0 < amount <= 100.0):
                     raise ValueError("film_grain effect 'amount' must be in (0, 100]")
+            elif etype == "glow":
+                # Multi-stage: blur a copy + screen-blend it back (not a
+                # single ffmpeg filter). amount = blur radius of the halo;
+                # intensity = how hard the halo is blended onto the base.
+                amount = effect.get("amount", 12.0)
+                if not isinstance(amount, (int, float)) or not (0.0 < amount <= 50.0):
+                    raise ValueError("glow effect 'amount' must be in (0, 50]")
+                intensity = effect.get("intensity", 0.7)
+                if not isinstance(intensity, (int, float)) or not (0.0 < intensity <= 1.0):
+                    raise ValueError("glow effect 'intensity' must be in (0, 1]")
             elif etype == "compression":
                 ratio = effect.get("ratio", 4.0)
                 if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
