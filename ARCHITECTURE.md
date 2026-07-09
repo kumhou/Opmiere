@@ -268,7 +268,7 @@ Two facts make this cheap to deliver:
    dependencies. Real-time interactive versions arrive with the P3 preview backend (GPU shaders /
    frei0r / movit). Advanced keying, motion tracking, and stabilization are explicitly **later**.
 
-### 5.9 Local audio generation — speech / SFX / music — speech + music IMPLEMENTED, SFX open
+### 5.9 Local audio generation — speech / SFX / music — all three IMPLEMENTED
 
 Not just image and video — audio is a first-class generation `kind`, same `GenerationProvider`
 interface, same VRAM-adaptive quantization treatment (§5.7). All local-first, cloud-optional.
@@ -284,10 +284,16 @@ interface, same VRAM-adaptive quantization treatment (§5.7). All local-first, c
   Verified as real audio (not silence/noise) via volume analysis (mean -16.8dB) and a waveform plot
   showing real musical dynamics + a natural fade-out, since generated audio can't be "eyeballed" the
   way a frame can.
-- **SFX — still open:** Stable Audio Open's own general text-to-audio capability (not just music) is
-  the natural fit, but its gating means the download needs an HF account + accepted-terms auth token,
-  unlike every other model this project has pulled so far (all anonymous/ungated). Deferred until that
-  auth flow is worth setting up, not for a technical reason.
+- **SFX — done:** Stable Audio Open 1.0 via ComfyUI's native graph
+  (`CheckpointLoaderSimple` + `CLIPLoader type=stable_audio` +
+  `ConditioningStableAudio` + `EmptyLatentAudio` + `KSampler` + `VAEDecodeAudio`).
+  Checkpoint is the **Comfy-Org repack** (`stable-audio-open-1.0.safetensors`, ungated
+  single-file) plus `t5-base.safetensors` text encoder — not the original multi-file
+  Stability AI repo layout. `generate(kind="sfx")`: natural-language sound description
+  (not ACE-Step music tags); default 8s, range [1, 47]. Live on RTX 3070: **5s clip,
+  30 steps, ~8.3s wall, ~4.9GB VRAM peak**, mean volume −14.2 dB (real audio, not silence).
+  License: Stability AI Community License — free under $1M ARR (`conditional` in
+  `ModelLicense`). Original stabilityai/ repo is gated; the Comfy-Org repack used here is not.
 
 Honest tiering (consistent with §2): local TTS is near-cloud quality; local music (ACE-Step) is
 good-not-top-tier but real and fast. Cloud (ElevenLabs, Suno) remains the pluggable top-tier option.
@@ -667,11 +673,11 @@ kind's default. Real audio verified via volume analysis + waveform plot (generat
 eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's own `probe()`/
 `import_media` path, not just raw ComfyUI.
 
-Still open within P2: SFX (§5.9 - blocked on Stable Audio Open's gating needing an HF auth token this
-session didn't set up, not a technical blocker), a cloud provider, re-benchmarking the profiles table on
+Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first
-non-8GB data point), and further offload-tier video candidates beyond wan2.2-moe (HunyuanVideo, the
-LTX-2 flagship) if an even-higher ceiling is ever wanted. Video upscale is done (frame pipeline, §9).
+non-8GB data point), further offload-tier video candidates beyond wan2.2-moe if wanted, and the agent
+policy skill that encodes generate→quality_check→contact_sheet→decide (§5.10). SFX, video upscale, and
+glow are done. Cloud provider deliberately not started — JH: local free only for now.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

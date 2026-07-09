@@ -15,6 +15,8 @@ from opmiere.generation.comfyui import (
     DEFAULT_FLUX_SCHNELL_CHECKPOINT,
     DEFAULT_IMAGE_CHECKPOINT,
     DEFAULT_MUSIC_CHECKPOINT,
+    DEFAULT_SFX_CHECKPOINT,
+    DEFAULT_SFX_TEXT_ENCODER,
     DEFAULT_SPEECH_CLONE_MODEL,
     DEFAULT_SPEECH_CUSTOM_VOICE_MODEL,
     DEFAULT_UPSCALE_CHECKPOINT,
@@ -77,7 +79,7 @@ def test_ltxv_workflow_frame_rate_flows_to_conditioning_and_output(provider):
 
 def test_submit_rejects_unsupported_kind(provider):
     with pytest.raises(NotImplementedError):
-        provider.submit("sfx", "x", {})
+        provider.submit("not-a-real-kind", "x", {})
 
 
 def test_speech_preset_voice_workflow_has_expected_nodes_and_wiring(provider):
@@ -419,9 +421,48 @@ def test_submit_dispatches_music_kind_and_records_checkpoint(provider, monkeypat
     assert provider._jobs["job-7"]["checkpoint"] == DEFAULT_MUSIC_CHECKPOINT
 
 
-def test_submit_rejects_sfx_as_still_unimplemented(provider):
-    with pytest.raises(NotImplementedError, match="sfx"):
-        provider.submit("sfx", "x", {})
+def test_sfx_workflow_has_expected_nodes_and_wiring(provider):
+    wf, checkpoint = provider._build_sfx_workflow(
+        "glass bottle shattering on concrete", {"seconds": 5.0, "seed": 7}
+    )
+
+    assert checkpoint == DEFAULT_SFX_CHECKPOINT
+    assert wf["4"]["class_type"] == "CheckpointLoaderSimple"
+    assert wf["4"]["inputs"]["ckpt_name"] == DEFAULT_SFX_CHECKPOINT
+    assert wf["10"]["class_type"] == "CLIPLoader"
+    assert wf["10"]["inputs"]["clip_name"] == DEFAULT_SFX_TEXT_ENCODER
+    assert wf["10"]["inputs"]["type"] == "stable_audio"
+    assert wf["6"]["inputs"]["text"] == "glass bottle shattering on concrete"
+    assert wf["13"]["class_type"] == "ConditioningStableAudio"
+    assert wf["13"]["inputs"]["seconds_total"] == 5.0
+    assert wf["11"]["inputs"]["seconds"] == 5.0
+    assert wf["3"]["inputs"]["positive"] == ["13", 0]
+    assert wf["3"]["inputs"]["negative"] == ["13", 1]
+    assert wf["3"]["inputs"]["seed"] == 7
+    assert wf["19"]["class_type"] == "SaveAudioMP3"
+    assert wf["19"]["inputs"]["audio"] == ["12", 0]
+
+
+def test_sfx_workflow_rejects_out_of_range_seconds(provider):
+    with pytest.raises(ValueError, match="seconds"):
+        provider._build_sfx_workflow("x", {"seconds": 0.5})
+    with pytest.raises(ValueError, match="seconds"):
+        provider._build_sfx_workflow("x", {"seconds": 60})
+
+
+def test_submit_dispatches_sfx_kind_and_records_checkpoint(provider, monkeypatch):
+    captured = {}
+
+    def fake_post(path, payload):
+        captured["prompt"] = payload["prompt"]
+        return {"prompt_id": "job-sfx"}
+
+    monkeypatch.setattr(provider, "_post", fake_post)
+    job_id = provider.submit("sfx", "door slam, wood, short", {"seconds": 4})
+    assert job_id == "job-sfx"
+    assert captured["prompt"]["4"]["inputs"]["ckpt_name"] == DEFAULT_SFX_CHECKPOINT
+    assert provider._jobs["job-sfx"]["checkpoint"] == DEFAULT_SFX_CHECKPOINT
+    assert CHECKPOINT_LICENSES[DEFAULT_SFX_CHECKPOINT].commercial_use == "conditional"
 
 
 def test_upscale_workflow_uploads_source_and_wires_nodes(provider, tmp_path):

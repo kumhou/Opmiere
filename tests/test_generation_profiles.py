@@ -52,14 +52,21 @@ def test_recommend_offload_raises_when_no_offload_profile_exists():
 
 
 def test_recommend_rejects_unknown_kind():
-    with pytest.raises(ValueError, match="sfx"):
-        recommend("sfx", vram_gb=8.0, offload=False)
+    with pytest.raises(ValueError, match="no .* generation profile"):
+        recommend("not-a-kind", vram_gb=8.0, offload=False)
 
 
 def test_recommend_music_picks_ace_step():
     profile = recommend("music", vram_gb=8.0, offload=False)
 
     assert profile.model == "ace-step"
+
+
+def test_recommend_sfx_picks_stable_audio_open():
+    profile = recommend("sfx", vram_gb=8.0, offload=False)
+
+    assert profile.model == "stable-audio-open"
+    assert profile.offload is False
 
 
 def test_every_profile_serializes_to_dict():

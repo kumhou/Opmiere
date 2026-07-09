@@ -83,6 +83,14 @@ GENERATION_PROFILES: dict[str, list[GenerationProfile]] = {
             "30s instrumental/song, 50 steps. Apache-2.0, commercial-safe. "
             "Real audio confirmed via waveform + volume check, not silence."),
     ],
+    "sfx": [
+        GenerationProfile(
+            "stable-audio-open", "balanced", False, 4.9, 8,
+            "Stable Audio Open 1.0 text-to-SFX. Live on RTX 3070: 5s clip, "
+            "30 steps, ~8.3s wall, ~4.9GB VRAM peak (absolute nvidia-smi). "
+            "Stability AI Community License - free under $1M ARR; check "
+            "get_license_report() before commercial use."),
+    ],
 }
 
 

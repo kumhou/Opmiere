@@ -438,6 +438,13 @@ def generate(kind: str, prompt: str, params: dict | None = None) -> str:
       (default 1.0), steps (default 50), cfg (default 5.0), seed.
       Apache-2.0, ~7.5GB VRAM, ~24s for 30s of audio on an 8GB GPU.
 
+    kind="sfx": prompt is a natural-language sound description (e.g.
+      "glass bottle shattering on concrete, short sharp impact"), NOT music
+      tags. Local Stable Audio Open 1.0 via ComfyUI. Params: seconds
+      (default 8, range [1, 47]), steps (default 50), cfg (default 4.98),
+      negative_prompt, seed. License is Stability AI Community License
+      (free under $1M ARR — use get_license_report() before shipping).
+
     kind="upscale": the "finish" half of the draft->finish workflow
       (ARCHITECTURE.md 5.7 D) as an alternative to re-running a full
       generation at a higher quality tier - a deterministic 4x super-

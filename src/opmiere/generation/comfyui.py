@@ -72,6 +72,11 @@ DEFAULT_WAN22_LOWNOISE_CHECKPOINT = "Wan2.2-T2V-A14B-LowNoise-Q4_K_S.gguf"
 # simplification that loses information).
 WAN22_MOE_LICENSE_KEY = "Wan2.2-T2V-A14B (HighNoise+LowNoise)"
 DEFAULT_MUSIC_CHECKPOINT = "ace_step_v1_3.5b.safetensors"
+# Text-to-audio SFX (ARCHITECTURE.md 5.9): Stable Audio Open 1.0, Comfy-Org
+# repack for a single-file checkpoint + separate T5-base text encoder.
+# Prompt is natural-language sound description (not ACE-Step music tags).
+DEFAULT_SFX_CHECKPOINT = "stable-audio-open-1.0.safetensors"
+DEFAULT_SFX_TEXT_ENCODER = "t5-base.safetensors"
 # ESRGAN-family upscaler (ARCHITECTURE.md 5.7 D: "re-run at full quality OR
 # upscaled" - this is the upscale half). Deterministic, no sampling/steps/
 # seed - cheap relative to a full regenerate, the point of offering it as an
@@ -81,10 +86,15 @@ DEFAULT_UPSCALE_CHECKPOINT = "RealESRGAN_x4plus.pth"
 # Which output node each workflow ends at, and which output dict key holds
 # the result file list. image/video both really do use "images" (confirmed
 # by reading SaveVideo's actual output, not assumed); speech's SaveAudio and
-# music's SaveAudioMP3 both use "audio" - also confirmed by reading the real
-# /history response, not assumed just because the class names rhyme.
-_OUTPUT_NODE_BY_KIND = {"image": "9", "video": "79", "speech": "4", "music": "59", "upscale": "4"}
-_OUTPUT_KEY_BY_KIND = {"image": "images", "video": "images", "speech": "audio", "music": "audio", "upscale": "images"}
+# music/sfx's SaveAudioMP3 both use "audio" - also confirmed by reading the
+# real /history response, not assumed just because the class names rhyme.
+_OUTPUT_NODE_BY_KIND = {
+    "image": "9", "video": "79", "speech": "4", "music": "59", "sfx": "19", "upscale": "4",
+}
+_OUTPUT_KEY_BY_KIND = {
+    "image": "images", "video": "images", "speech": "audio",
+    "music": "audio", "sfx": "audio", "upscale": "images",
+}
 
 # Every checkpoint this provider knows how to load, and its real license -
 # verified against the actual license text/terms page, not assumed from the
@@ -117,6 +127,12 @@ CHECKPOINT_LICENSES: dict[str, ModelLicense] = {
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
     DEFAULT_MUSIC_CHECKPOINT: ModelLicense(
         "Apache-2.0", "yes", "Fully permissive, no restrictions."),
+    DEFAULT_SFX_CHECKPOINT: ModelLicense(
+        "Stability AI Community License", "conditional",
+        "Free for research/non-commercial and limited commercial use if your "
+        "organization's annual revenue is under US $1,000,000. Above that, "
+        "requires a paid enterprise license from Stability AI. License text "
+        "verified from stabilityai/stable-audio-open-1.0 LICENSE.md, not assumed."),
     DEFAULT_UPSCALE_CHECKPOINT: ModelLicense(
         "BSD-3-Clause", "yes",
         "Fully permissive, no restrictions (verified via GitHub's repo license API, "
@@ -479,6 +495,58 @@ class ComfyUIProvider(GenerationProvider):
         }
         return workflow, checkpoint
 
+    def _build_sfx_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """Text-to-SFX via Stable Audio Open 1.0 (ARCHITECTURE.md 5.9).
+
+        Graph traced from ComfyUI's own ``audio_stable_audio_example``
+        template (CheckpointLoaderSimple + CLIPLoader type=stable_audio +
+        CLIPTextEncode pos/neg + EmptyLatentAudio + KSampler +
+        VAEDecodeAudio + SaveAudioMP3), with ConditioningStableAudio added
+        so seconds_start/seconds_total actually reach the model rather than
+        only sizing the empty latent. Node ids match the template where
+        they overlap so /history output wiring (SaveAudioMP3 = node 19) is
+        stable.
+
+        ``prompt`` is a natural-language sound description (e.g. "glass
+        shattering on concrete, short impact, no reverb") — not ACE-Step's
+        music-tag vocabulary. Default length is short (8s): SFX for a video
+        editor is usually a hit/whoosh/ambience sting, not a 47s bed.
+        """
+        seconds = float(params.get("seconds", 8.0))
+        if not (1.0 <= seconds <= 47.0):
+            raise ValueError("sfx params['seconds'] must be in [1, 47] (Stable Audio Open's practical range)")
+        steps = int(params.get("steps", 50))
+        cfg = float(params.get("cfg", 4.98))
+        seed = params.get("seed", random.randint(0, 2**31 - 1))
+        negative_prompt = params.get("negative_prompt", "")
+        checkpoint = params.get("checkpoint", DEFAULT_SFX_CHECKPOINT)
+        text_encoder = params.get("text_encoder", DEFAULT_SFX_TEXT_ENCODER)
+        # Sampler defaults match ComfyUI's own example (dpmpp_3m_sde_gpu +
+        # exponential) - verified names via /object_info, not guessed.
+        sampler_name = params.get("sampler_name", "dpmpp_3m_sde_gpu")
+        scheduler = params.get("scheduler", "exponential")
+        workflow = {
+            "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
+            "10": {"class_type": "CLIPLoader", "inputs": {
+                "clip_name": text_encoder, "type": "stable_audio", "device": "default"}},
+            "6": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["10", 0]}},
+            "7": {"class_type": "CLIPTextEncode", "inputs": {"text": negative_prompt, "clip": ["10", 0]}},
+            "13": {"class_type": "ConditioningStableAudio", "inputs": {
+                "positive": ["6", 0], "negative": ["7", 0],
+                "seconds_start": 0.0, "seconds_total": seconds}},
+            "11": {"class_type": "EmptyLatentAudio", "inputs": {"seconds": seconds, "batch_size": 1}},
+            "3": {"class_type": "KSampler", "inputs": {
+                "model": ["4", 0],
+                "positive": ["13", 0], "negative": ["13", 1],
+                "latent_image": ["11", 0],
+                "seed": seed, "steps": steps, "cfg": cfg,
+                "sampler_name": sampler_name, "scheduler": scheduler, "denoise": 1.0}},
+            "12": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+            "19": {"class_type": "SaveAudioMP3", "inputs": {
+                "audio": ["12", 0], "filename_prefix": "opmiere_gen_sfx", "quality": "V0"}},
+        }
+        return workflow, checkpoint
+
     def _build_speech_workflow(self, prompt: str, params: dict[str, Any]) -> tuple[dict[str, Any], str]:
         seed = params.get("seed", random.randint(0, 2**31 - 1))
         language = params.get("language", "Auto")
@@ -769,6 +837,8 @@ class ComfyUIProvider(GenerationProvider):
             workflow, checkpoint = self._build_speech_workflow(prompt, params)
         elif kind == "music":
             workflow, checkpoint = self._build_music_workflow(prompt, params)
+        elif kind == "sfx":
+            workflow, checkpoint = self._build_sfx_workflow(prompt, params)
         elif kind == "upscale":
             source_path = params.get("source_path")
             if not source_path:
@@ -784,7 +854,7 @@ class ComfyUIProvider(GenerationProvider):
             workflow, checkpoint = self._build_upscale_workflow(prompt, params)
         else:
             raise NotImplementedError(
-                f"ComfyUIProvider does not support kind={kind!r} yet (sfx generation is follow-up work)"
+                f"ComfyUIProvider does not support kind={kind!r} yet"
             )
         resp = self._post("/prompt", {"prompt": workflow, "client_id": self.client_id})
         if resp.get("node_errors"):
