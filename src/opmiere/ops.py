@@ -278,6 +278,8 @@ class Editor:
                 {"keys": "Ctrl+Shift+V", "action": "Overwrite paste at playhead"},
                 {"keys": "J / K / L", "action": "Shuttle: reverse / stop / play (repeat L speeds up)"},
                 {"keys": "U", "action": "Subclip from work In/Out (selected clip)"},
+                {"keys": "Q", "action": "Ripple trim head to playhead"},
+                {"keys": "W", "action": "Ripple trim tail to playhead"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -1880,6 +1882,125 @@ class Editor:
                 "timeline_start": clip.start,
                 "agent_note": "Trim applied; later clips rippled to keep contiguity.",
             }
+
+    def trim_to_playhead(
+        self,
+        clip_id: str,
+        playhead_frame: int,
+        *,
+        edge: str = "head",
+        mode: str = "ripple",
+    ) -> dict[str, Any]:
+        """Trim clip head or tail to an absolute playhead frame (NLE Q/W).
+
+        edge:
+          - head (Q): advance src_in to playhead; ripple keeps timeline start,
+            normal moves start to playhead (gap may remain to the left).
+          - tail (W): cut src_out so clip ends at playhead.
+
+        mode: ripple | normal (see edge_trim / ripple_trim).
+        speed=1.0 required.
+        """
+        if edge not in ("head", "tail", "left", "right"):
+            raise ValueError("edge must be head|tail (or left|right aliases)")
+        if edge == "left":
+            edge = "head"
+        if edge == "right":
+            edge = "tail"
+        if mode not in ("ripple", "normal"):
+            raise ValueError("mode must be ripple|normal")
+        if not isinstance(playhead_frame, int):
+            raise ValueError("playhead_frame must be an int")
+
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        if clip.speed != 1.0:
+            raise ValueError("trim_to_playhead requires speed=1.0")
+        ph = int(playhead_frame)
+        if not (clip.start < ph < clip.end):
+            raise ValueError(
+                f"playhead {ph} must be strictly inside clip "
+                f"[{clip.start}, {clip.end})"
+            )
+
+        local = ph - clip.start
+        src_at = clip.src_in + local
+        src_at = min(max(src_at, clip.src_in + 1), clip.src_out - 1)
+
+        if edge == "head":
+            if mode == "ripple":
+                r = self.ripple_trim(clip_id, new_src_in=src_at)
+            else:
+                # Right edge fixed on timeline
+                r = self.set_clip_layout(
+                    clip_id,
+                    start=ph,
+                    src_in=src_at,
+                    src_out=clip.src_out,
+                )
+            return {
+                **r,
+                "edge": "head",
+                "mode": mode,
+                "playhead_frame": ph,
+                "agent_note": "Head trimmed to playhead (Q-style).",
+            }
+
+        # tail
+        if mode == "ripple":
+            r = self.ripple_trim(clip_id, new_src_out=src_at)
+        else:
+            r = self.set_clip_layout(
+                clip_id,
+                start=clip.start,
+                src_in=clip.src_in,
+                src_out=src_at,
+            )
+        return {
+            **r,
+            "edge": "tail",
+            "mode": mode,
+            "playhead_frame": ph,
+            "agent_note": "Tail trimmed to playhead (W-style).",
+        }
+
+    def clear_clip_effects(
+        self,
+        clip_id: str,
+        *,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Remove clip effects. types=None clears all; else only listed types.
+
+        Does not clear speed, position, transition_in, mute, name, color.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            before = list(clip.effects or [])
+            if types is None:
+                removed = before
+                clip.effects = []
+            else:
+                type_set = set(types)
+                removed = [e for e in before if e.get("type") in type_set]
+                clip.effects = [e for e in before if e.get("type") not in type_set]
+            return {
+                "clip_id": clip_id,
+                "removed_count": len(removed),
+                "removed_types": [e.get("type") for e in removed],
+                "remaining_count": len(clip.effects or []),
+            }
+
+    def list_clip_effects(self, clip_id: str) -> dict[str, Any]:
+        """List effect dicts on a clip (read-only)."""
+        clip = self._find_clip(clip_id)
+        effects = [dict(e) for e in (clip.effects or [])]
+        return {
+            "clip_id": clip_id,
+            "count": len(effects),
+            "effects": effects,
+        }
 
     def ensure_slug_media(self, kind: MediaKind = "video") -> Media:
         """Long black video or silence audio for gap-fill pads (cached in media/)."""
@@ -4985,6 +5106,106 @@ class Editor:
         }
 
     # --- render -----------------------------------------------------------
+    # Named delivery recipes for agents / UI (not encoder graphs).
+    EXPORT_PRESETS: dict[str, dict[str, Any]] = {
+        "draft": {
+            "normalize_preset": None,
+            "delivery_preset": "streaming",
+            "run_delivery_check": False,
+            "prepare": True,
+            "description": "Fast iterate: export as-is, no loudnorm/check",
+        },
+        "streaming": {
+            "normalize_preset": "streaming",
+            "delivery_preset": "streaming",
+            "run_delivery_check": True,
+            "prepare": True,
+            "description": "Web/social ~-14 LUFS + delivery_check",
+        },
+        "youtube": {
+            "normalize_preset": "streaming",
+            "delivery_preset": "streaming",
+            "run_delivery_check": True,
+            "prepare": True,
+            "description": "Alias of streaming for YouTube-style loudness",
+        },
+        "broadcast": {
+            "normalize_preset": "broadcast",
+            "delivery_preset": "broadcast",
+            "run_delivery_check": True,
+            "prepare": True,
+            "description": "Broadcast ~-23 LUFS + delivery_check",
+        },
+        "review": {
+            "normalize_preset": None,
+            "delivery_preset": "streaming",
+            "run_delivery_check": False,
+            "prepare": True,
+            "run_review": True,
+            "description": "Export + review_cut, no loudnorm",
+        },
+    }
+
+    def list_export_presets(self) -> dict[str, Any]:
+        """List named export recipes (normalize / delivery / prepare flags)."""
+        items = [
+            {"id": k, **dict(v)}
+            for k, v in self.EXPORT_PRESETS.items()
+        ]
+        return {"count": len(items), "presets": items}
+
+    def export_with_preset(
+        self,
+        output_path: str | Path,
+        preset: str = "streaming",
+        *,
+        prepare: bool | None = None,
+    ) -> dict[str, Any]:
+        """Export using a named preset from list_export_presets.
+
+        prepare=None uses preset default (usually fill/close gaps for base).
+        """
+        if preset not in self.EXPORT_PRESETS:
+            raise ValueError(
+                f"unknown export preset {preset!r}; "
+                f"known: {sorted(self.EXPORT_PRESETS)}"
+            )
+        cfg = self.EXPORT_PRESETS[preset]
+        do_prepare = cfg.get("prepare", True) if prepare is None else bool(prepare)
+        prep = None
+        if do_prepare:
+            try:
+                prep = self.prepare_export()
+            except Exception as e:
+                prep = {"error": str(e)[:500]}
+
+        normalize = cfg.get("normalize_preset")
+        written = self.export(Path(output_path), normalize_preset=normalize)
+        result: dict[str, Any] = {
+            "preset": preset,
+            "path": str(written),
+            "normalize_preset": normalize,
+            "prepare": prep,
+        }
+        if cfg.get("run_review"):
+            try:
+                result["review"] = self.review_cut()
+            except Exception as e:
+                result["review_error"] = str(e)[:500]
+        if cfg.get("run_delivery_check"):
+            try:
+                result["delivery_check"] = self.delivery_check(
+                    written, preset=str(cfg.get("delivery_preset") or "streaming"),
+                )
+                result["delivery_ok"] = bool(
+                    (result["delivery_check"] or {}).get("ok")
+                )
+            except Exception as e:
+                result["delivery_check_error"] = str(e)[:500]
+                result["delivery_ok"] = False
+        result["agent_note"] = cfg.get("description", "")
+        return result
+
     def export(
         self,
         output_path: Path,

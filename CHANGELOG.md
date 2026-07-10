@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.12 — 2026-07-11
+
+### Added
+- **`trim_to_playhead`**: Q/W-style head/tail trim (ripple|normal)
+- **`clear_clip_effects` / `list_clip_effects`**: strip grade/FX (optional type filter)
+- **`list_export_presets` / `export_with_preset`**: draft|streaming|youtube|broadcast|review
+- Web: Q/W buttons + keys, Clear FX, export preset picker
+
 ## 0.2.11 — 2026-07-11
 
 ### Added

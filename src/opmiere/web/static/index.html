@@ -338,6 +338,22 @@
         <button type="button" class="secondary" id="btnSubclip" disabled>Subclip I/O</button>
         <button type="button" class="secondary" id="btnHistory">History</button>
       </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnTrimQ" disabled title="Q">Trim head (Q)</button>
+        <button type="button" class="secondary" id="btnTrimW" disabled title="W">Trim tail (W)</button>
+        <button type="button" class="secondary" id="btnClearFx" disabled>Clear FX</button>
+      </div>
+      <label>Export preset</label>
+      <div class="row">
+        <select id="exportPreset">
+          <option value="draft">draft</option>
+          <option value="streaming" selected>streaming</option>
+          <option value="youtube">youtube</option>
+          <option value="broadcast">broadcast</option>
+          <option value="review">review</option>
+        </select>
+        <button type="button" class="secondary" id="btnExportPreset">Export…</button>
+      </div>
       <div id="histLab" class="dragHint">History: —</div>
       <button type="button" class="secondary" id="btnClipMute" disabled>Toggle clip mute</button>
       <label>Clip name</label>
@@ -734,7 +750,7 @@
       const pipIds = [
         'pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse',
         'btnDetach','btnMatch','fadeIn','fadeOut','btnFades','relinkMedia','btnRelink',
-        'opacitySlider','btnOpacity','btnSubclip',
+        'opacitySlider','btnOpacity','btnSubclip','btnTrimQ','btnTrimW','btnClearFx',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2071,6 +2087,16 @@
           if (!selectedClipId) return;
           ev.preventDefault();
           document.getElementById('btnSubclip').click();
+        } else if (ev.key === 'q' || ev.key === 'Q') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doTrimPlayhead('head');
+        } else if (ev.key === 'w' || ev.key === 'W') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doTrimPlayhead('tail');
         }
       } catch (e) { log(String(e.message || e)); }
     });
@@ -2201,6 +2227,57 @@
     document.getElementById('btnHistory').onclick = async () => {
       const h = await refreshHistory();
       if (h) log(JSON.stringify(h));
+    };
+    async function doTrimPlayhead(edge) {
+      if (!selectedClipId) return;
+      const fps = (timeline && timeline.fps) || 30;
+      const frame = Math.round((+scrub.value || 0) * fps);
+      const r = await api('/api/clip/trim_playhead', {
+        method: 'POST',
+        body: JSON.stringify({
+          clip_id: selectedClipId,
+          playhead_frame: frame,
+          edge,
+          mode: 'ripple',
+        }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log('trim ' + edge + ' @ ' + frame);
+      return r;
+    }
+    document.getElementById('btnTrimQ').onclick = async () => {
+      try { await doTrimPlayhead('head'); }
+      catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnTrimW').onclick = async () => {
+      try { await doTrimPlayhead('tail'); }
+      catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnClearFx').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/clear_effects', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('cleared ' + r.removed_count + ' effects');
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnExportPreset').onclick = async () => {
+      try {
+        const preset = document.getElementById('exportPreset').value || 'streaming';
+        const name = prompt('Export path (.mp4)', 'G:/Development/Opmiere/_export_' + preset + '.mp4');
+        if (!name) return;
+        log('export preset ' + preset + '…');
+        const r = await api('/api/export/preset', {
+          method: 'POST',
+          body: JSON.stringify({ output_path: name, preset }),
+        });
+        log('exported ' + (r.path || name) + (r.delivery_ok === false ? ' (delivery fail)' : ''));
+      } catch (e) { log(String(e.message || e)); }
     };
 
     (function() {

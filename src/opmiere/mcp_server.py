@@ -696,6 +696,52 @@ def reverse_clip(clip_id: str, replace: bool = True) -> dict:
 
 
 @mcp.tool()
+def trim_to_playhead(
+    clip_id: str,
+    playhead_frame: int,
+    edge: str = "head",
+    mode: str = "ripple",
+) -> dict:
+    """Trim head (Q) or tail (W) of clip to playhead. mode=ripple|normal."""
+    return _require_editor().trim_to_playhead(
+        clip_id, playhead_frame, edge=edge, mode=mode,
+    )
+
+
+@mcp.tool()
+def clear_clip_effects(
+    clip_id: str,
+    types: list[str] | None = None,
+) -> dict:
+    """Remove all effects, or only those whose type is in types."""
+    return _require_editor().clear_clip_effects(clip_id, types=types)
+
+
+@mcp.tool()
+def list_clip_effects(clip_id: str) -> dict:
+    """List effect dicts on a clip."""
+    return _require_editor().list_clip_effects(clip_id)
+
+
+@mcp.tool()
+def list_export_presets() -> dict:
+    """Named export recipes: draft/streaming/youtube/broadcast/review."""
+    return _require_editor().list_export_presets()
+
+
+@mcp.tool()
+def export_with_preset(
+    output_path: str,
+    preset: str = "streaming",
+    prepare: bool | None = None,
+) -> dict:
+    """Export using a named preset (normalize + optional delivery_check)."""
+    return _require_editor().export_with_preset(
+        output_path, preset=preset, prepare=prepare,
+    )
+
+
+@mcp.tool()
 def clips_at(
     timeline_frame: int,
     track_id: str | None = None,

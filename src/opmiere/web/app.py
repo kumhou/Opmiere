@@ -1205,6 +1205,60 @@ def clip_subclip(body: SubclipBody) -> dict[str, Any]:
     return out
 
 
+class TrimPlayheadBody(BaseModel):
+    clip_id: str
+    playhead_frame: int
+    edge: str = "head"
+    mode: str = "ripple"
+
+
+class ClearEffectsBody(BaseModel):
+    clip_id: str
+    types: list[str] | None = None
+
+
+class ExportPresetBody(BaseModel):
+    output_path: str
+    preset: str = "streaming"
+    prepare: bool | None = None
+
+
+@app.post("/api/clip/trim_playhead")
+def clip_trim_playhead(body: TrimPlayheadBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.trim_to_playhead(
+        body.clip_id,
+        body.playhead_frame,
+        edge=body.edge,
+        mode=body.mode,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/clear_effects")
+def clip_clear_effects(body: ClearEffectsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.clear_clip_effects(body.clip_id, types=body.types)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/clip/effects/{clip_id}")
+def clip_list_effects(clip_id: str) -> dict[str, Any]:
+    return _ed().list_clip_effects(clip_id)
+
+
+@app.get("/api/export/presets")
+def export_presets_api() -> dict[str, Any]:
+    return _ed().list_export_presets()
+
+
+@app.post("/api/export/preset")
+def export_with_preset_api(body: ExportPresetBody) -> dict[str, Any]:
+    return _ed().export_with_preset(
+        body.output_path, preset=body.preset, prepare=body.prepare,
+    )
+
+
 @app.get("/api/history")
 def history_api() -> dict[str, Any]:
     return _ed().history_status()
