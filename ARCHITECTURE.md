@@ -694,7 +694,9 @@ streaming -14 / broadcast -23), `delivery_check` on export (LUFS/peak/geometry/q
 pace target, VO/music under picture. **Mix + beats:** `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain`,
 `detect_beats` (energy onsets), plan_edit phrase anchors + black-pad opening J-cut.
 **Native install:** `scripts/install.ps1` / `uninstall.ps1`, CLI `opmiere doctor|web|mcp`, MCP `doctor`.
-Still open: full interactive preview, non-3070 re-benchmark. Cloud deferred.
+**P3 web:** doctor, review_cut, sequence sheet, project look, export+normalize+delivery_check.
+**Dogfood:** `scripts/dogfood_pro_pipeline.py` (real footage conform or lavfi). Still open: full
+interactive scrub preview (libopenshot/MLT), non-3070 re-benchmark. Cloud deferred.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

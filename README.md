@@ -47,8 +47,15 @@ Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stem
 |---------|---------|
 | `opmiere doctor` | ffmpeg, Python, extras, ComfyUI port |
 | `opmiere version` | package version |
-| `opmiere web` | minimal browser GUI |
+| `opmiere web` | browser GUI (doctor / look / review / delivery export) |
 | `opmiere mcp` | MCP server (same as `opmiere-mcp`) |
+
+### Pro pipeline dogfood (no ComfyUI)
+
+```bash
+python scripts/dogfood_pro_pipeline.py
+# → scripts/_dogfood_pro_out/export_loud.mp4 + report.json
+```
 
 ## Why
 

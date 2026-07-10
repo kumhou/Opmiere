@@ -1,12 +1,9 @@
-"""P3 minimal web GUI — thin HTTP shell over Editor (ARCHITECTURE §5.4).
+"""P3 web GUI — thin HTTP shell over Editor (ARCHITECTURE §5.4).
 
-Not a full NLE preview: project open/create, state JSON, place_from_file,
-export, and links into the agent workflow. Interactive scrubbing / GPU
-preview backends (libopenshot vs MLT) remain open decisions; this ships
-ordinary-user *reachability* first.
+Not a full NLE scrubber (libopenshot/MLT still open). Ships reachability:
+create/place/export + doctor, review_cut, sequence sheet, delivery-aware export.
 
-Run:  python -m opmiere.web.app
-  or: opmiere-web
+Run:  python -m opmiere.web.app  |  opmiere web  |  opmiere-web
 """
 
 from __future__ import annotations
@@ -23,9 +20,11 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.0.1-p3-min")
+app = FastAPI(title="Opmiere", version="0.0.1-p3")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
+# last sequence sheet / export artifacts for UI
+_last_sheet: str | None = None
 
 
 def _ed() -> Editor:
@@ -58,6 +57,9 @@ class PlaceBody(BaseModel):
 
 class ExportBody(BaseModel):
     output_path: str
+    normalize_preset: str | None = "streaming"
+    run_delivery_check: bool = True
+    delivery_preset: str = "streaming"
 
 
 class BriefBody(BaseModel):
@@ -65,6 +67,23 @@ class BriefBody(BaseModel):
     assets: list[dict[str, Any]] = Field(default_factory=list)
     constraints: dict[str, Any] = Field(default_factory=dict)
     deliverable: dict[str, Any] = Field(default_factory=dict)
+
+
+class LookBody(BaseModel):
+    look: str = "cinematic"
+
+
+class SheetBody(BaseModel):
+    output_path: str | None = None
+    max_tiles: int = 12
+    cols: int | None = None
+
+
+class PlanEditBody(BaseModel):
+    paths: list[str] = Field(default_factory=list)
+    b_roll_mode: str = "overlay"
+    j_cut_seconds: float = 0.4
+    apply: bool = True
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -76,8 +95,18 @@ def index() -> HTMLResponse:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "phase": "p3-min"}
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "phase": "p3",
+        "project_open": _editor is not None,
+    }
+
+
+@app.get("/api/doctor")
+def doctor(check_comfy: bool = False) -> dict[str, Any]:
+    from ..doctor import run_doctor
+    return run_doctor(check_comfy=check_comfy)
 
 
 @app.post("/api/project/create")
@@ -117,7 +146,6 @@ def place_file(body: PlaceBody) -> dict[str, Any]:
     ed = _ed()
     track_id = body.track_id
     if not track_id:
-        # ensure a track of matching kind
         kind = body.kind if body.kind in ("video", "audio", "image") else "video"
         track_kind = "audio" if kind == "audio" else "video"
         existing = [t for t in ed.project.tracks if t.kind == track_kind]
@@ -133,8 +161,69 @@ def place_file(body: PlaceBody) -> dict[str, Any]:
 
 @app.post("/api/export")
 def export_project(body: ExportBody) -> dict[str, Any]:
-    out = _ed().export(Path(body.output_path))
-    return {"output_path": str(out), "exists": out.exists()}
+    ed = _ed()
+    written = ed.export(
+        Path(body.output_path),
+        normalize_preset=body.normalize_preset,
+    )
+    payload: dict[str, Any] = {
+        "output_path": str(written),
+        "exists": written.exists(),
+        "normalize_preset": body.normalize_preset,
+    }
+    if body.run_delivery_check:
+        payload["delivery_check"] = ed.delivery_check(
+            written, preset=body.delivery_preset,
+        )
+    return payload
+
+
+@app.post("/api/review")
+def review() -> dict[str, Any]:
+    return _ed().review_cut()
+
+
+@app.post("/api/sequence_sheet")
+def sequence_sheet(body: SheetBody) -> dict[str, Any]:
+    global _last_sheet
+    ed = _ed()
+    out = body.output_path
+    if not out:
+        out = str(ed.bundle.root / "review" / "sequence_sheet.png")
+    result = ed.make_sequence_contact_sheet(
+        out, max_tiles=body.max_tiles, cols=body.cols,
+    )
+    _last_sheet = result.get("path")
+    return result
+
+
+@app.get("/api/sequence_sheet/image")
+def sequence_sheet_image() -> FileResponse:
+    if not _last_sheet or not Path(_last_sheet).exists():
+        raise HTTPException(404, "no sequence sheet yet — POST /api/sequence_sheet")
+    return FileResponse(_last_sheet, media_type="image/png")
+
+
+@app.post("/api/look")
+def apply_look(body: LookBody) -> dict[str, Any]:
+    return _ed().apply_project_look(body.look)
+
+
+@app.post("/api/plan_edit")
+def plan_edit_api(body: PlanEditBody) -> dict[str, Any]:
+    ed = _ed()
+    if not body.paths:
+        raise HTTPException(400, "paths required")
+    plan = ed.plan_edit(
+        paths=body.paths,
+        b_roll_mode=body.b_roll_mode,
+        j_cut_seconds=body.j_cut_seconds,
+    )
+    result: dict[str, Any] = {"plan": plan}
+    if body.apply:
+        result["apply"] = ed.apply_edit_plan(plan)
+        result["state"] = ed.describe()
+    return result
 
 
 @app.get("/api/workflow")

@@ -79,11 +79,16 @@ def test_web_app_health_and_brief():
     client = TestClient(app)
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.json()["phase"] == "p3-min"
+    assert r.json()["phase"] == "p3"
+
+    r = client.get("/api/doctor?check_comfy=false")
+    assert r.status_code == 200
+    assert "ok" in r.json()
 
     r = client.get("/")
     assert r.status_code == 200
     assert "Opmiere" in r.text
+    assert "delivery" in r.text.lower() or "doctor" in r.text.lower()
 
     r = client.post("/api/brief", json={
         "intent": "",
@@ -105,7 +110,9 @@ def test_web_create_place_export_roundtrip(tmp_path: Path):
         [
             "ffmpeg", "-y", "-f", "lavfi",
             "-i", f"color=c=green:size=160x90:duration=0.5:rate={FPS}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(vid),
+            "-f", "lavfi", "-i", f"sine=frequency=440:duration=0.5",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+            "-shortest", str(vid),
         ],
         capture_output=True, text=True, check=True,
     )
@@ -121,6 +128,14 @@ def test_web_create_place_export_roundtrip(tmp_path: Path):
     r = client.get("/api/project/state")
     assert r.status_code == 200
     assert r.json()["tracks"]
-    r = client.post("/api/export", json={"output_path": str(export)})
+    r = client.post("/api/review", json={})
+    assert r.status_code == 200
+    r = client.post("/api/look", json={"look": "documentary"})
+    assert r.status_code == 200
+    r = client.post("/api/export", json={
+        "output_path": str(export),
+        "normalize_preset": None,
+        "run_delivery_check": True,
+    })
     assert r.status_code == 200, r.text
     assert export.exists()

@@ -5,46 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Opmiere</title>
   <style>
-    :root { --bg:#0f1115; --panel:#1a1d24; --border:#2a2f3a; --text:#e8eaed; --muted:#9aa0a6; --acc:#7c9cff; --ok:#3dd68c; }
+    :root { --bg:#0f1115; --panel:#1a1d24; --border:#2a2f3a; --text:#e8eaed; --muted:#9aa0a6; --acc:#7c9cff; --ok:#3dd68c; --bad:#ff7b72; }
     * { box-sizing: border-box; }
     body { margin:0; font-family: system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
-    header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; }
+    header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
     header h1 { font-size:18px; margin:0; font-weight:600; letter-spacing:0.02em; }
     header span { color:var(--muted); font-size:13px; }
-    main { display:grid; grid-template-columns: 280px 1fr 320px; height: calc(100vh - 52px); }
+    main { display:grid; grid-template-columns: 300px 1fr 340px; height: calc(100vh - 52px); }
     section { border-right:1px solid var(--border); padding:16px; overflow:auto; }
     section:last-child { border-right:none; }
-    h2 { font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:0 0 12px; }
+    h2 { font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:16px 0 12px; }
+    h2:first-child { margin-top:0; }
     label { display:block; font-size:12px; color:var(--muted); margin:8px 0 4px; }
     input, textarea, select, button {
       width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
       background:#12151b; color:var(--text); font-size:13px;
     }
-    textarea { min-height:72px; resize:vertical; }
-    button { cursor:pointer; background:var(--acc); color:#0b0d12; border:none; font-weight:600; margin-top:10px; }
+    textarea { min-height:64px; resize:vertical; }
+    button { cursor:pointer; background:var(--acc); color:#0b0d12; border:none; font-weight:600; margin-top:8px; }
     button.secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
     button:disabled { opacity:0.5; cursor:not-allowed; }
     .row { display:flex; gap:8px; }
     .row > * { flex:1; }
     #log { font-family: ui-monospace, Consolas, monospace; font-size:11px; white-space:pre-wrap;
-      background:#0c0e12; border:1px solid var(--border); border-radius:8px; padding:10px; min-height:120px; max-height:200px; overflow:auto; color:var(--muted); }
-    #timeline { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; min-height:200px; }
+      background:#0c0e12; border:1px solid var(--border); border-radius:8px; padding:10px; min-height:100px; max-height:160px; overflow:auto; color:var(--muted); }
+    #timeline { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; min-height:160px; }
     .track { margin-bottom:12px; }
     .track-label { font-size:11px; color:var(--muted); margin-bottom:4px; }
     .clips { display:flex; flex-wrap:wrap; gap:6px; }
     .clip { background:#232833; border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:11px; max-width:160px; }
     .clip strong { display:block; color:var(--acc); font-size:10px; }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#232833; font-size:11px; color:var(--ok); }
+    .pill.bad { color:var(--bad); }
     .steps { font-size:12px; line-height:1.5; }
     .steps li { margin-bottom:6px; }
-    .err { color:#ff7b72; }
+    .err { color:var(--bad); }
+    #sheetWrap { margin-top:12px; }
+    #sheetWrap img { max-width:100%; border-radius:8px; border:1px solid var(--border); background:#000; }
+    #doctor { font-size:11px; font-family:ui-monospace,Consolas,monospace; color:var(--muted); white-space:pre-wrap;
+      background:#0c0e12; border:1px solid var(--border); border-radius:8px; padding:8px; max-height:140px; overflow:auto; }
+    #reviewBox { font-size:12px; color:var(--muted); }
   </style>
 </head>
 <body>
   <header>
     <h1>Opmiere</h1>
-    <span>P3 minimal · agent-native core</span>
+    <span>P3 · delivery-aware</span>
     <span class="pill" id="status">no project</span>
+    <span class="pill" id="docPill">doctor ?</span>
   </header>
   <main>
     <section>
@@ -68,32 +76,54 @@
       <button type="button" id="btnPlace">Place file</button>
       <label>Export path</label>
       <input id="export" value="G:/Development/Opmiere/.opmiere_web_demo_out.mp4" />
-      <button type="button" id="btnExport">Export</button>
+      <label><input type="checkbox" id="norm" checked style="width:auto" /> normalize streaming (-14 LUFS)</label>
+      <button type="button" id="btnExport">Export + delivery_check</button>
       <button type="button" class="secondary" id="btnRefresh">Refresh state</button>
-      <h2 style="margin-top:20px">Log</h2>
+      <h2>Craft</h2>
+      <div class="row">
+        <button type="button" class="secondary" id="btnReview">review_cut</button>
+        <button type="button" class="secondary" id="btnSheet">sequence sheet</button>
+      </div>
+      <div class="row">
+        <select id="look">
+          <option value="cinematic">cinematic</option>
+          <option value="warm_resolve">warm_resolve</option>
+          <option value="cool_setup">cool_setup</option>
+          <option value="documentary">documentary</option>
+          <option value="vintage">vintage</option>
+          <option value="neutral">neutral</option>
+        </select>
+        <button type="button" class="secondary" id="btnLook">Apply look</button>
+      </div>
+      <h2>Log</h2>
       <div id="log"></div>
     </section>
     <section>
       <h2>Timeline</h2>
       <div id="timeline"><p style="color:var(--muted)">Open or create a project.</p></div>
+      <div id="reviewBox"></div>
+      <div id="sheetWrap"></div>
     </section>
     <section>
+      <h2>Doctor</h2>
+      <button type="button" class="secondary" id="btnDoctor">Run doctor</button>
+      <div id="doctor">not run</div>
       <h2>Director brief</h2>
       <label>Intent (empty = defaults)</label>
-      <textarea id="intent" placeholder="例：雨后氛围短片，旁白一句…"></textarea>
-      <label>Asset paths (one per line, role a_roll)</label>
+      <textarea id="intent" placeholder="例：雨后氛围短片…"></textarea>
+      <label>Asset paths (one per line)</label>
       <textarea id="assets" placeholder="C:/footage/clip1.mp4"></textarea>
       <button type="button" id="btnPlan">Plan session</button>
-      <div class="steps" id="plan"><p style="color:var(--muted)">Plan steps appear here. Agent / MCP executes them; this UI is the human surface.</p></div>
+      <div class="steps" id="plan"><p style="color:var(--muted)">Plan steps appear here.</p></div>
     </section>
   </main>
   <script>
     const logEl = document.getElementById('log');
     const statusEl = document.getElementById('status');
+    const docPill = document.getElementById('docPill');
     function log(msg, isErr) {
       const t = new Date().toLocaleTimeString();
       logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
-      if (isErr) logEl.classList.add('err');
     }
     async function api(path, opts) {
       const r = await fetch(path, {
@@ -155,14 +185,62 @@
     document.getElementById('btnExport').onclick = async () => {
       try {
         const out = document.getElementById('export').value;
-        const r = await api('/api/export', { method: 'POST', body: JSON.stringify({ output_path: out }) });
-        log('exported ' + r.output_path);
+        const r = await api('/api/export', {
+          method: 'POST',
+          body: JSON.stringify({
+            output_path: out,
+            normalize_preset: document.getElementById('norm').checked ? 'streaming' : null,
+            run_delivery_check: true,
+          }),
+        });
+        const dc = r.delivery_check;
+        log('exported ' + r.output_path + (dc ? ` · delivery ok=${dc.ok}` : ''));
+        if (dc && !dc.ok) log('delivery errors: ' + (dc.errors || []).join('; '), true);
       } catch (e) { log(String(e.message || e), true); }
     };
     document.getElementById('btnRefresh').onclick = async () => {
       try {
         const s = await api('/api/project/state');
         renderState(s); log('refreshed');
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnReview').onclick = async () => {
+      try {
+        const r = await api('/api/review', { method: 'POST', body: '{}' });
+        const box = document.getElementById('reviewBox');
+        const issues = (r.issues || []).map(i =>
+          `<div>· <b>${i.severity}</b> ${i.code}: ${i.message || ''}</div>`
+        ).join('') || '<div style="color:var(--ok)">no issues</div>';
+        box.innerHTML = `<h2>review_cut ok=${r.ok}</h2>${issues}`;
+        log('review_cut ok=' + r.ok + ' issues=' + (r.issues || []).length);
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnSheet').onclick = async () => {
+      try {
+        const r = await api('/api/sequence_sheet', { method: 'POST', body: '{}' });
+        document.getElementById('sheetWrap').innerHTML =
+          `<h2>sequence sheet</h2><img src="/api/sequence_sheet/image?t=${Date.now()}" alt="sheet" />`;
+        log('sequence sheet ' + r.path + ' tiles=' + r.tile_count);
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnLook').onclick = async () => {
+      try {
+        const look = document.getElementById('look').value;
+        const r = await api('/api/look', { method: 'POST', body: JSON.stringify({ look }) });
+        log('look ' + look + ' applied to ' + r.clip_count + ' clips');
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnDoctor').onclick = async () => {
+      try {
+        const r = await api('/api/doctor?check_comfy=false');
+        docPill.textContent = r.ok ? 'doctor ok' : 'doctor FAIL';
+        docPill.classList.toggle('bad', !r.ok);
+        const lines = (r.checks || []).map(c =>
+          `${c.ok ? 'OK' : 'FAIL'} ${c.id}`
+        );
+        document.getElementById('doctor').textContent =
+          (r.summary || '') + '\n' + lines.join('\n');
+        log('doctor ok=' + r.ok);
       } catch (e) { log(String(e.message || e), true); }
     };
     document.getElementById('btnPlan').onclick = async () => {
@@ -183,10 +261,12 @@
           '<ol class="steps">' + steps.map(s =>
             `<li><code>${s.tool}</code> — ${s.purpose}</li>`
           ).join('') + '</ol>' +
-          (r.brief.no_opinion ? '<p style="color:var(--muted);font-size:12px">no_opinion → DEFAULT_AESTHETIC applied</p>' : '');
+          (r.brief.no_opinion ? '<p style="color:var(--muted);font-size:12px">no_opinion → DEFAULT_AESTHETIC</p>' : '');
         log('planned ' + steps.length + ' steps');
       } catch (e) { log(String(e.message || e), true); }
     };
+    // auto doctor on load
+    document.getElementById('btnDoctor').click();
   </script>
 </body>
 </html>
