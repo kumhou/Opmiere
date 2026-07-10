@@ -193,6 +193,26 @@ def delete_clip(clip_id: str) -> dict:
 
 
 @mcp.tool()
+def doctor(
+    check_comfy: bool = True,
+    comfy_host: str = "127.0.0.1",
+    comfy_port: int = 8188,
+) -> dict:
+    """Environment health check before a film session.
+
+    Verifies Python, ffmpeg/ffprobe, mcp, optional extras, optional ComfyUI.
+    ok=false → fix errors (ffmpeg on PATH, pip install) before cutting.
+    Also available as CLI: ``opmiere doctor``.
+    """
+    from .doctor import run_doctor
+    return run_doctor(
+        comfy_host=comfy_host,
+        comfy_port=comfy_port,
+        check_comfy=check_comfy,
+    )
+
+
+@mcp.tool()
 def get_director_policy() -> dict:
     """Return the per-fragment quality-gate policy (ARCHITECTURE.md §5.10).
 

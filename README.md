@@ -16,14 +16,39 @@ drafts; pay only for the shots you commit to.
 > music/sfx), film workflow brief/plan, and a thin browser shell for create/place/export. See
 > [ARCHITECTURE.md](ARCHITECTURE.md) section 9 for built vs planned.
 
-## Quick start (web)
+## Install (Windows, native — no Docker)
+
+From a clone of this repo (Python 3.10+ and [FFmpeg](https://ffmpeg.org/download.html) on PATH):
+
+```powershell
+# Recommended: venv under %LOCALAPPDATA%\Opmiere + User PATH
+powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Extras web
+
+opmiere doctor          # must report core ok
+opmiere web             # http://127.0.0.1:8787
+opmiere mcp             # MCP stdio server for agents
+
+# Remove the install (keeps this git checkout)
+powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
+```
+
+Editable install only (no PATH / marker):
 
 ```bash
-pip install -e ".[web]"   # or: pip install fastapi uvicorn
-opmiere-web               # http://127.0.0.1:8787
+pip install -e ".[web]"
+python -m opmiere doctor
 ```
 
 Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stems]` demucs, `[all]`.
+
+### CLI
+
+| Command | Purpose |
+|---------|---------|
+| `opmiere doctor` | ffmpeg, Python, extras, ComfyUI port |
+| `opmiere version` | package version |
+| `opmiere web` | minimal browser GUI |
+| `opmiere mcp` | MCP server (same as `opmiere-mcp`) |
 
 ## Why
 

@@ -40,6 +40,7 @@ all = [
 Homepage = "https://github.com/kumhou/Opmiere"
 
 [project.scripts]
+opmiere = "opmiere.cli:main"
 opmiere-mcp = "opmiere.mcp_server:main"
 opmiere-web = "opmiere.web.app:main"
 

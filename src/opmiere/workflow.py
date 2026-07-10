@@ -240,6 +240,11 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
 
     add("read_policy", "get_director_policy", "Load per-fragment quality gates")
     add("read_workflow", "get_film_workflow", "Load full session process + defaults")
+    add(
+        "doctor",
+        "doctor",
+        "Environment check (ffmpeg/Python/extras) — abort if ok=false",
+    )
 
     asset_paths = [
         a.get("path") for a in assets

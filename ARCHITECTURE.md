@@ -444,7 +444,7 @@ agent/GUI ─ job_status(job_id) ─► {queued|running|done|error, progress, re
 | **P1 Agent control + core tools** | Operation API + MCP server. Claude Code builds/edits a timeline and exports it, no GUI. Includes the cheap **deterministic tools** (§5.8) FFmpeg already gives: transitions, color, text, audio basics. | Core differentiator + editor-first, front-loaded. |
 | **P2 Generation (incl. audio)** | `GenerationProvider` + ComfyUI local (image → LTX-Video) + **audio: TTS / SFX / music** (§5.9) + one cloud provider, all VRAM-adaptive (§5.7). Agent: "generate X → place on timeline." | Local-first + cloud-optional thesis, across media types. |
 | **P3 GUI** | Web frontend: timeline, preview player, media bin, generation panel, agent chat. Interactive render backend for scrubbing + real-time effects. | Ordinary-user usability. |
-| **P4 Depth** | *Advanced* effects (keying, motion tracking, stabilization), semantic media search, packaging/installer, docs, OSS release hygiene. | Ready for the world. |
+| **P4 Depth** | *Advanced* effects (keying, motion tracking, stabilization), semantic media search, docs, OSS release hygiene. **Native packaging (install.ps1 / uninstall / `opmiere doctor`) done** — not Docker-full. | Ready for the world. |
 
 Note: **basic deterministic effects land early (P1)** because FFmpeg makes them nearly free; only the
 *advanced* effects wait for P4. This keeps "it's a real editor" true from the first agent-drivable build.
@@ -693,6 +693,7 @@ streaming -14 / broadcast -23), `delivery_check` on export (LUFS/peak/geometry/q
 (signalstats → color/white_balance). **EDL v2:** B-roll overlay cutaways, L-cut lead,
 pace target, VO/music under picture. **Mix + beats:** `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain`,
 `detect_beats` (energy onsets), plan_edit phrase anchors + black-pad opening J-cut.
+**Native install:** `scripts/install.ps1` / `uninstall.ps1`, CLI `opmiere doctor|web|mcp`, MCP `doctor`.
 Still open: full interactive preview, non-3070 re-benchmark. Cloud deferred.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
