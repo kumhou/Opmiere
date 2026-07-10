@@ -270,6 +270,43 @@ def refresh_preview_proxy(
 
 
 @mcp.tool()
+def set_clip_gain(clip_id: str, db: float) -> dict:
+    """Set clip volume gain in dB (replaces prior gain effects). 0 = unity."""
+    return _require_editor().set_clip_gain(clip_id, db)
+
+
+@mcp.tool()
+def waveform_peaks(
+    clip_id: str | None = None,
+    media_id: str | None = None,
+    path: str | None = None,
+    num_peaks: int = 200,
+    use_cache: bool = True,
+) -> dict:
+    """Audio peak envelope [0..1] for timeline waveforms (cached per media)."""
+    return _require_editor().waveform_peaks(
+        path=path,
+        media_id=media_id,
+        clip_id=clip_id,
+        num_peaks=num_peaks,
+        use_cache=use_cache,
+    )
+
+
+@mcp.tool()
+def media_thumbnail(
+    media_id: str,
+    time_seconds: float = 0.1,
+    width: int = 160,
+    force: bool = False,
+) -> dict:
+    """Poster frame for media bin (cached under analysis/thumbs/)."""
+    return _require_editor().media_thumbnail(
+        media_id, time_seconds=time_seconds, width=width, force=force,
+    )
+
+
+@mcp.tool()
 def split_clip(clip_id: str, at_frame: int) -> dict:
     """Split a clip at an absolute timeline frame into two clips."""
     first, second = _require_editor().split_clip(clip_id, at_frame)

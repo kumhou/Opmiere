@@ -67,6 +67,9 @@ from .render.transcript_index import load_transcript as _load_transcript
 from .render.transcript_index import save_transcript as _save_transcript
 from .render.transcript_index import search_segments as _search_segments
 from .render.transcript_index import search_transcript_dict as _search_transcript_dict
+from .render.waveform import extract_waveform_peaks as _extract_waveform_peaks
+from .render.waveform import load_cached_peaks as _load_cached_peaks
+from .render.waveform import save_cached_peaks as _save_cached_peaks
 from .render.asset_analysis import analyze_asset as _analyze_asset
 from .render.asset_analysis import check_delivery_limits as _check_delivery_limits
 from .render.asset_analysis import load_analysis_cache as _load_analysis_cache
@@ -194,6 +197,10 @@ class Editor:
                 m = media_by_id.get(clip.media)
                 end = clip.end
                 max_end = max(max_end, end)
+                gain_db = 0.0
+                for fx in clip.effects or []:
+                    if fx.get("type") == "gain" and isinstance(fx.get("db"), (int, float)):
+                        gain_db = float(fx["db"])
                 clips_out.append({
                     "id": clip.id,
                     "media_id": clip.media,
@@ -209,6 +216,8 @@ class Editor:
                     "src_out": clip.src_out,
                     "speed": clip.speed,
                     "effects_count": len(clip.effects or []),
+                    "gain_db": gain_db,
+                    "has_audio_media": bool(m and (m.kind == "audio" or m.has_audio)),
                     "transition_in": clip.transition_in,
                     "label": (m.path.split("/")[-1] if m and m.path else clip.id),
                 })
@@ -1067,6 +1076,139 @@ class Editor:
                     "audio is suppressed while any audio-track clips exist."
                 ),
             }
+
+    def get_clip_gain_db(self, clip_id: str) -> float:
+        """Return the last gain effect dB on the clip, or 0.0 if none."""
+        clip = self._find_clip(clip_id)
+        db = 0.0
+        for fx in clip.effects or []:
+            if fx.get("type") == "gain" and isinstance(fx.get("db"), (int, float)):
+                db = float(fx["db"])
+        return db
+
+    def set_clip_gain(self, clip_id: str, db: float) -> dict[str, Any]:
+        """Set clip gain in dB (replaces any existing gain effects). One undo step.
+
+        db=0 removes gain effects (unity). Typical range about -24..+12.
+        """
+        if not isinstance(db, (int, float)):
+            raise ValueError("db must be numeric")
+        db = float(db)
+        if db < -60 or db > 24:
+            raise ValueError("db must be in [-60, 24]")
+        old = self.get_clip_gain_db(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.effects = [e for e in (clip.effects or []) if e.get("type") != "gain"]
+            applied = 0.0 if abs(db) < 0.05 else db
+            if abs(applied) >= 0.05:
+                clip.effects.append({"type": "gain", "db": applied})
+            return {
+                "clip_id": clip_id,
+                "db": {"from": old, "to": applied},
+                "agent_note": "Gain is clip effect; mix other clips with separate gains / ducking.",
+            }
+
+    def waveform_peaks(
+        self,
+        *,
+        path: str | Path | None = None,
+        media_id: str | None = None,
+        clip_id: str | None = None,
+        num_peaks: int = 200,
+        use_cache: bool = True,
+    ) -> dict[str, Any]:
+        """Peak envelope for timeline waveforms. Caches under analysis/waveforms/."""
+        resolved_media: str | None = media_id
+        src: Path | None = Path(path) if path else None
+        if clip_id is not None:
+            clip = self._find_clip(clip_id)
+            media = self.project.media_by_id(clip.media)
+            resolved_media = media.id
+            src = self.bundle.media_path(media.path)
+        elif media_id is not None:
+            media = self.project.media_by_id(media_id)
+            src = self.bundle.media_path(media.path)
+        if src is None:
+            raise ValueError("provide path, media_id, or clip_id")
+
+        if use_cache and resolved_media:
+            cached = _load_cached_peaks(self.bundle.analysis_dir, resolved_media)
+            if cached and cached.get("num_peaks") == num_peaks and cached.get("peaks"):
+                cached = dict(cached)
+                cached["cache_hit"] = True
+                cached["media_id"] = resolved_media
+                if clip_id:
+                    cached["clip_id"] = clip_id
+                return cached
+
+        result = _extract_waveform_peaks(src, num_peaks=num_peaks)
+        result["cache_hit"] = False
+        if resolved_media:
+            result["media_id"] = resolved_media
+            if use_cache and result.get("peaks"):
+                _save_cached_peaks(self.bundle.analysis_dir, resolved_media, result)
+                result["cache_path"] = str(
+                    self.bundle.analysis_dir / "waveforms" / f"{resolved_media}.json"
+                )
+        if clip_id:
+            result["clip_id"] = clip_id
+        return result
+
+    def media_thumbnail(
+        self,
+        media_id: str,
+        *,
+        time_seconds: float = 0.1,
+        width: int = 160,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """JPEG poster frame for media bin (cached under analysis/thumbs/)."""
+        media = self.project.media_by_id(media_id)
+        if media.kind == "audio":
+            raise ValueError("audio media has no video thumbnail")
+        thumbs = self.bundle.analysis_dir / "thumbs"
+        thumbs.mkdir(parents=True, exist_ok=True)
+        out = thumbs / f"{media_id}_{width}.jpg"
+        if out.exists() and not force:
+            return {
+                "media_id": media_id,
+                "path": str(out.resolve()),
+                "cache_hit": True,
+                "width": width,
+            }
+        src = self.bundle.media_path(media.path)
+        if media.proxy_path:
+            proxy = self.bundle.resolve_bundle_path(media.proxy_path)
+            if proxy.exists():
+                src = proxy
+        if media.kind == "image":
+            # still: scale once
+            import subprocess
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner", "-i", str(src),
+                    "-frames:v", "1", "-vf", f"scale={int(width)}:-1",
+                    str(out),
+                ],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0 or not out.exists():
+                raise RuntimeError(f"thumb failed:\n{(proc.stderr or '')[-800:]}")
+            return {
+                "media_id": media_id,
+                "path": str(out.resolve()),
+                "cache_hit": False,
+                "width": width,
+            }
+        r = self.extract_frame(src, time_seconds, out, width=width)
+        return {
+            "media_id": media_id,
+            "path": r["path"],
+            "cache_hit": False,
+            "width": width,
+            "time_seconds": time_seconds,
+        }
 
     def apply_effect(self, clip_id: str, effect: dict) -> Clip:
         """Append a deterministic effect (ARCHITECTURE.md section 5.8) to a clip.

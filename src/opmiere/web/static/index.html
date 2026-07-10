@@ -90,8 +90,16 @@
       padding:4px 6px; display:flex; align-items:center;
     }
     .track-lane {
-      position:relative; flex:1; height:36px; background:#12151b;
+      position:relative; flex:1; height:44px; background:#12151b;
       border-radius:4px; border:1px solid var(--border); min-width:200px;
+    }
+    .tclip canvas.wave {
+      position:absolute; left:0; top:0; width:100%; height:100%;
+      pointer-events:none; opacity:0.55;
+    }
+    .bin-item img.thumb {
+      width:64px; height:36px; object-fit:cover; border-radius:4px;
+      background:#000; float:left; margin-right:8px;
     }
     .tclip {
       position:absolute; top:3px; bottom:3px; border-radius:4px;
@@ -222,9 +230,18 @@
       <div id="ruler"></div>
       <div id="tracks"><p style="color:var(--muted);padding:12px;font-size:12px">Empty — place media.</p></div>
       <div class="row" style="margin-top:8px">
-        <button type="button" class="danger" id="btnRippleDel" disabled>Ripple delete clip</button>
+        <button type="button" class="danger" id="btnRippleDel" disabled>Ripple delete</button>
         <button type="button" class="secondary" id="btnFillerDry" disabled>Filler plan</button>
         <button type="button" class="danger" id="btnFillerApply" disabled>Filler apply</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnCloseGaps">Close gaps (base V)</button>
+        <button type="button" class="secondary" id="btnWaves">Load waveforms</button>
+      </div>
+      <label>Gain dB · <span id="gainLabel">0</span></label>
+      <div class="row">
+        <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
+        <button type="button" class="secondary" id="btnGain" disabled style="flex:0.4">Set</button>
       </div>
       <div id="fillerBox"></div>
       <div id="reviewBox"></div>
@@ -298,6 +315,7 @@
     let syncingFromVideo = false;
     let playheadEl = null;
     let drag = null; // active drag state
+    let waveCache = {}; // media_id -> peaks[]
 
     function log(msg) {
       const t = new Date().toLocaleTimeString();
@@ -403,11 +421,16 @@
           const width = Math.max(0.8, (c.duration_frames / viewDurF) * 100);
           const sel = c.id === selectedClipId ? ' selected' : '';
           const kind = tr.kind === 'audio' ? 'audio' : 'video';
-          clipsHtml += `<div class="tclip ${kind}${sel}" data-id="${c.id}"
+          const g = (c.gain_db != null && c.gain_db !== 0) ? ` ${c.gain_db>0?'+':''}${c.gain_db}dB` : '';
+          clipsHtml += `<div class="tclip ${kind}${sel}" data-id="${c.id}" data-media="${c.media_id||''}"
             data-start="${c.start_frame}" data-in="${c.src_in}" data-out="${c.src_out}"
-            data-t="${c.start_seconds}" data-label="${(c.label||'').replace(/"/g,'')}"
-            style="left:${left}%;width:${width}%" title="${c.label} · ${c.id} · drag/trim">
-            <span class="hL" data-edge="left"></span>${c.label}<span class="hR" data-edge="right"></span>
+            data-t="${c.start_seconds}" data-gain="${c.gain_db||0}" data-ha="${c.has_audio_media?1:0}"
+            data-label="${(c.label||'').replace(/"/g,'')}"
+            style="left:${left}%;width:${width}%" title="${c.label} · ${c.id}${g}">
+            <canvas class="wave"></canvas>
+            <span class="hL" data-edge="left"></span>
+            <span class="clipLab" style="position:relative;z-index:1">${c.label}${g}</span>
+            <span class="hR" data-edge="right"></span>
           </div>`;
         }
         html += `<div class="track-row">
@@ -419,6 +442,48 @@
       playheadEl = document.getElementById('playhead');
       setPlayhead(+scrub.value || 0);
       wireClipInteractions(tracksEl, viewDurF, fps);
+      paintWaveforms();
+      syncGainUi();
+    }
+
+    function paintWaveforms() {
+      document.querySelectorAll('.tclip').forEach(el => {
+        const mid = el.dataset.media;
+        const canvas = el.querySelector('canvas.wave');
+        if (!canvas || !mid || !waveCache[mid]) return;
+        const peaks = waveCache[mid];
+        const w = Math.max(2, el.clientWidth || 40);
+        const h = Math.max(2, el.clientHeight || 36);
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(180,220,255,0.85)';
+        const midY = h / 2;
+        const n = peaks.length;
+        for (let i = 0; i < n; i++) {
+          const x = (i / n) * w;
+          const amp = peaks[i] * (h * 0.45);
+          ctx.fillRect(x, midY - amp, Math.max(1, w / n), amp * 2);
+        }
+      });
+    }
+
+    function syncGainUi() {
+      const slider = document.getElementById('gainSlider');
+      const btn = document.getElementById('btnGain');
+      const lab = document.getElementById('gainLabel');
+      if (!selectedClipId) {
+        slider.disabled = true;
+        btn.disabled = true;
+        return;
+      }
+      slider.disabled = false;
+      btn.disabled = false;
+      const el = document.querySelector(`.tclip[data-id="${selectedClipId}"]`);
+      const g = el ? (+el.dataset.gain || 0) : 0;
+      slider.value = g;
+      lab.textContent = g;
     }
 
     function wireClipInteractions(tracksEl, viewDurF, fps) {
@@ -435,6 +500,7 @@
           document.getElementById('btnRippleDel').disabled = !selectedClipId;
           document.getElementById('btnFillerDry').disabled = !selectedClipId;
           document.getElementById('btnFillerApply').disabled = !selectedClipId;
+          syncGainUi();
 
           const lane = el.closest('.track-lane');
           const laneW = lane.getBoundingClientRect().width;
@@ -580,14 +646,22 @@
           el.innerHTML = '<p style="color:var(--muted);font-size:11px">Empty bin.</p>';
           return;
         }
-        el.innerHTML = bin.media.map(m => `
-          <div class="bin-item" data-id="${m.id}">
+        el.innerHTML = bin.media.map(m => {
+          const thumb = m.kind !== 'audio'
+            ? `<img class="thumb" src="/api/media/${encodeURIComponent(m.id)}/thumb.jpg?width=120&_=${Date.now()}" alt="" onerror="this.style.display='none'" />`
+            : '';
+          return `<div class="bin-item" data-id="${m.id}">
+            ${thumb}
             <div><b>${m.kind}</b> ${m.path}</div>
             <div class="meta">${m.id} · frames ${m.duration_frames}
               · proxy ${m.proxy_ready ? '✓' : '—'}
               · asr ${m.transcript_cached ? '✓' : '—'}</div>
-            <button type="button" class="secondary bin-proxy" data-id="${m.id}" style="margin-top:4px">Build proxy</button>
-          </div>`).join('');
+            <div class="row" style="margin-top:4px;clear:both">
+              <button type="button" class="secondary bin-proxy" data-id="${m.id}">Proxy</button>
+              <button type="button" class="secondary bin-asr" data-id="${m.id}">ASR</button>
+            </div>
+          </div>`;
+        }).join('');
         el.querySelectorAll('.bin-proxy').forEach(btn => {
           btn.onclick = async () => {
             try {
@@ -596,6 +670,19 @@
                 body: JSON.stringify({ media_id: btn.dataset.id }),
               });
               log('media proxy ' + (r.cache_hit ? 'hit ' : 'built ') + r.media_id);
+              await refreshBin();
+            } catch (e) { log(String(e.message || e)); }
+          };
+        });
+        el.querySelectorAll('.bin-asr').forEach(btn => {
+          btn.onclick = async () => {
+            try {
+              log('transcribe ' + btn.dataset.id + '…');
+              const r = await api('/api/media/transcribe', {
+                method: 'POST',
+                body: JSON.stringify({ media_id: btn.dataset.id }),
+              });
+              log('asr segs=' + (r.segments || []).length + ' lang=' + (r.language || '?'));
               await refreshBin();
             } catch (e) { log(String(e.message || e)); }
           };
@@ -885,6 +972,58 @@
             `<li><code>${s.tool}</code> — ${s.purpose}</li>`
           ).join('') + '</ol>';
         log('planned ' + steps.length + ' steps');
+      } catch (e) { log(String(e.message || e)); }
+    };
+
+    document.getElementById('gainSlider').oninput = (ev) => {
+      document.getElementById('gainLabel').textContent = ev.target.value;
+    };
+    document.getElementById('btnGain').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const db = +document.getElementById('gainSlider').value;
+        const r = await api('/api/clip/gain', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, db, refresh_preview: false }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('gain ' + db + ' dB on ' + selectedClipId);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnCloseGaps').onclick = async () => {
+      try {
+        const r = await api('/api/close_gaps', {
+          method: 'POST', body: JSON.stringify({}),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('close_gaps ' + JSON.stringify(r.result && r.result.moved ? r.result.moved.length : r.result));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnWaves').onclick = async () => {
+      try {
+        if (!timeline || !timeline.tracks) {
+          log('no timeline');
+          return;
+        }
+        const ids = new Set();
+        for (const tr of timeline.tracks) {
+          for (const c of tr.clips || []) {
+            if (c.media_id && c.has_audio_media) ids.add(c.media_id);
+          }
+        }
+        let n = 0;
+        for (const mid of ids) {
+          const r = await api('/api/waveform', {
+            method: 'POST',
+            body: JSON.stringify({ media_id: mid, num_peaks: 100 }),
+          });
+          if (r.peaks && r.peaks.length) {
+            waveCache[mid] = r.peaks;
+            n++;
+          }
+        }
+        paintWaveforms();
+        log('waveforms loaded ' + n);
       } catch (e) { log(String(e.message || e)); }
     };
 

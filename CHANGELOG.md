@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.6 — 2026-07-10
+
+### Added
+- **Waveform peaks**: `waveform_peaks` (ffmpeg mono PCM → envelope, cached); timeline canvas paint
+- **Clip gain**: `set_clip_gain` / web gain slider; `gain_db` on `timeline_view`
+- **Media bin thumbs**: `media_thumbnail` + `GET /api/media/{id}/thumb.jpg`; bin ASR button
+- Web: Load waveforms, Close gaps (base V), gain control
+
 ## 0.1.5 — 2026-07-10
 
 ### Added

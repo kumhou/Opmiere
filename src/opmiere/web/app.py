@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.5")
+app = FastAPI(title="Opmiere", version="0.1.6")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.1.5",
+        "phase": "0.1.6",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -431,6 +431,87 @@ def preview_refresh(body: PreviewRefreshBody) -> dict[str, Any]:
         height=body.height,
         fps=body.fps,
     )
+
+
+class GainBody(BaseModel):
+    clip_id: str
+    db: float
+    refresh_preview: bool = False
+
+
+class WaveformBody(BaseModel):
+    clip_id: str | None = None
+    media_id: str | None = None
+    num_peaks: int = 120
+
+
+class CloseGapsBody(BaseModel):
+    track_id: str | None = None
+    from_frame: int = 0
+
+
+@app.post("/api/clip/gain")
+def clip_gain(body: GainBody) -> dict[str, Any]:
+    ed = _ed()
+    result = ed.set_clip_gain(body.clip_id, body.db)
+    preview = _maybe_refresh(ed, enabled=body.refresh_preview, quick=True)
+    return {
+        "gain": result,
+        "timeline": ed.timeline_view(),
+        "preview": preview,
+    }
+
+
+@app.post("/api/waveform")
+def waveform(body: WaveformBody) -> dict[str, Any]:
+    return _ed().waveform_peaks(
+        clip_id=body.clip_id,
+        media_id=body.media_id,
+        num_peaks=body.num_peaks,
+    )
+
+
+@app.get("/api/media/{media_id}/thumb.jpg")
+def media_thumb_jpg(media_id: str, t: float = 0.1, width: int = 120) -> FileResponse:
+    ed = _ed()
+    try:
+        r = ed.media_thumbnail(media_id, time_seconds=t, width=width)
+    except Exception as e:
+        raise HTTPException(400, str(e)[:300]) from e
+    path = r.get("path")
+    if not path or not Path(path).exists():
+        raise HTTPException(404, "thumbnail missing")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+class TranscribeMediaBody(BaseModel):
+    media_id: str
+    model_size: str = "base"
+    language: str | None = None
+
+
+@app.post("/api/media/transcribe")
+def media_transcribe(body: TranscribeMediaBody) -> dict[str, Any]:
+    """Transcribe media and cache (needs faster-whisper)."""
+    return _ed().transcribe_media(
+        body.media_id,
+        model_size=body.model_size,
+        language=body.language,
+        cache=True,
+    )
+
+
+@app.post("/api/close_gaps")
+def close_gaps_api(body: CloseGapsBody) -> dict[str, Any]:
+    ed = _ed()
+    track_id = body.track_id
+    if not track_id:
+        vids = [t for t in ed.project.tracks if t.kind == "video"]
+        if not vids:
+            raise HTTPException(400, "no video track")
+        track_id = vids[0].id
+    result = ed.close_gaps(track_id, from_frame=body.from_frame)
+    return {"result": result, "timeline": ed.timeline_view()}
 
 
 @app.post("/api/undo")
