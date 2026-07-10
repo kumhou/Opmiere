@@ -5,7 +5,7 @@
 ### Added
 - Film **style_presets** library + `apply_style_preset` blend (ang_lee, horror, wes_anderson, cyberpunk, thriller, documentary)
 - **NVENC** delivery encode when available (libx264 fallback); doctor reports nvenc
-- `docs/VISION_ALIGNMENT.md` — external architecture review mapped to Opmiere
+- `docs/VISION_ALIGNMENT.md` — external review mapped in; **product = NLE**, director/style = hero feature
 
 ## 0.1.1 — 2026-07-10
 

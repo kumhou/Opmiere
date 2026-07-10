@@ -301,12 +301,15 @@ good-not-top-tier but real and fast. Cloud (ElevenLabs, Suno) remains the plugga
 Both implemented kinds run *through* the existing ComfyUI provider (it has native audio nodes) — no new
 architecture, exactly as predicted: "another provider / kind."
 
-### 5.10 Compositional generation & the agent-director loop — the north-star workflow
+### 5.10 Compositional generation & the agent-director loop — hero feature path
 
-This is the *why* behind every abstraction above (§1 north star). The product is not a generator with a
-timeline bolted on; it is a **director's toolkit** where a frontier LLM agent assembles a film from many
-controlled fragments. The agent's real intelligence is not "stringing clips" — it is **maintaining
-continuity** and **judging its own output**.
+**Product first:** Opmiere is a **video editor** (NLE). Cuts, tracks, grade, mix, preview, and
+delivery are the product. The agent-director loop is a **hero feature / workflow** on that
+editor — not a redefinition of the app into “a director with a timeline bolted on.”
+
+Generation + agent direction is the *why* agents care about the abstractions above. On the
+timeline, a frontier LLM can assemble a film from many controlled fragments; its real job is
+**maintaining continuity** and **judging its own output**, using the same Editor surface a human uses.
 
 **Cross-fragment consistency (the hard problem).** Independently generated shots drift in character,
 style, and lighting. The agent must actively counter this, and the framework must expose the levers:
