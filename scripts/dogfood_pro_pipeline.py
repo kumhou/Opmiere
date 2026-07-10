@@ -43,18 +43,24 @@ def _lavfi_clip(path: Path, color: str, dur: float = 1.2) -> None:
 
 
 def _trim_copy(src: Path, dest: Path, seconds: float = 2.5) -> None:
-    """Conform to project fps/size — P0 import rejects fps mismatch."""
+    """Shorten only — import_media auto-conforms fps to project timebase."""
     subprocess.run(
         [
             "ffmpeg", "-y", "-i", str(src), "-t", str(seconds),
-            "-vf", f"fps={FPS},scale={W}:{H}:force_original_aspect_ratio=decrease,"
-                   f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2",
-            "-r", str(FPS),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-ac", "2", "-ar", "48000", str(dest),
+            "-c", "copy", str(dest),
         ],
         capture_output=True, text=True, check=True,
     )
+    # If stream-copy fails (odd codecs), re-encode without fps force
+    if not dest.exists() or dest.stat().st_size < 1000:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(src), "-t", str(seconds),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-ac", "2", str(dest),
+            ],
+            capture_output=True, text=True, check=True,
+        )
 
 
 def prepare_sources(work: Path) -> list[Path]:

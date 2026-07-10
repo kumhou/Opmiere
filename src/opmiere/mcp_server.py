@@ -91,13 +91,14 @@ def get_project_state() -> dict:
 
 
 @mcp.tool()
-def import_media(src_path: str, kind: MediaKind) -> dict:
+def import_media(src_path: str, kind: MediaKind, conform: bool = True) -> dict:
     """Copy a source file into the project and register it as media.
 
-    kind: 'video' or 'audio' for now ('image' arrives with generation in P2).
-    Every field is filled from a real ffprobe of the file, never guessed.
+    kind: video | audio | image. Video fps that differs from the project
+    timebase is re-encoded into the bundle when conform=true (default) so
+    export frame-trim stays honest. origin.conformed records from/to fps.
     """
-    media = _require_editor().import_media(Path(src_path), kind)
+    media = _require_editor().import_media(Path(src_path), kind, conform=conform)
     return media.to_dict()
 
 
@@ -155,11 +156,9 @@ def place_from_file(
     for kind='image' (no intrinsic duration). The clip starts from the
     file's beginning; use trim_clip afterwards to cut into it.
 
-    origin: optional provenance dict for a *generated* file placed after the
-    generating session ended (place_generated needs its provider's live job;
-    this doesn't) - pass the provider/job/prompt/license info so
-    get_license_report and get_project_state still tell the truth about
-    where the media came from. Leave it out for the user's own files."""
+    Video fps that differs from the project is auto-conformed into the
+    bundle (re-encode). origin may include provenance for generated files.
+    """
     return (
         _require_editor()
         .place_from_file(Path(src_path), kind, track_id, start, duration_frames, origin=origin)

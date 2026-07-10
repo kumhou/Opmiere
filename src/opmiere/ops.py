@@ -161,9 +161,24 @@ class Editor:
         return self._find_clip_and_track(clip_id)[1]
 
     # --- operations (section 7) ------------------------------------------
-    def import_media(self, src_path: Path, kind: MediaKind) -> Media:
+    def import_media(
+        self,
+        src_path: Path,
+        kind: MediaKind,
+        *,
+        conform: bool = True,
+        origin: dict[str, Any] | None = None,
+    ) -> Media:
+        """Import media. Video fps mismatches re-encode to project fps when conform=True."""
         with self._mutate():
-            return _ffmpeg_import_media(self.bundle, self.project, Path(src_path), kind)
+            return _ffmpeg_import_media(
+                self.bundle,
+                self.project,
+                Path(src_path),
+                kind,
+                origin=origin,
+                conform=conform,
+            )
 
     def add_track(self, kind: TrackKind) -> Track:
         with self._mutate():
@@ -200,6 +215,8 @@ class Editor:
         start: int,
         duration_frames: int | None = None,
         origin: dict[str, Any] | None = None,
+        *,
+        conform: bool = True,
     ) -> Clip:
         """Import a local file and place it as a clip in one operation.
 
@@ -209,6 +226,9 @@ class Editor:
         stays required for kind="image" (no intrinsic duration to fall back
         on). One operation instead of import_media + add_clip also means one
         undo step, matching what "place this file" means to the caller.
+
+        Video sources whose fps ≠ project timebase are re-encoded into the
+        bundle when ``conform=True`` (default).
 
         ``origin`` lets provenance survive a process restart: place_generated
         needs the provider's in-memory job, so a finished job's result_path
@@ -230,7 +250,12 @@ class Editor:
         with self._mutate():
             track = self.project.track_by_id(track_id)
             media = _ffmpeg_import_media(
-                self.bundle, self.project, Path(src_path), kind, origin=origin
+                self.bundle,
+                self.project,
+                Path(src_path),
+                kind,
+                origin=origin,
+                conform=conform,
             )
             if duration_frames is None:
                 duration_frames = media.duration_frames

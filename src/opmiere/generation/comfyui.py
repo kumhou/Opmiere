@@ -303,7 +303,7 @@ class ComfyUIProvider(GenerationProvider):
         height = params.get("height", 320)
         num_frames = params.get("num_frames", 65)
         # Should match the target Opmiere project's timebase.fps (see
-        # get_project_state) - import_media's fps-match check will reject a
+        # get_project_state) - import_media auto-conforms mismatched fps; still
         # mismatch at place_generated time rather than silently misplacing
         # frames, so this is worth getting right up front, not a guess.
         frame_rate = params.get("frame_rate", 25)

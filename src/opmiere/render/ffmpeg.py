@@ -39,7 +39,7 @@ from ..model import (
 from .backend import RenderBackend
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
-__all__ = ["FFmpegBackend", "import_media"]
+__all__ = ["FFmpegBackend", "import_media", "conform_to_project_timebase"]
 
 # x/y position expressions for the "text" effect's ffmpeg drawtext filter.
 _TEXT_POSITION_EXPRESSIONS = {
@@ -1020,6 +1020,60 @@ class FFmpegBackend(RenderBackend):
         return output_path
 
 
+def _fps_mismatch(src_fps: float | None, project_fps: float) -> bool:
+    if src_fps is None or src_fps <= 0:
+        return True
+    return abs(float(src_fps) - float(project_fps)) > 0.05
+
+
+def conform_to_project_timebase(
+    src_path: Path,
+    dest_path: Path,
+    *,
+    project_fps: float,
+    sample_rate: int = 48000,
+    has_video: bool,
+    has_audio: bool,
+) -> dict[str, Any]:
+    """Re-encode ``src_path`` so video fps (and audio rate) match the project.
+
+    Returns a small report of what was done. Always writes ``dest_path``.
+    """
+    require_ffmpeg_tools()
+    src_path = Path(src_path)
+    dest_path = Path(dest_path)
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd: list[str] = ["ffmpeg", "-y", "-hide_banner", "-i", str(src_path)]
+    if has_video:
+        # fps filter + -r for container; yuv420p for broad decode
+        cmd += [
+            "-vf", f"fps={project_fps}",
+            "-r", str(project_fps),
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "18",
+        ]
+    else:
+        cmd += ["-vn"]
+    if has_audio:
+        cmd += ["-c:a", "aac", "-b:a", "192k", "-ar", str(sample_rate), "-ac", "2"]
+    else:
+        cmd += ["-an"]
+    # Keep reasonable duration; avoid open-ended image loops
+    cmd.append(str(dest_path))
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not dest_path.exists():
+        raise RuntimeError(
+            f"fps/timebase conform failed for {src_path}:\n"
+            f"{(proc.stderr or '')[-2500:]}"
+        )
+    return {
+        "path": str(dest_path),
+        "project_fps": project_fps,
+        "sample_rate": sample_rate,
+        "has_video": has_video,
+        "has_audio": has_audio,
+    }
+
+
 def import_media(
     bundle: Bundle,
     project: Project,
@@ -1027,21 +1081,19 @@ def import_media(
     kind: MediaKind,
     dest_name: str | None = None,
     origin: dict[str, Any] | None = None,
+    *,
+    conform: bool = True,
 ) -> Media:
     """Copy ``src_path`` into the bundle and register it on the project.
 
-    For kind="video"/"audio", every field is filled from a real ffprobe
-    result — never guessed. For kind="video" specifically, the source fps
-    must match the project's timebase fps; P0's FFmpegBackend trims by frame
-    number and assumes they agree (frame-rate conversion is future work).
+    For kind="video"/"audio", fields come from ffprobe (never guessed).
+    When video source fps ≠ project timebase and ``conform=True`` (default),
+    re-encode into the bundle at project fps so P0 frame-trim export works.
+    Set ``conform=False`` to keep the old hard reject on mismatch.
 
-    kind="image" is different in kind, not just degree: a still image has no
-    intrinsic duration to probe, so it gets IMAGE_VIRTUAL_DURATION_FRAMES
-    instead (see model.py for why that's a deliberate convention, not a
-    guess) and skips ffprobe entirely.
+    kind="image" uses IMAGE_VIRTUAL_DURATION_FRAMES (see model.py).
 
-    ``origin`` records how a generated asset came to exist (see model.Media);
-    None for ordinary imports of the user's own files.
+    ``origin`` records provenance; auto-conform appends ``origin["conformed"]``.
     """
     require_ffmpeg_tools()
     src_path = Path(src_path)
@@ -1060,24 +1112,67 @@ def import_media(
         )
 
     result: ProbeResult = probe(src_path)
+    origin_out: dict[str, Any] | None = dict(origin) if origin else None
+    import_src = src_path
 
     if kind == "video":
         if not result.has_video:
-            raise ValueError(f"{src_path} has no video stream; cannot import as kind='video'")
-        fps = result.fps or 0.0
-        if abs(fps - project.timebase.fps) > 0.01:
             raise ValueError(
-                f"P0 limitation: source fps {fps:.3f} does not match project "
-                f"fps {project.timebase.fps:.3f} ({src_path}). Re-encode to "
-                "match, or wait for frame-rate conversion in a later phase."
+                f"{src_path} has no video stream; cannot import as kind='video'"
+            )
+        src_fps = float(result.fps or 0.0)
+        if _fps_mismatch(src_fps, project.timebase.fps):
+            if not conform:
+                raise ValueError(
+                    f"source fps {src_fps:.3f} does not match project "
+                    f"fps {project.timebase.fps:.3f} ({src_path}). "
+                    "Pass conform=True (default) to re-encode, or match fps."
+                )
+            # Write conformed file into media/ directly (unique name)
+            stem = src_path.stem.replace(" ", "_")[:40]
+            conf_name = dest_name or f"{stem}_f{int(round(project.timebase.fps))}_{uuid.uuid4().hex[:6]}.mp4"
+            if not conf_name.lower().endswith((".mp4", ".mov", ".mkv", ".webm")):
+                conf_name = conf_name + ".mp4"
+            dest = bundle.media_dir / conf_name
+            if dest.exists():
+                conf_name = f"{stem}_{uuid.uuid4().hex[:8]}.mp4"
+                dest = bundle.media_dir / conf_name
+            conf_report = conform_to_project_timebase(
+                src_path,
+                dest,
+                project_fps=project.timebase.fps,
+                sample_rate=project.timebase.sample_rate,
+                has_video=True,
+                has_audio=result.has_audio,
+            )
+            result = probe(dest)
+            import_src = dest
+            origin_out = origin_out or {}
+            origin_out["conformed"] = {
+                "from_fps": src_fps,
+                "to_fps": project.timebase.fps,
+                "source_path": str(src_path.resolve()),
+                **conf_report,
+            }
+            # Already in media/ — register without second copy
+            duration_frames = project.timebase.seconds_to_frames(result.duration_seconds)
+            rel_path = dest.relative_to(bundle.media_dir).as_posix()
+            return project.add_media(
+                kind=kind,
+                path=rel_path,
+                duration_frames=duration_frames,
+                has_audio=result.has_audio,
+                origin=origin_out,
             )
     elif kind == "audio":
         if not result.has_audio:
-            raise ValueError(f"{src_path} has no audio stream; cannot import as kind='audio'")
+            raise ValueError(
+                f"{src_path} has no audio stream; cannot import as kind='audio'"
+            )
     else:
         raise ValueError(f"unknown media kind {kind!r}")
 
-    dest = bundle.import_file(src_path, dest_name=dest_name)
+    dest = bundle.import_file(import_src, dest_name=dest_name)
     duration_frames = project.timebase.seconds_to_frames(result.duration_seconds)
     rel_path = dest.relative_to(bundle.media_dir).as_posix()
     return project.add_media(
@@ -1085,5 +1180,5 @@ def import_media(
         path=rel_path,
         duration_frames=duration_frames,
         has_audio=result.has_audio,
-        origin=origin,
+        origin=origin_out,
     )
