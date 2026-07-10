@@ -266,7 +266,12 @@
         <button type="button" class="secondary" id="btnWaves">Load waveforms</button>
         <button type="button" class="secondary" id="btnMark">Mark here (M)</button>
       </div>
-      <p class="dragHint">键: Space播放 · ←/→ 跳帧 · M 标记 · S 分割 · Del ripple删 · [ ] 撤销重做</p>
+      <div class="row">
+        <button type="button" class="secondary" id="btnRazor">Razor all (C)</button>
+        <button type="button" class="secondary" id="btnXfade">X-fade selected</button>
+      </div>
+      <label><input type="checkbox" id="snapOn" checked style="width:auto" /> snap 拖拽吸附</label>
+      <p class="dragHint">键: Space播 · ←/→帧 · M标记 · S分割 · C全轨剃刀 · Del删 · [/]撤销 · F补洞</p>
       <label>Gain dB · <span id="gainLabel">0</span></label>
       <div class="row">
         <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
@@ -359,6 +364,7 @@
     let drag = null; // active drag state
     let waveCache = {}; // media_id -> peaks[]
     let markers = [];
+    let snapFrames = [];
 
     function log(msg) {
       const t = new Date().toLocaleTimeString();
@@ -438,6 +444,7 @@
       }
 
       markers = tv.markers || [];
+      snapFrames = tv.snap_frames || [];
       // ruler ticks + markers
       const nTicks = Math.min(8, Math.max(2, Math.ceil(scrubMax)));
       let ticks = '';
@@ -593,6 +600,19 @@
       return Math.round((dx / laneW) * viewDurF);
     }
 
+    function snapTo(frame, exclude) {
+      if (!document.getElementById('snapOn').checked) return frame;
+      const thr = 4;
+      let best = frame;
+      let bestD = thr + 1;
+      for (const p of snapFrames) {
+        if (exclude && exclude.has(p)) continue;
+        const d = Math.abs(p - frame);
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      return bestD <= thr ? best : frame;
+    }
+
     function applyDragVisual(d, dx) {
       const df = framesFromDx(dx, d.laneW, d.viewDurF);
       let start = d.origStart;
@@ -600,15 +620,28 @@
       let out = d.origOut;
       if (d.mode === 'move') {
         start = Math.max(0, d.origStart + df);
+        start = snapTo(start, new Set([d.origStart, d.origStart + (d.origOut - d.origIn)]));
       } else if (d.mode === 'left') {
         // right edge fixed: start and src_in move together
         let delta = df;
         if (d.origStart + delta < 0) delta = -d.origStart;
         if (d.origIn + delta >= d.origOut - 1) delta = d.origOut - 1 - d.origIn;
         start = d.origStart + delta;
+        start = snapTo(start, new Set([d.origStart + (d.origOut - d.origIn)]));
+        delta = start - d.origStart;
+        if (d.origIn + delta < 0) {
+          delta = -d.origIn;
+          start = d.origStart + delta;
+        }
+        if (d.origIn + delta >= d.origOut - 1) {
+          delta = d.origOut - 1 - d.origIn;
+          start = d.origStart + delta;
+        }
         inn = d.origIn + delta;
       } else if (d.mode === 'right') {
-        out = Math.max(d.origIn + 1, d.origOut + df);
+        let end = d.origStart + (d.origOut - d.origIn) + df;
+        end = snapTo(end, new Set([d.origStart]));
+        out = d.origIn + Math.max(1, end - d.origStart);
       }
       const dur = out - inn;
       d.el.style.left = (start / d.viewDurF) * 100 + '%';
@@ -1240,6 +1273,33 @@
         log('marker @ ' + fmtTc(t));
       } catch (e) { log(String(e.message || e)); }
     };
+    document.getElementById('btnRazor').onclick = async () => {
+      try {
+        const fps = (timeline && timeline.fps) || 30;
+        const frame = Math.round((+scrub.value || 0) * fps);
+        const r = await api('/api/razor', {
+          method: 'POST',
+          body: JSON.stringify({ at_frame: frame }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('razor @ ' + frame + ' splits=' + (r.split_count || 0));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnXfade').onclick = async () => {
+      if (!selectedClipId) { log('select the RIGHT clip of the cut'); return; }
+      try {
+        const r = await api('/api/transition', {
+          method: 'POST',
+          body: JSON.stringify({
+            right_clip_id: selectedClipId,
+            transition_type: 'cross_dissolve',
+            duration_frames: 12,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('xfade on ' + selectedClipId);
+      } catch (e) { log(String(e.message || e)); }
+    };
 
     // Keyboard NLE shortcuts (ignore when typing in inputs)
     window.addEventListener('keydown', async (ev) => {
@@ -1270,6 +1330,9 @@
           });
           if (r.timeline) renderTimeline(r.timeline);
           log('split @ ' + frame);
+        } else if (ev.key === 'c' || ev.key === 'C') {
+          ev.preventDefault();
+          document.getElementById('btnRazor').click();
         } else if (ev.key === 'Delete' || ev.key === 'Backspace') {
           if (!selectedClipId) return;
           ev.preventDefault();

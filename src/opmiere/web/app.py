@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.0")
+app = FastAPI(title="Opmiere", version="0.2.1")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.0",
+        "phase": "0.2.1",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -703,6 +703,37 @@ def split_at(body: SplitBody) -> dict[str, Any]:
         "second": b.to_dict(),
         "timeline": ed.timeline_view(),
     }
+
+
+class RazorBody(BaseModel):
+    at_frame: int
+    track_ids: list[str] | None = None
+
+
+class TransitionBody(BaseModel):
+    right_clip_id: str
+    transition_type: str = "cross_dissolve"
+    duration_frames: int = 12
+    left_clip_id: str | None = None
+
+
+@app.post("/api/razor")
+def razor_api(body: RazorBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.split_all_at(body.at_frame, track_ids=body.track_ids)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/transition")
+def transition_api(body: TransitionBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.link_transition(
+        body.right_clip_id,
+        transition_type=body.transition_type,
+        duration_frames=body.duration_frames,
+        left_clip_id=body.left_clip_id,
+    )
+    return {**r, "timeline": ed.timeline_view()}
 
 
 @app.get("/api/style_assets")

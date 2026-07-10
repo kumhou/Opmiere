@@ -250,6 +250,7 @@ class Editor:
             "can_redo": bool(self._redo_stack),
             "mix": self.mix_view(),
             "markers": self.list_markers()["markers"],
+            "snap_frames": self.snap_points()["frames"],
         }
 
     # --- undo/redo -----------------------------------------------------
@@ -856,24 +857,120 @@ class Editor:
 
     def split_clip(self, clip_id: str, at_frame: int) -> tuple[Clip, Clip]:
         with self._mutate():
-            track, clip = self._find_clip_and_track(clip_id)
-            if not (clip.start < at_frame < clip.end):
-                raise ValueError(
-                    f"split point {at_frame} must be strictly inside clip "
-                    f"{clip_id} ({clip.start}..{clip.end})"
-                )
-            split_src = clip.src_in + (at_frame - clip.start)
-            original_out = clip.src_out
-            clip.src_out = split_src
-            second = Clip(
-                id=new_id("clp"),
-                media=clip.media,
-                start=at_frame,
-                src_in=split_src,
-                src_out=original_out,
+            return self._split_clip_unlocked(clip_id, at_frame)
+
+    def _split_clip_unlocked(self, clip_id: str, at_frame: int) -> tuple[Clip, Clip]:
+        track, clip = self._find_clip_and_track(clip_id)
+        if not (clip.start < at_frame < clip.end):
+            raise ValueError(
+                f"split point {at_frame} must be strictly inside clip "
+                f"{clip_id} ({clip.start}..{clip.end})"
             )
-            track.clips.append(second)
-            return clip, second
+        # Map timeline → source accounting for speed
+        local = at_frame - clip.start
+        if clip.speed != 1.0:
+            split_src = clip.src_in + int(round(local * clip.speed))
+        else:
+            split_src = clip.src_in + local
+        split_src = min(max(split_src, clip.src_in + 1), clip.src_out - 1)
+        original_out = clip.src_out
+        clip.src_out = split_src
+        second = Clip(
+            id=new_id("clp"),
+            media=clip.media,
+            start=at_frame,
+            src_in=split_src,
+            src_out=original_out,
+            speed=clip.speed,
+            effects=list(clip.effects or []),
+        )
+        track.clips.append(second)
+        return clip, second
+
+    def split_all_at(
+        self,
+        at_frame: int,
+        *,
+        track_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Razor: split every clip that contains ``at_frame`` (one undo step).
+
+        track_ids=None → all tracks. Skips clips that don't contain the frame.
+        """
+        if not isinstance(at_frame, int):
+            raise ValueError("at_frame must be an int")
+        with self._mutate():
+            tracks = self.project.tracks
+            if track_ids is not None:
+                wanted = set(track_ids)
+                tracks = [t for t in tracks if t.id in wanted]
+            splits: list[dict[str, str]] = []
+            # collect ids first (mutating while iterating clips is unsafe)
+            targets: list[str] = []
+            for track in tracks:
+                for clip in list(track.clips):
+                    if clip.start < at_frame < clip.end:
+                        targets.append(clip.id)
+            for cid in targets:
+                left, right = self._split_clip_unlocked(cid, at_frame)
+                splits.append({
+                    "left_id": left.id,
+                    "right_id": right.id,
+                    "track_id": self._find_clip_and_track(left.id)[0].id,
+                })
+            return {
+                "at_frame": at_frame,
+                "split_count": len(splits),
+                "splits": splits,
+                "agent_note": "Razor cut across tracks; empty if playhead not inside any clip.",
+            }
+
+    def link_transition(
+        self,
+        right_clip_id: str,
+        *,
+        transition_type: str = "cross_dissolve",
+        duration_frames: int = 12,
+        left_clip_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Add a transition into ``right_clip_id`` from its previous hard-cut neighbor.
+
+        Optional left_clip_id validates adjacency. Same rules as add_transition.
+        """
+        track, right = self._find_clip_and_track(right_clip_id)
+        ordered = track.clips_in_order()
+        idx = ordered.index(right)
+        if idx == 0:
+            raise ValueError("right clip is first — nothing to dissolve from")
+        left = ordered[idx - 1]
+        if left_clip_id is not None and left.id != left_clip_id:
+            raise ValueError(
+                f"expected left neighbor {left_clip_id}, found {left.id}"
+            )
+        clip = self.add_transition(right_clip_id, transition_type, duration_frames)
+        return {
+            "left_clip_id": left.id,
+            "right_clip_id": clip.id,
+            "transition": dict(clip.transition_in or {}),
+            "agent_note": "Timeline shortened by duration_frames (overlap).",
+        }
+
+    def snap_points(self, *, include_markers: bool = True) -> dict[str, Any]:
+        """Frame positions useful for UI snap (clip edges + markers + 0)."""
+        points: set[int] = {0}
+        for track in self.project.tracks:
+            for clip in track.clips:
+                points.add(int(clip.start))
+                points.add(int(clip.end))
+        if include_markers:
+            for m in self.project.markers:
+                points.add(int(m.frame))
+        ordered = sorted(p for p in points if p >= 0)
+        return {
+            "frames": ordered,
+            "count": len(ordered),
+            "agent_note": "Snap drag/trim targets within a few frames of these.",
+        }
 
     def delete_clip(self, clip_id: str) -> Clip:
         with self._mutate():

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-07-10
+
+### Added
+- **Razor all tracks**: `split_all_at` / web `C` + Razor button
+- **Link transition**: `link_transition` (cross_dissolve on hard cut); web X-fade
+- **Snap points**: `snap_points` + timeline `snap_frames`; web drag snap toggle
+
 ## 0.2.0 — 2026-07-10
 
 ### Added

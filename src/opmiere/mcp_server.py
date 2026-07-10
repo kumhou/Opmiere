@@ -453,6 +453,34 @@ def list_markers() -> dict:
 
 
 @mcp.tool()
+def split_all_at(at_frame: int, track_ids: list[str] | None = None) -> dict:
+    """Razor: split every clip containing at_frame (all tracks or track_ids)."""
+    return _require_editor().split_all_at(at_frame, track_ids=track_ids)
+
+
+@mcp.tool()
+def link_transition(
+    right_clip_id: str,
+    transition_type: str = "cross_dissolve",
+    duration_frames: int = 12,
+    left_clip_id: str | None = None,
+) -> dict:
+    """Crossfade into right_clip from previous hard-cut neighbor."""
+    return _require_editor().link_transition(
+        right_clip_id,
+        transition_type=transition_type,
+        duration_frames=duration_frames,
+        left_clip_id=left_clip_id,
+    )
+
+
+@mcp.tool()
+def snap_points(include_markers: bool = True) -> dict:
+    """Clip edge / marker frames for UI snap."""
+    return _require_editor().snap_points(include_markers=include_markers)
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()
