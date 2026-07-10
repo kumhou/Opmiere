@@ -69,7 +69,8 @@ def test_plan_session_prefers_ingest_before_generate(tmp_path: Path):
     plan = plan_session(brief)
     assert plan["brief_ok"] is True
     tools = [s["tool"] for s in plan["steps"]]
-    assert tools.index("place_from_file") < tools.index("generate")
+    assert tools.index("apply_edit_plan") < tools.index("generate")
+    assert "plan_edit" in tools
     assert "create_project" in tools
     assert "export" in tools
     assert "quality_check" in tools

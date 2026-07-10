@@ -765,12 +765,113 @@ def detect_scenes(
 
 @mcp.tool()
 def suggest_project_fps(paths: list[str] | None = None, preference: str = "auto") -> dict:
-    """Recommend timeline fps (24 or 30) from source videos.
+    """Recommend timeline fps from source videos.
 
-    preference: auto | 24 | 30. Prefer matching user A-roll; do not drag the
-    whole project to 16fps just because one generated draft is 16.
+    preference: auto | 24 | 25 | 30 | 50 | 60. Highest honest option is 60 when
+    sources support it. Prefer matching user A-roll; do not drag the whole
+    project to 16fps just because one generated draft is 16. If requested >
+    source max, response includes warnings — agent must tell the user.
+    Works without an open project (pure analysis).
     """
-    return _require_editor().suggest_project_fps(paths, preference=preference)
+    from .render.asset_analysis import suggest_project_fps as _sug_fps
+    return _sug_fps(paths, preference=preference)
+
+
+@mcp.tool()
+def suggest_project_resolution(paths: list[str] | None = None, preference: str = "auto") -> dict:
+    """Recommend timeline resolution (720p / 1080p / 1440p / 4k).
+
+    preference: auto | 720p | 1080p | 1440p | 4k. If target exceeds largest
+    source, feasible_native=false and errors are set — agent must NOT claim
+    native 4k output from 1080p (or lower) footage; lower the canvas or get
+    higher-res material. Works without an open project.
+    """
+    from .render.asset_analysis import suggest_project_resolution as _sug_res
+    return _sug_res(paths, preference=preference)
+
+
+@mcp.tool()
+def check_delivery_limits(
+    paths: list[str] | None = None,
+    fps: float | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> dict:
+    """Gate before create_project/export: can we honestly claim this delivery?
+
+    ok=false means requested fps and/or resolution exceeds sources. Agent must
+    warn the user and lower targets or obtain better material — upscale is not
+    free quality. Works without an open project.
+    """
+    from .render.asset_analysis import check_delivery_limits as _check
+    return _check(paths=paths, fps=fps, width=width, height=height)
+
+
+@mcp.tool()
+def plan_edit(
+    paths: list[str] | None = None,
+    cards: list[dict] | None = None,
+    fps: float | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    cut_silence: bool = True,
+    prefer_scenes: bool = True,
+    max_clip_seconds: float | None = None,
+    transition_default: str = "auto",
+    transition_frames: int = 12,
+    analyze_if_needed: bool = True,
+) -> dict:
+    """Build an EDL-like edit plan from asset paths or analyze_asset cards.
+
+    Does not mutate the project. Review events + delivery.ok, then
+    apply_edit_plan. Uses silence keep_ranges / scenes when available;
+    transition_default=auto uses motion affinity. Works without open project
+    when paths/cards provided (uses fps/width/height args or 30/1920/1080).
+    """
+    if _editor is not None:
+        return _editor.plan_edit(
+            cards=cards,
+            paths=paths,
+            fps=fps,
+            width=width,
+            height=height,
+            cut_silence=cut_silence,
+            prefer_scenes=prefer_scenes,
+            max_clip_seconds=max_clip_seconds,
+            transition_default=transition_default,
+            transition_frames=transition_frames,
+            analyze_if_needed=analyze_if_needed,
+        )
+    from .render.asset_analysis import plan_edit as _plan
+    return _plan(
+        cards=cards,
+        paths=paths,
+        fps=float(fps if fps is not None else 30),
+        width=width if width is not None else 1920,
+        height=height if height is not None else 1080,
+        cut_silence=cut_silence,
+        prefer_scenes=prefer_scenes,
+        max_clip_seconds=max_clip_seconds,
+        transition_default=transition_default,
+        transition_frames=transition_frames,
+        analyze_if_needed=analyze_if_needed,
+    )
+
+
+@mcp.tool()
+def apply_edit_plan(
+    plan: dict,
+    track_ids: dict[str, str] | None = None,
+    skip_missing: bool = False,
+) -> dict:
+    """Apply a plan_edit result: import media, place clips, add transitions.
+
+    track_ids maps track_hint (video_base, audio_music, …) to existing track
+    ids; missing hints create tracks. Returns placed clip ids + errors.
+    """
+    return _require_editor().apply_edit_plan(
+        plan, track_ids=track_ids, skip_missing=skip_missing,
+    )
 
 
 @mcp.tool()

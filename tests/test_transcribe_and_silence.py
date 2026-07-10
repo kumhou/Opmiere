@@ -170,4 +170,4 @@ def test_plan_session_includes_transcribe_for_a_roll(tmp_path: Path):
     tools = [s["tool"] for s in plan["steps"]]
     assert "transcribe" in tools
     assert "suggest_silence_cuts" in tools
-    assert tools.index("place_from_file") < tools.index("transcribe")
+    assert tools.index("apply_edit_plan") < tools.index("transcribe")

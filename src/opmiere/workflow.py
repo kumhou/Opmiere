@@ -49,15 +49,22 @@ per-fragment quality gates; call `plan_director_session` for a step list.
 3. `plan_director_session(brief)` → ordered steps. Follow them; skip only with reason.
 
 ## 1. Project
-1. `suggest_project_fps(paths)` when constraints.fps unset — prefer **24 or 30**
-   from user A-roll (not 16 from a generated draft).
-2. `create_project(bundle_path, fps, width, height)`.
-3. `get_project_state` before any id-based call.
-4. `analyze_asset` each user file → role_guess, motion, transition_affinity,
-   scenes, silence; use cards to allocate order and transitions.
+1. `suggest_project_fps(paths)` when constraints.fps unset — **24 / 30 / 60**
+   (also 25/50) from user A-roll; highest honest option is 60 when sources
+   support it (not 16 from a generated draft).
+2. `suggest_project_resolution(paths)` when width/height unset — ladder up to
+   **4k**, but only if sources have those pixels. Then `check_delivery_limits`
+   if the user asked for high fps/res: if ok=false, **warn the user** and
+   lower the target — do not claim native 4k/60fps from weaker material.
+3. `create_project(bundle_path, fps, width, height)`.
+4. `get_project_state` before any id-based call.
+5. `analyze_asset` each user file → role_guess, motion, transition_affinity,
+   scenes, silence; use cards for `plan_edit` / shot allocation.
 
 ## 2. Ingest user assets first
-1. For each asset: `place_from_file` / import + place (video/audio/still).
+1. Prefer `plan_edit` → review events → `apply_edit_plan` for a first cut from
+   cards (silence keep_ranges / scenes / affinity transitions). Or manual
+   `place_from_file` / import + place per asset.
 2. Prefer **user media over generation** when a role is already filled
    (a_roll, music, vo). Generate only for **gaps**.
 3. `quality_check` on questionable user files (silent VO, black video) before
@@ -68,7 +75,7 @@ per-fragment quality gates; call `plan_director_session` for a step list.
 
 ## 3. Structure the cut
 1. Order A-roll / hero shots on the base video track (`place_after` + optional
-   `transition_type`).
+   `transition_type`), or refine the auto EDL from `apply_edit_plan`.
 2. Overlay B-roll / PiP / keyed layers on later video tracks.
 3. Timing: use silence keep_ranges to cut dead air; `set_speed` sparingly; leave room for VO.
 
@@ -233,13 +240,39 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
         add(
             "suggest_fps",
             "suggest_project_fps",
-            "Pick 24 or 30 from user footage (do not inherit low gen fps)",
+            "Pick 24/30/60 from user footage (do not inherit low gen fps)",
             params={"paths": asset_paths, "preference": "auto"},
+        )
+    if asset_paths and (
+        constraints.get("width") is None or constraints.get("height") is None
+        or (isinstance(width, (int, float)) and width >= 2560)
+        or (isinstance(height, (int, float)) and height >= 1440)
+    ):
+        add(
+            "suggest_resolution",
+            "suggest_project_resolution",
+            "Pick 720p–4k from sources; refuse native-4k claim if sources smaller",
+            params={"paths": asset_paths, "preference": "auto"},
+        )
+    if asset_paths and (
+        fps is not None
+        or (isinstance(width, (int, float)) and width >= 1920)
+    ):
+        add(
+            "check_delivery",
+            "check_delivery_limits",
+            "Gate: warn if requested fps/res exceeds source material",
+            params={
+                "paths": asset_paths,
+                "fps": fps,
+                "width": width,
+                "height": height,
+            },
         )
     add(
         "create_project",
         "create_project",
-        "Open a new .opm bundle at recommended or constraint fps",
+        "Open a new .opm bundle at recommended or constraint fps/resolution",
         params={
             "bundle_path": deliverable.get("bundle_path") or "<choose .opm path>",
             "fps": fps if fps is not None else 30,
@@ -257,16 +290,21 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
             note="Loop analyze_asset per file; cache under .opm/analysis/",
         )
         add(
-            "ingest_assets",
-            "place_from_file",
-            "Ingest each user asset onto appropriate tracks (prefer over generate)",
-            assets=assets,
-            note="Loop: one place_from_file (or import+place) per asset; quality_check flaky files",
+            "plan_edit",
+            "plan_edit",
+            "EDL from cards (silence/scenes/transitions); review delivery.ok + events",
+            params={"paths": asset_paths, "cut_silence": True, "prefer_scenes": True},
+        )
+        add(
+            "apply_edit_plan",
+            "apply_edit_plan",
+            "Apply reviewed EDL (import + place + transitions)",
+            note="Agent may skip and place_from_file manually if plan needs rework",
         )
         add(
             "structure_cut",
             "place_after",
-            "Order A-roll / hero shots; optional transition_type on place_after",
+            "Refine order / overlays after auto EDL; optional transition_type",
             note="Base video track first; overlays later",
         )
         # User talking-head / a_roll: understand speech + cut dead air before polish

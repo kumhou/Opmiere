@@ -43,9 +43,12 @@ from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
 from .render.asr import transcribe as _transcribe
 from .render.asr import write_srt as _write_srt
 from .render.asset_analysis import analyze_asset as _analyze_asset
+from .render.asset_analysis import check_delivery_limits as _check_delivery_limits
 from .render.asset_analysis import load_analysis_cache as _load_analysis_cache
+from .render.asset_analysis import plan_edit as _plan_edit
 from .render.asset_analysis import save_analysis_cache as _save_analysis_cache
 from .render.asset_analysis import suggest_project_fps as _suggest_project_fps
+from .render.asset_analysis import suggest_project_resolution as _suggest_project_resolution
 from .render.scene_detect import detect_scenes as _detect_scenes
 from .render.stems import separate_stems as _separate_stems
 
@@ -892,8 +895,181 @@ class Editor:
         paths: list[str] | None = None,
         preference: str = "auto",
     ) -> dict[str, Any]:
-        """Recommend 24 or 30 fps for the timeline from source material."""
+        """Recommend timeline fps: 24/25/30/50/60 from sources (max 60)."""
         return _suggest_project_fps(paths, preference=preference)
+
+    def suggest_project_resolution(
+        self,
+        paths: list[str] | None = None,
+        preference: str = "auto",
+    ) -> dict[str, Any]:
+        """Recommend timeline resolution (720p–4k). errors if sources too small."""
+        return _suggest_project_resolution(paths, preference=preference)
+
+    def check_delivery_limits(
+        self,
+        paths: list[str] | None = None,
+        *,
+        fps: float | None = None,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> dict[str, Any]:
+        """Gate: can we honestly claim this fps/resolution from these sources?"""
+        return _check_delivery_limits(paths=paths, fps=fps, width=width, height=height)
+
+    def plan_edit(
+        self,
+        cards: list[dict[str, Any]] | None = None,
+        paths: list[str] | None = None,
+        *,
+        fps: float | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        cut_silence: bool = True,
+        prefer_scenes: bool = True,
+        max_clip_seconds: float | None = None,
+        transition_default: str = "auto",
+        transition_frames: int = 12,
+        analyze_if_needed: bool = True,
+    ) -> dict[str, Any]:
+        """Build EDL from asset cards/paths. Does not mutate the project."""
+        return _plan_edit(
+            cards=cards,
+            paths=paths,
+            fps=float(fps if fps is not None else self.project.timebase.fps),
+            width=width if width is not None else self.project.resolution.w,
+            height=height if height is not None else self.project.resolution.h,
+            cut_silence=cut_silence,
+            prefer_scenes=prefer_scenes,
+            max_clip_seconds=max_clip_seconds,
+            transition_default=transition_default,
+            transition_frames=transition_frames,
+            analyze_if_needed=analyze_if_needed,
+        )
+
+    def apply_edit_plan(
+        self,
+        plan: dict[str, Any],
+        *,
+        track_ids: dict[str, str] | None = None,
+        skip_missing: bool = False,
+    ) -> dict[str, Any]:
+        """Apply a plan_edit EDL onto the open project (import + place + transitions).
+
+        ``track_ids`` maps track_hint → existing track id. Missing hints create
+        tracks: video_base first video, video_overlay later video, audio_* on
+        audio tracks in order.
+        """
+        if not isinstance(plan, dict) or "events" not in plan:
+            raise ValueError("plan must be a plan_edit result with 'events'")
+        events = plan.get("events") or []
+        if not isinstance(events, list):
+            raise ValueError("plan.events must be a list")
+
+        hint_to_id: dict[str, str] = dict(track_ids or {})
+        placed: list[dict[str, Any]] = []
+        errors: list[str] = []
+        media_by_path: dict[str, str] = {}
+        last_clip_on: dict[str, str] = {}
+
+        def _ensure_track(hint: str) -> str:
+            if hint in hint_to_id:
+                return hint_to_id[hint]
+            kind: TrackKind = "video" if hint.startswith("video") else "audio"
+            if hint in ("video_base", "audio_music") or hint.endswith("_base"):
+                existing = [t for t in self.project.tracks if t.kind == kind]
+                used = set(hint_to_id.values())
+                for t in existing:
+                    if t.id not in used:
+                        hint_to_id[hint] = t.id
+                        return t.id
+            trk = self.add_track(kind)
+            hint_to_id[hint] = trk.id
+            return trk.id
+
+        for i, ev in enumerate(events):
+            if not isinstance(ev, dict) or ev.get("op") != "place":
+                errors.append(f"events[{i}]: skip non-place op")
+                continue
+            path = ev.get("path")
+            if not path or not Path(path).exists():
+                msg = f"events[{i}]: missing file {path!r}"
+                if skip_missing:
+                    errors.append(msg)
+                    continue
+                raise FileNotFoundError(msg)
+
+            kind = ev.get("kind") or "video"
+            if kind not in ("video", "audio", "image"):
+                kind = "video"
+            hint = str(ev.get("track_hint") or ("video_base" if kind != "audio" else "audio_music"))
+            track_id = _ensure_track(hint)
+
+            try:
+                if path not in media_by_path:
+                    media = self.import_media(Path(path), kind)  # type: ignore[arg-type]
+                    media_by_path[path] = media.id
+                media_id = media_by_path[path]
+                media_obj = self.project.media_by_id(media_id)
+
+                src_in = int(ev.get("src_in_frames") or 0)
+                src_out = ev.get("src_out_frames")
+                if src_out is None:
+                    src_out = media_obj.duration_frames
+                else:
+                    src_out = int(src_out)
+                if media_obj.duration_frames and src_out > media_obj.duration_frames:
+                    src_out = media_obj.duration_frames
+                if src_out <= src_in:
+                    errors.append(f"events[{i}]: empty range after clamp")
+                    continue
+
+                prev_id = last_clip_on.get(track_id)
+                if prev_id is None:
+                    track = self.project.track_by_id(track_id)
+                    ordered = track.clips_in_order()
+                    start = ordered[-1].end if ordered else 0
+                    clip = self.add_clip(track_id, media_id, start, src_in, src_out)
+                else:
+                    clip = self.place_after(
+                        prev_id, media_id, src_in=src_in, src_out=src_out,
+                    )
+
+                t_in = ev.get("transition_in")
+                if t_in and isinstance(t_in, dict) and prev_id is not None:
+                    t_type = t_in.get("type")
+                    t_frames = int(t_in.get("duration_frames") or 0)
+                    if t_type and t_frames > 0 and t_type in KNOWN_TRANSITION_TYPES:
+                        try:
+                            clip = self.add_transition(clip.id, t_type, t_frames)
+                        except ValueError as te:
+                            errors.append(f"events[{i}] transition: {te}")
+
+                last_clip_on[track_id] = clip.id
+                placed.append({
+                    "event_index": i,
+                    "clip_id": clip.id,
+                    "media_id": media_id,
+                    "track_id": track_id,
+                    "track_hint": hint,
+                    "start": clip.start,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "transition_in": clip.transition_in,
+                })
+            except Exception as e:
+                if skip_missing:
+                    errors.append(f"events[{i}]: {e}")
+                    continue
+                raise
+
+        return {
+            "placed": placed,
+            "placed_count": len(placed),
+            "track_ids": hint_to_id,
+            "errors": errors,
+            "duration_frames": self.duration_frames(),
+        }
 
     def analyze_asset(
         self,
