@@ -295,11 +295,15 @@
         <span id="selCount">选中 0</span>
         <button type="button" class="secondary" id="btnSelLeft">←1f</button>
         <button type="button" class="secondary" id="btnSelRight">1f→</button>
+        <button type="button" class="secondary" id="btnRipNudgeL" title="Alt ripple">⇐ ripple</button>
+        <button type="button" class="secondary" id="btnRipNudgeR" title="Alt ripple">ripple ⇒</button>
+        <button type="button" class="secondary" id="btnInsertTime">Insert 15f</button>
+        <button type="button" class="secondary" id="btnExtractIO">Extract I/O</button>
         <button type="button" class="secondary" id="btnSelMute">Mute</button>
         <button type="button" class="danger" id="btnSelRipple">Ripple del</button>
         <button type="button" class="secondary" id="btnSelClear">Clear</button>
       </div>
-      <p class="dragHint">Ctrl/⌘ 点多选 · Shift 同轨范围 · Space/M/S/C/I/O · Ctrl+C/V/D · Del · F</p>
+      <p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p>
       <label>Gain dB · <span id="gainLabel">0</span></label>
       <div class="row">
         <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
@@ -1465,6 +1469,49 @@
       selectedClipId = null;
       applySelectionStyles();
     };
+    async function doRippleNudge(delta) {
+      if (!selectedClipId) { log('select a clip for ripple nudge'); return; }
+      const r = await api('/api/ripple_nudge', {
+        method: 'POST',
+        body: JSON.stringify({ clip_id: selectedClipId, delta_frames: delta }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      log('ripple_nudge ' + delta + ' moved=' + (r.count || 0));
+    }
+    document.getElementById('btnRipNudgeL').onclick = async () => {
+      try { await doRippleNudge(-1); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRipNudgeR').onclick = async () => {
+      try { await doRippleNudge(1); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnInsertTime').onclick = async () => {
+      try {
+        const fps = (timeline && timeline.fps) || 30;
+        const frame = Math.round((+scrub.value || 0) * fps);
+        const r = await api('/api/insert_time', {
+          method: 'POST',
+          body: JSON.stringify({ at_frame: frame, frames: 15 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('insert_time @' + frame + ' +15f');
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnExtractIO').onclick = async () => {
+      try {
+        const io = await api('/api/in_out');
+        if (!io.ready) { log('set In/Out first'); return; }
+        const r = await api('/api/extract_time', {
+          method: 'POST',
+          body: JSON.stringify({
+            start_frame: io.in_frame,
+            end_frame: io.out_frame,
+            ripple: true,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('extract_time removed=' + (r.removed || []).length);
+      } catch (e) { log(String(e.message || e)); }
+    };
     document.getElementById('btnCloseGaps').onclick = async () => {
       try {
         const r = await api('/api/close_gaps', {
@@ -1535,10 +1582,18 @@
           document.getElementById('btnPlay').click();
         } else if (ev.key === 'ArrowLeft') {
           ev.preventDefault();
-          seekTo(Math.max(0, (+scrub.value || 0) - (ev.shiftKey ? 1 : 1 / fps)));
+          if (ev.altKey && selectedClipId) {
+            await doRippleNudge(ev.shiftKey ? -5 : -1);
+          } else {
+            seekTo(Math.max(0, (+scrub.value || 0) - (ev.shiftKey ? 1 : 1 / fps)));
+          }
         } else if (ev.key === 'ArrowRight') {
           ev.preventDefault();
-          seekTo((+scrub.value || 0) + (ev.shiftKey ? 1 : 1 / fps));
+          if (ev.altKey && selectedClipId) {
+            await doRippleNudge(ev.shiftKey ? 5 : 1);
+          } else {
+            seekTo((+scrub.value || 0) + (ev.shiftKey ? 1 : 1 / fps));
+          }
         } else if (ev.key === 'm' || ev.key === 'M') {
           ev.preventDefault();
           document.getElementById('btnMark').click();

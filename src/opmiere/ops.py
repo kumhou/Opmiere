@@ -761,6 +761,179 @@ class Editor:
                 "count": len(moved),
             }
 
+    def ripple_nudge(
+        self,
+        clip_id: str,
+        delta_frames: int,
+        *,
+        include_self: bool = True,
+    ) -> dict[str, Any]:
+        """Move this clip and every later clip on the same track by delta.
+
+        Keeps relative packing (magnetic-style). Negative delta clamped so
+        the leftmost moved clip does not go below 0.
+        """
+        if not isinstance(delta_frames, int):
+            raise ValueError("delta_frames must be an int")
+        if delta_frames == 0:
+            return {"clip_id": clip_id, "delta_frames": 0, "moved": [], "count": 0}
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            targets = [
+                c for c in track.clips_in_order()
+                if c.start > clip.start or (include_self and c.id == clip.id)
+            ]
+            if not include_self:
+                targets = [c for c in targets if c.id != clip.id]
+            if not targets:
+                return {"clip_id": clip_id, "delta_frames": 0, "moved": [], "count": 0}
+            min_start = min(c.start for c in targets)
+            d = delta_frames
+            if min_start + d < 0:
+                d = -min_start
+            moved: list[dict[str, Any]] = []
+            for c in targets:
+                old = c.start
+                c.start = old + d
+                # clear transition into a clip that slid (overlap math gets messy)
+                if c.transition_in is not None and c.id != clip.id:
+                    c.transition_in = None
+                moved.append({"clip_id": c.id, "from": old, "to": c.start})
+            return {
+                "clip_id": clip_id,
+                "track_id": track.id,
+                "delta_frames": d,
+                "moved": moved,
+                "count": len(moved),
+                "agent_note": "Ripple nudge: self + later clips on track; transitions cleared on followers.",
+            }
+
+    def insert_time(
+        self,
+        track_id: str,
+        at_frame: int,
+        frames: int,
+    ) -> dict[str, Any]:
+        """Push all clips starting at/after at_frame to the right by frames.
+
+        Opens a hole (then fill_track_gaps if you need black/silence).
+        """
+        if not isinstance(at_frame, int) or at_frame < 0:
+            raise ValueError("at_frame must be >= 0")
+        if not isinstance(frames, int) or frames <= 0:
+            raise ValueError("frames must be a positive int")
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            moved: list[dict[str, Any]] = []
+            for c in track.clips_in_order():
+                if c.start >= at_frame:
+                    old = c.start
+                    c.start = old + frames
+                    if c.transition_in is not None:
+                        c.transition_in = None
+                    moved.append({"clip_id": c.id, "from": old, "to": c.start})
+            return {
+                "track_id": track_id,
+                "at_frame": at_frame,
+                "frames": frames,
+                "moved": moved,
+                "count": len(moved),
+                "agent_note": "Gap opened; call fill_track_gaps(mode=slug) for black/silence pads.",
+            }
+
+    def extract_time(
+        self,
+        track_id: str,
+        start_frame: int,
+        end_frame: int,
+        *,
+        ripple: bool = True,
+    ) -> dict[str, Any]:
+        """Delete the time range [start, end) on one track.
+
+        Clips fully inside are removed. Clips overlapping the range are trimmed
+        (head/tail). With ripple=True, later clips pull left by (end-start).
+        """
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        gap = end_frame - start_frame
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            removed: list[str] = []
+            trimmed: list[dict[str, Any]] = []
+
+            # 1) Clips that fully span the range → split out the middle
+            for clip in list(track.clips_in_order()):
+                if clip.start < start_frame and clip.end > end_frame:
+                    left, mid = self._split_clip_unlocked(clip.id, start_frame)
+                    if mid.start < end_frame < mid.end:
+                        mid_clip, _right = self._split_clip_unlocked(mid.id, end_frame)
+                        track.clips.remove(mid_clip)
+                        removed.append(mid_clip.id)
+                    elif mid.end <= end_frame:
+                        track.clips.remove(mid)
+                        removed.append(mid.id)
+
+            # 2) Fully inside → remove
+            for clip in list(track.clips_in_order()):
+                if clip.start >= start_frame and clip.end <= end_frame:
+                    track.clips.remove(clip)
+                    removed.append(clip.id)
+
+            # 3) Partial overlaps (head or tail only)
+            for clip in list(track.clips_in_order()):
+                c_end = clip.end
+                if c_end <= start_frame or clip.start >= end_frame:
+                    continue
+                if clip.start < start_frame < c_end:
+                    local = start_frame - clip.start
+                    if clip.speed != 1.0:
+                        new_out = clip.src_in + int(round(local * clip.speed))
+                    else:
+                        new_out = clip.src_in + local
+                    new_out = max(clip.src_in + 1, min(new_out, clip.src_out))
+                    old_out = clip.src_out
+                    clip.src_out = new_out
+                    trimmed.append({
+                        "clip_id": clip.id, "edge": "tail",
+                        "src_out": {"from": old_out, "to": new_out},
+                    })
+                elif clip.start < end_frame <= c_end and clip.start >= start_frame:
+                    local = end_frame - clip.start
+                    if clip.speed != 1.0:
+                        new_in = clip.src_in + int(round(local * clip.speed))
+                    else:
+                        new_in = clip.src_in + local
+                    new_in = min(clip.src_out - 1, max(new_in, clip.src_in))
+                    clip.src_in = new_in
+                    clip.start = end_frame
+                    trimmed.append({
+                        "clip_id": clip.id, "edge": "head", "start": clip.start,
+                    })
+
+            if ripple and gap > 0:
+                for c in track.clips_in_order():
+                    if c.start >= end_frame:
+                        c.start = max(0, c.start - gap)
+                        if c.transition_in is not None:
+                            c.transition_in = None
+
+            return {
+                "track_id": track_id,
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "removed": removed,
+                "trimmed": trimmed,
+                "ripple": ripple,
+                "agent_note": "Time extracted; use fill_track_gaps if holes remain without ripple.",
+            }
+
     def set_clips_muted(self, clip_ids: list[str], muted: bool = True) -> dict[str, Any]:
         """Mute/unmute many clips (one undo)."""
         if not clip_ids:

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.4")
+app = FastAPI(title="Opmiere", version="0.2.5")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.4",
+        "phase": "0.2.5",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -873,6 +873,62 @@ def clips_mute(body: MultiClipsBody) -> dict[str, Any]:
 def clips_delete(body: MultiClipsBody) -> dict[str, Any]:
     ed = _ed()
     r = ed.delete_clips(body.clip_ids, ripple=body.ripple)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RippleNudgeBody(BaseModel):
+    clip_id: str
+    delta_frames: int
+    include_self: bool = True
+
+
+class InsertTimeBody(BaseModel):
+    track_id: str | None = None
+    at_frame: int
+    frames: int = 15
+
+
+class ExtractTimeBody(BaseModel):
+    track_id: str | None = None
+    start_frame: int
+    end_frame: int
+    ripple: bool = True
+
+
+@app.post("/api/ripple_nudge")
+def ripple_nudge_api(body: RippleNudgeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.ripple_nudge(
+        body.clip_id, body.delta_frames, include_self=body.include_self,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/insert_time")
+def insert_time_api(body: InsertTimeBody) -> dict[str, Any]:
+    ed = _ed()
+    tid = body.track_id
+    if not tid:
+        vids = [t for t in ed.project.tracks if t.kind == "video"]
+        if not vids:
+            raise HTTPException(400, "no video track")
+        tid = vids[0].id
+    r = ed.insert_time(tid, body.at_frame, body.frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/extract_time")
+def extract_time_api(body: ExtractTimeBody) -> dict[str, Any]:
+    ed = _ed()
+    tid = body.track_id
+    if not tid:
+        vids = [t for t in ed.project.tracks if t.kind == "video"]
+        if not vids:
+            raise HTTPException(400, "no video track")
+        tid = vids[0].id
+    r = ed.extract_time(
+        tid, body.start_frame, body.end_frame, ripple=body.ripple,
+    )
     return {**r, "timeline": ed.timeline_view()}
 
 

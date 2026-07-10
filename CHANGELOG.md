@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5 — 2026-07-10
+
+### Added
+- **Ripple nudge**: `ripple_nudge` (clip + later on track)
+- **Insert / extract time**: `insert_time`, `extract_time` (lift range + optional ripple)
+- Web: Alt+←/→ ripple, Insert 15f, Extract I/O
+
 ## 0.2.4 — 2026-07-10
 
 ### Added

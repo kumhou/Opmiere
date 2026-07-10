@@ -585,6 +585,33 @@ def delete_clips(clip_ids: list[str], ripple: bool = False) -> dict:
 
 
 @mcp.tool()
+def ripple_nudge(clip_id: str, delta_frames: int, include_self: bool = True) -> dict:
+    """Move clip + all later clips on same track (magnetic-style)."""
+    return _require_editor().ripple_nudge(
+        clip_id, delta_frames, include_self=include_self,
+    )
+
+
+@mcp.tool()
+def insert_time(track_id: str, at_frame: int, frames: int) -> dict:
+    """Open a hole: push clips at/after at_frame to the right."""
+    return _require_editor().insert_time(track_id, at_frame, frames)
+
+
+@mcp.tool()
+def extract_time(
+    track_id: str,
+    start_frame: int,
+    end_frame: int,
+    ripple: bool = True,
+) -> dict:
+    """Lift [start, end) on one track; ripple pulls later clips left."""
+    return _require_editor().extract_time(
+        track_id, start_frame, end_frame, ripple=ripple,
+    )
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()
