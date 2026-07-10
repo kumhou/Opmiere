@@ -35,6 +35,7 @@ class ProbeResult:
     height: int | None
     has_video: bool
     has_audio: bool
+    sample_rate: int | None = None  # first audio stream, if any
 
 
 def _parse_rate(rate: str) -> float:
@@ -50,7 +51,10 @@ def probe(path: Path) -> ProbeResult:
     require_ffmpeg_tools()
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(
+            f"media file not found: {path} "
+            f"(check the path exists and is not a directory)"
+        )
 
     proc = subprocess.run(
         [
@@ -65,24 +69,46 @@ def probe(path: Path) -> ProbeResult:
         text=True,
     )
     if proc.returncode != 0:
-        raise RuntimeError(f"ffprobe failed on {path}:\n{proc.stderr}")
+        raise RuntimeError(
+            f"ffprobe failed on {path} (corrupt or unsupported media?):\n"
+            f"{proc.stderr[-1500:] if proc.stderr else '(no stderr)'}"
+        )
 
-    data = json.loads(proc.stdout)
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"ffprobe returned invalid JSON for {path}: {e}") from e
     streams = data.get("streams", [])
     fmt = data.get("format", {})
 
     video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
-    has_audio = any(s.get("codec_type") == "audio" for s in streams)
+    audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    has_audio = audio_stream is not None
+    sample_rate: int | None = None
+    if audio_stream and audio_stream.get("sample_rate"):
+        try:
+            sample_rate = int(float(audio_stream["sample_rate"]))
+        except (TypeError, ValueError):
+            sample_rate = None
 
     duration_str = fmt.get("duration") or (video_stream or {}).get("duration")
+    if duration_str is None and audio_stream:
+        duration_str = audio_stream.get("duration")
     if duration_str is None:
-        raise RuntimeError(f"ffprobe returned no duration for {path}")
+        raise RuntimeError(
+            f"ffprobe returned no duration for {path} "
+            f"(empty or header-only file?)"
+        )
     duration_seconds = float(duration_str)
 
     if video_stream is None:
-        return ProbeResult(duration_seconds, None, None, None, False, has_audio)
+        return ProbeResult(
+            duration_seconds, None, None, None, False, has_audio, sample_rate,
+        )
 
     fps = _parse_rate(video_stream.get("r_frame_rate", "0/1"))
     width = video_stream.get("width")
     height = video_stream.get("height")
-    return ProbeResult(duration_seconds, fps, width, height, True, has_audio)
+    return ProbeResult(
+        duration_seconds, fps, width, height, True, has_audio, sample_rate,
+    )

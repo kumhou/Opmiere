@@ -1266,11 +1266,62 @@ def import_media(
     elif kind == "audio":
         if not result.has_audio:
             raise ValueError(
-                f"{src_path} has no audio stream; cannot import as kind='audio'"
+                f"{src_path} has no audio stream; cannot import as kind='audio' "
+                f"(file may be video-only or corrupt)"
+            )
+        # Resample to project sample_rate when far from timebase (mix safety)
+        src_sr = result.sample_rate
+        proj_sr = int(project.timebase.sample_rate)
+        if (
+            conform
+            and src_sr is not None
+            and abs(int(src_sr) - proj_sr) > 50
+        ):
+            stem = src_path.stem.replace(" ", "_")[:40]
+            conf_name = dest_name or f"{stem}_sr{proj_sr}_{uuid.uuid4().hex[:6]}.m4a"
+            if not conf_name.lower().endswith((".m4a", ".wav", ".mp3", ".aac", ".flac")):
+                conf_name = conf_name + ".m4a"
+            dest = bundle.media_dir / conf_name
+            if dest.exists():
+                dest = bundle.media_dir / f"{stem}_{uuid.uuid4().hex[:8]}.m4a"
+            conf_report = conform_to_project_timebase(
+                src_path,
+                dest,
+                project_fps=project.timebase.fps,
+                sample_rate=proj_sr,
+                has_video=False,
+                has_audio=True,
+                fit="none",
+                force_fps=False,
+            )
+            after = probe(dest)
+            origin_out = origin_out or {}
+            origin_out["conformed"] = {
+                "from_sample_rate": src_sr,
+                "to_sample_rate": proj_sr,
+                "source_path": str(src_path.resolve()),
+                **{k: v for k, v in conf_report.items() if k != "path"},
+            }
+            duration_frames = project.timebase.seconds_to_frames(
+                after.duration_seconds
+            )
+            rel_path = dest.relative_to(bundle.media_dir).as_posix()
+            return project.add_media(
+                kind=kind,
+                path=rel_path,
+                duration_frames=duration_frames,
+                has_audio=True,
+                origin=origin_out,
             )
     else:
-        raise ValueError(f"unknown media kind {kind!r}")
+        raise ValueError(
+            f"unknown media kind {kind!r}; use video, audio, or image"
+        )
 
+    if not src_path.exists():
+        raise FileNotFoundError(
+            f"cannot import — file not found: {src_path}"
+        )
     dest = bundle.import_file(src_path, dest_name=dest_name)
     duration_frames = project.timebase.seconds_to_frames(result.duration_seconds)
     rel_path = dest.relative_to(bundle.media_dir).as_posix()

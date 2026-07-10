@@ -11,10 +11,10 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: pre-alpha.** Headless core + **P3 minimal web** (`opmiere-web`). Working today: agent-driven
-> timeline editing (cut/trim/effects/transitions/captions/scenes), local generation (image/video/speech/
-> music/sfx), film workflow brief/plan, and a thin browser shell for create/place/export. See
-> [ARCHITECTURE.md](ARCHITECTURE.md) section 9 for built vs planned.
+> **Status: 0.1.0 — agent-native cut baseline (pre-consumer-GUI).** Headless core + MCP + P3 web shell.
+> Professional delivery gates, material intelligence, native Windows install, lightweight preview.
+> Not a full Premiere replacement. See [CHANGELOG.md](CHANGELOG.md), [docs/TOOLS.md](docs/TOOLS.md),
+> [docs/AGENT_WARNINGS.md](docs/AGENT_WARNINGS.md), [ARCHITECTURE.md](ARCHITECTURE.md) §9.
 
 ## Install (Windows, native — no Docker)
 
@@ -54,8 +54,11 @@ Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stem
 
 ```bash
 python scripts/dogfood_pro_pipeline.py
-# → scripts/_dogfood_pro_out/export_loud.mp4 + report.json
+# → scripts/_dogfood_pro_out/{report.json,checklist.md,export_loud.mp4}
+# Exit 0 only if hard gates pass (doctor, EDL, export, geometry).
 ```
+
+Agent docs: [docs/TOOLS.md](docs/TOOLS.md) · [docs/AGENT_WARNINGS.md](docs/AGENT_WARNINGS.md)
 
 ## Why
 

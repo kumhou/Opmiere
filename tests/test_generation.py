@@ -156,7 +156,11 @@ def test_place_generated_maps_speech_kind_to_audio_media(editor, provider, sampl
 
     media = editor.project.media_by_id(clip.media)
     assert media.kind == "audio"
-    assert media.origin == {"provider": "fake", "job": job_id, "prompt": "hello there", "license": None}
+    assert media.origin is not None
+    assert media.origin["provider"] == "fake"
+    assert media.origin["job"] == job_id
+    assert media.origin["prompt"] == "hello there"
+    # sample_rate conform may add origin["conformed"] — provenance fields stay
 
 
 def test_place_generated_maps_upscale_kind_to_image_media(editor, provider, sample_image):

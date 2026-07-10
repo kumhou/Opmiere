@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.0.1-p3")
+app = FastAPI(title="Opmiere", version="0.1.0")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 # last sequence sheet / preview frame for UI

@@ -93,6 +93,23 @@ def test_import_fit_contain_letterboxes(tmp_path: Path):
     assert conf.height == 90
 
 
+def test_audio_sample_rate_conform(tmp_path: Path):
+    src = tmp_path / "vo44.wav"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", "sine=frequency=440:duration=0.5",
+            "-ar", "44100", str(src),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    ed = Editor.create(tmp_path / "p.opm", fps=30, width=160, height=90)
+    # project default sample_rate 48000
+    media = ed.import_media(src, "audio", conform=True)
+    assert media.origin and "conformed" in media.origin
+    assert media.origin["conformed"].get("to_sample_rate") == 48000
+
+
 def test_import_fit_cover_fills(tmp_path: Path):
     src = tmp_path / "tall.mp4"
     _video_size(src, "90x160", fps=30.0)
