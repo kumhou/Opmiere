@@ -402,6 +402,123 @@ class Editor:
                 "shifted": shifted,
             }
 
+    def slip_clip(self, clip_id: str, delta_src_frames: int) -> dict[str, Any]:
+        """Slip: slide source in/out together; timeline start/duration unchanged.
+
+        Positive delta uses later source material (window moves forward in the
+        file). Clamped to media bounds. speed must be 1.0 for now.
+        """
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if clip.speed != 1.0:
+                raise ValueError("slip_clip requires speed=1.0 for now")
+            if not isinstance(delta_src_frames, int):
+                raise ValueError("delta_src_frames must be an int")
+            media = self.project.media_by_id(clip.media)
+            dur = clip.src_out - clip.src_in
+            if dur <= 0:
+                raise ValueError("clip has empty source range")
+            new_in = clip.src_in + delta_src_frames
+            new_out = clip.src_out + delta_src_frames
+            if media.duration_frames:
+                # clamp window inside media
+                if new_in < 0:
+                    new_out -= new_in
+                    new_in = 0
+                if new_out > media.duration_frames:
+                    shift = new_out - media.duration_frames
+                    new_in -= shift
+                    new_out = media.duration_frames
+                if new_in < 0 or new_out - new_in != dur:
+                    raise ValueError(
+                        f"slip by {delta_src_frames} does not fit media "
+                        f"(duration_frames={media.duration_frames}, "
+                        f"window={dur})"
+                    )
+            else:
+                if new_in < 0:
+                    raise ValueError("slip would push src_in below 0")
+            old_in, old_out = clip.src_in, clip.src_out
+            clip.src_in = new_in
+            clip.src_out = new_out
+            return {
+                "clip_id": clip.id,
+                "src_in": {"from": old_in, "to": new_in},
+                "src_out": {"from": old_out, "to": new_out},
+                "timeline_start": clip.start,
+                "timeline_duration": clip.timeline_duration_frames,
+                "agent_note": "Timeline footprint unchanged; only source window moved.",
+            }
+
+    def roll_edit(
+        self,
+        left_clip_id: str,
+        right_clip_id: str,
+        delta_frames: int,
+    ) -> dict[str, Any]:
+        """Roll: move the edit point between two adjacent hard-cut clips.
+
+        Positive delta shortens left / lengthens right (cut moves later).
+        Both clips must be on the same track, hard-cut adjacent (no gap,
+        right has no transition_in), speed=1.0.
+        """
+        with self._mutate():
+            if not isinstance(delta_frames, int) or delta_frames == 0:
+                raise ValueError("delta_frames must be a non-zero int")
+            lt, left = self._find_clip_and_track(left_clip_id)
+            rt, right = self._find_clip_and_track(right_clip_id)
+            if lt.id != rt.id:
+                raise ValueError("roll_edit requires both clips on the same track")
+            if left.speed != 1.0 or right.speed != 1.0:
+                raise ValueError("roll_edit requires speed=1.0 on both clips")
+            if right.transition_in is not None:
+                raise ValueError(
+                    "roll_edit needs a hard cut — remove transition_in on the right clip first"
+                )
+            if right.start != left.end:
+                raise ValueError(
+                    f"clips not adjacent hard-cut: left ends {left.end}, "
+                    f"right starts {right.start}"
+                )
+            # Positive: left grows on timeline → left.src_out += d, right.start += d, right.src_in += d
+            # Negative: opposite
+            new_left_out = left.src_out + delta_frames
+            new_right_in = right.src_in + delta_frames
+            new_right_start = right.start + delta_frames
+            if new_left_out <= left.src_in:
+                raise ValueError("roll would empty the left clip")
+            if right.src_out <= new_right_in:
+                raise ValueError("roll would empty the right clip")
+            lmedia = self.project.media_by_id(left.media)
+            rmedia = self.project.media_by_id(right.media)
+            if lmedia.duration_frames and new_left_out > lmedia.duration_frames:
+                raise ValueError("roll exceeds left media duration")
+            if new_right_in < 0:
+                raise ValueError("roll pushes right src_in below 0")
+            if rmedia.duration_frames and right.src_out > rmedia.duration_frames:
+                pass  # already valid
+            old = {
+                "left_out": left.src_out,
+                "right_in": right.src_in,
+                "right_start": right.start,
+            }
+            left.src_out = new_left_out
+            right.src_in = new_right_in
+            right.start = new_right_start
+            # still adjacent
+            if right.start != left.end:
+                raise RuntimeError("internal: roll broke adjacency")
+            return {
+                "left_clip_id": left.id,
+                "right_clip_id": right.id,
+                "delta_frames": delta_frames,
+                "left_src_out": {"from": old["left_out"], "to": left.src_out},
+                "right_src_in": {"from": old["right_in"], "to": right.src_in},
+                "right_start": {"from": old["right_start"], "to": right.start},
+                "edit_frame": left.end,
+                "agent_note": "Cut point rolled; total timeline length of the pair unchanged.",
+            }
+
     def close_gaps(self, track_id: str, *, from_frame: int = 0) -> dict[str, Any]:
         """Pack clips on a track leftward so they are contiguous from from_frame.
 

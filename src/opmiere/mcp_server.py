@@ -230,6 +230,24 @@ def detach_audio(
 
 
 @mcp.tool()
+def slip_clip(clip_id: str, delta_src_frames: int) -> dict:
+    """Slip: move source in/out together; timeline start and duration stay put.
+
+    Positive = later material in the file. Clamped to media bounds. speed=1 only.
+    """
+    return _require_editor().slip_clip(clip_id, delta_src_frames)
+
+
+@mcp.tool()
+def roll_edit(left_clip_id: str, right_clip_id: str, delta_frames: int) -> dict:
+    """Roll the hard-cut between two adjacent clips (pair length unchanged).
+
+    Positive: cut moves later (left longer, right shorter at the head).
+    """
+    return _require_editor().roll_edit(left_clip_id, right_clip_id, delta_frames)
+
+
+@mcp.tool()
 def doctor(
     check_comfy: bool = True,
     comfy_host: str = "127.0.0.1",

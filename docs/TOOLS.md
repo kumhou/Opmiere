@@ -36,6 +36,7 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 |------|---------|
 | `add_track` / `add_clip` / `trim` / `split` / `move` / `delete_*` | structure |
 | `ripple_delete` / `close_gaps` / `detach_audio` | ripple edits + J/L sound split |
+| `slip_clip` / `roll_edit` | slip source window / roll cut point |
 | `apply_effect` / `add_transition` / `set_speed` / `set_position` | craft |
 | `apply_project_look` / `color_match_to_clip` / `list_look_presets` | session look |
 | `set_ducking` / `gain` / `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain` | mix |
