@@ -275,6 +275,8 @@ class Editor:
                 {"keys": "C", "action": "Razor all tracks at playhead"},
                 {"keys": "I / O", "action": "Set work In / Out"},
                 {"keys": "Ctrl+C/V/D", "action": "Copy / paste / duplicate"},
+                {"keys": "Ctrl+Shift+V", "action": "Overwrite paste at playhead"},
+                {"keys": "J / K / L", "action": "Shuttle: reverse / stop / play (repeat L speeds up)"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -973,6 +975,90 @@ class Editor:
                 "agent_note": "Gap opened; call fill_track_gaps(mode=slug) for black/silence pads.",
             }
 
+    def _extract_time_unlocked(
+        self,
+        track_id: str,
+        start_frame: int,
+        end_frame: int,
+        *,
+        ripple: bool = True,
+    ) -> dict[str, Any]:
+        """Extract [start, end) on one track. Caller must hold ``_mutate``."""
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        gap = end_frame - start_frame
+        track = self.project.track_by_id(track_id)
+        if track.locked:
+            raise ValueError(f"track {track.id} is locked")
+        removed: list[str] = []
+        trimmed: list[dict[str, Any]] = []
+
+        # 1) Clips that fully span the range → split out the middle
+        for clip in list(track.clips_in_order()):
+            if clip.start < start_frame and clip.end > end_frame:
+                left, mid = self._split_clip_unlocked(clip.id, start_frame)
+                if mid.start < end_frame < mid.end:
+                    mid_clip, _right = self._split_clip_unlocked(mid.id, end_frame)
+                    track.clips.remove(mid_clip)
+                    removed.append(mid_clip.id)
+                elif mid.end <= end_frame:
+                    track.clips.remove(mid)
+                    removed.append(mid.id)
+
+        # 2) Fully inside → remove
+        for clip in list(track.clips_in_order()):
+            if clip.start >= start_frame and clip.end <= end_frame:
+                track.clips.remove(clip)
+                removed.append(clip.id)
+
+        # 3) Partial overlaps (head or tail only)
+        for clip in list(track.clips_in_order()):
+            c_end = clip.end
+            if c_end <= start_frame or clip.start >= end_frame:
+                continue
+            if clip.start < start_frame < c_end:
+                local = start_frame - clip.start
+                if clip.speed != 1.0:
+                    new_out = clip.src_in + int(round(local * clip.speed))
+                else:
+                    new_out = clip.src_in + local
+                new_out = max(clip.src_in + 1, min(new_out, clip.src_out))
+                old_out = clip.src_out
+                clip.src_out = new_out
+                trimmed.append({
+                    "clip_id": clip.id, "edge": "tail",
+                    "src_out": {"from": old_out, "to": new_out},
+                })
+            elif clip.start < end_frame <= c_end and clip.start >= start_frame:
+                local = end_frame - clip.start
+                if clip.speed != 1.0:
+                    new_in = clip.src_in + int(round(local * clip.speed))
+                else:
+                    new_in = clip.src_in + local
+                new_in = min(clip.src_out - 1, max(new_in, clip.src_in))
+                clip.src_in = new_in
+                clip.start = end_frame
+                trimmed.append({
+                    "clip_id": clip.id, "edge": "head", "start": clip.start,
+                })
+
+        if ripple and gap > 0:
+            for c in track.clips_in_order():
+                if c.start >= end_frame:
+                    c.start = max(0, c.start - gap)
+                    if c.transition_in is not None:
+                        c.transition_in = None
+
+        return {
+            "track_id": track_id,
+            "start_frame": start_frame,
+            "end_frame": end_frame,
+            "removed": removed,
+            "trimmed": trimmed,
+            "ripple": ripple,
+            "agent_note": "Time extracted; use fill_track_gaps if holes remain without ripple.",
+        }
+
     def extract_time(
         self,
         track_id: str,
@@ -986,81 +1072,10 @@ class Editor:
         Clips fully inside are removed. Clips overlapping the range are trimmed
         (head/tail). With ripple=True, later clips pull left by (end-start).
         """
-        if end_frame <= start_frame:
-            raise ValueError("end_frame must be > start_frame")
-        gap = end_frame - start_frame
         with self._mutate():
-            track = self.project.track_by_id(track_id)
-            if track.locked:
-                raise ValueError(f"track {track.id} is locked")
-            removed: list[str] = []
-            trimmed: list[dict[str, Any]] = []
-
-            # 1) Clips that fully span the range → split out the middle
-            for clip in list(track.clips_in_order()):
-                if clip.start < start_frame and clip.end > end_frame:
-                    left, mid = self._split_clip_unlocked(clip.id, start_frame)
-                    if mid.start < end_frame < mid.end:
-                        mid_clip, _right = self._split_clip_unlocked(mid.id, end_frame)
-                        track.clips.remove(mid_clip)
-                        removed.append(mid_clip.id)
-                    elif mid.end <= end_frame:
-                        track.clips.remove(mid)
-                        removed.append(mid.id)
-
-            # 2) Fully inside → remove
-            for clip in list(track.clips_in_order()):
-                if clip.start >= start_frame and clip.end <= end_frame:
-                    track.clips.remove(clip)
-                    removed.append(clip.id)
-
-            # 3) Partial overlaps (head or tail only)
-            for clip in list(track.clips_in_order()):
-                c_end = clip.end
-                if c_end <= start_frame or clip.start >= end_frame:
-                    continue
-                if clip.start < start_frame < c_end:
-                    local = start_frame - clip.start
-                    if clip.speed != 1.0:
-                        new_out = clip.src_in + int(round(local * clip.speed))
-                    else:
-                        new_out = clip.src_in + local
-                    new_out = max(clip.src_in + 1, min(new_out, clip.src_out))
-                    old_out = clip.src_out
-                    clip.src_out = new_out
-                    trimmed.append({
-                        "clip_id": clip.id, "edge": "tail",
-                        "src_out": {"from": old_out, "to": new_out},
-                    })
-                elif clip.start < end_frame <= c_end and clip.start >= start_frame:
-                    local = end_frame - clip.start
-                    if clip.speed != 1.0:
-                        new_in = clip.src_in + int(round(local * clip.speed))
-                    else:
-                        new_in = clip.src_in + local
-                    new_in = min(clip.src_out - 1, max(new_in, clip.src_in))
-                    clip.src_in = new_in
-                    clip.start = end_frame
-                    trimmed.append({
-                        "clip_id": clip.id, "edge": "head", "start": clip.start,
-                    })
-
-            if ripple and gap > 0:
-                for c in track.clips_in_order():
-                    if c.start >= end_frame:
-                        c.start = max(0, c.start - gap)
-                        if c.transition_in is not None:
-                            c.transition_in = None
-
-            return {
-                "track_id": track_id,
-                "start_frame": start_frame,
-                "end_frame": end_frame,
-                "removed": removed,
-                "trimmed": trimmed,
-                "ripple": ripple,
-                "agent_note": "Time extracted; use fill_track_gaps if holes remain without ripple.",
-            }
+            return self._extract_time_unlocked(
+                track_id, start_frame, end_frame, ripple=ripple,
+            )
 
     def set_clips_muted(self, clip_ids: list[str], muted: bool = True) -> dict[str, Any]:
         """Mute/unmute many clips (one undo)."""
@@ -1431,10 +1446,20 @@ class Editor:
         start: int | None = None,
         at_playhead: bool = False,
         playhead_frame: int | None = None,
+        mode: str = "insert",
     ) -> dict[str, Any]:
-        """Paste clipboard as a new clip. start=None → end of target track."""
+        """Paste clipboard as a new clip. start=None → end of target track.
+
+        mode:
+          - insert (default): place without removing what is already there
+            (may overlap freeform tracks; base contiguity is caller's problem).
+          - overwrite: lift [place, place+duration) on the target track first
+            (no ripple), then place — classic NLE overwrite edit.
+        """
         if not self._clipboard:
             raise ValueError("clipboard empty — copy_clip first")
+        if mode not in ("insert", "overwrite"):
+            raise ValueError("mode must be 'insert' or 'overwrite'")
         bp = self._clipboard
         media = self.project.media_by_id(bp["media"])
         kind = bp.get("source_track_kind") or "video"
@@ -1454,13 +1479,25 @@ class Editor:
             ordered = track.clips_in_order()
             place_at = ordered[-1].end if ordered else 0
 
+        # Timeline footprint of the paste (respect clipboard speed)
+        src_len = int(bp["src_out"]) - int(bp["src_in"])
+        speed = float(bp.get("speed") or 1.0) or 1.0
+        paste_dur = max(1, round(src_len / speed))
+
         with self._mutate():
             track = self.project.track_by_id(tid)
+            if track.locked:
+                raise ValueError(f"track {tid} is locked")
+            extracted = None
+            if mode == "overwrite":
+                extracted = self._extract_time_unlocked(
+                    tid, place_at, place_at + paste_dur, ripple=False,
+                )
             media = self.project.media_by_id(bp["media"])
             clip = self.project.add_clip(
                 track, media, place_at, int(bp["src_in"]), int(bp["src_out"]),
             )
-            clip.speed = float(bp.get("speed") or 1.0)
+            clip.speed = speed
             clip.effects = [dict(e) for e in (bp.get("effects") or [])]
             if bp.get("position"):
                 clip.position = dict(bp["position"])
@@ -1473,7 +1510,9 @@ class Editor:
                 "track_id": tid,
                 "start": clip.start,
                 "end": clip.end,
+                "mode": mode,
                 "from_clipboard": bp.get("source_clip_id"),
+                "overwrite_extract": extracted,
             }
 
     def duplicate_clip(

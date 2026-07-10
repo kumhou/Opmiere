@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.10 — 2026-07-11
+
+### Added
+- **`paste_clip(mode=)`**: `insert` (default) or `overwrite` (lift range then paste, one undo)
+- Web: Overwrite paste (Ctrl+Shift+V), **J/K/L** shuttle on proxy (reverse/stop/forward speeds)
+
 ## 0.2.9 — 2026-07-11
 
 ### Added

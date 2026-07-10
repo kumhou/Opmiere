@@ -740,6 +740,7 @@ class PasteBody(BaseModel):
     track_id: str | None = None
     start: int | None = None
     playhead_frame: int | None = None
+    mode: str = "insert"
 
 
 class InOutBody(BaseModel):
@@ -770,6 +771,7 @@ def clip_paste(body: PasteBody) -> dict[str, Any]:
         start=body.start,
         at_playhead=body.playhead_frame is not None,
         playhead_frame=body.playhead_frame,
+        mode=body.mode or "insert",
     )
     return {**r, "timeline": ed.timeline_view()}
 

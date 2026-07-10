@@ -266,7 +266,14 @@
         <button type="button" class="secondary" id="btnProxy">Ensure proxy</button>
         <button type="button" class="secondary" id="btnProxyForce">Rebuild</button>
         <button type="button" class="secondary" id="btnPlay">Play</button>
+        <button type="button" class="secondary" id="btnJ" title="J reverse">J</button>
+        <button type="button" class="secondary" id="btnK" title="K stop">K</button>
+        <button type="button" class="secondary" id="btnL" title="L play/faster">L</button>
+        <span id="shuttleLab" class="dragHint" style="margin:0">1×</span>
         <input id="scrub" type="range" min="0" max="10" step="0.01" value="0" />
+      </div>
+      <div class="row" style="margin-top:4px">
+        <button type="button" class="secondary" id="btnPasteOw">Overwrite paste (Ctrl+Shift+V)</button>
       </div>
       <div class="row" style="margin-top:6px">
         <button type="button" class="secondary" id="btnKeys">Keyframes</button>
@@ -1985,9 +1992,14 @@
         } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'v' || ev.key === 'V')) {
           ev.preventDefault();
           const frame = Math.round((+scrub.value || 0) * fps);
-          const r = await api('/api/clip/paste', { method: 'POST', body: JSON.stringify({ playhead_frame: frame }) });
+          const mode = ev.shiftKey ? 'overwrite' : 'insert';
+          const r = await api('/api/clip/paste', {
+            method: 'POST',
+            body: JSON.stringify({ playhead_frame: frame, mode }),
+          });
           if (r.timeline) renderTimeline(r.timeline);
-          log('paste ' + r.clip_id);
+          setDirty(true);
+          log((mode === 'overwrite' ? 'overwrite ' : 'paste ') + r.clip_id);
         } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'd' || ev.key === 'D')) {
           if (!selectedClipId) return;
           ev.preventDefault();
@@ -2026,9 +2038,98 @@
           } else {
             document.getElementById('btnFillGaps').click();
           }
+        } else if (ev.key === 'j' || ev.key === 'J') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          ev.preventDefault();
+          shuttleStep(-1);
+        } else if (ev.key === 'k' || ev.key === 'K') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          ev.preventDefault();
+          shuttleStep(0);
+        } else if (ev.key === 'l' || ev.key === 'L') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          ev.preventDefault();
+          shuttleStep(1);
         }
       } catch (e) { log(String(e.message || e)); }
     });
+
+    // JKL shuttle on HTML5 proxy (client-only playbackRate)
+    let shuttleRate = 0;
+    const SHUTTLE_STEPS = [0.25, 0.5, 1, 1.5, 2, 4];
+    function updateShuttleLab() {
+      const lab = document.getElementById('shuttleLab');
+      if (!lab) return;
+      if (shuttleRate === 0) lab.textContent = '⏸';
+      else lab.textContent = (shuttleRate < 0 ? '◀' : '▶') + Math.abs(shuttleRate) + '×';
+    }
+    function applyShuttle() {
+      const v = document.getElementById('player');
+      if (!v || v.style.display === 'none') return;
+      if (shuttleRate === 0) {
+        v.pause();
+        v.playbackRate = 1;
+      } else {
+        // reverse: step frames manually (HTML video reverse rate not portable)
+        if (shuttleRate < 0) {
+          v.pause();
+          const step = Math.abs(shuttleRate) * 0.04;
+          if (v._revTimer) clearInterval(v._revTimer);
+          v._revTimer = setInterval(() => {
+            v.currentTime = Math.max(0, v.currentTime - step);
+            scrub.value = v.currentTime;
+          }, 40);
+        } else {
+          if (v._revTimer) { clearInterval(v._revTimer); v._revTimer = null; }
+          v.playbackRate = Math.min(4, Math.abs(shuttleRate));
+          v.play().catch(() => {});
+        }
+      }
+      updateShuttleLab();
+    }
+    function shuttleStep(dir) {
+      // dir: -1 reverse faster, 0 stop, +1 forward faster
+      const v = document.getElementById('player');
+      if (dir === 0) {
+        shuttleRate = 0;
+        if (v && v._revTimer) { clearInterval(v._revTimer); v._revTimer = null; }
+        applyShuttle();
+        return;
+      }
+      if (shuttleRate === 0) {
+        shuttleRate = dir > 0 ? 1 : -1;
+      } else if ((shuttleRate > 0) === (dir > 0)) {
+        // same direction → next speed step
+        const mag = Math.abs(shuttleRate);
+        let idx = SHUTTLE_STEPS.findIndex(s => s >= mag - 1e-6);
+        if (idx < 0) idx = 0;
+        idx = Math.min(SHUTTLE_STEPS.length - 1, idx + 1);
+        // if already at this mag, go next
+        if (SHUTTLE_STEPS[idx] <= mag + 1e-6 && idx < SHUTTLE_STEPS.length - 1) idx += 1;
+        shuttleRate = (dir > 0 ? 1 : -1) * SHUTTLE_STEPS[idx];
+      } else {
+        // reverse direction from stop-ish
+        shuttleRate = dir > 0 ? 1 : -1;
+      }
+      applyShuttle();
+      log('shuttle ' + shuttleRate + '×');
+    }
+    document.getElementById('btnJ').onclick = () => shuttleStep(-1);
+    document.getElementById('btnK').onclick = () => shuttleStep(0);
+    document.getElementById('btnL').onclick = () => shuttleStep(1);
+    document.getElementById('btnPasteOw').onclick = async () => {
+      try {
+        const fps = (timeline && timeline.fps) || 30;
+        const frame = Math.round((+scrub.value || 0) * fps);
+        const r = await api('/api/clip/paste', {
+          method: 'POST',
+          body: JSON.stringify({ playhead_frame: frame, mode: 'overwrite' }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('overwrite paste ' + r.clip_id);
+      } catch (e) { log(String(e.message || e)); }
+    };
 
     (function() {
       const zoomEl = document.getElementById('zoom');

@@ -491,13 +491,15 @@ def paste_clip(
     track_id: str | None = None,
     start: int | None = None,
     playhead_frame: int | None = None,
+    mode: str = "insert",
 ) -> dict:
-    """Paste clipboard clip (start=None → end of track; or playhead_frame)."""
+    """Paste clipboard. mode=insert|overwrite (overwrite lifts range first)."""
     return _require_editor().paste_clip(
         track_id=track_id,
         start=start,
         at_playhead=playhead_frame is not None,
         playhead_frame=playhead_frame,
+        mode=mode,
     )
 
 
