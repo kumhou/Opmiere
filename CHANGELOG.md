@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4 — 2026-07-10
+
+### Added
+- **Multi-clip ops**: `nudge_clips`, `set_clips_muted`, `delete_clips(ripple=)`
+- Web: Ctrl multi-select, Shift range on track, batch nudge/mute/ripple-del
+
 ## 0.2.3 — 2026-07-10
 
 ### Added

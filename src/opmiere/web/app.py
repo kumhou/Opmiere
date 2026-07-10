@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.3")
+app = FastAPI(title="Opmiere", version="0.2.4")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.3",
+        "phase": "0.2.4",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -845,6 +845,34 @@ def track_lock(body: TrackFlagBody) -> dict[str, Any]:
 def clip_mute(body: ClipMuteBody) -> dict[str, Any]:
     ed = _ed()
     r = ed.set_clip_muted(body.clip_id, body.muted)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MultiClipsBody(BaseModel):
+    clip_ids: list[str] = Field(default_factory=list)
+    delta_frames: int = 0
+    muted: bool = True
+    ripple: bool = False
+
+
+@app.post("/api/clips/nudge")
+def clips_nudge(body: MultiClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.nudge_clips(body.clip_ids, body.delta_frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/mute")
+def clips_mute(body: MultiClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_muted(body.clip_ids, body.muted)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/delete")
+def clips_delete(body: MultiClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.delete_clips(body.clip_ids, ripple=body.ripple)
     return {**r, "timeline": ed.timeline_view()}
 
 

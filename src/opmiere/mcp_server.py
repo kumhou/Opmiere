@@ -567,6 +567,24 @@ def set_clip_muted(clip_id: str, muted: bool = True) -> dict:
 
 
 @mcp.tool()
+def nudge_clips(clip_ids: list[str], delta_frames: int) -> dict:
+    """Move many clips by delta_frames (one undo)."""
+    return _require_editor().nudge_clips(clip_ids, delta_frames)
+
+
+@mcp.tool()
+def set_clips_muted(clip_ids: list[str], muted: bool = True) -> dict:
+    """Mute/unmute many clips."""
+    return _require_editor().set_clips_muted(clip_ids, muted)
+
+
+@mcp.tool()
+def delete_clips(clip_ids: list[str], ripple: bool = False) -> dict:
+    """Delete many clips; ripple=true closes holes per track."""
+    return _require_editor().delete_clips(clip_ids, ripple=ripple)
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

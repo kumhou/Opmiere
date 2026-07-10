@@ -124,6 +124,12 @@
     .tclip.video { background:var(--vclip); }
     .tclip.audio { background:var(--aclip); }
     .tclip.selected { outline:2px solid var(--acc); z-index:2; }
+    .tclip.multisel { outline:2px solid #3dd68c; z-index:2; box-shadow:0 0 0 1px #3dd68c; }
+    #selBar {
+      font-size:11px; color:var(--muted); margin:6px 0;
+      display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+    }
+    #selBar button { margin-top:0; width:auto; min-width:auto; padding:4px 8px; }
     .tclip.dragging { opacity:0.85; cursor:grabbing; z-index:4; }
     .tclip .hL, .tclip .hR {
       position:absolute; top:0; bottom:0; width:7px; cursor:ew-resize;
@@ -285,7 +291,15 @@
         <button type="button" class="secondary" id="btnExportWork">Export I/O</button>
       </div>
       <div id="ioLab" class="dragHint">In/Out: —</div>
-      <p class="dragHint">键: Space · ←/→ · M · S · C · I/O · Ctrl+C/V/D · Del · [/] · F</p>
+      <div id="selBar">
+        <span id="selCount">选中 0</span>
+        <button type="button" class="secondary" id="btnSelLeft">←1f</button>
+        <button type="button" class="secondary" id="btnSelRight">1f→</button>
+        <button type="button" class="secondary" id="btnSelMute">Mute</button>
+        <button type="button" class="danger" id="btnSelRipple">Ripple del</button>
+        <button type="button" class="secondary" id="btnSelClear">Clear</button>
+      </div>
+      <p class="dragHint">Ctrl/⌘ 点多选 · Shift 同轨范围 · Space/M/S/C/I/O · Ctrl+C/V/D · Del · F</p>
       <label>Gain dB · <span id="gainLabel">0</span></label>
       <div class="row">
         <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
@@ -373,6 +387,7 @@
 
     let timeline = null;
     let selectedClipId = null;
+    let selectedIds = new Set(); // multi-select
     let scrubMax = 10;
     let syncingFromVideo = false;
     let playheadEl = null;
@@ -511,12 +526,15 @@
         for (const c of tr.clips || []) {
           const left = (c.start_frame / viewDurF) * 100;
           const width = Math.max(0.8, (c.duration_frames / viewDurF) * 100);
-          const sel = c.id === selectedClipId ? ' selected' : '';
+          const sel = (c.id === selectedClipId || selectedIds.has(c.id))
+            ? (selectedIds.has(c.id) && selectedIds.size > 1 ? ' multisel' : ' selected')
+            : '';
           const kind = tr.kind === 'audio' ? 'audio' : 'video';
           const g = (c.gain_db != null && c.gain_db !== 0) ? ` ${c.gain_db>0?'+':''}${c.gain_db}dB` : '';
           const mut = c.muted ? ' muted' : '';
           const opacity = c.muted ? 'opacity:0.45;' : '';
           clipsHtml += `<div class="tclip ${kind}${sel}${mut}" data-id="${c.id}" data-media="${c.media_id||''}"
+            data-track="${tr.id}"
             data-start="${c.start_frame}" data-in="${c.src_in}" data-out="${c.src_out}"
             data-t="${c.start_seconds}" data-gain="${c.gain_db||0}" data-ha="${c.has_audio_media?1:0}"
             data-muted="${c.muted?1:0}"
@@ -645,6 +663,35 @@
       if (muteBtn) muteBtn.textContent = (el && el.dataset.muted === '1') ? 'Unmute clip' : 'Mute clip';
     }
 
+    function updateSelBar() {
+      const n = selectedIds.size || (selectedClipId ? 1 : 0);
+      const el = document.getElementById('selCount');
+      if (el) el.textContent = '选中 ' + n;
+      const has = n > 0;
+      ['btnSelLeft','btnSelRight','btnSelMute','btnSelRipple','btnSelClear'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = !has && id !== 'btnSelClear';
+      });
+    }
+
+    function selectionList() {
+      if (selectedIds.size) return [...selectedIds];
+      return selectedClipId ? [selectedClipId] : [];
+    }
+
+    function applySelectionStyles() {
+      document.querySelectorAll('.tclip').forEach(x => {
+        const on = selectedIds.has(x.dataset.id) || x.dataset.id === selectedClipId;
+        x.classList.toggle('selected', on && selectedIds.size <= 1);
+        x.classList.toggle('multisel', selectedIds.has(x.dataset.id) && selectedIds.size > 1);
+      });
+      document.getElementById('btnRippleDel').disabled = selectionList().length === 0;
+      document.getElementById('btnFillerDry').disabled = !selectedClipId;
+      document.getElementById('btnFillerApply').disabled = !selectedClipId;
+      updateSelBar();
+      syncGainUi();
+    }
+
     function wireClipInteractions(tracksEl, viewDurF, fps) {
       tracksEl.querySelectorAll('.tclip').forEach(el => {
         el.addEventListener('pointerdown', (e) => {
@@ -653,13 +700,35 @@
           const mode = edgeEl ? edgeEl.dataset.edge : 'move';
           e.preventDefault();
           e.stopPropagation();
-          selectedClipId = el.dataset.id;
-          document.querySelectorAll('.tclip').forEach(x =>
-            x.classList.toggle('selected', x.dataset.id === selectedClipId));
-          document.getElementById('btnRippleDel').disabled = !selectedClipId;
-          document.getElementById('btnFillerDry').disabled = !selectedClipId;
-          document.getElementById('btnFillerApply').disabled = !selectedClipId;
-          syncGainUi();
+          const id = el.dataset.id;
+          if (e.ctrlKey || e.metaKey) {
+            if (selectedIds.has(id)) selectedIds.delete(id);
+            else selectedIds.add(id);
+            selectedClipId = selectedIds.size ? id : null;
+            applySelectionStyles();
+            return; // no drag on multi-toggle
+          }
+          if (e.shiftKey && selectedClipId && timeline) {
+            // range select same track between anchor and this
+            const anchor = document.querySelector(`.tclip[data-id="${selectedClipId}"]`);
+            if (anchor && anchor.dataset.track === el.dataset.track) {
+              const a0 = +anchor.dataset.start;
+              const a1 = +el.dataset.start;
+              const lo = Math.min(a0, a1), hi = Math.max(a0, a1);
+              document.querySelectorAll(`.tclip[data-track="${el.dataset.track}"]`).forEach(x => {
+                const s = +x.dataset.start;
+                if (s >= lo && s <= hi) selectedIds.add(x.dataset.id);
+              });
+              selectedIds.add(id);
+              applySelectionStyles();
+              return;
+            }
+          }
+          if (!selectedIds.has(id) || selectedIds.size <= 1) {
+            selectedIds = new Set([id]);
+          }
+          selectedClipId = id;
+          applySelectionStyles();
 
           const lane = el.closest('.track-lane');
           const laneW = lane.getBoundingClientRect().width;
@@ -1352,6 +1421,50 @@
         log('clip muted=' + r.muted);
       } catch (e) { log(String(e.message || e)); }
     };
+
+    async function runMulti(path, extra) {
+      const ids = selectionList();
+      if (!ids.length) { log('no selection'); return; }
+      const r = await api(path, {
+        method: 'POST',
+        body: JSON.stringify({ clip_ids: ids, ...extra }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      return r;
+    }
+    document.getElementById('btnSelLeft').onclick = async () => {
+      try {
+        const r = await runMulti('/api/clips/nudge', { delta_frames: -1 });
+        log('nudge -1 count=' + (r && r.count));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSelRight').onclick = async () => {
+      try {
+        const r = await runMulti('/api/clips/nudge', { delta_frames: 1 });
+        log('nudge +1 count=' + (r && r.count));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSelMute').onclick = async () => {
+      try {
+        const r = await runMulti('/api/clips/mute', { muted: true });
+        log('multi mute ' + (r && r.count));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSelRipple').onclick = async () => {
+      try {
+        const r = await runMulti('/api/clips/delete', { ripple: true });
+        selectedIds = new Set();
+        selectedClipId = null;
+        if (r.timeline) renderTimeline(r.timeline);
+        applySelectionStyles();
+        log('multi ripple del ' + (r && r.count));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSelClear').onclick = () => {
+      selectedIds = new Set();
+      selectedClipId = null;
+      applySelectionStyles();
+    };
     document.getElementById('btnCloseGaps').onclick = async () => {
       try {
         const r = await api('/api/close_gaps', {
@@ -1467,9 +1580,14 @@
           ev.preventDefault();
           document.getElementById('btnRazor').click();
         } else if (ev.key === 'Delete' || ev.key === 'Backspace') {
-          if (!selectedClipId) return;
+          const ids = selectionList();
+          if (!ids.length) return;
           ev.preventDefault();
-          document.getElementById('btnRippleDel').click();
+          if (ids.length > 1) {
+            document.getElementById('btnSelRipple').click();
+          } else {
+            document.getElementById('btnRippleDel').click();
+          }
         } else if (ev.key === '[') {
           ev.preventDefault();
           document.getElementById('btnUndo').click();

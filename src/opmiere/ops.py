@@ -735,6 +735,87 @@ class Editor:
             clip.muted = bool(muted)
             return {"clip_id": clip_id, "muted": clip.muted}
 
+    def nudge_clips(self, clip_ids: list[str], delta_frames: int) -> dict[str, Any]:
+        """Move many clips by the same timeline delta (one undo). Clamped to ≥0."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(delta_frames, int):
+            raise ValueError("delta_frames must be an int")
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            for cid in clip_ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                old = clip.start
+                clip.start = max(0, old + delta_frames)
+                moved.append({
+                    "clip_id": cid,
+                    "from": old,
+                    "to": clip.start,
+                    "track_id": track.id,
+                })
+            return {
+                "delta_frames": delta_frames,
+                "moved": moved,
+                "count": len(moved),
+            }
+
+    def set_clips_muted(self, clip_ids: list[str], muted: bool = True) -> dict[str, Any]:
+        """Mute/unmute many clips (one undo)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in clip_ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                clip.muted = bool(muted)
+                out.append({"clip_id": cid, "muted": clip.muted})
+            return {"muted": bool(muted), "clips": out, "count": len(out)}
+
+    def delete_clips(self, clip_ids: list[str], *, ripple: bool = False) -> dict[str, Any]:
+        """Delete many clips. ripple=True closes holes per track (right→left)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))  # unique preserve order
+        if not ripple:
+            with self._mutate():
+                deleted: list[str] = []
+                for cid in ids:
+                    track, clip = self._find_clip_and_track(cid)
+                    if track.locked:
+                        raise ValueError(f"track {track.id} is locked")
+                    track.clips.remove(clip)
+                    deleted.append(cid)
+                return {"deleted": deleted, "ripple": False, "count": len(deleted)}
+
+        # Ripple: process each track independently, highest start first
+        with self._mutate():
+            by_track: dict[str, list] = {}
+            for cid in ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                by_track.setdefault(track.id, []).append(clip)
+            deleted: list[str] = []
+            for track_id, clips in by_track.items():
+                track = self.project.track_by_id(track_id)
+                for clip in sorted(clips, key=lambda c: c.start, reverse=True):
+                    gap = clip.timeline_duration_frames
+                    cut_start = clip.start
+                    deleted_id = clip.id
+                    track.clips.remove(clip)
+                    for c in track.clips_in_order():
+                        if c.start >= cut_start:
+                            c.start = max(0, c.start - gap)
+                    ordered = track.clips_in_order()
+                    if ordered and ordered[0].transition_in is not None:
+                        ordered[0].transition_in = None
+                    deleted.append(deleted_id)
+            return {"deleted": deleted, "ripple": True, "count": len(deleted)}
+
     def move_clip(self, clip_id: str, new_start: int) -> Clip:
         self._assert_clip_track_unlocked(clip_id)
         with self._mutate():
