@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.17 — 2026-07-11
+
+### Added
+- **Clip `link_group`**: linked A/V (or multi) selection groups
+- **`link_clips` / `unlink_clips` / `linked_group`**
+- **`nudge_clips` / `delete_clips` / `move_clip`**: `follow_links` (default on for nudge/delete)
+- **`detach_audio(..., link=True)`**: auto-link picture+sound
+- **`frames_to_tc` / `tc_to_frames`**: HH:MM:SS:FF helpers
+- Web: Link / Unlink / Sel linked · Zoom fit (`\`) · Ctrl+L
+
 ## 0.2.16 — 2026-07-11
 
 ### Added

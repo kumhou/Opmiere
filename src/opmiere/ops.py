@@ -286,6 +286,9 @@ class Editor:
                 {"keys": "Shift+M", "action": "Jump to next marker"},
                 {"keys": "G", "action": "Close all track gaps"},
                 {"keys": "R", "action": "Reset transform on selection (PiP/crop/rotate/opacity)"},
+                {"keys": "Ctrl+L", "action": "Link selected clips"},
+                {"keys": "Ctrl+Shift+L", "action": "Select entire link group"},
+                {"keys": "\\", "action": "Zoom timeline to fit"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -359,6 +362,7 @@ class Editor:
                     "name": clip.name,
                     "color": clip.color,
                     "position": clip.position,
+                    "link_group": clip.link_group,
                     "label": (
                         clip.name
                         or (m.path.split("/")[-1] if m and m.path else clip.id)
@@ -906,15 +910,159 @@ class Editor:
             clip.muted = bool(muted)
             return {"clip_id": clip_id, "muted": clip.muted}
 
-    def nudge_clips(self, clip_ids: list[str], delta_frames: int) -> dict[str, Any]:
-        """Move many clips by the same timeline delta (one undo). Clamped to ≥0."""
+    def _expand_link_ids(self, clip_ids: list[str]) -> list[str]:
+        """Union selection with every clip sharing a link_group of a selected clip."""
+        ids = list(dict.fromkeys(clip_ids))
+        groups: set[str] = set()
+        for cid in ids:
+            clip = self._find_clip(cid)
+            if clip.link_group:
+                groups.add(clip.link_group)
+        if not groups:
+            return ids
+        extra: list[str] = []
+        for track in self.project.tracks:
+            for c in track.clips:
+                if c.link_group in groups and c.id not in ids:
+                    extra.append(c.id)
+        return ids + extra
+
+    def link_clips(
+        self,
+        clip_ids: list[str],
+        *,
+        group_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Assign clips to one link_group (NLE linked selection / A-V pair)."""
+        if len(clip_ids) < 2:
+            raise ValueError("link_clips needs at least 2 clip_ids")
+        ids = list(dict.fromkeys(clip_ids))
+        gid = group_id or new_id("lnk")
+        with self._mutate():
+            for cid in ids:
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                clip.link_group = gid
+            return {
+                "link_group": gid,
+                "clip_ids": ids,
+                "count": len(ids),
+                "agent_note": "Linked for selection/nudge/delete when follow_links=True.",
+            }
+
+    def unlink_clips(self, clip_ids: list[str] | None = None) -> dict[str, Any]:
+        """Clear link_group. clip_ids=None clears every linked clip."""
+        with self._mutate():
+            cleared: list[str] = []
+            if clip_ids is None:
+                targets = [
+                    c for t in self.project.tracks for c in t.clips if c.link_group
+                ]
+            else:
+                targets = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+            for clip in targets:
+                if clip.link_group:
+                    clip.link_group = None
+                    cleared.append(clip.id)
+            return {"cleared": cleared, "count": len(cleared)}
+
+    def linked_group(self, clip_id: str) -> dict[str, Any]:
+        """Return all clips sharing this clip's link_group (incl. self)."""
+        clip = self._find_clip(clip_id)
+        if not clip.link_group:
+            return {
+                "clip_id": clip_id,
+                "link_group": None,
+                "clip_ids": [clip_id],
+                "count": 1,
+                "linked": False,
+            }
+        members: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            for c in track.clips:
+                if c.link_group == clip.link_group:
+                    members.append({
+                        "clip_id": c.id,
+                        "track_id": track.id,
+                        "track_kind": track.kind,
+                        "start": c.start,
+                        "end": c.end,
+                    })
+        return {
+            "clip_id": clip_id,
+            "link_group": clip.link_group,
+            "clip_ids": [m["clip_id"] for m in members],
+            "members": members,
+            "count": len(members),
+            "linked": True,
+        }
+
+    def frames_to_tc(self, frame: int) -> dict[str, Any]:
+        """Format absolute frame as HH:MM:SS:FF (non-drop, project fps)."""
+        if not isinstance(frame, int):
+            raise ValueError("frame must be an int")
+        fps = float(self.project.timebase.fps or 30.0)
+        fps_i = max(1, int(round(fps)))
+        f = max(0, int(frame))
+        ff = f % fps_i
+        total_s = f // fps_i
+        ss = total_s % 60
+        mm = (total_s // 60) % 60
+        hh = total_s // 3600
+        tc = f"{hh:02d}:{mm:02d}:{ss:02d}:{ff:02d}"
+        return {
+            "frame": f,
+            "tc": tc,
+            "fps": fps,
+            "seconds": round(f / fps, 6),
+        }
+
+    def tc_to_frames(self, tc: str) -> dict[str, Any]:
+        """Parse HH:MM:SS:FF or HH:MM:SS.mmm / seconds float string → frame."""
+        if not isinstance(tc, str) or not tc.strip():
+            raise ValueError("tc must be a non-empty string")
+        s = tc.strip()
+        fps = float(self.project.timebase.fps or 30.0)
+        fps_i = max(1, int(round(fps)))
+        # HH:MM:SS:FF
+        parts = s.replace(";", ":").split(":")
+        if len(parts) == 4 and all(p.isdigit() for p in parts):
+            hh, mm, ss, ff = (int(p) for p in parts)
+            frame = ((hh * 3600 + mm * 60 + ss) * fps_i) + ff
+            return {"tc": s, "frame": frame, "fps": fps}
+        # HH:MM:SS.mmm or float seconds
+        try:
+            if s.count(":") == 2:
+                hms, *frac = s.split(".")
+                hh, mm, ss = (int(x) for x in hms.split(":"))
+                frac_s = float("0." + frac[0]) if frac else 0.0
+                seconds = hh * 3600 + mm * 60 + ss + frac_s
+            else:
+                seconds = float(s)
+        except ValueError as e:
+            raise ValueError(f"unrecognized timecode {tc!r}") from e
+        frame = int(round(seconds * fps))
+        return {"tc": s, "frame": frame, "fps": fps, "seconds": seconds}
+
+    def nudge_clips(
+        self,
+        clip_ids: list[str],
+        delta_frames: int,
+        *,
+        follow_links: bool = True,
+    ) -> dict[str, Any]:
+        """Move many clips by the same timeline delta (one undo). Clamped to ≥0.
+
+        follow_links=True expands selection to full link groups.
+        """
         if not clip_ids:
             raise ValueError("clip_ids is empty")
         if not isinstance(delta_frames, int):
             raise ValueError("delta_frames must be an int")
+        ids = self._expand_link_ids(clip_ids) if follow_links else list(dict.fromkeys(clip_ids))
         with self._mutate():
             moved: list[dict[str, Any]] = []
-            for cid in clip_ids:
+            for cid in ids:
                 track, clip = self._find_clip_and_track(cid)
                 if track.locked:
                     raise ValueError(f"track {track.id} is locked")
@@ -930,6 +1078,7 @@ class Editor:
                 "delta_frames": delta_frames,
                 "moved": moved,
                 "count": len(moved),
+                "follow_links": follow_links,
             }
 
     def ripple_nudge(
@@ -1132,11 +1281,24 @@ class Editor:
                 out.append({"clip_id": cid, "muted": clip.muted})
             return {"muted": bool(muted), "clips": out, "count": len(out)}
 
-    def delete_clips(self, clip_ids: list[str], *, ripple: bool = False) -> dict[str, Any]:
-        """Delete many clips. ripple=True closes holes per track (right→left)."""
+    def delete_clips(
+        self,
+        clip_ids: list[str],
+        *,
+        ripple: bool = False,
+        follow_links: bool = True,
+    ) -> dict[str, Any]:
+        """Delete many clips. ripple=True closes holes per track (right→left).
+
+        follow_links=True also deletes peers in the same link_group.
+        """
         if not clip_ids:
             raise ValueError("clip_ids is empty")
-        ids = list(dict.fromkeys(clip_ids))  # unique preserve order
+        ids = (
+            self._expand_link_ids(clip_ids)
+            if follow_links
+            else list(dict.fromkeys(clip_ids))
+        )
         if not ripple:
             with self._mutate():
                 deleted: list[str] = []
@@ -1173,14 +1335,25 @@ class Editor:
                     deleted.append(deleted_id)
             return {"deleted": deleted, "ripple": True, "count": len(deleted)}
 
-    def move_clip(self, clip_id: str, new_start: int) -> Clip:
+    def move_clip(
+        self,
+        clip_id: str,
+        new_start: int,
+        *,
+        follow_links: bool = False,
+    ) -> Clip | dict[str, Any]:
+        """Move clip to new_start. follow_links moves whole link_group by delta."""
         self._assert_clip_track_unlocked(clip_id)
-        with self._mutate():
-            clip = self._find_clip(clip_id)
-            if new_start < 0:
-                raise ValueError(f"new_start must be >= 0, got {new_start}")
-            clip.start = new_start
-            return clip
+        if new_start < 0:
+            raise ValueError(f"new_start must be >= 0, got {new_start}")
+        if not follow_links:
+            with self._mutate():
+                clip = self._find_clip(clip_id)
+                clip.start = int(new_start)
+                return clip
+        clip0 = self._find_clip(clip_id)
+        delta = int(new_start) - clip0.start
+        return self.nudge_clips([clip_id], delta, follow_links=True)
 
     def move_to_track(
         self,
@@ -2408,6 +2581,7 @@ class Editor:
         audio_track_id: str | None = None,
         *,
         audio_start_offset_frames: int = 0,
+        link: bool = True,
     ) -> dict[str, Any]:
         """Copy a video clip's audio onto an audio track for independent J/L timing.
 
@@ -2416,6 +2590,8 @@ class Editor:
         exist, export uses them instead of embedded video audio — so this
         effectively splits picture vs sound. ``audio_start_offset_frames``
         negative = J-cut lead (audio earlier); positive = L-cut lag.
+
+        link=True assigns a shared link_group so nudge/delete can stay in sync.
         """
         with self._mutate():
             vtrack, clip = self._find_clip_and_track(clip_id)
@@ -2449,16 +2625,23 @@ class Editor:
             )
             if clip.speed != 1.0:
                 audio_clip.speed = clip.speed
+            link_group = None
+            if link:
+                link_group = clip.link_group or new_id("lnk")
+                clip.link_group = link_group
+                audio_clip.link_group = link_group
             return {
                 "video_clip_id": clip.id,
                 "audio_clip_id": audio_clip.id,
                 "audio_track_id": atrack.id,
                 "audio_start": a_start,
                 "offset_frames": int(audio_start_offset_frames),
+                "link_group": link_group,
                 "agent_note": (
                     "Picture stays on video; sound is on audio track. "
                     "Negative offset = J-cut (audio leads). Embedded video "
                     "audio is suppressed while any audio-track clips exist."
+                    + (" Clips are linked." if link else "")
                 ),
             }
 

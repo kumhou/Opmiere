@@ -219,9 +219,18 @@ def place_from_file(
 
 
 @mcp.tool()
-def move_clip(clip_id: str, new_start: int) -> dict:
-    """Move a clip to a new timeline start frame."""
-    return _require_editor().move_clip(clip_id, new_start).to_dict()
+def move_clip(
+    clip_id: str,
+    new_start: int,
+    follow_links: bool = False,
+) -> dict:
+    """Move a clip to a new timeline start frame. follow_links moves link group."""
+    r = _require_editor().move_clip(
+        clip_id, new_start, follow_links=follow_links,
+    )
+    if hasattr(r, "to_dict"):
+        return r.to_dict()
+    return r  # type: ignore[return-value]
 
 
 @mcp.tool()
@@ -575,9 +584,15 @@ def set_clip_muted(clip_id: str, muted: bool = True) -> dict:
 
 
 @mcp.tool()
-def nudge_clips(clip_ids: list[str], delta_frames: int) -> dict:
-    """Move many clips by delta_frames (one undo)."""
-    return _require_editor().nudge_clips(clip_ids, delta_frames)
+def nudge_clips(
+    clip_ids: list[str],
+    delta_frames: int,
+    follow_links: bool = True,
+) -> dict:
+    """Move many clips by delta_frames (one undo). follow_links expands groups."""
+    return _require_editor().nudge_clips(
+        clip_ids, delta_frames, follow_links=follow_links,
+    )
 
 
 @mcp.tool()
@@ -587,9 +602,45 @@ def set_clips_muted(clip_ids: list[str], muted: bool = True) -> dict:
 
 
 @mcp.tool()
-def delete_clips(clip_ids: list[str], ripple: bool = False) -> dict:
-    """Delete many clips; ripple=true closes holes per track."""
-    return _require_editor().delete_clips(clip_ids, ripple=ripple)
+def delete_clips(
+    clip_ids: list[str],
+    ripple: bool = False,
+    follow_links: bool = True,
+) -> dict:
+    """Delete many clips; ripple=true closes holes; follow_links expands groups."""
+    return _require_editor().delete_clips(
+        clip_ids, ripple=ripple, follow_links=follow_links,
+    )
+
+
+@mcp.tool()
+def link_clips(clip_ids: list[str], group_id: str | None = None) -> dict:
+    """Link clips into one selection group (A/V pairs etc.)."""
+    return _require_editor().link_clips(clip_ids, group_id=group_id)
+
+
+@mcp.tool()
+def unlink_clips(clip_ids: list[str] | None = None) -> dict:
+    """Clear link_group on given clips (or all if omitted)."""
+    return _require_editor().unlink_clips(clip_ids)
+
+
+@mcp.tool()
+def linked_group(clip_id: str) -> dict:
+    """List all clips in the same link_group as clip_id."""
+    return _require_editor().linked_group(clip_id)
+
+
+@mcp.tool()
+def frames_to_tc(frame: int) -> dict:
+    """Format frame as HH:MM:SS:FF."""
+    return _require_editor().frames_to_tc(frame)
+
+
+@mcp.tool()
+def tc_to_frames(tc: str) -> dict:
+    """Parse HH:MM:SS:FF or seconds into frame index."""
+    return _require_editor().tc_to_frames(tc)
 
 
 @mcp.tool()
@@ -1059,16 +1110,19 @@ def detach_audio(
     clip_id: str,
     audio_track_id: str | None = None,
     audio_start_offset_frames: int = 0,
+    link: bool = True,
 ) -> dict:
     """Split picture/sound: copy clip audio to an audio track for J/L timing.
 
     audio_start_offset_frames: negative = audio leads (J-cut), positive = lags.
     While any audio-track clips exist, embedded video audio is not mixed.
+    link=True assigns shared link_group for nudge/delete.
     """
     return _require_editor().detach_audio(
         clip_id,
         audio_track_id,
         audio_start_offset_frames=audio_start_offset_frames,
+        link=link,
     )
 
 

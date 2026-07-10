@@ -215,6 +215,9 @@ class Clip:
     # Optional UI label / color chip (does not affect render).
     name: str | None = None
     color: str | None = None
+    # Shared id for linked A/V (or multi-clip) selection/move groups.
+    # Same string ⇒ same link group. None = unlinked.
+    link_group: str | None = None
 
     @property
     def duration_frames(self) -> int:
@@ -253,6 +256,8 @@ class Clip:
             d["name"] = self.name
         if self.color:
             d["color"] = self.color
+        if self.link_group:
+            d["link_group"] = self.link_group
         return d
 
     @classmethod
@@ -270,6 +275,7 @@ class Clip:
             muted=bool(d.get("muted", False)),
             name=d.get("name"),
             color=d.get("color"),
+            link_group=d.get("link_group"),
         )
 
 

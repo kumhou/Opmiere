@@ -356,8 +356,14 @@
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnSwap" disabled>Swap 2 sel</button>
+        <button type="button" class="secondary" id="btnLink" disabled>Link sel</button>
+        <button type="button" class="secondary" id="btnUnlink" disabled>Unlink</button>
+        <button type="button" class="secondary" id="btnSelLinked" disabled>Sel linked</button>
+      </div>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
+        <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
       </div>
       <label>Track rename</label>
       <div class="row">
@@ -809,6 +815,7 @@
         'btnSlipL','btnSlipR','btnCopyFx','btnPasteFx','btnAlignPh','btnRollL','btnRollR',
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
+        'btnLink','btnUnlink','btnSelLinked',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2089,6 +2096,50 @@
         log('swapped ' + ids[0] + ' ↔ ' + ids[1]);
       } catch (e) { log(String(e.message || e)); }
     };
+    document.getElementById('btnLink').onclick = async () => {
+      const ids = selectionList();
+      if (ids.length < 2) { log('select ≥2 clips to link'); return; }
+      try {
+        const r = await api('/api/clips/link', {
+          method: 'POST', body: JSON.stringify({ clip_ids: ids }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('linked ' + r.count + ' → ' + r.link_group);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnUnlink').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) { log('no selection'); return; }
+      try {
+        const r = await api('/api/clips/unlink', {
+          method: 'POST', body: JSON.stringify({ clip_ids: ids }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('unlinked ' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSelLinked').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clips/linked', {
+          method: 'POST', body: JSON.stringify({ clip_id: selectedClipId }),
+        });
+        selectedIds = new Set(r.clip_ids || [selectedClipId]);
+        updateSelBar();
+        if (timeline) renderTimeline(timeline);
+        log('link group n=' + r.count + (r.link_group ? ' ' + r.link_group : ''));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnZoomFit').onclick = () => {
+      const z = document.getElementById('zoom');
+      if (z) { z.value = 1; zoom = 1; }
+      const lab = document.getElementById('zoomLab');
+      if (lab) lab.textContent = '1×';
+      if (timeline) renderTimeline(timeline);
+      log('zoom fit');
+    };
     async function moveSelectedTrack(delta) {
       // use track of selected clip, or first track
       let track_id = null;
@@ -2295,6 +2346,16 @@
           if (!selectedClipId) return;
           ev.preventDefault();
           await doResetXform();
+        } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'l' || ev.key === 'L')) {
+          ev.preventDefault();
+          if (ev.shiftKey) {
+            document.getElementById('btnSelLinked').click();
+          } else {
+            document.getElementById('btnLink').click();
+          }
+        } else if (ev.key === '\\') {
+          ev.preventDefault();
+          document.getElementById('btnZoomFit').click();
         } else if (ev.key === 'j' || ev.key === 'J') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();

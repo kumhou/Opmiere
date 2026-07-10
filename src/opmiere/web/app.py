@@ -1139,12 +1139,15 @@ class MultiClipsBody(BaseModel):
     delta_frames: int = 0
     muted: bool = True
     ripple: bool = False
+    follow_links: bool = True
 
 
 @app.post("/api/clips/nudge")
 def clips_nudge(body: MultiClipsBody) -> dict[str, Any]:
     ed = _ed()
-    r = ed.nudge_clips(body.clip_ids, body.delta_frames)
+    r = ed.nudge_clips(
+        body.clip_ids, body.delta_frames, follow_links=body.follow_links,
+    )
     return {**r, "timeline": ed.timeline_view()}
 
 
@@ -1158,8 +1161,61 @@ def clips_mute(body: MultiClipsBody) -> dict[str, Any]:
 @app.post("/api/clips/delete")
 def clips_delete(body: MultiClipsBody) -> dict[str, Any]:
     ed = _ed()
-    r = ed.delete_clips(body.clip_ids, ripple=body.ripple)
+    r = ed.delete_clips(
+        body.clip_ids, ripple=body.ripple, follow_links=body.follow_links,
+    )
     return {**r, "timeline": ed.timeline_view()}
+
+
+class LinkClipsBody(BaseModel):
+    clip_ids: list[str]
+    group_id: str | None = None
+
+
+class UnlinkClipsBody(BaseModel):
+    clip_ids: list[str] | None = None
+
+
+class LinkedGroupBody(BaseModel):
+    clip_id: str
+
+
+class TcBody(BaseModel):
+    frame: int | None = None
+    tc: str | None = None
+
+
+@app.post("/api/clips/link")
+def clips_link(body: LinkClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.link_clips(body.clip_ids, group_id=body.group_id)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/unlink")
+def clips_unlink(body: UnlinkClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.unlink_clips(body.clip_ids)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/linked")
+def clips_linked(body: LinkedGroupBody) -> dict[str, Any]:
+    return _ed().linked_group(body.clip_id)
+
+
+@app.post("/api/tc/format")
+def tc_format(body: TcBody) -> dict[str, Any]:
+    if body.frame is None:
+        raise HTTPException(400, "frame required")
+    return _ed().frames_to_tc(body.frame)
+
+
+@app.post("/api/tc/parse")
+def tc_parse(body: TcBody) -> dict[str, Any]:
+    if not body.tc:
+        raise HTTPException(400, "tc required")
+    return _ed().tc_to_frames(body.tc)
 
 
 class RippleNudgeBody(BaseModel):
@@ -1378,6 +1434,7 @@ class DetachAudioBody(BaseModel):
     clip_id: str
     audio_track_id: str | None = None
     audio_start_offset_frames: int = 0
+    link: bool = True
 
 
 @app.post("/api/clips/at")
@@ -1426,6 +1483,7 @@ def clip_detach_audio(body: DetachAudioBody) -> dict[str, Any]:
         body.clip_id,
         body.audio_track_id,
         audio_start_offset_frames=body.audio_start_offset_frames,
+        link=body.link,
     )
     return {**r, "timeline": ed.timeline_view()}
 
