@@ -241,6 +241,12 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
         lower = warmer/amber, higher = cooler/blue), "mix": 0..1 (default 1.0, blend with source)}
         - full-frame color temperature shift (ffmpeg colortemperature). Use for cold→warm emotion arcs
           without re-generating.
+      {"type": "shape_mask", "shape": "circle"|"rect" (default circle),
+        "cx"/"cy": 0..1 center (default 0.5), "size": 0..1 (circle radius as fraction of half min-side,
+        default 0.5), "width"/"height": 0..1 (rect only, default 0.5), "feather": 0..1 soft edge
+        (default 0.05), "invert": bool (default false)}
+        - geometric alpha mask; put the clip on an overlay video track so the layer below shows outside
+          the shape (same alpha-survival rules as chroma_key).
       {"type": "compression", "threshold_db": float (default -18.0, level where compression kicks in),
         "ratio": 1..20 (default 4.0), "attack_ms": float (default 20.0), "release_ms": float
         (default 250.0), "makeup_db": float (default 0.0, gain added back after compressing)}
@@ -269,11 +275,31 @@ def add_transition(clip_id: str, transition_type: str, duration_frames: int) -> 
     slides in over the old one). Video-only styling - the audio underneath
     always crossfades the same way regardless of which visual type you pick.
     The boundary must currently be a clean hard cut (this clip's start == the
-    previous clip's end) - check get_project_state first. This shortens the
-    combined timeline by duration_frames, since the two clips now overlap by
-    that much instead of playing back to back.
+    previous clip's end) - check get_project_state first. Prefer place_after(
+    ..., transition_type=..., transition_frames=...) which does hard-cut then
+    transition for you. This shortens the combined timeline by duration_frames.
     """
     return _require_editor().add_transition(clip_id, transition_type, duration_frames).to_dict()
+
+
+@mcp.tool()
+def place_after(
+    after_clip_id: str,
+    media_id: str,
+    src_in: int = 0,
+    src_out: int | None = None,
+    transition_type: str | None = None,
+    transition_frames: int | None = None,
+) -> dict:
+    """Place media as the next clip after after_clip_id (hard cut at prev.end).
+
+    Optional transition_type + transition_frames then dissolve it in — the
+    correct order agents kept getting wrong (place pre-overlapped then
+    add_transition was rejected). src_out defaults to full media duration.
+    """
+    return _require_editor().place_after(
+        after_clip_id, media_id, src_in, src_out, transition_type, transition_frames
+    ).to_dict()
 
 
 @mcp.tool()
@@ -376,9 +402,30 @@ def analyze_audio(
     frequency content (hiss, harshness, missing bass) that single numbers
     hide. Use on generated audio before placing it, and on exports to verify
     the mix (e.g. that ducking actually made room for the voiceover).
-    Deterministic ffmpeg analysis - free, local, no model call."""
+    Deterministic ffmpeg analysis - free, local, no model call.
+    For the *current project mix* (ducking/multi-track), use analyze_timeline
+    instead — this tool only sees a single file path."""
     return _require_editor().analyze_audio(
         path,
+        image_path,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+    )
+
+
+@mcp.tool()
+def analyze_timeline(
+    image_path: str | None = None,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.5,
+) -> dict:
+    """Meter the current project mix (all tracks, ducking, levels as authored).
+
+    Exports to a temp file, runs the same meters as analyze_audio, deletes the
+    temp. Use this to verify ducking/music beds before choosing a final export
+    path — analyze_audio alone cannot see the live timeline.
+    """
+    return _require_editor().analyze_timeline(
         image_path,
         silence_threshold_db=silence_threshold_db,
         min_silence_seconds=min_silence_seconds,

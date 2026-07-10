@@ -717,6 +717,70 @@ def test_lut3d_changes_solid_blue_pixels(tmp_path):
     assert px[2] < 80, f"blue channel should be crushed by LUT, got {px}"
 
 
+def test_apply_effect_shape_mask(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "shape_mask", "shape": "circle", "size": 0.4})
+    assert clip.effects[0]["type"] == "shape_mask"
+
+
+def test_apply_effect_shape_mask_rejects_bad_shape(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "shape_mask", "shape": "hexagon"})
+
+
+def test_shape_mask_circle_composites_over_blue(tmp_path):
+    """Real-pixel: red circle mask over blue base → red center, blue corners."""
+    from PIL import Image
+
+    blue = tmp_path / "blue.mp4"
+    red = tmp_path / "red.mp4"
+    for path, color in ((blue, "blue"), (red, "red")):
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-f", "lavfi",
+                "-i", f"color=c={color}:size=160x90:duration=1:rate={FPS}",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+            ],
+            capture_output=True, text=True, check=True,
+        )
+    ed = Editor.create(tmp_path / "mask.opm", fps=FPS, width=160, height=90)
+    mb = ed.import_media(blue, kind="video")
+    mr = ed.import_media(red, kind="video")
+    base = ed.add_track("video")
+    over = ed.add_track("video")
+    ed.add_clip(base.id, mb.id, start=0, src_in=0, src_out=15)
+    c = ed.add_clip(over.id, mr.id, start=0, src_in=0, src_out=15)
+    ed.apply_effect(c.id, {"type": "shape_mask", "shape": "circle", "size": 0.45, "feather": 0.0})
+    out = tmp_path / "out.mp4"
+    ed.export(out)
+    frame = tmp_path / "out.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-frames:v", "1", "-update", "1", str(frame)],
+        capture_output=True, text=True, check=True,
+    )
+    px = Image.open(frame).load()
+    center, corner = px[80, 45], px[5, 5]
+    assert center[0] > center[2] + 40, f"center should be red-dominant, got {center}"
+    assert corner[2] > corner[0] + 40, f"corner should be blue-dominant, got {corner}"
+
+
+def test_place_after_with_transition(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    c1 = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    c2 = editor.place_after(
+        c1.id, media.id, src_in=0, src_out=30,
+        transition_type="cross_dissolve", transition_frames=8,
+    )
+    assert c2.start == 30 - 8
+    assert c2.transition_in == {"type": "cross_dissolve", "duration_frames": 8}
+
+
 def test_apply_effect_white_balance(editor, sample_video):
     media = editor.import_media(sample_video, kind="video")
     track = editor.add_track("video")

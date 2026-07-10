@@ -29,6 +29,7 @@ from ..model import (
     CURVES_PRESETS,
     DEFAULT_TEXT_FONT,
     IMAGE_VIRTUAL_DURATION_FRAMES,
+    SHAPE_MASK_SHAPES,
     Clip,
     Media,
     MediaKind,
@@ -302,6 +303,53 @@ def _effect_filters(
             # default 0 so the grade is free to shift luminance slightly —
             # agents wanting "tint only" can lower mix instead.
             parts.append(f"colortemperature=temperature={temperature}:mix={mix}")
+        elif etype == "shape_mask":
+            if stream != "video":
+                continue
+            # Geometric alpha mask. Needs yuva + transparent pad (has_alpha).
+            # geq writes the alpha plane; RGB/luma pass through (p(X,Y)).
+            shape = effect.get("shape", "circle")
+            if shape not in SHAPE_MASK_SHAPES:
+                raise ValueError(f"shape_mask has invalid 'shape' {shape!r}")
+            cx = float(effect.get("cx", 0.5))
+            cy = float(effect.get("cy", 0.5))
+            size = float(effect.get("size", 0.5))
+            feather = float(effect.get("feather", 0.05))
+            invert = bool(effect.get("invert", False))
+            # geq alpha is written 0..255 into the plane (verified: a='1'
+            # yields near-transparent, a='255' yields opaque). Soft edge:
+            # linear ramp over feather*min(W,H) pixels.
+            if shape == "circle":
+                # size = radius as fraction of min(W,H)/2 so 1.0 = touch edges.
+                r_expr = f"(min(W\\,H)/2)*{size}"
+                dist = f"hypot(X-W*{cx}\\,Y-H*{cy})"
+                if feather > 1e-6:
+                    f_expr = f"(min(W\\,H)*{feather})"
+                    alpha01 = f"clip(({r_expr}-({dist}))/({f_expr})\\,0\\,1)"
+                else:
+                    alpha01 = f"if(lte({dist}\\,{r_expr})\\,1\\,0)"
+            else:  # rect
+                w = float(effect.get("width", 0.5))
+                h = float(effect.get("height", 0.5))
+                half_w = f"(W*{w}/2)"
+                half_h = f"(H*{h}/2)"
+                dx = f"abs(X-W*{cx})-({half_w})"
+                dy = f"abs(Y-H*{cy})-({half_h})"
+                od = f"max(max({dx}\\,0)\\,max({dy}\\,0))"
+                if feather > 1e-6:
+                    f_expr = f"(min(W\\,H)*{feather})"
+                    alpha01 = f"clip(1-({od})/({f_expr})\\,0\\,1)"
+                else:
+                    alpha01 = f"if(lte({od}\\,0)\\,1\\,0)"
+            if invert:
+                alpha01 = f"(1-({alpha01}))"
+            alpha = f"255*({alpha01})"
+            # Use rgba for geq so r/g/b/a expressions are unambiguous, then
+            # leave yuva conversion to the pad/format step has_alpha adds.
+            parts.append(
+                f"format=rgba,"
+                f"geq=r='r(X\\,Y)':g='g(X\\,Y)':b='b(X\\,Y)':a='{alpha}'"
+            )
         elif etype == "ken_burns":
             if stream != "video":
                 continue
@@ -485,7 +533,9 @@ def _video_clip_chain(
     embedded ``;`` is fine.
     """
     speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
-    has_alpha = any(e.get("type") in ("chroma_key", "luma_key") for e in clip.effects)
+    has_alpha = any(
+        e.get("type") in ("chroma_key", "luma_key", "shape_mask") for e in clip.effects
+    )
     pad_color = "black@0.0" if has_alpha else "black"
     tail_filters = [
         f"scale={box_w}:{box_h}:force_original_aspect_ratio=decrease",

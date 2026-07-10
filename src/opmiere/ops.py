@@ -23,6 +23,7 @@ from .model import (
     CURVES_PRESETS,
     KNOWN_EFFECT_TYPES,
     KNOWN_TRANSITION_TYPES,
+    SHAPE_MASK_SHAPES,
     TEXT_POSITIONS,
     Clip,
     Media,
@@ -386,6 +387,23 @@ class Editor:
                 mix = effect.get("mix", 1.0)
                 if not isinstance(mix, (int, float)) or not (0.0 <= mix <= 1.0):
                     raise ValueError("white_balance effect 'mix' must be in [0, 1]")
+            elif etype == "shape_mask":
+                # Soft geometric alpha mask (circle/rect). Like chroma_key, the
+                # clip needs alpha survival through pad for overlay compositing.
+                shape = effect.get("shape", "circle")
+                if shape not in SHAPE_MASK_SHAPES:
+                    raise ValueError(
+                        f"shape_mask 'shape' must be one of {sorted(SHAPE_MASK_SHAPES)}, got {shape!r}"
+                    )
+                for key, default in (("cx", 0.5), ("cy", 0.5), ("size", 0.5), ("feather", 0.05)):
+                    val = effect.get(key, default)
+                    if not isinstance(val, (int, float)) or not (0.0 <= float(val) <= 1.0):
+                        raise ValueError(f"shape_mask {key!r} must be in [0, 1]")
+                if shape == "rect":
+                    for key, default in (("width", 0.5), ("height", 0.5)):
+                        val = effect.get(key, default)
+                        if not isinstance(val, (int, float)) or not (0.0 < float(val) <= 1.0):
+                            raise ValueError(f"shape_mask {key!r} must be in (0, 1]")
             elif etype == "compression":
                 ratio = effect.get("ratio", 4.0)
                 if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
@@ -467,6 +485,36 @@ class Editor:
             clip.transition_in = {"type": transition_type, "duration_frames": duration_frames}
             clip.start -= duration_frames
             return clip
+
+    def place_after(
+        self,
+        after_clip_id: str,
+        media_id: str,
+        src_in: int = 0,
+        src_out: int | None = None,
+        transition_type: str | None = None,
+        transition_frames: int | None = None,
+    ) -> Clip:
+        """Place media as the next hard-cut clip after ``after_clip_id``.
+
+        Dogfood friction fix: agents kept trying to place pre-overlapped then
+        call add_transition (rejected). This does the hard cut first, then
+        optionally add_transition in one call — the order the API requires.
+        """
+        with self._mutate():
+            track, prev = self._find_clip_and_track(after_clip_id)
+            media = self.project.media_by_id(media_id)
+            if src_out is None:
+                src_out = media.duration_frames
+            if not isinstance(src_out, int) or src_out <= src_in:
+                raise ValueError(f"need src_out > src_in, got src_in={src_in} src_out={src_out}")
+            # model.add_clip takes src_in/src_out (source frame range), not duration.
+            clip = self.project.add_clip(track, media, prev.end, src_in, src_out)
+        if transition_type is not None:
+            if transition_frames is None:
+                raise ValueError("place_after with transition_type also needs transition_frames")
+            return self.add_transition(clip.id, transition_type, transition_frames)
+        return clip
 
     def remove_transition(self, clip_id: str) -> Clip:
         with self._mutate():
@@ -700,6 +748,37 @@ class Editor:
             silence_threshold_db=silence_threshold_db,
             min_silence_seconds=min_silence_seconds,
         )
+
+    def analyze_timeline(
+        self,
+        image_path: str | Path | None = None,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.5,
+    ) -> dict[str, Any]:
+        """Meter the *current project mix* (dogfood friction fix).
+
+        ``analyze_audio`` only takes a file path — it cannot see the live
+        timeline. This exports to a temp file, runs the same meters (and
+        optional waveform plot), then deletes the temp. Heavier than
+        analyzing a single stem, but the only honest way to answer "did
+        ducking make room for the VO?" before a final export path is chosen.
+        """
+        import tempfile
+
+        tmp = Path(tempfile.mkstemp(prefix="opmiere_mix_", suffix=".mp4")[1])
+        try:
+            self.export(tmp)
+            result = self.analyze_audio(
+                tmp,
+                image_path=image_path,
+                silence_threshold_db=silence_threshold_db,
+                min_silence_seconds=min_silence_seconds,
+            )
+            result["source"] = "timeline_export"
+            result["timeline_frames"] = self.duration_frames()
+            return result
+        finally:
+            tmp.unlink(missing_ok=True)
 
     def make_contact_sheet(
         self, path: str | Path, output_path: str | Path, cols: int = 3, rows: int = 3

@@ -252,7 +252,7 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Color:** curves, lut3d, white_balance **done**; saturation/contrast via `color` **done**.
 - **Transform:** crop, scale/position (PiP), rotate, Ken-Burns (constant zoom + animated pan) **done**;
   (stabilization — later).
-- **Keying/masking:** chroma key (green screen), luma key, shape masks.
+- **Keying/masking:** chroma key, luma key, shape_mask (circle/rect alpha) **done**.
 - **Text:** titles, lower-thirds, captions/subtitles.
 - **Stylize:** blur, sharpen, vignette, film grain, glow **all done**. Glow is the multi-stage
   exception (blur a copy + screen-blend it back; see §9) — every other stylize effect is a single
@@ -686,10 +686,10 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 
 Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed), further
-offload-tier video candidates beyond wan2.2-moe if wanted, shape masks, true animated-zoom Ken Burns
-(current is constant-zoom + pan after zoompan multi-clip blow-up). Director policy, SFX, upscale, glow,
-lut3d, white_balance, ken_burns pan are done. Cloud deferred — JH: local free only. Dogfood v4
-(`examples/_after_the_rain/after_the_rain_v4.mp4`) re-assembled with ducking+sfx+white_balance+ken_burns.
+offload-tier video candidates beyond wan2.2-moe if wanted, true animated-zoom Ken Burns (current is
+constant-zoom + pan). shape_mask, place_after(+transition), analyze_timeline, director policy, SFX,
+upscale, glow, lut3d, white_balance done. Cloud deferred. Dogfood friction fixes: place_after encodes
+hard-cut→transition order; analyze_timeline exports temp mix then meters; shape_mask for geometric alpha.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
