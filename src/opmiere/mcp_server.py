@@ -21,20 +21,25 @@ from .generation import ComfyUIProvider
 from .model import MediaKind, TrackKind
 from .ops import Editor
 from .render.probe import probe as _probe
+from .workflow import (
+    get_workflow as _get_film_workflow,
+    make_brief as _make_director_brief,
+    plan_session as _plan_director_session,
+    validate_brief as _validate_director_brief,
+)
 
 mcp = FastMCP(
     name="opmiere",
     instructions=(
-        "Opmiere is an agent-native video editor. Call create_project or "
-        "open_project first. get_project_state shows the current timeline "
-        "(track/clip/media ids) - call it whenever you need to see what "
-        "exists before referencing an id. All positions and trims are in "
-        "frames at the project's fps (see get_project_state). "
-        "For AI-generated media follow get_director_policy(): generate → "
-        "poll job_status → quality_check (free) → make_contact_sheet → "
-        "decide → place_generated (or regenerate / upscale). Prefer "
-        "deterministic apply_effect tools over re-generating for grade, "
-        "text, transitions, and timing."
+        "Opmiere is an agent-native video editor. For a full cut from user "
+        "materials + intent: get_film_workflow → make_director_brief → "
+        "plan_director_session, then execute the plan's tools in order. "
+        "Call create_project or open_project first. get_project_state shows "
+        "the timeline (ids). Positions/trims are frames at project fps. "
+        "Prefer place_from_file for user assets; generate only gaps. "
+        "Per fragment: get_director_policy gates — generate → job_status → "
+        "quality_check → make_contact_sheet → place_generated/upscale/redo. "
+        "Prefer deterministic apply_effect over re-generate for grade/timing."
     ),
 )
 
@@ -189,15 +194,73 @@ def delete_clip(clip_id: str) -> dict:
 
 @mcp.tool()
 def get_director_policy() -> dict:
-    """Return the agent-director decision policy (ARCHITECTURE.md §5.10).
+    """Return the per-fragment quality-gate policy (ARCHITECTURE.md §5.10).
 
-    Call this once at the start of a directing session (and again if unsure).
-    It is the ordered workflow for generation quality control — free
-    quality_check before any vision tokens, contact_sheet before full-res
-    inspect, upscale vs regenerate tradeoffs, continuity habits. Does not
-    mutate the project. Returns {version, policy} where policy is markdown.
+    Call with get_film_workflow at session start. Covers generate →
+    quality_check → contact_sheet → place/upscale/redo. Does not mutate the
+    project. Returns {version, policy} (markdown).
     """
     return _get_director_policy()
+
+
+@mcp.tool()
+def get_film_workflow() -> dict:
+    """Return the full film-session process (materials → cut → export).
+
+    Includes versioned markdown, DEFAULT_AESTHETIC when the user has no
+    creative opinion, allowed asset roles, and an empty brief template.
+    Pair with make_director_brief + plan_director_session. Does not edit
+    the project.
+    """
+    return _get_film_workflow()
+
+
+@mcp.tool()
+def make_director_brief(
+    intent: str | None = None,
+    assets: list | None = None,
+    constraints: dict | None = None,
+    deliverable: dict | None = None,
+) -> dict:
+    """Build a structured director brief from user intake.
+
+    intent: free-text creative goal; omit/empty = no_opinion and
+      defaults_applied is filled from DEFAULT_AESTHETIC.
+    assets: list of {path, role?} role one of a_roll|b_roll|vo|vo_ref|music|
+      sfx|still|other.
+    constraints: optional duration_seconds, language, no_generate, fps,
+      width, height.
+    deliverable: optional bundle_path (.opm), export_path (mp4).
+    Does not validate filesystem (use validate_director_brief).
+    """
+    return _make_director_brief(
+        intent=intent,
+        assets=assets,
+        constraints=constraints,
+        deliverable=deliverable,
+    )
+
+
+@mcp.tool()
+def validate_director_brief(brief: dict) -> dict:
+    """Validate a director brief. Returns {ok, errors, warnings}.
+
+    Missing asset paths are warnings (may be created later); structural
+    problems are errors. Does not mutate the project.
+    """
+    return _validate_director_brief(brief)
+
+
+@mcp.tool()
+def plan_director_session(brief: dict) -> dict:
+    """Return an ordered step plan for a brief (tool names + purposes).
+
+    Does NOT execute edits or generation — the agent runs each step with the
+    real tools. Prefer user assets; generate only listed gap kinds. Includes
+    validation result under 'validation'. When no_opinion, 'defaults' echoes
+    DEFAULT_AESTHETIC for grade/audio choices.
+    """
+    return _plan_director_session(brief)
 
 
 @mcp.tool()

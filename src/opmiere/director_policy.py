@@ -1,11 +1,9 @@
 """Agent-director policy (ARCHITECTURE.md §5.10).
 
 The tools for the loop already exist (generate / quality_check /
-make_contact_sheet / upscale / place_generated). What's missing is not
-capability — it's encoding the *decision order* somewhere an MCP agent
-reliably reads before spending tokens on every frame. This module is that
-encoding: get_director_policy MCP tool returns it verbatim; the MCP server
-instructions point at it.
+make_contact_sheet / upscale / place_generated). This module encodes the
+*per-fragment* decision order. For the full session process (user materials
+→ structure → generate gaps → export) see workflow.py / get_film_workflow.
 
 Deliberately NOT a combined accept/regenerate Editor method — that would
 either force contact_sheet after every quality_check (defeating the free
@@ -15,8 +13,7 @@ existing tools.
 
 from __future__ import annotations
 
-# Versioned so agents and humans can tell which policy a session followed.
-DIRECTOR_POLICY_VERSION = "1.0"
+DIRECTOR_POLICY_VERSION = "1.1"
 
 DIRECTOR_POLICY = """\
 # Opmiere agent-director policy v{version}
@@ -24,12 +21,19 @@ DIRECTOR_POLICY = """\
 You are directing a cut with Opmiere's tools. Quality is mostly *deterministic
 tools + selective generation*, not "generate everything and hope."
 
+## Session process (materials → film)
+1. `get_film_workflow()` once — full process + defaults when user has no opinion.
+2. `make_director_brief(intent, assets, constraints, deliverable)`.
+3. `plan_director_session(brief)` — execute the returned steps in order.
+4. Per-fragment gates below still apply to every `generate`.
+
 ## Before generating
 1. `get_project_state` — know fps, resolution, track/clip ids.
 2. Match video generation `frame_rate` to project fps (or place_generated fails).
-3. Prefer deterministic tools (cut, color, curves, lut3d, ken_burns, text,
+3. Prefer user assets (`place_from_file`) over generation when a role is filled.
+4. Prefer deterministic tools (cut, color, curves, lut3d, ken_burns, text,
    transitions, gain, ducking, …) over regeneration for look/timing problems.
-4. `recommend_generation_profile(kind)` when unsure which local model fits VRAM.
+5. `recommend_generation_profile(kind)` when unsure which local model fits VRAM.
 
 ## Per generated fragment (image / video / speech / music / sfx)
 1. `generate(kind, prompt, params)` → job id.
@@ -52,10 +56,10 @@ tools + selective generation*, not "generate everything and hope."
      duration_frames for video/audio to use real probed length).
 
 ## After placing
-- Harmonize looks with deterministic grade (`color`, `curves`, `lut3d`) rather
-  than regenerating whole shots for small color drift.
-- Audio: multi-track mix; `set_ducking` so music yields to voice; `analyze_audio`
-  as ears (LUFS / silence / optional waveform) before export.
+- Harmonize looks with deterministic grade (`color`, `curves`, `lut3d`,
+  `white_balance`) rather than regenerating whole shots for small color drift.
+- Audio: multi-track mix; `set_ducking` so music yields to voice; `analyze_timeline`
+  (or `analyze_audio` on a file) as ears before export.
 - Export → run `quality_check` on the export path; trust pixels, not "no error."
 
 ## Continuity (no frame-chaining yet)
@@ -70,10 +74,12 @@ tools + selective generation*, not "generate everything and hope."
 - Cloud generation is out of scope unless the user explicitly asks.
 
 ## Anti-patterns
+- Generate before placing the user's A-roll / hero assets.
 - place_generated before quality_check.
 - Vision-inspecting a quality_check failure.
 - One mega-generate instead of fragments + edit.
 - Inventing effect/tool names not in apply_effect / the tool list.
+- Ignoring empty intent (must use brief defaults_applied / DEFAULT_AESTHETIC).
 """.format(version=DIRECTOR_POLICY_VERSION)
 
 

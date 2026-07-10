@@ -342,13 +342,11 @@ an approved draft (image *or* video) straight into a finished asset without a fu
 in a new combined "accept/regenerate" method — that would either force `make_contact_sheet` to run right
 after `quality_check` every time (defeating the free-gate-before-expensive-step staging this section
 argued for) or duplicate what `generate`/`place_generated` already do. The decision itself stays agent
-policy over existing tools. **That policy is now encoded** as `opmiere.director_policy` + the
-`get_director_policy` MCP tool (and the server `instructions` string points agents at it on cold start):
-quality_check fails → regenerate; passes but composition/fidelity is off on the contact sheet →
-regenerate (optionally higher-tier `model`, same `seed`) or adjust params; looks right →
-`generate(kind="upscale", …)` or place_generated. Version field lets sessions pin which policy they
-followed. (Contact sheets reuse the same media-understanding capability as P4 semantic search, but
-their primary purpose here is quality control, not indexing.)
+policy over existing tools. **Per-fragment policy** is `opmiere.director_policy` + `get_director_policy`.
+**Session process** (user materials + intent → cut) is `opmiere.workflow` + MCP tools
+`get_film_workflow` / `make_director_brief` / `validate_director_brief` / `plan_director_session`
+— ordered tool steps without a black-box one-shot API. Empty intent applies `DEFAULT_AESTHETIC`.
+Server `instructions` point agents at both. Contact sheets remain QC, not P4 search.
 
 **Model-agnostic orchestration.** The director is whatever frontier agent is strongest — Claude
 (Opus 4.8), GPT-5.5, future models — reached through **MCP**, never hard-wired. Opmiere supplies the
@@ -687,8 +685,9 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed), further
 offload-tier video candidates beyond wan2.2-moe if wanted. Animated Ken Burns, shape_mask,
-place_after(+transition), analyze_timeline, director policy, SFX, upscale, glow, lut3d, white_balance
-done. Cloud deferred (JH: local free only).
+place_after(+transition), analyze_timeline, director policy, film workflow brief/plan (process layer),
+SFX, upscale, glow, lut3d, white_balance done. Cloud deferred (JH: local free only). Next product
+step after process layer: P3 GUI (user decision).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
