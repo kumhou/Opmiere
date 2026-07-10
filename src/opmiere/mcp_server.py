@@ -612,6 +612,47 @@ def extract_time(
 
 
 @mcp.tool()
+def set_clip_meta(
+    clip_id: str,
+    name: str | None = None,
+    color: str | None = None,
+    clear_name: bool = False,
+    clear_color: bool = False,
+) -> dict:
+    """Set clip display name / color chip (UI only)."""
+    return _require_editor().set_clip_meta(
+        clip_id, name=name, color=color,
+        clear_name=clear_name, clear_color=clear_color,
+    )
+
+
+@mcp.tool()
+def list_clip_colors() -> dict:
+    return _require_editor().list_clip_colors()
+
+
+@mcp.tool()
+def list_recent_projects(limit: int = 12) -> dict:
+    """Recently opened .opm bundles (user config, not project-local)."""
+    return _require_editor().list_recent_projects(limit=limit)
+
+
+@mcp.tool()
+def set_autosave(enabled: bool = True) -> dict:
+    """When true, save project after every successful mutation."""
+    return _require_editor().set_autosave(enabled)
+
+
+@mcp.tool()
+def project_dirty() -> dict:
+    return {
+        "dirty": _require_editor().is_dirty(),
+        "autosave": _require_editor()._autosave,
+        "bundle_path": str(_require_editor().bundle.root),
+    }
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

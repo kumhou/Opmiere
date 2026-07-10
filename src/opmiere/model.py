@@ -212,6 +212,9 @@ class Clip:
     position: dict[str, Any] | None = None
     # muted: still occupies timeline; render blacks/silences (see ffmpeg export).
     muted: bool = False
+    # Optional UI label / color chip (does not affect render).
+    name: str | None = None
+    color: str | None = None
 
     @property
     def duration_frames(self) -> int:
@@ -246,6 +249,10 @@ class Clip:
             d["position"] = self.position
         if self.muted:
             d["muted"] = True
+        if self.name:
+            d["name"] = self.name
+        if self.color:
+            d["color"] = self.color
         return d
 
     @classmethod
@@ -261,6 +268,8 @@ class Clip:
             speed=d.get("speed", 1.0),
             position=d.get("position"),
             muted=bool(d.get("muted", False)),
+            name=d.get("name"),
+            color=d.get("color"),
         )
 
 

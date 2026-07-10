@@ -175,6 +175,7 @@
     <h1>Opmiere</h1>
     <span class="sub">NLE shell · agent = MCP</span>
     <span class="pill" id="status">no project</span>
+    <span class="pill" id="dirtyPill">saved</span>
     <span class="pill" id="docPill">doctor ?</span>
     <span class="pill" id="proxyPill">proxy ?</span>
     <span class="tc" id="tcLabel">00:00.0 / 00:00.0</span>
@@ -194,6 +195,10 @@
         <button type="button" class="secondary" id="btnUndo">Undo</button>
         <button type="button" class="secondary" id="btnRedo">Redo</button>
       </div>
+      <label><input type="checkbox" id="autosave" style="width:auto" /> autosave</label>
+      <label>Recent</label>
+      <select id="recent"><option value="">— recent projects —</option></select>
+      <button type="button" class="secondary" id="btnOpenRecent">Open recent</button>
       <label>FPS / W / H</label>
       <div class="row">
         <input id="fps" type="number" value="30" />
@@ -310,6 +315,12 @@
         <button type="button" class="secondary" id="btnGain" disabled style="flex:0.4">Set</button>
       </div>
       <button type="button" class="secondary" id="btnClipMute" disabled>Toggle clip mute</button>
+      <label>Clip name</label>
+      <div class="row">
+        <input id="clipName" placeholder="label" disabled />
+        <button type="button" class="secondary" id="btnClipName" disabled style="flex:0.4">Set</button>
+      </div>
+      <div id="colorRow" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
       <div id="fillerBox"></div>
       <div id="reviewBox"></div>
       <div id="sheetWrap"></div>
@@ -537,13 +548,14 @@
           const g = (c.gain_db != null && c.gain_db !== 0) ? ` ${c.gain_db>0?'+':''}${c.gain_db}dB` : '';
           const mut = c.muted ? ' muted' : '';
           const opacity = c.muted ? 'opacity:0.45;' : '';
+          const bg = c.color ? `background:${c.color};` : '';
           clipsHtml += `<div class="tclip ${kind}${sel}${mut}" data-id="${c.id}" data-media="${c.media_id||''}"
             data-track="${tr.id}"
             data-start="${c.start_frame}" data-in="${c.src_in}" data-out="${c.src_out}"
             data-t="${c.start_seconds}" data-gain="${c.gain_db||0}" data-ha="${c.has_audio_media?1:0}"
-            data-muted="${c.muted?1:0}"
+            data-muted="${c.muted?1:0}" data-name="${(c.name||'').replace(/"/g,'')}" data-color="${c.color||''}"
             data-label="${(c.label||'').replace(/"/g,'')}"
-            style="left:${left}%;width:${width}%;${opacity}" title="${c.label} · ${c.id}${g}${c.muted?' ·MUTED':''}">
+            style="left:${left}%;width:${width}%;${opacity}${bg}" title="${c.label} · ${c.id}${g}${c.muted?' ·MUTED':''}">
             <canvas class="wave"></canvas>
             <span class="hL" data-edge="left"></span>
             <span class="clipLab" style="position:relative;z-index:1">${c.label}${g}</span>
@@ -651,20 +663,88 @@
       const btn = document.getElementById('btnGain');
       const lab = document.getElementById('gainLabel');
       const muteBtn = document.getElementById('btnClipMute');
+      const nameIn = document.getElementById('clipName');
+      const nameBtn = document.getElementById('btnClipName');
       if (!selectedClipId) {
         slider.disabled = true;
         btn.disabled = true;
         if (muteBtn) muteBtn.disabled = true;
+        if (nameIn) nameIn.disabled = true;
+        if (nameBtn) nameBtn.disabled = true;
         return;
       }
       slider.disabled = false;
       btn.disabled = false;
       if (muteBtn) muteBtn.disabled = false;
+      if (nameIn) nameIn.disabled = false;
+      if (nameBtn) nameBtn.disabled = false;
       const el = document.querySelector(`.tclip[data-id="${selectedClipId}"]`);
       const g = el ? (+el.dataset.gain || 0) : 0;
       slider.value = g;
       lab.textContent = g;
       if (muteBtn) muteBtn.textContent = (el && el.dataset.muted === '1') ? 'Unmute clip' : 'Mute clip';
+      if (nameIn) nameIn.value = (el && el.dataset.name) || '';
+    }
+
+    function setDirty(on) {
+      const p = document.getElementById('dirtyPill');
+      if (!p) return;
+      p.textContent = on ? 'dirty' : 'saved';
+      p.classList.toggle('bad', !!on);
+    }
+
+    async function loadRecent() {
+      try {
+        const r = await api('/api/recent?limit=12');
+        const sel = document.getElementById('recent');
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">— recent projects —</option>' +
+          (r.projects || []).map(p =>
+            `<option value="${p.path}">${p.label || p.path}</option>`
+          ).join('');
+        if (cur) sel.value = cur;
+      } catch (_) {}
+    }
+
+    async function loadColors() {
+      try {
+        const r = await api('/api/clip/colors');
+        const row = document.getElementById('colorRow');
+        if (!row) return;
+        const colors = r.colors || [];
+        row.innerHTML = colors.map(c =>
+          `<button type="button" class="secondary clipColor" data-c="${c}"
+            style="width:18px;height:18px;padding:0;margin:0;background:${c};border-radius:4px" title="${c}"></button>`
+        ).join('') +
+          `<button type="button" class="secondary" id="btnClearColor" style="width:auto;padding:2px 6px;font-size:10px">✕</button>`;
+        row.querySelectorAll('.clipColor').forEach(b => {
+          b.onclick = async () => {
+            if (!selectedClipId) return;
+            try {
+              const res = await api('/api/clip/meta', {
+                method: 'POST',
+                body: JSON.stringify({ clip_id: selectedClipId, color: b.dataset.c }),
+              });
+              if (res.timeline) renderTimeline(res.timeline);
+              setDirty(true);
+              log('color ' + b.dataset.c);
+            } catch (e) { log(String(e.message || e)); }
+          };
+        });
+        const clr = document.getElementById('btnClearColor');
+        if (clr) clr.onclick = async () => {
+          if (!selectedClipId) return;
+          try {
+            const res = await api('/api/clip/meta', {
+              method: 'POST',
+              body: JSON.stringify({ clip_id: selectedClipId, clear_color: true }),
+            });
+            if (res.timeline) renderTimeline(res.timeline);
+            setDirty(true);
+          } catch (e) { log(String(e.message || e)); }
+        };
+      } catch (_) {}
     }
 
     function updateSelBar() {
@@ -888,9 +968,11 @@
     async function refreshAll() {
       const tv = await api('/api/project/timeline');
       renderTimeline(tv);
+      setDirty(!!tv.dirty);
       await refreshProxyPill();
       await refreshBin();
       try { await renderMix(); } catch (_) {}
+      await loadRecent();
       return tv;
     }
 
@@ -1422,9 +1504,38 @@
           body: JSON.stringify({ clip_id: selectedClipId, muted: next }),
         });
         if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
         log('clip muted=' + r.muted);
       } catch (e) { log(String(e.message || e)); }
     };
+    document.getElementById('btnClipName').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const name = document.getElementById('clipName').value;
+        const r = await api('/api/clip/meta', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, name }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('name ' + name);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('autosave').onchange = async (ev) => {
+      try {
+        const r = await api('/api/autosave', {
+          method: 'POST', body: JSON.stringify({ enabled: !!ev.target.checked }),
+        });
+        log('autosave=' + r.autosave);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnOpenRecent').onclick = async () => {
+      const path = document.getElementById('recent').value;
+      if (!path) return;
+      document.getElementById('bundle').value = path;
+      document.getElementById('btnOpen').click();
+    };
+    document.getElementById('btnSave').addEventListener('click', () => setDirty(false));
 
     async function runMulti(path, extra) {
       const ids = selectionList();
@@ -1726,6 +1837,8 @@
     };
 
     document.getElementById('btnDoctor').click();
+    loadRecent();
+    loadColors();
   </script>
 </body>
 </html>

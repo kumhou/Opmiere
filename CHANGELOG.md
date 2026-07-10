@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.6 — 2026-07-11
+
+### Added
+- **Clip labels/colors**: `set_clip_meta` (name + color chip); shown on timeline
+- **Recent projects**: `list_recent_projects` (LOCALAPPDATA/Opmiere/recent.json)
+- **Autosave / dirty**: `set_autosave`, mutation marks dirty; autosave writes after mutate
+- Web: color palette, rename, recent open, dirty pill, autosave checkbox
+
 ## 0.2.5 — 2026-07-10
 
 ### Added

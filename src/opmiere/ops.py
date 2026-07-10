@@ -56,6 +56,10 @@ from .render.style_presets import resolve_style_asset as _resolve_style_asset
 from .render.style_presets import resolve_style_effects as _resolve_style_effects
 from .render.cut_templates import get_template as _get_cut_template
 from .render.cut_templates import list_templates as _list_cut_templates
+from .recent import CLIP_COLORS as _CLIP_COLORS
+from .recent import clear_recent as _clear_recent
+from .recent import list_recent as _list_recent
+from .recent import touch_recent as _touch_recent
 from .render.mix_suggest import suggest_dialogue_chain as _suggest_dialogue_chain
 from .render.mix_suggest import suggest_mix as _suggest_mix
 from .render.quality_check import quality_check as _quality_check
@@ -121,6 +125,8 @@ class Editor:
         self._clipboard: dict[str, Any] | None = None
         self._in_point: int | None = None
         self._out_point: int | None = None
+        self._dirty: bool = False
+        self._autosave: bool = False
 
     def _timeline_fingerprint(self) -> str:
         """Hash of timeline-relevant project state for proxy freshness."""
@@ -174,14 +180,78 @@ class Editor:
         project.timebase.fps = fps
         project.resolution.w, project.resolution.h = width, height
         bundle = Bundle.create(Path(root), project=project)
-        return cls(bundle, generation_provider=generation_provider)
+        ed = cls(bundle, generation_provider=generation_provider)
+        ed._dirty = False
+        try:
+            _touch_recent(bundle.root)
+        except OSError:
+            pass
+        return ed
 
     @classmethod
     def open(cls, root: Path, generation_provider: GenerationProvider | None = None) -> "Editor":
-        return cls(Bundle.open(Path(root)), generation_provider=generation_provider)
+        ed = cls(Bundle.open(Path(root)), generation_provider=generation_provider)
+        ed._dirty = False
+        try:
+            _touch_recent(ed.bundle.root)
+        except OSError:
+            pass
+        return ed
 
     def save(self) -> None:
         self.bundle.save(self.project)
+        self._dirty = False
+        try:
+            _touch_recent(self.bundle.root)
+        except OSError:
+            pass
+
+    def is_dirty(self) -> bool:
+        return bool(self._dirty)
+
+    def set_autosave(self, enabled: bool = True) -> dict[str, Any]:
+        self._autosave = bool(enabled)
+        return {"autosave": self._autosave, "dirty": self._dirty}
+
+    def list_recent_projects(self, limit: int = 12) -> dict[str, Any]:
+        return _list_recent(limit=limit)
+
+    def clear_recent_projects(self) -> dict[str, Any]:
+        return _clear_recent()
+
+    def set_clip_meta(
+        self,
+        clip_id: str,
+        *,
+        name: str | None = None,
+        color: str | None = None,
+        clear_name: bool = False,
+        clear_color: bool = False,
+    ) -> dict[str, Any]:
+        """Set display name / color chip on a clip (not rendered into pixels)."""
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if clear_name:
+                clip.name = None
+            elif name is not None:
+                clip.name = str(name).strip() or None
+            if clear_color:
+                clip.color = None
+            elif color is not None:
+                c = str(color).strip()
+                if c and not c.startswith("#"):
+                    c = "#" + c
+                clip.color = c or None
+            return {
+                "clip_id": clip_id,
+                "name": clip.name,
+                "color": clip.color,
+                "palette": list(_CLIP_COLORS),
+            }
+
+    def list_clip_colors(self) -> dict[str, Any]:
+        return {"colors": list(_CLIP_COLORS)}
 
     # --- read-only introspection (what an agent queries before it acts) ----
     def describe(self) -> dict:
@@ -229,7 +299,12 @@ class Editor:
                     "muted": bool(clip.muted),
                     "has_audio_media": bool(m and (m.kind == "audio" or m.has_audio)),
                     "transition_in": clip.transition_in,
-                    "label": (m.path.split("/")[-1] if m and m.path else clip.id),
+                    "name": clip.name,
+                    "color": clip.color,
+                    "label": (
+                        clip.name
+                        or (m.path.split("/")[-1] if m and m.path else clip.id)
+                    ),
                 })
             tracks_out.append({
                 "id": track.id,
@@ -264,6 +339,9 @@ class Editor:
                 {"has": True, "media_id": self._clipboard.get("media")}
                 if self._clipboard else {"has": False}
             ),
+            "dirty": self._dirty,
+            "autosave": self._autosave,
+            "bundle_path": str(self.bundle.root),
         }
 
     # --- undo/redo -----------------------------------------------------
@@ -280,6 +358,12 @@ class Editor:
             self._redo_stack.clear()
             # Timeline changed — scrub proxy no longer matches
             self.invalidate_preview_proxy()
+            self._dirty = True
+            if self._autosave:
+                try:
+                    self.save()
+                except OSError:
+                    pass
 
     def undo(self) -> bool:
         if not self._undo_stack:
@@ -1282,6 +1366,8 @@ class Editor:
             "speed": clip.speed,
             "effects": [dict(e) for e in (clip.effects or [])],
             "position": dict(clip.position) if clip.position else None,
+            "name": clip.name,
+            "color": clip.color,
             "source_track_kind": track.kind,
             "source_clip_id": clip.id,
             "duration_frames": clip.timeline_duration_frames,
@@ -1334,6 +1420,10 @@ class Editor:
             clip.effects = [dict(e) for e in (bp.get("effects") or [])]
             if bp.get("position"):
                 clip.position = dict(bp["position"])
+            if bp.get("name"):
+                clip.name = bp["name"]
+            if bp.get("color"):
+                clip.color = bp["color"]
             return {
                 "clip_id": clip.id,
                 "track_id": tid,
