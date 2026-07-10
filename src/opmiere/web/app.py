@@ -694,6 +694,27 @@ def markers_delete(body: MarkerDeleteBody) -> dict[str, Any]:
     return {**r, "markers": ed.list_markers()["markers"]}
 
 
+class MarkerUpdateBody(BaseModel):
+    marker_id: str
+    label: str | None = None
+    color: str | None = None
+    frame: int | None = None
+    time_seconds: float | None = None
+
+
+@app.post("/api/markers/update")
+def markers_update(body: MarkerUpdateBody) -> dict[str, Any]:
+    ed = _ed()
+    m = ed.update_marker(
+        body.marker_id,
+        label=body.label,
+        color=body.color,
+        frame=body.frame,
+        time_seconds=body.time_seconds,
+    )
+    return {"marker": m, "markers": ed.list_markers()["markers"]}
+
+
 @app.post("/api/split")
 def split_at(body: SplitBody) -> dict[str, Any]:
     ed = _ed()
@@ -1144,6 +1165,49 @@ def clip_detach_audio(body: DetachAudioBody) -> dict[str, Any]:
         audio_start_offset_frames=body.audio_start_offset_frames,
     )
     return {**r, "timeline": ed.timeline_view()}
+
+
+class OpacityBody(BaseModel):
+    clip_id: str
+    amount: float = 1.0
+
+
+class SubclipBody(BaseModel):
+    clip_id: str
+    timeline_start: int | None = None
+    timeline_end: int | None = None
+    use_work_area: bool = False
+    place: str = "after"
+    name: str | None = None
+
+
+@app.post("/api/clip/opacity")
+def clip_opacity(body: OpacityBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clip_opacity(body.clip_id, body.amount)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/subclip")
+def clip_subclip(body: SubclipBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.make_subclip(
+        body.clip_id,
+        timeline_start=body.timeline_start,
+        timeline_end=body.timeline_end,
+        use_work_area=body.use_work_area,
+        place=body.place,
+        name=body.name,
+    )
+    out: dict[str, Any] = {**r}
+    if r.get("placed"):
+        out["timeline"] = ed.timeline_view()
+    return out
+
+
+@app.get("/api/history")
+def history_api() -> dict[str, Any]:
+    return _ed().history_status()
 
 
 @app.get("/api/style_assets")

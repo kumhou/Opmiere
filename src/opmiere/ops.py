@@ -277,6 +277,7 @@ class Editor:
                 {"keys": "Ctrl+C/V/D", "action": "Copy / paste / duplicate"},
                 {"keys": "Ctrl+Shift+V", "action": "Overwrite paste at playhead"},
                 {"keys": "J / K / L", "action": "Shuttle: reverse / stop / play (repeat L speeds up)"},
+                {"keys": "U", "action": "Subclip from work In/Out (selected clip)"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -314,6 +315,7 @@ class Editor:
                 gain_db = 0.0
                 fade_in_f = 0
                 fade_out_f = 0
+                opacity = 1.0
                 for fx in clip.effects or []:
                     if fx.get("type") == "gain" and isinstance(fx.get("db"), (int, float)):
                         gain_db = float(fx["db"])
@@ -322,6 +324,8 @@ class Editor:
                             fade_in_f = int(fx["duration_frames"])
                         elif fx.get("direction") == "out":
                             fade_out_f = int(fx["duration_frames"])
+                    if fx.get("type") == "opacity" and isinstance(fx.get("amount"), (int, float)):
+                        opacity = float(fx["amount"])
                 clips_out.append({
                     "id": clip.id,
                     "media_id": clip.media,
@@ -340,6 +344,7 @@ class Editor:
                     "gain_db": gain_db,
                     "fade_in_frames": fade_in_f,
                     "fade_out_frames": fade_out_f,
+                    "opacity": opacity,
                     "muted": bool(clip.muted),
                     "has_audio_media": bool(m and (m.kind == "audio" or m.has_audio)),
                     "transition_in": clip.transition_in,
@@ -2171,6 +2176,162 @@ class Editor:
                 "agent_note": "Gain is clip effect; mix other clips with separate gains / ducking.",
             }
 
+    def get_clip_opacity(self, clip_id: str) -> float:
+        """Return opacity amount in [0,1]; default 1.0 if no opacity effect."""
+        clip = self._find_clip(clip_id)
+        amount = 1.0
+        for fx in clip.effects or []:
+            if fx.get("type") == "opacity" and isinstance(fx.get("amount"), (int, float)):
+                amount = float(fx["amount"])
+        return amount
+
+    def set_clip_opacity(self, clip_id: str, amount: float) -> dict[str, Any]:
+        """Set clip opacity 0..1 (replaces existing opacity effects). One undo.
+
+        amount=1 removes the effect (fully opaque). Best seen on overlay tracks
+        (composites over lower layers); on base track pads against transparent
+        then black background.
+        """
+        if not isinstance(amount, (int, float)):
+            raise ValueError("amount must be numeric")
+        amount = float(amount)
+        if not (0.0 <= amount <= 1.0):
+            raise ValueError("amount must be in [0, 1]")
+        old = self.get_clip_opacity(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.effects = [e for e in (clip.effects or []) if e.get("type") != "opacity"]
+            applied = 1.0 if amount >= 0.999 else amount
+            if applied < 0.999:
+                clip.effects.append({"type": "opacity", "amount": applied})
+            return {
+                "clip_id": clip_id,
+                "opacity": {"from": old, "to": applied},
+                "agent_note": "Opacity is a video alpha effect; re-export proxy to scrub.",
+            }
+
+    def history_status(self) -> dict[str, Any]:
+        """Undo/redo stack depth + dirty/autosave (agent UI status)."""
+        return {
+            "undo_depth": len(self._undo_stack),
+            "redo_depth": len(self._redo_stack),
+            "can_undo": bool(self._undo_stack),
+            "can_redo": bool(self._redo_stack),
+            "dirty": bool(getattr(self, "_dirty", False)),
+            "autosave": bool(getattr(self, "_autosave", False)),
+            "has_clipboard": bool(self._clipboard),
+            "work_in_out": self.get_in_out(),
+        }
+
+    def make_subclip(
+        self,
+        clip_id: str,
+        *,
+        timeline_start: int | None = None,
+        timeline_end: int | None = None,
+        use_work_area: bool = False,
+        place: str = "after",
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Duplicate a source range of a clip as a new clip (subclip).
+
+        Range:
+          - use_work_area=True: intersection of session In/Out with the clip
+          - else timeline_start/timeline_end (absolute frames, end exclusive)
+          - defaults: whole clip (same as duplicate footprint)
+
+        place: after | start | clipboard
+          - after: place after source clip on same track
+          - start: place at timeline_start (or clip.start)
+          - clipboard: copy blueprint only (no timeline place)
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        if place not in ("after", "start", "clipboard"):
+            raise ValueError("place must be after|start|clipboard")
+
+        if use_work_area:
+            io = self.get_in_out()
+            if io.get("in_frame") is None or io.get("out_frame") is None:
+                raise ValueError("work area In/Out not set")
+            t0 = max(clip.start, int(io["in_frame"]))
+            t1 = min(clip.end, int(io["out_frame"]))
+            if t1 <= t0:
+                raise ValueError("work area does not intersect this clip")
+        else:
+            t0 = clip.start if timeline_start is None else int(timeline_start)
+            t1 = clip.end if timeline_end is None else int(timeline_end)
+            if t0 < clip.start or t1 > clip.end or t1 <= t0:
+                raise ValueError(
+                    f"timeline range [{t0},{t1}) must lie inside clip "
+                    f"[{clip.start},{clip.end})"
+                )
+
+        # Map timeline range → source frames
+        def _src_at(tf: int) -> int:
+            local = tf - clip.start
+            if clip.speed != 1.0:
+                s = clip.src_in + int(round(local * clip.speed))
+            else:
+                s = clip.src_in + local
+            return min(max(s, clip.src_in), clip.src_out)
+
+        src_in = _src_at(t0)
+        src_out = _src_at(t1)
+        if src_out <= src_in:
+            src_out = min(clip.src_out, src_in + 1)
+
+        bp = {
+            "media": clip.media,
+            "src_in": src_in,
+            "src_out": src_out,
+            "speed": clip.speed,
+            "effects": [dict(e) for e in (clip.effects or [])],
+            "position": dict(clip.position) if clip.position else None,
+            "name": name or ((clip.name or "sub") + f"_{src_in}-{src_out}"),
+            "color": clip.color,
+            "source_track_kind": track.kind,
+            "source_clip_id": clip.id,
+            "duration_frames": max(1, round((src_out - src_in) / (clip.speed or 1.0))),
+        }
+
+        if place == "clipboard":
+            self._clipboard = bp
+            return {
+                "placed": False,
+                "clipboard": True,
+                "src_in": src_in,
+                "src_out": src_out,
+                "name": bp["name"],
+                "agent_note": "Subclip on session clipboard — paste_clip to place.",
+            }
+
+        place_at = clip.end if place == "after" else t0
+        with self._mutate():
+            track = self.project.track_by_id(track.id)
+            media = self.project.media_by_id(clip.media)
+            new_clip = self.project.add_clip(
+                track, media, int(place_at), src_in, src_out,
+            )
+            new_clip.speed = clip.speed
+            new_clip.effects = [dict(e) for e in (clip.effects or [])]
+            if clip.position:
+                new_clip.position = dict(clip.position)
+            new_clip.name = bp["name"]
+            if clip.color:
+                new_clip.color = clip.color
+            return {
+                "placed": True,
+                "clip_id": new_clip.id,
+                "track_id": track.id,
+                "start": new_clip.start,
+                "end": new_clip.end,
+                "src_in": src_in,
+                "src_out": src_out,
+                "name": new_clip.name,
+                "from_clip_id": clip_id,
+            }
+
     def waveform_peaks(
         self,
         *,
@@ -2300,6 +2461,10 @@ class Editor:
                         f"fade duration_frames ({duration_frames}) exceeds clip "
                         f"duration ({clip.duration_frames})"
                     )
+            elif etype == "opacity":
+                amount = effect.get("amount")
+                if not isinstance(amount, (int, float)) or not (0.0 <= float(amount) <= 1.0):
+                    raise ValueError("opacity effect requires amount in [0, 1]")
             elif etype == "gain":
                 db = effect.get("db")
                 if not isinstance(db, (int, float)):
@@ -4495,6 +4660,35 @@ class Editor:
             m = self.project.marker_by_id(marker_id)
             self.project.markers.remove(m)
             return {"deleted_id": marker_id}
+
+    def update_marker(
+        self,
+        marker_id: str,
+        *,
+        label: str | None = None,
+        color: str | None = None,
+        frame: int | None = None,
+        time_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        """Update marker label / color / frame (one undo)."""
+        fps = float(self.project.timebase.fps or 30.0)
+        if frame is None and time_seconds is not None:
+            frame = int(round(float(time_seconds) * fps))
+        with self._mutate():
+            m = self.project.marker_by_id(marker_id)
+            if label is not None:
+                m.label = str(label)
+            if color is not None:
+                m.color = str(color)
+            if frame is not None:
+                if int(frame) < 0:
+                    raise ValueError("marker frame must be >= 0")
+                m.frame = int(frame)
+                self.project.markers.sort(key=lambda x: x.frame)
+            return {
+                **m.to_dict(),
+                "time_seconds": round(m.frame / fps, 3),
+            }
 
     def list_markers(self) -> dict[str, Any]:
         fps = float(self.project.timebase.fps or 30.0)

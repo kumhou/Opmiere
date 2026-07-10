@@ -195,6 +195,16 @@ def _effect_filters(
             start_s = 0.0 if direction == "in" else (clip_duration_frames - duration_frames) / fps
             filter_name = "fade" if stream == "video" else "afade"
             parts.append(f"{filter_name}=t={direction}:st={start_s:.6f}:d={duration_s:.6f}")
+        elif etype == "opacity":
+            if stream != "video":
+                continue
+            amount = effect.get("amount", 1.0)
+            if not isinstance(amount, (int, float)) or not (0.0 <= float(amount) <= 1.0):
+                raise ValueError("opacity effect has invalid 'amount' (need 0..1)")
+            # Preserve RGB, scale alpha. has_alpha path keeps yuva through pad/overlay.
+            parts.append(
+                f"format=rgba,colorchannelmixer=aa={float(amount):.4f}"
+            )
         elif etype == "chroma_key":
             if stream != "video":
                 continue
@@ -562,7 +572,8 @@ def _video_clip_chain(
             {"type": "color", "brightness": -1.0, "contrast": 1.0, "saturation": 0.0},
         ]
     has_alpha = any(
-        e.get("type") in ("chroma_key", "luma_key", "shape_mask") for e in effects
+        e.get("type") in ("chroma_key", "luma_key", "shape_mask", "opacity")
+        for e in effects
     )
     # ken_burns (zoompan) already emits exactly box_w x box_h at project fps.
     # Appending the normal scale/pad/fps tail after zoompan multiplies frame

@@ -739,6 +739,65 @@ def get_clip_fades(clip_id: str) -> dict:
 
 
 @mcp.tool()
+def set_clip_opacity(clip_id: str, amount: float) -> dict:
+    """Set clip opacity 0..1 (replaces existing opacity effect)."""
+    return _require_editor().set_clip_opacity(clip_id, amount)
+
+
+@mcp.tool()
+def get_clip_opacity(clip_id: str) -> dict:
+    """Read clip opacity amount (1.0 = fully opaque)."""
+    return {
+        "clip_id": clip_id,
+        "opacity": _require_editor().get_clip_opacity(clip_id),
+    }
+
+
+@mcp.tool()
+def history_status() -> dict:
+    """Undo/redo depth, dirty, clipboard, work In/Out."""
+    return _require_editor().history_status()
+
+
+@mcp.tool()
+def make_subclip(
+    clip_id: str,
+    timeline_start: int | None = None,
+    timeline_end: int | None = None,
+    use_work_area: bool = False,
+    place: str = "after",
+    name: str | None = None,
+) -> dict:
+    """Create a subclip from a timeline range or work In/Out."""
+    return _require_editor().make_subclip(
+        clip_id,
+        timeline_start=timeline_start,
+        timeline_end=timeline_end,
+        use_work_area=use_work_area,
+        place=place,
+        name=name,
+    )
+
+
+@mcp.tool()
+def update_marker(
+    marker_id: str,
+    label: str | None = None,
+    color: str | None = None,
+    frame: int | None = None,
+    time_seconds: float | None = None,
+) -> dict:
+    """Update marker label / color / frame."""
+    return _require_editor().update_marker(
+        marker_id,
+        label=label,
+        color=color,
+        frame=frame,
+        time_seconds=time_seconds,
+    )
+
+
+@mcp.tool()
 def relink_clip(
     clip_id: str,
     media_id: str,

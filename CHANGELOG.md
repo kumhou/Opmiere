@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.11 — 2026-07-11
+
+### Added
+- **`opacity` effect** + `set_clip_opacity` / `get_clip_opacity` (0..1 alpha)
+- **`make_subclip`**: range or work In/Out → new clip / clipboard (web U)
+- **`history_status`**: undo/redo depth, dirty, clipboard, I/O
+- **`update_marker`**: edit label / color / frame
+
 ## 0.2.10 — 2026-07-11
 
 ### Added
