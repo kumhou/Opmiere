@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 — 2026-07-10
 
-- Preview: `ensure_preview_proxy` cache hit, `review_keyframes` 0–100%, web proxy fresh/stale badge + timecode
-- `preview_range`, room tone fill (`place_room_tone`)
-- Edit craft: `ripple_delete`, `close_gaps`, `detach_audio` (J/L-cut timing)
-- `slip_clip`, `roll_edit` (classic NLE trim tools)
+### Added
+- Preview: `ensure_preview_proxy` cache hit, `review_keyframes`, `preview_range`, web proxy badge
+- Room tone: `suggest_room_tone` / `extract_room_tone` / `place_room_tone`
+- Edit craft: `ripple_delete`, `close_gaps`, `detach_audio`, `slip_clip`, `roll_edit`, `slide_clip`, `ripple_trim`
+- `export_range` segment deliverable
+- Empty base-audio export + suppress embedded video audio when audio tracks have clips
 
 ## 0.1.0 — 2026-07-10
 

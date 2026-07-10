@@ -248,6 +248,50 @@ def roll_edit(left_clip_id: str, right_clip_id: str, delta_frames: int) -> dict:
 
 
 @mcp.tool()
+def slide_clip(clip_id: str, delta_frames: int) -> dict:
+    """Slide a middle clip; neighbors absorb so A–B–C block length is constant.
+
+    Needs prev+next hard-cut neighbors. Positive = later on the timeline.
+    """
+    return _require_editor().slide_clip(clip_id, delta_frames)
+
+
+@mcp.tool()
+def ripple_trim(
+    clip_id: str,
+    new_src_in: int | None = None,
+    new_src_out: int | None = None,
+) -> dict:
+    """Trim a clip's source range and ripple later clips to keep contiguity."""
+    return _require_editor().ripple_trim(
+        clip_id, new_src_in=new_src_in, new_src_out=new_src_out,
+    )
+
+
+@mcp.tool()
+def export_range(
+    output_path: str,
+    start_seconds: float,
+    end_seconds: float,
+    normalize_preset: str | None = None,
+    run_delivery_check: bool = False,
+    delivery_preset: str = "streaming",
+) -> dict:
+    """Full timeline render then trim to [start, end) for a segment file.
+
+    Same cost as full export + cut — for cold-open/social slices, not a dirty-region optim.
+    """
+    return _require_editor().export_range(
+        output_path,
+        start_seconds,
+        end_seconds,
+        normalize_preset=normalize_preset,
+        run_delivery_check=run_delivery_check,
+        delivery_preset=delivery_preset,
+    )
+
+
+@mcp.tool()
 def doctor(
     check_comfy: bool = True,
     comfy_host: str = "127.0.0.1",

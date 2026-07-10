@@ -519,6 +519,127 @@ class Editor:
                 "agent_note": "Cut point rolled; total timeline length of the pair unchanged.",
             }
 
+    def slide_clip(self, clip_id: str, delta_frames: int) -> dict[str, Any]:
+        """Slide: move a middle clip; neighbors absorb so sequence length holds.
+
+        Requires previous and next hard-cut neighbors on the same track,
+        speed=1.0, no transition_in on self or next. Positive = later on timeline.
+        """
+        with self._mutate():
+            if not isinstance(delta_frames, int) or delta_frames == 0:
+                raise ValueError("delta_frames must be a non-zero int")
+            track, clip = self._find_clip_and_track(clip_id)
+            if clip.speed != 1.0:
+                raise ValueError("slide_clip requires speed=1.0")
+            if clip.transition_in is not None:
+                raise ValueError("slide_clip needs hard cuts — remove transition_in first")
+            ordered = track.clips_in_order()
+            idx = ordered.index(clip)
+            if idx == 0 or idx == len(ordered) - 1:
+                raise ValueError("slide_clip needs both a previous and next neighbor")
+            prev, nxt = ordered[idx - 1], ordered[idx + 1]
+            if prev.speed != 1.0 or nxt.speed != 1.0:
+                raise ValueError("slide_clip requires speed=1.0 on neighbors")
+            if nxt.transition_in is not None:
+                raise ValueError("next clip has transition_in — remove it first")
+            if clip.start != prev.end or nxt.start != clip.end:
+                raise ValueError("slide_clip requires contiguous hard-cut neighbors")
+            # +d: prev longer, clip later, next loses head
+            new_prev_out = prev.src_out + delta_frames
+            new_clip_start = clip.start + delta_frames
+            new_next_in = nxt.src_in + delta_frames
+            new_next_start = nxt.start + delta_frames
+            if new_prev_out <= prev.src_in:
+                raise ValueError("slide would empty the previous clip")
+            if nxt.src_out <= new_next_in:
+                raise ValueError("slide would empty the next clip")
+            pmedia = self.project.media_by_id(prev.media)
+            nmedia = self.project.media_by_id(nxt.media)
+            if pmedia.duration_frames and new_prev_out > pmedia.duration_frames:
+                raise ValueError("slide exceeds previous media duration")
+            if new_next_in < 0:
+                raise ValueError("slide pushes next src_in below 0")
+            if nmedia.duration_frames and nxt.src_out > nmedia.duration_frames:
+                pass
+            old = {
+                "prev_out": prev.src_out,
+                "clip_start": clip.start,
+                "next_in": nxt.src_in,
+                "next_start": nxt.start,
+            }
+            prev.src_out = new_prev_out
+            clip.start = new_clip_start
+            nxt.src_in = new_next_in
+            nxt.start = new_next_start
+            if clip.start != prev.end or nxt.start != clip.end:
+                raise RuntimeError("internal: slide broke contiguity")
+            return {
+                "clip_id": clip.id,
+                "prev_clip_id": prev.id,
+                "next_clip_id": nxt.id,
+                "delta_frames": delta_frames,
+                "prev_src_out": {"from": old["prev_out"], "to": prev.src_out},
+                "clip_start": {"from": old["clip_start"], "to": clip.start},
+                "next_src_in": {"from": old["next_in"], "to": nxt.src_in},
+                "agent_note": "Middle clip slid; A/B/C block length unchanged.",
+            }
+
+    def ripple_trim(
+        self,
+        clip_id: str,
+        *,
+        new_src_in: int | None = None,
+        new_src_out: int | None = None,
+    ) -> dict[str, Any]:
+        """Trim source range and ripple later clips to close/open the hole.
+
+        Provide new_src_in and/or new_src_out (at least one). speed=1.0 only.
+        Trimming the head moves the clip's start earlier/later with ripple of
+        following clips; trimming the tail only ripples followers.
+        """
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            if clip.speed != 1.0:
+                raise ValueError("ripple_trim requires speed=1.0")
+            if new_src_in is None and new_src_out is None:
+                raise ValueError("provide new_src_in and/or new_src_out")
+            media = self.project.media_by_id(clip.media)
+            old_in, old_out = clip.src_in, clip.src_out
+            old_start = clip.start
+            old_dur = clip.timeline_duration_frames
+            src_in = old_in if new_src_in is None else int(new_src_in)
+            src_out = old_out if new_src_out is None else int(new_src_out)
+            if src_out <= src_in:
+                raise ValueError("src_out must be > src_in")
+            if src_in < 0:
+                raise ValueError("src_in must be >= 0")
+            if media.duration_frames and src_out > media.duration_frames:
+                raise ValueError("src_out exceeds media duration")
+            # Head trim: changing src_in by +d shortens clip and shifts content;
+            # timeline start stays; duration shrinks by d → ripple followers left by d
+            head_delta = src_in - old_in  # + means shorter from head
+            tail_delta = old_out - src_out  # + means shorter from tail
+            # net duration change
+            clip.src_in = src_in
+            clip.src_out = src_out
+            new_dur = clip.timeline_duration_frames
+            delta_dur = old_dur - new_dur  # positive = got shorter
+            if delta_dur != 0:
+                # shift later clips
+                for c in track.clips_in_order():
+                    if c.id == clip.id:
+                        continue
+                    if c.start >= old_start + old_dur:
+                        c.start = max(0, c.start - delta_dur)
+            return {
+                "clip_id": clip.id,
+                "src_in": {"from": old_in, "to": src_in},
+                "src_out": {"from": old_out, "to": src_out},
+                "duration_delta_frames": -delta_dur,
+                "timeline_start": clip.start,
+                "agent_note": "Trim applied; later clips rippled to keep contiguity.",
+            }
+
     def close_gaps(self, track_id: str, *, from_frame: int = 0) -> dict[str, Any]:
         """Pack clips on a track leftward so they are contiguous from from_frame.
 
@@ -1964,6 +2085,76 @@ class Editor:
             self.normalize_loudness(out, loud_path, preset=normalize_preset)
             return Path(loud_path)
         return written
+
+    def export_range(
+        self,
+        output_path: str | Path,
+        start_seconds: float,
+        end_seconds: float,
+        *,
+        normalize_preset: str | None = None,
+        run_delivery_check: bool = False,
+        delivery_preset: str = "streaming",
+    ) -> dict[str, Any]:
+        """Export the full timeline then cut [start, end) for a segment deliverable.
+
+        Renders once (same cost as full export), then ffmpeg trims. Useful for
+        cold-open / social cuts without a second graph. Not a dirty-region
+        optimizer — still full encode first.
+        """
+        import subprocess
+        import tempfile
+
+        start = max(0.0, float(start_seconds))
+        end = float(end_seconds)
+        if end <= start:
+            raise ValueError("end_seconds must be > start_seconds")
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, raw = tempfile.mkstemp(prefix="opmiere_full_", suffix=".mp4")
+        import os
+        os.close(fd)
+        full = Path(raw)
+        try:
+            self.export(full, normalize_preset=None)
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-ss", f"{start:.3f}",
+                    "-to", f"{end:.3f}",
+                    "-i", str(full),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "192k",
+                    str(output_path),
+                ],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0 or not output_path.exists():
+                raise RuntimeError(
+                    f"export_range trim failed:\n{(proc.stderr or '')[-2000:]}"
+                )
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+        written = output_path
+        if normalize_preset:
+            loud = output_path.with_name(output_path.stem + "_loud" + output_path.suffix)
+            self.normalize_loudness(output_path, loud, preset=normalize_preset)
+            written = loud
+        result: dict[str, Any] = {
+            "path": str(Path(written).resolve()),
+            "start_seconds": start,
+            "end_seconds": end,
+            "duration_seconds": round(end - start, 3),
+            "normalize_preset": normalize_preset,
+        }
+        if run_delivery_check:
+            result["delivery_check"] = self.delivery_check(
+                written, preset=delivery_preset, match_project=True,
+            )
+        return result
 
     def export_preview(
         self,

@@ -697,9 +697,11 @@ pace target, VO/music under picture. **Mix + beats:** `suggest_mix` / `apply_mix
 **P3 web:** doctor, review_cut, sequence sheet, project look, export+normalize+delivery_check.
 **Import:** fps auto-conform + optional `fit=contain|cover` to project canvas
 (`origin.conformed` records from/to fps/size). **Dogfood:** `scripts/dogfood_pro_pipeline.py`.
-**Preview (lightweight):** `export_preview` low-res proxy + `frame_at` scrub (proxy or
-base-track seek); web `/api/preview/*`. Still open: realtime NLE scrub (libopenshot/MLT),
-non-3070 re-benchmark. Cloud deferred.
+**Preview (lightweight):** `export_preview` / `ensure_preview_proxy` / `frame_at` /
+`review_keyframes` / `preview_range`; web scrub. **NLE trim:** slip / roll / slide /
+ripple_delete / ripple_trim / close_gaps / detach_audio. **Room tone** fill. Still open:
+realtime interactive scrub (libopenshot/MLT decision), dirty-region re-encode (still full
+graph), non-3070 VRAM re-benchmark, cloud providers.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
