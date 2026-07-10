@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.20 — 2026-07-11
+
+### Added
+- **`describe_clip` / `search_clips`**: rich clip card + name/path search
+- **`import_markers`**: YouTube chapters or CSV → timeline markers
+- **`export_edl`**: simple CMX-style EDL of base video track
+- **`trim_to_playhead(..., follow_links=)`**: Q/W on linked A/V (one undo)
+- Web: Clip info, search, import marks, Export EDL; Q/W follow links
+
 ## 0.2.19 — 2026-07-11
 
 ### Added

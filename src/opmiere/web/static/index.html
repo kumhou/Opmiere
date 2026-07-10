@@ -370,6 +370,18 @@
         <button type="button" class="secondary" id="btnPurgeMedia">Purge unused media</button>
       </div>
       <div class="row">
+        <button type="button" class="secondary" id="btnClipInfo" disabled>Clip info</button>
+        <button type="button" class="secondary" id="btnExportEdl">Export EDL</button>
+      </div>
+      <label>Search clips</label>
+      <div class="row">
+        <input id="clipSearch" placeholder="name / path / id…" />
+        <button type="button" class="secondary" id="btnClipSearch" style="flex:0.4">Find</button>
+      </div>
+      <label>Import markers (YouTube)</label>
+      <textarea id="markerImport" placeholder="0:00 Intro&#10;1:23 Chapter" style="min-height:40px"></textarea>
+      <button type="button" class="secondary" id="btnImportMarks">Import marks</button>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
@@ -832,7 +844,7 @@
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
-        'btnJCut','btnLCut',
+        'btnJCut','btnLCut','btnClipInfo',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2275,6 +2287,56 @@
         log('purged media entries: ' + r.count);
       } catch (e) { log(String(e.message || e)); }
     };
+    document.getElementById('btnClipInfo').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/' + encodeURIComponent(selectedClipId) + '/describe');
+        log('clip ' + selectedClipId + ' ' + JSON.stringify(r.clip));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnExportEdl').onclick = async () => {
+      try {
+        const r = await api('/api/export/edl', {
+          method: 'POST', body: JSON.stringify({}),
+        });
+        log('EDL events=' + r.count + '\n' + (r.body || '').slice(0, 800));
+        if (r.body) {
+          try { await navigator.clipboard.writeText(r.body); log('(EDL copied)'); }
+          catch (_) {}
+        }
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnClipSearch').onclick = async () => {
+      const query = (document.getElementById('clipSearch').value || '').trim();
+      if (!query) { log('empty search'); return; }
+      try {
+        const r = await api('/api/clips/search', {
+          method: 'POST', body: JSON.stringify({ query }),
+        });
+        log('search n=' + r.count + ' ' + JSON.stringify(r.hits));
+        if (r.hits && r.hits.length) {
+          selectedIds = new Set(r.hits.map(h => h.clip_id));
+          selectedClipId = r.hits[0].clip_id;
+          updateSelBar();
+          if (timeline) renderTimeline(timeline);
+        }
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnImportMarks').onclick = async () => {
+      const text = document.getElementById('markerImport').value || '';
+      if (!text.trim()) { log('paste YouTube chapters first'); return; }
+      try {
+        const r = await api('/api/markers/import', {
+          method: 'POST',
+          body: JSON.stringify({ text, format: 'youtube', replace: false }),
+        });
+        markers = r.markers || [];
+        const tv = await api('/api/project/timeline');
+        renderTimeline(tv);
+        setDirty(true);
+        log('imported markers n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
     document.getElementById('btnZoomFit').onclick = () => {
       const z = document.getElementById('zoom');
       if (z) { z.value = 1; zoom = 1; }
@@ -2704,11 +2766,16 @@
           playhead_frame: frame,
           edge,
           mode: 'ripple',
+          follow_links: true,
         }),
       });
       if (r.timeline) renderTimeline(r.timeline);
       setDirty(true);
-      log('trim ' + edge + ' @ ' + frame);
+      log(
+        r.count
+          ? ('trim ' + edge + ' linked n=' + r.count + ' @ ' + frame)
+          : ('trim ' + edge + ' @ ' + frame)
+      );
       return r;
     }
     document.getElementById('btnTrimQ').onclick = async () => {

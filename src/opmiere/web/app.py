@@ -1506,6 +1506,53 @@ def markers_export(body: ExportMarkersBody) -> dict[str, Any]:
     return _ed().export_markers(body.path, format=body.format)
 
 
+class ImportMarkersBody(BaseModel):
+    text: str
+    format: str = "youtube"
+    replace: bool = False
+    default_color: str = "#7c9cff"
+
+
+class ExportEdlBody(BaseModel):
+    path: str | None = None
+    title: str | None = None
+
+
+class SearchClipsBody(BaseModel):
+    query: str
+    track_id: str | None = None
+    kind: str | None = None
+
+
+@app.post("/api/markers/import")
+def markers_import(body: ImportMarkersBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.import_markers(
+        body.text,
+        format=body.format,
+        replace=body.replace,
+        default_color=body.default_color,
+    )
+    return {**r, "markers": ed.list_markers()["markers"]}
+
+
+@app.post("/api/export/edl")
+def export_edl_api(body: ExportEdlBody) -> dict[str, Any]:
+    return _ed().export_edl(body.path, title=body.title)
+
+
+@app.get("/api/clip/{clip_id}/describe")
+def clip_describe(clip_id: str) -> dict[str, Any]:
+    return _ed().describe_clip(clip_id)
+
+
+@app.post("/api/clips/search")
+def clips_search(body: SearchClipsBody) -> dict[str, Any]:
+    return _ed().search_clips(
+        body.query, track_id=body.track_id, kind=body.kind,
+    )
+
+
 @app.post("/api/clip/copy_attributes")
 def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
     return _ed().copy_attributes(body.clip_id)
@@ -1649,6 +1696,7 @@ class TrimPlayheadBody(BaseModel):
     playhead_frame: int
     edge: str = "head"
     mode: str = "ripple"
+    follow_links: bool = True
 
 
 class ClearEffectsBody(BaseModel):
@@ -1670,6 +1718,7 @@ def clip_trim_playhead(body: TrimPlayheadBody) -> dict[str, Any]:
         body.playhead_frame,
         edge=body.edge,
         mode=body.mode,
+        follow_links=body.follow_links,
     )
     return {**r, "timeline": ed.timeline_view()}
 

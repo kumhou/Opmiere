@@ -805,10 +805,52 @@ def trim_to_playhead(
     playhead_frame: int,
     edge: str = "head",
     mode: str = "ripple",
+    follow_links: bool = False,
 ) -> dict:
-    """Trim head (Q) or tail (W) of clip to playhead. mode=ripple|normal."""
+    """Trim head (Q) or tail (W) to playhead. follow_links trims A/V peers."""
     return _require_editor().trim_to_playhead(
-        clip_id, playhead_frame, edge=edge, mode=mode,
+        clip_id,
+        playhead_frame,
+        edge=edge,
+        mode=mode,
+        follow_links=follow_links,
+    )
+
+
+@mcp.tool()
+def import_markers(
+    text: str,
+    format: str = "youtube",
+    replace: bool = False,
+    default_color: str = "#7c9cff",
+) -> dict:
+    """Import markers from YouTube chapter text or CSV."""
+    return _require_editor().import_markers(
+        text, format=format, replace=replace, default_color=default_color,
+    )
+
+
+@mcp.tool()
+def export_edl(path: str | None = None, title: str | None = None) -> dict:
+    """Export simple CMX-style EDL of the first video track."""
+    return _require_editor().export_edl(path, title=title)
+
+
+@mcp.tool()
+def describe_clip(clip_id: str) -> dict:
+    """Rich clip card: layout, media, track, link peers."""
+    return _require_editor().describe_clip(clip_id)
+
+
+@mcp.tool()
+def search_clips(
+    query: str,
+    track_id: str | None = None,
+    kind: str | None = None,
+) -> dict:
+    """Search clips by name/path/id/color substring."""
+    return _require_editor().search_clips(
+        query, track_id=track_id, kind=kind,
     )
 
 

@@ -281,8 +281,8 @@ class Editor:
                 {"keys": "Ctrl+Shift+V", "action": "Overwrite paste at playhead"},
                 {"keys": "J / K / L", "action": "Shuttle: reverse / stop / play (repeat L speeds up)"},
                 {"keys": "U", "action": "Subclip from work In/Out (selected clip)"},
-                {"keys": "Q", "action": "Ripple trim head to playhead"},
-                {"keys": "W", "action": "Ripple trim tail to playhead"},
+                {"keys": "Q", "action": "Ripple trim head to playhead (+ linked)"},
+                {"keys": "W", "action": "Ripple trim tail to playhead (+ linked)"},
                 {"keys": ", / .", "action": "Slip selected −/+ 5 source frames"},
                 {"keys": "; / '", "action": "Slide selected −/+ 5 frames"},
                 {"keys": "Shift+M", "action": "Jump to next marker"},
@@ -2524,6 +2524,12 @@ class Editor:
                 "agent_note": "Trim applied; later clips rippled to keep contiguity.",
             }
 
+    def _collapse_last_undos(self, n: int) -> None:
+        """Keep only the earliest of the last n undo snapshots (one-undo batches)."""
+        if n <= 1 or len(self._undo_stack) < n:
+            return
+        del self._undo_stack[-(n - 1) :]
+
     def trim_to_playhead(
         self,
         clip_id: str,
@@ -2531,6 +2537,7 @@ class Editor:
         *,
         edge: str = "head",
         mode: str = "ripple",
+        follow_links: bool = False,
     ) -> dict[str, Any]:
         """Trim clip head or tail to an absolute playhead frame (NLE Q/W).
 
@@ -2540,6 +2547,8 @@ class Editor:
           - tail (W): cut src_out so clip ends at playhead.
 
         mode: ripple | normal (see edge_trim / ripple_trim).
+        follow_links=True: also trim linked peers that contain the playhead
+        (one combined undo).
         speed=1.0 required.
         """
         if edge not in ("head", "tail", "left", "right"):
@@ -2553,11 +2562,37 @@ class Editor:
         if not isinstance(playhead_frame, int):
             raise ValueError("playhead_frame must be an int")
 
+        ph = int(playhead_frame)
+        if follow_links:
+            ids = self._expand_link_ids([clip_id])
+            results: list[dict[str, Any]] = []
+            for cid in ids:
+                try:
+                    results.append(
+                        self.trim_to_playhead(
+                            cid, ph, edge=edge, mode=mode, follow_links=False,
+                        )
+                    )
+                except ValueError:
+                    continue
+            if not results:
+                raise ValueError(
+                    f"no linked clip contains playhead {ph} (from {clip_id})"
+                )
+            self._collapse_last_undos(len(results))
+            return {
+                "follow_links": True,
+                "edge": edge,
+                "mode": mode,
+                "playhead_frame": ph,
+                "trimmed": results,
+                "count": len(results),
+            }
+
         self._assert_clip_track_unlocked(clip_id)
         track, clip = self._find_clip_and_track(clip_id)
         if clip.speed != 1.0:
             raise ValueError("trim_to_playhead requires speed=1.0")
-        ph = int(playhead_frame)
         if not (clip.start < ph < clip.end):
             raise ValueError(
                 f"playhead {ph} must be strictly inside clip "
@@ -4204,6 +4239,265 @@ class Editor:
             "path": written,
             "body": body,
         }
+
+    def import_markers(
+        self,
+        text: str,
+        *,
+        format: str = "youtube",
+        replace: bool = False,
+        default_color: str = "#7c9cff",
+    ) -> dict[str, Any]:
+        """Import markers from YouTube chapter text or CSV.
+
+        youtube lines: ``M:SS Label`` / ``H:MM:SS Label`` / ``0:00 Intro``
+        csv: frame,seconds,tc,label,color,id (header optional; uses frame or tc)
+        replace=True clears existing markers first.
+        """
+        if format not in ("youtube", "csv"):
+            raise ValueError("format must be youtube|csv")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text is empty")
+        fps = float(self.project.timebase.fps or 30.0)
+        parsed: list[dict[str, Any]] = []
+
+        if format == "youtube":
+            import re
+            for raw in text.splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                m = re.match(
+                    r"^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$",
+                    line,
+                )
+                if not m:
+                    continue
+                stamp, label = m.group(1), m.group(2).strip()
+                parts = [int(x) for x in stamp.split(":")]
+                if len(parts) == 2:
+                    mm, ss = parts
+                    seconds = mm * 60 + ss
+                else:
+                    hh, mm, ss = parts
+                    seconds = hh * 3600 + mm * 60 + ss
+                frame = int(round(seconds * fps))
+                parsed.append({"frame": frame, "label": label, "color": default_color})
+        else:
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+            if not lines:
+                return {"added": [], "count": 0}
+            start = 0
+            if lines[0].lower().startswith("frame") or "label" in lines[0].lower():
+                start = 1
+            for ln in lines[start:]:
+                cols = [c.strip() for c in ln.split(",")]
+                if not cols:
+                    continue
+                frame = None
+                label = ""
+                color = default_color
+                if cols[0].isdigit():
+                    frame = int(cols[0])
+                    if len(cols) >= 4:
+                        label = cols[3]
+                    elif len(cols) >= 2 and not cols[1].replace(".", "", 1).isdigit():
+                        label = cols[1]
+                    if len(cols) >= 5 and cols[4].startswith("#"):
+                        color = cols[4]
+                else:
+                    # try tc in col0 or col2
+                    for col in cols[:3]:
+                        try:
+                            frame = self.tc_to_frames(col)["frame"]
+                            break
+                        except ValueError:
+                            continue
+                    if len(cols) >= 4:
+                        label = cols[3]
+                if frame is None:
+                    continue
+                parsed.append({
+                    "frame": max(0, int(frame)),
+                    "label": label or f"M{frame}",
+                    "color": color,
+                })
+
+        with self._mutate():
+            if replace:
+                self.project.markers.clear()
+            added: list[dict[str, Any]] = []
+            for p in parsed:
+                m = self.project.add_marker(
+                    p["frame"], label=p["label"], color=p["color"],
+                )
+                added.append(m.to_dict())
+            return {
+                "format": format,
+                "added": added,
+                "count": len(added),
+                "replaced": replace,
+            }
+
+    def export_edl(
+        self,
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a simple CMX3600-style EDL of the base video track.
+
+        One event per clip (source in/out + record in/out). Not a full AAF.
+        path=None → return body only.
+        """
+        fps = float(self.project.timebase.fps or 30.0)
+        fps_i = max(1, int(round(fps)))
+        video_tracks = [t for t in self.project.tracks if t.kind == "video"]
+        if not video_tracks:
+            body = f"TITLE: {title or self.project.id}\nFCM: NON-DROP FRAME\n"
+            return {"count": 0, "path": None, "body": body, "fps": fps}
+
+        def _tc(frames: int) -> str:
+            return self.frames_to_tc(max(0, int(frames)))["tc"].replace(":", ":")
+
+        # CMX uses HH:MM:SS:FF with colons — we already have that
+        base = video_tracks[0]
+        lines = [
+            f"TITLE: {(title or self.project.id).replace(chr(10), ' ')}",
+            "FCM: NON-DROP FRAME",
+            "",
+        ]
+        event = 1
+        for clip in base.clips_in_order():
+            media = self.project.media_by_id(clip.media)
+            reel = (media.path.split("/")[-1].split("\\")[-1])[:8].upper()
+            reel = "".join(ch if ch.isalnum() else "_" for ch in reel) or "AX"
+            src_in = _tc(clip.src_in)
+            src_out = _tc(clip.src_out)
+            rec_in = _tc(clip.start)
+            rec_out = _tc(clip.end)
+            lines.append(
+                f"{event:03d}  {reel:8s} V     C        "
+                f"{src_in} {src_out} {rec_in} {rec_out}"
+            )
+            if clip.name:
+                lines.append(f"* FROM CLIP NAME: {clip.name}")
+            else:
+                lines.append(f"* FROM CLIP NAME: {media.path}")
+            lines.append("")
+            event += 1
+
+        body = "\n".join(lines)
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "count": event - 1,
+            "path": written,
+            "body": body,
+            "fps": fps,
+            "track_id": base.id,
+            "agent_note": "Simple CMX-style EDL of first video track only.",
+        }
+
+    def describe_clip(self, clip_id: str) -> dict[str, Any]:
+        """Rich clip card: layout, media, track, fades, link group peers."""
+        track, clip = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip.media)
+        fades = self.get_clip_fades(clip_id)
+        fps = float(self.project.timebase.fps or 30.0)
+        peers = self.linked_group(clip_id)
+        return {
+            "clip": {
+                "id": clip.id,
+                "start": clip.start,
+                "end": clip.end,
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+                "speed": clip.speed,
+                "muted": clip.muted,
+                "name": clip.name,
+                "color": clip.color,
+                "position": clip.position,
+                "link_group": clip.link_group,
+                "transition_in": clip.transition_in,
+                "effects": [dict(e) for e in (clip.effects or [])],
+                "gain_db": self.get_clip_gain_db(clip_id),
+                "opacity": self.get_clip_opacity(clip_id),
+                "fade_in_frames": fades["fade_in_frames"],
+                "fade_out_frames": fades["fade_out_frames"],
+                "timeline_duration_frames": clip.timeline_duration_frames,
+                "start_tc": self.frames_to_tc(clip.start)["tc"],
+                "end_tc": self.frames_to_tc(clip.end)["tc"],
+                "duration_seconds": round(clip.timeline_duration_frames / fps, 3),
+            },
+            "track": {
+                "id": track.id,
+                "kind": track.kind,
+                "name": track.name,
+                "muted": track.muted,
+                "solo": track.solo,
+                "locked": track.locked,
+            },
+            "media": {
+                "id": media.id,
+                "path": media.path,
+                "kind": media.kind,
+                "duration_frames": media.duration_frames,
+                "has_audio": media.has_audio,
+                "proxy_path": media.proxy_path,
+                "origin": media.origin,
+            },
+            "linked": peers,
+        }
+
+    def search_clips(
+        self,
+        query: str,
+        *,
+        track_id: str | None = None,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """Search clips by name, color, media path, or id substring (case-insensitive)."""
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be non-empty")
+        q = query.strip().lower()
+        hits: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            if track_id is not None and track.id != track_id:
+                continue
+            if kind is not None and track.kind != kind:
+                continue
+            for clip in track.clips_in_order():
+                media = self.project.media_by_id(clip.media)
+                hay = " ".join(
+                    str(x)
+                    for x in (
+                        clip.id,
+                        clip.name or "",
+                        clip.color or "",
+                        clip.link_group or "",
+                        media.path,
+                        media.id,
+                        track.id,
+                        track.name or "",
+                    )
+                ).lower()
+                if q in hay:
+                    hits.append({
+                        "clip_id": clip.id,
+                        "track_id": track.id,
+                        "track_kind": track.kind,
+                        "name": clip.name,
+                        "start": clip.start,
+                        "end": clip.end,
+                        "media_path": media.path,
+                        "link_group": clip.link_group,
+                    })
+        return {"query": query, "count": len(hits), "hits": hits}
 
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.
