@@ -354,6 +354,12 @@
         <button type="button" class="secondary" id="btnRollL" disabled>Roll cut −5</button>
         <button type="button" class="secondary" id="btnRollR" disabled>Roll cut +5</button>
       </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnSlideL" disabled title=";">Slide −5</button>
+        <button type="button" class="secondary" id="btnSlideR" disabled title="'">Slide +5</button>
+        <button type="button" class="secondary" id="btnStretchIO" disabled>Stretch → I/O</button>
+        <button type="button" class="secondary" id="btnNextMark">Next mark</button>
+      </div>
       <label>Move to track_id</label>
       <div class="row">
         <input id="moveTrackId" placeholder="trk_…" disabled />
@@ -768,7 +774,7 @@
         'btnDetach','btnMatch','fadeIn','fadeOut','btnFades','relinkMedia','btnRelink',
         'opacitySlider','btnOpacity','btnSubclip','btnTrimQ','btnTrimW','btnClearFx',
         'btnSlipL','btnSlipR','btnCopyFx','btnPasteFx','btnAlignPh','btnRollL','btnRollR',
-        'moveTrackId','btnMoveTrack',
+        'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2021,8 +2027,13 @@
             seekTo((+scrub.value || 0) + (ev.shiftKey ? 1 : 1 / fps));
           }
         } else if (ev.key === 'm' || ev.key === 'M') {
+          if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
-          document.getElementById('btnMark').click();
+          if (ev.shiftKey) {
+            await jumpNextMarker();
+          } else {
+            document.getElementById('btnMark').click();
+          }
         } else if (ev.key === 's' || ev.key === 'S') {
           if (!selectedClipId || !timeline) return;
           ev.preventDefault();
@@ -2125,6 +2136,16 @@
           if (!selectedClipId) return;
           ev.preventDefault();
           await doSlip(5);
+        } else if (ev.key === ';' || ev.key === ':') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doSlide(-5);
+        } else if (ev.key === "'" || ev.key === '"') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doSlide(5);
         }
       } catch (e) { log(String(e.message || e)); }
     });
@@ -2397,6 +2418,64 @@
         setDirty(true);
         log('moved → ' + track_id);
       } catch (e) { log(String(e.message || e)); }
+    };
+    async function doSlide(delta) {
+      if (!selectedClipId) return;
+      const r = await api('/api/clip/slide', {
+        method: 'POST',
+        body: JSON.stringify({ clip_id: selectedClipId, delta_frames: delta }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log('slide ' + delta);
+      return r;
+    }
+    document.getElementById('btnSlideL').onclick = async () => {
+      try { await doSlide(-5); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSlideR').onclick = async () => {
+      try { await doSlide(5); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnStretchIO').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const io = workIO || await api('/api/in_out');
+        if (!io || !io.ready || !io.duration_frames) {
+          log('set In/Out first for stretch target');
+          return;
+        }
+        const r = await api('/api/clip/stretch', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_id: selectedClipId,
+            target_duration_frames: io.duration_frames,
+            clamp: true,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('stretch → ' + r.duration_frames.to + 'f @ ' + r.speed.to + 'x');
+      } catch (e) { log(String(e.message || e)); }
+    };
+    async function jumpNextMarker() {
+      const fps = (timeline && timeline.fps) || 30;
+      const frame = Math.round((+scrub.value || 0) * fps);
+      const r = await api('/api/markers/near', {
+        method: 'POST',
+        body: JSON.stringify({ frame, direction: 'next', wrap: true }),
+      });
+      if (!r.found) { log('no next marker'); return; }
+      const t = r.marker.frame / fps;
+      scrub.value = t;
+      const player = document.getElementById('player');
+      if (player && player.style.display !== 'none') {
+        try { player.currentTime = t; } catch (_) {}
+      }
+      log('marker ' + (r.marker.label || r.marker.id) + ' @ ' + fmtTc(t));
+      return r;
+    }
+    document.getElementById('btnNextMark').onclick = async () => {
+      try { await jumpNextMarker(); } catch (e) { log(String(e.message || e)); }
     };
 
     (function() {

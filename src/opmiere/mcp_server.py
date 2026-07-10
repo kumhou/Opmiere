@@ -551,9 +551,15 @@ def set_track_muted(track_id: str, muted: bool = True) -> dict:
 
 
 @mcp.tool()
-def set_track_solo(track_id: str, solo: bool = True) -> dict:
-    """Solo track (same kind); muted tracks ignored when any solo is on."""
-    return _require_editor().set_track_solo(track_id, solo)
+def set_track_solo(
+    track_id: str,
+    solo: bool = True,
+    exclusive: bool = False,
+) -> dict:
+    """Solo track. exclusive=True clears solo on other same-kind tracks."""
+    return _require_editor().set_track_solo(
+        track_id, solo, exclusive=exclusive,
+    )
 
 
 @mcp.tool()
@@ -773,6 +779,36 @@ def copy_effects(clip_id: str) -> dict:
 def paste_effects(clip_id: str, replace: bool = True) -> dict:
     """Paste effects clipboard onto a clip (replace or append)."""
     return _require_editor().paste_effects(clip_id, replace=replace)
+
+
+@mcp.tool()
+def stretch_to(
+    clip_id: str,
+    target_duration_frames: int,
+    clamp: bool = True,
+) -> dict:
+    """Rate-stretch clip to target timeline duration (speed 0.25–4)."""
+    return _require_editor().stretch_to(
+        clip_id, target_duration_frames, clamp=clamp,
+    )
+
+
+@mcp.tool()
+def clips_on_track(track_id: str, ordered: bool = True) -> dict:
+    """List clips on a track."""
+    return _require_editor().clips_on_track(track_id, ordered=ordered)
+
+
+@mcp.tool()
+def marker_near(
+    frame: int,
+    direction: str = "next",
+    wrap: bool = False,
+) -> dict:
+    """Find next/prev/nearest marker relative to a frame."""
+    return _require_editor().marker_near(
+        frame, direction=direction, wrap=wrap,
+    )
 
 
 @mcp.tool()

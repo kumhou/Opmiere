@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.14 — 2026-07-11
+
+### Added
+- **`stretch_to`**: rate-stretch clip to target timeline duration (0.25–4×)
+- **`marker_near`**: next / prev / nearest marker from a frame (optional wrap)
+- **`clips_on_track`**: list clips for batch agent ops
+- **`set_track_solo(..., exclusive=)`**: exclusive solo clears peers
+- Web: Slide ;/' · Stretch → I/O · Next mark (Shift+M)
+
 ## 0.2.13 — 2026-07-11
 
 ### Added

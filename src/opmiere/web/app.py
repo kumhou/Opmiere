@@ -494,6 +494,53 @@ def clip_roll(body: RollBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SlideBody(BaseModel):
+    clip_id: str
+    delta_frames: int
+
+
+class StretchBody(BaseModel):
+    clip_id: str
+    target_duration_frames: int
+    clamp: bool = True
+
+
+class MarkerNearBody(BaseModel):
+    frame: int
+    direction: str = "next"
+    wrap: bool = False
+
+
+@app.post("/api/clip/slide")
+def clip_slide(body: SlideBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.slide_clip(body.clip_id, body.delta_frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/stretch")
+def clip_stretch(body: StretchBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.stretch_to(
+        body.clip_id,
+        body.target_duration_frames,
+        clamp=body.clamp,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/track/{track_id}/clips")
+def track_clips(track_id: str) -> dict[str, Any]:
+    return _ed().clips_on_track(track_id)
+
+
+@app.post("/api/markers/near")
+def markers_near(body: MarkerNearBody) -> dict[str, Any]:
+    return _ed().marker_near(
+        body.frame, direction=body.direction, wrap=body.wrap,
+    )
+
+
 @app.post("/api/preview/refresh")
 def preview_refresh(body: PreviewRefreshBody) -> dict[str, Any]:
     """Rebuild scrub proxy if stale (quick=true for post-drag snappiness)."""
@@ -908,6 +955,7 @@ def export_work_api(body: ExportWorkBody) -> dict[str, Any]:
 class TrackFlagBody(BaseModel):
     track_id: str
     value: bool = True
+    exclusive: bool = False
 
 
 class ClipMuteBody(BaseModel):
@@ -925,7 +973,9 @@ def track_mute(body: TrackFlagBody) -> dict[str, Any]:
 @app.post("/api/track/solo")
 def track_solo(body: TrackFlagBody) -> dict[str, Any]:
     ed = _ed()
-    r = ed.set_track_solo(body.track_id, body.value)
+    r = ed.set_track_solo(
+        body.track_id, body.value, exclusive=body.exclusive,
+    )
     return {**r, "timeline": ed.timeline_view()}
 
 

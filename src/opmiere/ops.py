@@ -282,6 +282,8 @@ class Editor:
                 {"keys": "Q", "action": "Ripple trim head to playhead"},
                 {"keys": "W", "action": "Ripple trim tail to playhead"},
                 {"keys": ", / .", "action": "Slip selected −/+ 5 source frames"},
+                {"keys": "; / '", "action": "Slide selected −/+ 5 frames"},
+                {"keys": "Shift+M", "action": "Jump to next marker"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -855,11 +857,34 @@ class Editor:
             track.muted = bool(muted)
             return {"track_id": track_id, "muted": track.muted, "solo": track.solo, "locked": track.locked}
 
-    def set_track_solo(self, track_id: str, solo: bool = True) -> dict[str, Any]:
+    def set_track_solo(
+        self,
+        track_id: str,
+        solo: bool = True,
+        *,
+        exclusive: bool = False,
+    ) -> dict[str, Any]:
+        """Solo a track. exclusive=True clears solo on all other tracks of same kind."""
         with self._mutate():
             track = self.project.track_by_id(track_id)
-            track.solo = bool(solo)
-            return {"track_id": track_id, "muted": track.muted, "solo": track.solo, "locked": track.locked}
+            if exclusive and solo:
+                for t in self.project.tracks:
+                    if t.kind == track.kind:
+                        t.solo = t.id == track_id
+            else:
+                track.solo = bool(solo)
+            return {
+                "track_id": track_id,
+                "muted": track.muted,
+                "solo": track.solo,
+                "locked": track.locked,
+                "exclusive": bool(exclusive and solo),
+                "solos": [
+                    {"track_id": t.id, "solo": t.solo}
+                    for t in self.project.tracks
+                    if t.kind == track.kind
+                ],
+            }
 
     def set_track_locked(self, track_id: str, locked: bool = True) -> dict[str, Any]:
         with self._mutate():
@@ -3017,6 +3042,90 @@ class Editor:
             clip.speed = float(speed)
             return clip
 
+    def stretch_to(
+        self,
+        clip_id: str,
+        target_duration_frames: int,
+        *,
+        clamp: bool = True,
+    ) -> dict[str, Any]:
+        """Rate-stretch a clip so its timeline footprint matches target frames.
+
+        Adjusts speed = source_frames / target_duration_frames (clamped to
+        [0.25, 4.0] when clamp=True). One undo. Does not ripple neighbors.
+        """
+        if not isinstance(target_duration_frames, int) or target_duration_frames <= 0:
+            raise ValueError("target_duration_frames must be a positive int")
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            src_len = clip.duration_frames  # source frames, not timeline
+            if src_len <= 0:
+                raise ValueError("clip has empty source range")
+            raw_speed = src_len / float(target_duration_frames)
+            speed = raw_speed
+            clamped = False
+            if clamp:
+                if speed < 0.25:
+                    speed = 0.25
+                    clamped = True
+                elif speed > 4.0:
+                    speed = 4.0
+                    clamped = True
+            else:
+                if speed < 0.25 or speed > 4.0:
+                    raise ValueError(
+                        f"required speed {raw_speed:.4f} outside [0.25, 4.0]; "
+                        "pass clamp=True or pick another duration"
+                    )
+            old_speed = clip.speed
+            old_dur = clip.timeline_duration_frames
+            clip.speed = float(speed)
+            return {
+                "clip_id": clip_id,
+                "speed": {"from": old_speed, "to": clip.speed},
+                "duration_frames": {
+                    "from": old_dur,
+                    "to": clip.timeline_duration_frames,
+                    "target": target_duration_frames,
+                },
+                "raw_speed": round(raw_speed, 6),
+                "clamped": clamped,
+                "agent_note": (
+                    "Neighbors not rippled. close_gaps / ripple_nudge if packing needed."
+                ),
+            }
+
+    def clips_on_track(
+        self,
+        track_id: str,
+        *,
+        ordered: bool = True,
+    ) -> dict[str, Any]:
+        """List clips on a track (agent helper for batch ops)."""
+        track = self.project.track_by_id(track_id)
+        clips = track.clips_in_order() if ordered else list(track.clips)
+        items = [
+            {
+                "clip_id": c.id,
+                "start": c.start,
+                "end": c.end,
+                "media_id": c.media,
+                "src_in": c.src_in,
+                "src_out": c.src_out,
+                "speed": c.speed,
+                "name": c.name,
+                "muted": c.muted,
+            }
+            for c in clips
+        ]
+        return {
+            "track_id": track_id,
+            "kind": track.kind,
+            "count": len(items),
+            "clips": items,
+        }
+
     def set_position(self, clip_id: str, x: float, y: float, scale: float) -> Clip:
         """Place a clip as a picture-in-picture box instead of full-frame —
         only takes effect when the clip is on an overlay video track (any
@@ -4987,6 +5096,92 @@ class Editor:
             for m in sorted(self.project.markers, key=lambda x: x.frame)
         ]
         return {"count": len(items), "markers": items}
+
+    def marker_near(
+        self,
+        frame: int,
+        *,
+        direction: str = "next",
+        wrap: bool = False,
+    ) -> dict[str, Any]:
+        """Find next/prev marker relative to a timeline frame.
+
+        direction: next | prev | nearest
+        wrap: cycle at ends (for next/prev only)
+        """
+        if direction not in ("next", "prev", "nearest"):
+            raise ValueError("direction must be next|prev|nearest")
+        if not isinstance(frame, int):
+            raise ValueError("frame must be an int")
+        fps = float(self.project.timebase.fps or 30.0)
+        markers = sorted(self.project.markers, key=lambda x: x.frame)
+        if not markers:
+            return {
+                "found": False,
+                "frame": frame,
+                "direction": direction,
+                "agent_note": "No markers in project.",
+            }
+
+        def _pack(m: Any) -> dict[str, Any]:
+            return {
+                **m.to_dict(),
+                "time_seconds": round(m.frame / fps, 3),
+            }
+
+        if direction == "nearest":
+            best = min(markers, key=lambda m: (abs(m.frame - frame), m.frame))
+            return {
+                "found": True,
+                "direction": direction,
+                "from_frame": frame,
+                "marker": _pack(best),
+                "delta_frames": best.frame - frame,
+            }
+
+        if direction == "next":
+            for m in markers:
+                if m.frame > frame:
+                    return {
+                        "found": True,
+                        "direction": "next",
+                        "from_frame": frame,
+                        "marker": _pack(m),
+                        "delta_frames": m.frame - frame,
+                    }
+            if wrap:
+                m = markers[0]
+                return {
+                    "found": True,
+                    "direction": "next",
+                    "from_frame": frame,
+                    "marker": _pack(m),
+                    "delta_frames": m.frame - frame,
+                    "wrapped": True,
+                }
+            return {"found": False, "direction": "next", "from_frame": frame}
+
+        # prev
+        for m in reversed(markers):
+            if m.frame < frame:
+                return {
+                    "found": True,
+                    "direction": "prev",
+                    "from_frame": frame,
+                    "marker": _pack(m),
+                    "delta_frames": m.frame - frame,
+                }
+        if wrap:
+            m = markers[-1]
+            return {
+                "found": True,
+                "direction": "prev",
+                "from_frame": frame,
+                "marker": _pack(m),
+                "delta_frames": m.frame - frame,
+                "wrapped": True,
+            }
+        return {"found": False, "direction": "prev", "from_frame": frame}
 
     def finish_delivery(
         self,
