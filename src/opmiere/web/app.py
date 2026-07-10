@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.9")
+app = FastAPI(title="Opmiere", version="0.2.0")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.1.9",
+        "phase": "0.2.0",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -633,7 +633,76 @@ def finish_api(body: FinishBody) -> dict[str, Any]:
         delivery_preset=body.delivery_preset,
         run_review=body.run_review,
         run_sequence_sheet=body.run_sequence_sheet,
+        prepare=True,
     )
+
+
+class FillGapsBody(BaseModel):
+    track_id: str | None = None
+    mode: str = "slug"
+
+
+class MarkerBody(BaseModel):
+    frame: int | None = None
+    time_seconds: float | None = None
+    label: str = ""
+    color: str = "#7c9cff"
+
+
+@app.post("/api/fill_gaps")
+def fill_gaps_api(body: FillGapsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.fill_track_gaps(body.track_id, mode=body.mode)
+    return {"result": r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/prepare_export")
+def prepare_export_api() -> dict[str, Any]:
+    ed = _ed()
+    r = ed.prepare_export()
+    return {"result": r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/markers")
+def markers_list() -> dict[str, Any]:
+    return _ed().list_markers()
+
+
+@app.post("/api/markers")
+def markers_add(body: MarkerBody) -> dict[str, Any]:
+    ed = _ed()
+    m = ed.add_marker(
+        body.frame, time_seconds=body.time_seconds,
+        label=body.label, color=body.color,
+    )
+    return {"marker": m, "markers": ed.list_markers()["markers"]}
+
+
+class MarkerDeleteBody(BaseModel):
+    marker_id: str
+
+
+class SplitBody(BaseModel):
+    clip_id: str
+    at_frame: int
+
+
+@app.post("/api/markers/delete")
+def markers_delete(body: MarkerDeleteBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.delete_marker(body.marker_id)
+    return {**r, "markers": ed.list_markers()["markers"]}
+
+
+@app.post("/api/split")
+def split_at(body: SplitBody) -> dict[str, Any]:
+    ed = _ed()
+    a, b = ed.split_clip(body.clip_id, body.at_frame)
+    return {
+        "first": a.to_dict(),
+        "second": b.to_dict(),
+        "timeline": ed.timeline_view(),
+    }
 
 
 @app.get("/api/style_assets")

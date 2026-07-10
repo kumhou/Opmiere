@@ -23,6 +23,7 @@ __all__ = [
     "Media",
     "Clip",
     "Track",
+    "Marker",
     "Project",
     "MediaKind",
     "TrackKind",
@@ -298,6 +299,33 @@ class Track:
 
 
 @dataclass
+class Marker:
+    """Timeline marker (chapter / note). Frame is absolute on the project clock."""
+
+    id: str
+    frame: int
+    label: str = ""
+    color: str = "#7c9cff"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "frame": self.frame,
+            "label": self.label,
+            "color": self.color,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Marker":
+        return cls(
+            id=d["id"],
+            frame=int(d.get("frame", 0)),
+            label=str(d.get("label") or ""),
+            color=str(d.get("color") or "#7c9cff"),
+        )
+
+
+@dataclass
 class Project:
     """Root document. Serialised as ``project.json`` inside a ``.opm`` bundle."""
 
@@ -306,6 +334,7 @@ class Project:
     resolution: Resolution = field(default_factory=Resolution)
     media: list[Media] = field(default_factory=list)
     tracks: list[Track] = field(default_factory=list)
+    markers: list[Marker] = field(default_factory=list)
     schema: int = SCHEMA_VERSION
 
     # --- lookup -----------------------------------------------------------
@@ -362,9 +391,23 @@ class Project:
         """Timeline length: the furthest clip end across all tracks."""
         return max((c.end for t in self.tracks for c in t.clips), default=0)
 
+    def marker_by_id(self, marker_id: str) -> Marker:
+        for m in self.markers:
+            if m.id == marker_id:
+                return m
+        raise KeyError(f"no marker with id {marker_id!r}")
+
+    def add_marker(self, frame: int, label: str = "", color: str = "#7c9cff") -> Marker:
+        if frame < 0:
+            raise ValueError("marker frame must be >= 0")
+        m = Marker(new_id("mkr"), int(frame), label=label, color=color)
+        self.markers.append(m)
+        self.markers.sort(key=lambda x: x.frame)
+        return m
+
     # --- serialisation ----------------------------------------------------
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "schema": self.schema,
             "id": self.id,
             "timebase": self.timebase.to_dict(),
@@ -372,6 +415,9 @@ class Project:
             "media": [m.to_dict() for m in self.media],
             "tracks": [t.to_dict() for t in self.tracks],
         }
+        if self.markers:
+            d["markers"] = [m.to_dict() for m in self.markers]
+        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Project":
@@ -381,5 +427,6 @@ class Project:
             resolution=Resolution.from_dict(d.get("resolution", {})),
             media=[Media.from_dict(m) for m in d.get("media", [])],
             tracks=[Track.from_dict(t) for t in d.get("tracks", [])],
+            markers=[Marker.from_dict(m) for m in d.get("markers", [])],
             schema=d.get("schema", SCHEMA_VERSION),
         )

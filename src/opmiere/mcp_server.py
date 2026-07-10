@@ -399,15 +399,57 @@ def finish_delivery(
     delivery_preset: str = "streaming",
     run_review: bool = True,
     run_sequence_sheet: bool = False,
+    prepare: bool = True,
 ) -> dict:
-    """review_cut (opt) + export + delivery_check. Honest ok / delivery_ok flags."""
+    """prepare gaps + review + export + delivery_check. Honest ok / delivery_ok."""
     return _require_editor().finish_delivery(
         output_path,
         normalize_preset=normalize_preset,
         delivery_preset=delivery_preset,
         run_review=run_review,
         run_sequence_sheet=run_sequence_sheet,
+        prepare=prepare,
     )
+
+
+@mcp.tool()
+def fill_track_gaps(
+    track_id: str | None = None,
+    mode: str = "slug",
+) -> dict:
+    """Fill base-track holes: slug=black/silence pads, close=pack left."""
+    return _require_editor().fill_track_gaps(track_id, mode=mode)
+
+
+@mcp.tool()
+def prepare_export(fill_video: bool = True, fill_audio: bool = False) -> dict:
+    """Slug-pad base tracks so freeform timeline still exports."""
+    return _require_editor().prepare_export(
+        fill_video=fill_video, fill_audio=fill_audio,
+    )
+
+
+@mcp.tool()
+def add_marker(
+    frame: int | None = None,
+    time_seconds: float | None = None,
+    label: str = "",
+    color: str = "#7c9cff",
+) -> dict:
+    """Add a timeline marker at frame or time_seconds."""
+    return _require_editor().add_marker(
+        frame, time_seconds=time_seconds, label=label, color=color,
+    )
+
+
+@mcp.tool()
+def delete_marker(marker_id: str) -> dict:
+    return _require_editor().delete_marker(marker_id)
+
+
+@mcp.tool()
+def list_markers() -> dict:
+    return _require_editor().list_markers()
 
 
 @mcp.tool()

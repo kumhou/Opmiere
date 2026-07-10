@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — 2026-07-10
+
+### Added
+- **Gap fill for freeform edit**: `fill_track_gaps` (black/silence slug pads), `prepare_export`; `finish_delivery(prepare=True)` default
+- **Timeline markers**: `add_marker` / `delete_marker` / `list_markers` on Project JSON
+- Web: Fill gaps, Mark, keyboard (Space/←→/M/S/Del/[/]/F)
+
 ## 0.1.9 — 2026-07-10
 
 ### Added

@@ -28,6 +28,7 @@ from .model import (
     SHAPE_MASK_SHAPES,
     TEXT_POSITIONS,
     Clip,
+    Marker,
     Media,
     MediaKind,
     Project,
@@ -248,6 +249,7 @@ class Editor:
             "can_undo": bool(self._undo_stack),
             "can_redo": bool(self._redo_stack),
             "mix": self.mix_view(),
+            "markers": self.list_markers()["markers"],
         }
 
     # --- undo/redo -----------------------------------------------------
@@ -1151,6 +1153,179 @@ class Editor:
                 "timeline_start": clip.start,
                 "agent_note": "Trim applied; later clips rippled to keep contiguity.",
             }
+
+    def ensure_slug_media(self, kind: MediaKind = "video") -> Media:
+        """Long black video or silence audio for gap-fill pads (cached in media/)."""
+        import subprocess
+
+        fps = float(self.project.timebase.fps or 30.0)
+        # ~10 minutes is enough for dogfood/edits; longer gaps re-use via trim
+        slug_seconds = 600
+        w, h = self.project.resolution.w, self.project.resolution.h
+        tag = f"slug_{kind}_{int(fps)}_{w}x{h}" if kind == "video" else f"slug_audio_{self.project.timebase.sample_rate}"
+        for m in self.project.media:
+            if m.origin and m.origin.get("slug") == tag:
+                return m
+
+        self.bundle.media_dir.mkdir(parents=True, exist_ok=True)
+        if kind == "video":
+            name = f"{tag}.mp4"
+            dest = self.bundle.media_dir / name
+            if not dest.exists():
+                proc = subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-hide_banner",
+                        "-f", "lavfi",
+                        "-i", f"color=c=black:size={w}x{h}:duration={slug_seconds}:rate={fps}",
+                        "-f", "lavfi",
+                        "-i", f"anullsrc=r={self.project.timebase.sample_rate}:cl=stereo",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast",
+                        "-c:a", "aac", "-shortest", str(dest),
+                    ],
+                    capture_output=True, text=True,
+                )
+                if proc.returncode != 0 or not dest.exists():
+                    raise RuntimeError(
+                        f"slug video failed:\n{(proc.stderr or '')[-1200:]}"
+                    )
+            after_dur = self.project.timebase.seconds_to_frames(slug_seconds)
+            with self._mutate():
+                media = self.project.add_media(
+                    kind="video",
+                    path=name,
+                    duration_frames=after_dur,
+                    has_audio=True,
+                    origin={"slug": tag, "kind": "black"},
+                )
+            return media
+
+        if kind != "audio":
+            raise ValueError("slug kind must be video or audio")
+        name = f"{tag}.m4a"
+        dest = self.bundle.media_dir / name
+        sr = int(self.project.timebase.sample_rate or 48000)
+        if not dest.exists():
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-f", "lavfi",
+                    "-i", f"anullsrc=r={sr}:cl=stereo",
+                    "-t", str(slug_seconds),
+                    "-c:a", "aac", str(dest),
+                ],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0 or not dest.exists():
+                raise RuntimeError(
+                    f"slug audio failed:\n{(proc.stderr or '')[-1200:]}"
+                )
+        after_dur = self.project.timebase.seconds_to_frames(slug_seconds)
+        with self._mutate():
+            media = self.project.add_media(
+                kind="audio",
+                path=name,
+                duration_frames=after_dur,
+                has_audio=True,
+                origin={"slug": tag, "kind": "silence"},
+            )
+        return media
+
+    def fill_track_gaps(
+        self,
+        track_id: str | None = None,
+        *,
+        mode: str = "slug",
+        from_frame: int = 0,
+    ) -> dict[str, Any]:
+        """Make a base track exportable after freeform drag.
+
+        mode ``slug``: insert black (video) or silence (audio) pads in gaps,
+        and pad head to frame 0 if the first clip starts later.
+        mode ``close``: pack left via close_gaps (no pads).
+        track_id=None → first video track.
+        """
+        if mode not in ("slug", "close"):
+            raise ValueError("mode must be 'slug' or 'close'")
+        if track_id is None:
+            vids = [t for t in self.project.tracks if t.kind == "video"]
+            if not vids:
+                raise ValueError("no video track to fill")
+            track_id = vids[0].id
+        if mode == "close":
+            return {
+                "mode": "close",
+                **self.close_gaps(track_id, from_frame=from_frame),
+            }
+
+        track = self.project.track_by_id(track_id)
+        slug_kind: MediaKind = "audio" if track.kind == "audio" else "video"
+        # Ensure slug media outside multi-clip mutate first
+        slug = self.ensure_slug_media(slug_kind)
+        pads: list[dict[str, Any]] = []
+
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            ordered = track.clips_in_order()
+            if not ordered:
+                return {
+                    "mode": "slug",
+                    "track_id": track_id,
+                    "pads": [],
+                    "agent_note": "empty track — nothing to fill",
+                }
+            gaps: list[tuple[int, int, str]] = []
+            if ordered[0].start > 0:
+                gaps.append((0, ordered[0].start, "head"))
+            for prev, nxt in zip(ordered, ordered[1:]):
+                if nxt.transition_in is not None:
+                    continue
+                if nxt.start > prev.end:
+                    gaps.append((prev.end, nxt.start - prev.end, "interior"))
+            for start, gap, role in gaps:
+                if gap <= 0:
+                    continue
+                if gap > slug.duration_frames:
+                    raise ValueError(
+                        f"gap {gap} exceeds slug media {slug.duration_frames}"
+                    )
+                pad = self.project.add_clip(track, slug, start, 0, gap)
+                pads.append({
+                    "clip_id": pad.id,
+                    "start": start,
+                    "end": start + gap,
+                    "role": role,
+                })
+
+        return {
+            "mode": "slug",
+            "track_id": track_id,
+            "pads": pads,
+            "pad_count": len(pads),
+            "slug_media_id": slug.id,
+            "agent_note": (
+                "Black/silence pads keep base track contiguous for export. "
+                "Use mode=close to pack instead of padding."
+            ),
+        }
+
+    def prepare_export(self, *, fill_video: bool = True, fill_audio: bool = False) -> dict[str, Any]:
+        """Best-effort make base tracks contiguous before export (slug pads)."""
+        results: list[dict[str, Any]] = []
+        if fill_video:
+            vids = [t for t in self.project.tracks if t.kind == "video"]
+            if vids and vids[0].clips:
+                try:
+                    results.append(self.fill_track_gaps(vids[0].id, mode="slug"))
+                except Exception as e:
+                    results.append({"track_id": vids[0].id, "error": str(e)[:300]})
+        if fill_audio:
+            auds = [t for t in self.project.tracks if t.kind == "audio"]
+            if auds and auds[0].clips:
+                try:
+                    results.append(self.fill_track_gaps(auds[0].id, mode="slug"))
+                except Exception as e:
+                    results.append({"track_id": auds[0].id, "error": str(e)[:300]})
+        return {"fills": results}
 
     def close_gaps(self, track_id: str, *, from_frame: int = 0) -> dict[str, Any]:
         """Pack clips on a track leftward so they are contiguous from from_frame.
@@ -3124,6 +3299,41 @@ class Editor:
         out["result"] = applied
         return out
 
+    def add_marker(
+        self,
+        frame: int | None = None,
+        *,
+        time_seconds: float | None = None,
+        label: str = "",
+        color: str = "#7c9cff",
+    ) -> dict[str, Any]:
+        """Add a timeline marker. Pass frame or time_seconds."""
+        fps = float(self.project.timebase.fps or 30.0)
+        if frame is None:
+            if time_seconds is None:
+                raise ValueError("provide frame or time_seconds")
+            frame = int(round(float(time_seconds) * fps))
+        with self._mutate():
+            m = self.project.add_marker(int(frame), label=label, color=color)
+            return {
+                **m.to_dict(),
+                "time_seconds": round(m.frame / fps, 3),
+            }
+
+    def delete_marker(self, marker_id: str) -> dict[str, Any]:
+        with self._mutate():
+            m = self.project.marker_by_id(marker_id)
+            self.project.markers.remove(m)
+            return {"deleted_id": marker_id}
+
+    def list_markers(self) -> dict[str, Any]:
+        fps = float(self.project.timebase.fps or 30.0)
+        items = [
+            {**m.to_dict(), "time_seconds": round(m.frame / fps, 3)}
+            for m in sorted(self.project.markers, key=lambda x: x.frame)
+        ]
+        return {"count": len(items), "markers": items}
+
     def finish_delivery(
         self,
         output_path: str | Path,
@@ -3134,19 +3344,27 @@ class Editor:
         run_sequence_sheet: bool = False,
         sequence_sheet_path: str | Path | None = None,
         lufs_tolerance: float = 3.5,
+        prepare: bool = True,
     ) -> dict[str, Any]:
         """Review (optional) + export + delivery_check in one honest finish step.
 
+        prepare=True fills base video gaps with black pads so freeform drags export.
         Does not lie: if delivery_check ok=false, returns ok=False with details.
         """
         out: dict[str, Any] = {
             "output_path": str(output_path),
+            "prepare": None,
             "review": None,
             "sequence_sheet": None,
             "export": None,
             "delivery_check": None,
             "ok": False,
         }
+        if prepare:
+            try:
+                out["prepare"] = self.prepare_export(fill_video=True, fill_audio=False)
+            except Exception as e:
+                out["prepare"] = {"error": str(e)[:400]}
         if run_review:
             try:
                 out["review"] = self.review_cut()
