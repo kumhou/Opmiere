@@ -91,14 +91,22 @@ def get_project_state() -> dict:
 
 
 @mcp.tool()
-def import_media(src_path: str, kind: MediaKind, conform: bool = True) -> dict:
+def import_media(
+    src_path: str,
+    kind: MediaKind,
+    conform: bool = True,
+    fit: str = "none",
+) -> dict:
     """Copy a source file into the project and register it as media.
 
-    kind: video | audio | image. Video fps that differs from the project
-    timebase is re-encoded into the bundle when conform=true (default) so
-    export frame-trim stays honest. origin.conformed records from/to fps.
+    kind: video | audio | image.
+    conform=true: re-encode when source fps ≠ project timebase.
+    fit: none | contain (letterbox to project WxH) | cover (crop-fill).
+    origin.conformed records from/to fps and size when re-encoded.
     """
-    media = _require_editor().import_media(Path(src_path), kind, conform=conform)
+    media = _require_editor().import_media(
+        Path(src_path), kind, conform=conform, fit=fit,
+    )
     return media.to_dict()
 
 
@@ -148,20 +156,20 @@ def place_from_file(
     start: int,
     duration_frames: int | None = None,
     origin: dict | None = None,
+    conform: bool = True,
+    fit: str = "none",
 ) -> dict:
-    """Import a local file and place it on a track in one step (one undo) -
-    the local-file twin of place_generated. kind: 'video', 'audio', or
-    'image'. Omit duration_frames to use the file's full real (ffprobed)
-    duration - the usual case for a whole song/voiceover/shot; it's required
-    for kind='image' (no intrinsic duration). The clip starts from the
-    file's beginning; use trim_clip afterwards to cut into it.
+    """Import a local file and place it on a track in one step (one undo).
 
-    Video fps that differs from the project is auto-conformed into the
-    bundle (re-encode). origin may include provenance for generated files.
+    kind: video | audio | image. Omit duration_frames for full file length
+    (required for image). conform/fit same as import_media.
     """
     return (
         _require_editor()
-        .place_from_file(Path(src_path), kind, track_id, start, duration_frames, origin=origin)
+        .place_from_file(
+            Path(src_path), kind, track_id, start, duration_frames,
+            origin=origin, conform=conform, fit=fit,
+        )
         .to_dict()
     )
 

@@ -68,3 +68,41 @@ def test_matching_fps_no_conform_origin(tmp_path: Path):
     ed = Editor.create(tmp_path / "p.opm", fps=30, width=160, height=90)
     media = ed.import_media(src, "video")
     assert media.origin is None or "conformed" not in (media.origin or {})
+
+
+def _video_size(path: Path, size: str, fps: float = 30.0, dur: float = 0.5) -> None:
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=red:size={size}:duration={dur}:rate={fps}",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+
+
+def test_import_fit_contain_letterboxes(tmp_path: Path):
+    src = tmp_path / "wide.mp4"
+    _video_size(src, "320x90", fps=30.0)  # 32:9-ish strip
+    ed = Editor.create(tmp_path / "p.opm", fps=30, width=160, height=90)
+    media = ed.import_media(src, "video", fit="contain")
+    assert media.origin and "conformed" in media.origin
+    assert media.origin["conformed"]["fit"] == "contain"
+    conf = probe(ed.bundle.media_path(media.path))
+    assert conf.width == 160
+    assert conf.height == 90
+
+
+def test_import_fit_cover_fills(tmp_path: Path):
+    src = tmp_path / "tall.mp4"
+    _video_size(src, "90x160", fps=30.0)
+    ed = Editor.create(tmp_path / "p.opm", fps=30, width=160, height=90)
+    media = ed.import_media(src, "video", fit="cover")
+    conf = probe(ed.bundle.media_path(media.path))
+    assert conf.width == 160
+    assert conf.height == 90
+    tr = ed.add_track("video")
+    ed.add_clip(tr.id, media.id, 0, 0, media.duration_frames)
+    out = tmp_path / "cover_out.mp4"
+    ed.export(out)
+    assert out.exists()

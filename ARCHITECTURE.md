@@ -695,9 +695,9 @@ pace target, VO/music under picture. **Mix + beats:** `suggest_mix` / `apply_mix
 `detect_beats` (energy onsets), plan_edit phrase anchors + black-pad opening J-cut.
 **Native install:** `scripts/install.ps1` / `uninstall.ps1`, CLI `opmiere doctor|web|mcp`, MCP `doctor`.
 **P3 web:** doctor, review_cut, sequence sheet, project look, export+normalize+delivery_check.
-**Import:** video fps mismatch auto-re-encodes to project timebase (`conform=True`,
-`origin.conformed`). **Dogfood:** `scripts/dogfood_pro_pipeline.py`. Still open: full interactive
-scrub preview (libopenshot/MLT), non-3070 re-benchmark. Cloud deferred.
+**Import:** fps auto-conform + optional `fit=contain|cover` to project canvas
+(`origin.conformed` records from/to fps/size). **Dogfood:** `scripts/dogfood_pro_pipeline.py`.
+Still open: full interactive scrub preview (libopenshot/MLT), non-3070 re-benchmark. Cloud deferred.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

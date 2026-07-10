@@ -1020,10 +1020,58 @@ class FFmpegBackend(RenderBackend):
         return output_path
 
 
+FIT_MODES = frozenset({"none", "contain", "cover"})
+
+
 def _fps_mismatch(src_fps: float | None, project_fps: float) -> bool:
     if src_fps is None or src_fps <= 0:
         return True
     return abs(float(src_fps) - float(project_fps)) > 0.05
+
+
+def _size_mismatch(
+    width: int | None,
+    height: int | None,
+    project_w: int,
+    project_h: int,
+) -> bool:
+    if not width or not height:
+        return True
+    return abs(int(width) - int(project_w)) > 8 or abs(int(height) - int(project_h)) > 8
+
+
+def _build_video_filter(
+    *,
+    project_fps: float,
+    fit: str,
+    project_w: int,
+    project_h: int,
+    force_fps: bool,
+) -> str:
+    """Compose fps + optional scale/pad/crop chain."""
+    parts: list[str] = []
+    if force_fps:
+        parts.append(f"fps={project_fps}")
+    if fit == "contain":
+        # letterbox / pillarbox to exact canvas
+        parts.append(
+            f"scale={project_w}:{project_h}:force_original_aspect_ratio=decrease"
+        )
+        parts.append(
+            f"pad={project_w}:{project_h}:(ow-iw)/2:(oh-ih)/2:color=black"
+        )
+        parts.append("setsar=1")
+    elif fit == "cover":
+        # fill canvas, center-crop overflow
+        parts.append(
+            f"scale={project_w}:{project_h}:force_original_aspect_ratio=increase"
+        )
+        parts.append(f"crop={project_w}:{project_h}")
+        parts.append("setsar=1")
+    if not parts:
+        # fps already matching and fit=none — caller should not re-encode
+        parts.append(f"fps={project_fps}")
+    return ",".join(parts)
 
 
 def conform_to_project_timebase(
@@ -1034,22 +1082,37 @@ def conform_to_project_timebase(
     sample_rate: int = 48000,
     has_video: bool,
     has_audio: bool,
+    fit: str = "none",
+    project_w: int | None = None,
+    project_h: int | None = None,
+    force_fps: bool = True,
 ) -> dict[str, Any]:
-    """Re-encode ``src_path`` so video fps (and audio rate) match the project.
+    """Re-encode ``src_path`` to project fps and optional canvas fit.
 
-    Returns a small report of what was done. Always writes ``dest_path``.
+    fit: none | contain (letterbox) | cover (crop-fill).
     """
+    if fit not in FIT_MODES:
+        raise ValueError(f"fit must be one of {sorted(FIT_MODES)}, got {fit!r}")
     require_ffmpeg_tools()
     src_path = Path(src_path)
     dest_path = Path(dest_path)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     cmd: list[str] = ["ffmpeg", "-y", "-hide_banner", "-i", str(src_path)]
     if has_video:
-        # fps filter + -r for container; yuv420p for broad decode
+        w = int(project_w or 1920)
+        h = int(project_h or 1080)
+        vf = _build_video_filter(
+            project_fps=project_fps,
+            fit=fit,
+            project_w=w,
+            project_h=h,
+            force_fps=force_fps or fit != "none",
+        )
         cmd += [
-            "-vf", f"fps={project_fps}",
+            "-vf", vf,
             "-r", str(project_fps),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "18",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-preset", "veryfast", "-crf", "18",
         ]
     else:
         cmd += ["-vn"]
@@ -1057,12 +1120,11 @@ def conform_to_project_timebase(
         cmd += ["-c:a", "aac", "-b:a", "192k", "-ar", str(sample_rate), "-ac", "2"]
     else:
         cmd += ["-an"]
-    # Keep reasonable duration; avoid open-ended image loops
     cmd.append(str(dest_path))
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0 or not dest_path.exists():
         raise RuntimeError(
-            f"fps/timebase conform failed for {src_path}:\n"
+            f"fps/fit conform failed for {src_path}:\n"
             f"{(proc.stderr or '')[-2500:]}"
         )
     return {
@@ -1071,6 +1133,10 @@ def conform_to_project_timebase(
         "sample_rate": sample_rate,
         "has_video": has_video,
         "has_audio": has_audio,
+        "fit": fit,
+        "project_w": project_w,
+        "project_h": project_h,
+        "force_fps": force_fps,
     }
 
 
@@ -1083,24 +1149,34 @@ def import_media(
     origin: dict[str, Any] | None = None,
     *,
     conform: bool = True,
+    fit: str = "none",
 ) -> Media:
     """Copy ``src_path`` into the bundle and register it on the project.
 
     For kind="video"/"audio", fields come from ffprobe (never guessed).
-    When video source fps ≠ project timebase and ``conform=True`` (default),
-    re-encode into the bundle at project fps so P0 frame-trim export works.
-    Set ``conform=False`` to keep the old hard reject on mismatch.
+
+    conform=True (default): when video fps ≠ project timebase, re-encode to
+    project fps so P0 frame-trim export works.
+
+    fit:
+      - none (default): keep source pixel size (export scales/pads later)
+      - contain: letterbox into project resolution
+      - cover: crop-fill into project resolution
+    Any non-none fit triggers a re-encode when size or fps needs alignment.
 
     kind="image" uses IMAGE_VIRTUAL_DURATION_FRAMES (see model.py).
-
-    ``origin`` records provenance; auto-conform appends ``origin["conformed"]``.
+    ``origin["conformed"]`` records auto re-encode details when applied.
     """
+    if fit not in FIT_MODES:
+        raise ValueError(f"fit must be one of {sorted(FIT_MODES)}, got {fit!r}")
     require_ffmpeg_tools()
     src_path = Path(src_path)
 
     if kind == "image":
         if not src_path.exists():
             raise FileNotFoundError(src_path)
+        # Optional: stills can be scaled into a short video for fit — keep
+        # still as image media; export path already scales images.
         dest = bundle.import_file(src_path, dest_name=dest_name)
         rel_path = dest.relative_to(bundle.media_dir).as_posix()
         return project.add_media(
@@ -1113,7 +1189,6 @@ def import_media(
 
     result: ProbeResult = probe(src_path)
     origin_out: dict[str, Any] | None = dict(origin) if origin else None
-    import_src = src_path
 
     if kind == "video":
         if not result.has_video:
@@ -1121,22 +1196,34 @@ def import_media(
                 f"{src_path} has no video stream; cannot import as kind='video'"
             )
         src_fps = float(result.fps or 0.0)
-        if _fps_mismatch(src_fps, project.timebase.fps):
-            if not conform:
-                raise ValueError(
-                    f"source fps {src_fps:.3f} does not match project "
-                    f"fps {project.timebase.fps:.3f} ({src_path}). "
-                    "Pass conform=True (default) to re-encode, or match fps."
-                )
-            # Write conformed file into media/ directly (unique name)
+        src_w, src_h = result.width, result.height
+        need_fps = _fps_mismatch(src_fps, project.timebase.fps)
+        need_size = fit != "none" and _size_mismatch(
+            src_w, src_h, project.resolution.w, project.resolution.h,
+        )
+        # Explicit fit on already-matching canvas still forces re-encode so
+        # agents can "normalize all clips to project pixels" predictably.
+        force_fit = fit != "none"
+        need_reencode = need_fps or need_size or force_fit
+
+        if need_fps and not conform and not force_fit:
+            raise ValueError(
+                f"source fps {src_fps:.3f} does not match project "
+                f"fps {project.timebase.fps:.3f} ({src_path}). "
+                "Pass conform=True (default) to re-encode, or match fps."
+            )
+        if need_reencode and (conform or force_fit):
             stem = src_path.stem.replace(" ", "_")[:40]
-            conf_name = dest_name or f"{stem}_f{int(round(project.timebase.fps))}_{uuid.uuid4().hex[:6]}.mp4"
+            tag = f"f{int(round(project.timebase.fps))}"
+            if force_fit:
+                tag += f"_{fit}"
+            conf_name = dest_name or f"{stem}_{tag}_{uuid.uuid4().hex[:6]}.mp4"
             if not conf_name.lower().endswith((".mp4", ".mov", ".mkv", ".webm")):
                 conf_name = conf_name + ".mp4"
             dest = bundle.media_dir / conf_name
             if dest.exists():
-                conf_name = f"{stem}_{uuid.uuid4().hex[:8]}.mp4"
-                dest = bundle.media_dir / conf_name
+                dest = bundle.media_dir / f"{stem}_{uuid.uuid4().hex[:8]}.mp4"
+            applied_fit = fit if force_fit else "none"
             conf_report = conform_to_project_timebase(
                 src_path,
                 dest,
@@ -1144,25 +1231,37 @@ def import_media(
                 sample_rate=project.timebase.sample_rate,
                 has_video=True,
                 has_audio=result.has_audio,
+                fit=applied_fit,
+                project_w=project.resolution.w,
+                project_h=project.resolution.h,
+                force_fps=True,
             )
-            result = probe(dest)
-            import_src = dest
+            after = probe(dest)
             origin_out = origin_out or {}
             origin_out["conformed"] = {
                 "from_fps": src_fps,
                 "to_fps": project.timebase.fps,
+                "from_size": {"width": src_w, "height": src_h},
+                "to_size": {"width": after.width, "height": after.height},
+                "fit": applied_fit,
                 "source_path": str(src_path.resolve()),
-                **conf_report,
+                **{k: v for k, v in conf_report.items() if k != "path"},
             }
-            # Already in media/ — register without second copy
-            duration_frames = project.timebase.seconds_to_frames(result.duration_seconds)
+            duration_frames = project.timebase.seconds_to_frames(
+                after.duration_seconds
+            )
             rel_path = dest.relative_to(bundle.media_dir).as_posix()
             return project.add_media(
                 kind=kind,
                 path=rel_path,
                 duration_frames=duration_frames,
-                has_audio=result.has_audio,
+                has_audio=after.has_audio,
                 origin=origin_out,
+            )
+        if need_fps and not conform:
+            raise ValueError(
+                f"source fps {src_fps:.3f} does not match project "
+                f"fps {project.timebase.fps:.3f} ({src_path})"
             )
     elif kind == "audio":
         if not result.has_audio:
@@ -1172,7 +1271,7 @@ def import_media(
     else:
         raise ValueError(f"unknown media kind {kind!r}")
 
-    dest = bundle.import_file(import_src, dest_name=dest_name)
+    dest = bundle.import_file(src_path, dest_name=dest_name)
     duration_frames = project.timebase.seconds_to_frames(result.duration_seconds)
     rel_path = dest.relative_to(bundle.media_dir).as_posix()
     return project.add_media(

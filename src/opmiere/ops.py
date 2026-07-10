@@ -167,9 +167,14 @@ class Editor:
         kind: MediaKind,
         *,
         conform: bool = True,
+        fit: str = "none",
         origin: dict[str, Any] | None = None,
     ) -> Media:
-        """Import media. Video fps mismatches re-encode to project fps when conform=True."""
+        """Import media.
+
+        conform=True: re-encode when source fps ≠ project.
+        fit: none | contain (letterbox) | cover (crop-fill) to project resolution.
+        """
         with self._mutate():
             return _ffmpeg_import_media(
                 self.bundle,
@@ -178,6 +183,7 @@ class Editor:
                 kind,
                 origin=origin,
                 conform=conform,
+                fit=fit,
             )
 
     def add_track(self, kind: TrackKind) -> Track:
@@ -217,6 +223,7 @@ class Editor:
         origin: dict[str, Any] | None = None,
         *,
         conform: bool = True,
+        fit: str = "none",
     ) -> Clip:
         """Import a local file and place it as a clip in one operation.
 
@@ -228,7 +235,8 @@ class Editor:
         undo step, matching what "place this file" means to the caller.
 
         Video sources whose fps ≠ project timebase are re-encoded into the
-        bundle when ``conform=True`` (default).
+        bundle when ``conform=True`` (default). ``fit`` contain/cover scales
+        into project resolution at import time.
 
         ``origin`` lets provenance survive a process restart: place_generated
         needs the provider's in-memory job, so a finished job's result_path
@@ -256,6 +264,7 @@ class Editor:
                 kind,
                 origin=origin,
                 conform=conform,
+                fit=fit,
             )
             if duration_frames is None:
                 duration_frames = media.duration_frames
