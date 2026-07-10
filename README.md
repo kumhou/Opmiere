@@ -11,9 +11,19 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: pre-alpha.** Headless core only (no GUI yet). Working today: agent-driven timeline editing
-> (cut/trim/split/effects/transitions) and local AI image generation, both over MCP, both exporting
-> real video. See [ARCHITECTURE.md](ARCHITECTURE.md) section 9 for exactly what's built vs. planned.
+> **Status: pre-alpha.** Headless core + **P3 minimal web** (`opmiere-web`). Working today: agent-driven
+> timeline editing (cut/trim/effects/transitions/captions/scenes), local generation (image/video/speech/
+> music/sfx), film workflow brief/plan, and a thin browser shell for create/place/export. See
+> [ARCHITECTURE.md](ARCHITECTURE.md) section 9 for built vs planned.
+
+## Quick start (web)
+
+```bash
+pip install -e ".[web]"   # or: pip install fastapi uvicorn
+opmiere-web               # http://127.0.0.1:8787
+```
+
+Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stems]` demucs, `[all]`.
 
 ## Why
 
