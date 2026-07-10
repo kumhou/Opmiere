@@ -310,6 +310,8 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
         (default 0.05), "invert": bool (default false)}
         - geometric alpha mask; put the clip on an overlay video track so the layer below shows outside
           the shape (same alpha-survival rules as chroma_key).
+      {"type": "subtitles", "path": str (required, .srt/.ass), "force_style": optional ASS style string}
+        - burn timed captions (from transcribe/write_srt or caption_clip) into the clip.
       {"type": "compression", "threshold_db": float (default -18.0, level where compression kicks in),
         "ratio": 1..20 (default 4.0), "attack_ms": float (default 20.0), "release_ms": float
         (default 250.0), "makeup_db": float (default 0.0, gain added back after compressing)}
@@ -667,6 +669,80 @@ def quality_check(path: str) -> dict:
     no audio stream).
     """
     return _require_editor().quality_check(path)
+
+
+@mcp.tool()
+def transcribe(
+    path: str,
+    model_size: str = "base",
+    language: str | None = None,
+    device: str = "cpu",
+    compute_type: str = "int8",
+    word_timestamps: bool = True,
+) -> dict:
+    """Speech-to-text on a local audio/video file (faster-whisper).
+
+    Returns language, segments[{start,end,text,words?}], model_size. Does not
+    write SRT — use write_srt or caption_clip. Requires pip install faster-whisper.
+    """
+    return _require_editor().transcribe(
+        path,
+        model_size=model_size,
+        language=language,
+        device=device,
+        compute_type=compute_type,
+        word_timestamps=word_timestamps,
+    )
+
+
+@mcp.tool()
+def write_srt(path: str, segments: list) -> str:
+    """Write transcript segments to an .srt file. Returns the path written."""
+    return _require_editor().write_srt(path, segments)
+
+
+@mcp.tool()
+def suggest_silence_cuts(
+    path: str,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.4,
+    pad_seconds: float = 0.08,
+    min_keep_seconds: float = 0.2,
+) -> dict:
+    """Suggest keep_ranges between silences (cut dead air). Pure ffmpeg.
+
+    Does not edit the timeline — agent applies trim/split using the ranges.
+    """
+    return _require_editor().suggest_silence_cuts(
+        path,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        pad_seconds=pad_seconds,
+        min_keep_seconds=min_keep_seconds,
+    )
+
+
+@mcp.tool()
+def caption_clip(
+    clip_id: str,
+    srt_path: str | None = None,
+    model_size: str = "base",
+    language: str | None = None,
+    device: str = "cpu",
+    compute_type: str = "int8",
+) -> dict:
+    """Transcribe a clip's media, write SRT, burn subtitles via apply_effect.
+
+    Returns {clip, srt_path, transcript}. Needs faster-whisper installed.
+    """
+    return _require_editor().caption_clip(
+        clip_id,
+        srt_path=srt_path,
+        model_size=model_size,
+        language=language,
+        device=device,
+        compute_type=compute_type,
+    )
 
 
 @mcp.tool()

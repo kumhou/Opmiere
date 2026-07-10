@@ -20,6 +20,8 @@ dependencies = ["mcp[cli]>=1.28"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pillow>=10"]
+# Local ASR for caption_clip / transcribe MCP tools (not required for core edit/render).
+transcribe = ["faster-whisper>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/kumhou/Opmiere"

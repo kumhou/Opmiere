@@ -140,6 +140,24 @@ def _effect_filters(
                 f"borderw={border_width}:bordercolor={border_color}:"
                 f"x={x_expr}:y={y_expr}:expansion=none"
             )
+        elif etype == "subtitles":
+            if stream != "video":
+                continue
+            # Burn timed captions from .srt/.ass (transcribe → write_srt → here).
+            # ffmpeg subtitles filter; path escaping matches drawtext on Windows.
+            path = effect.get("path")
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError("subtitles effect has invalid 'path'")
+            if not Path(path).exists():
+                raise FileNotFoundError(f"subtitles effect path not found: {path}")
+            force_style = effect.get("force_style")
+            frag = f"subtitles='{_escape_filter_path(path)}'"
+            if isinstance(force_style, str) and force_style.strip():
+                # force_style uses single quotes inside the filter value —
+                # strip quotes from user input to avoid breaking the graph.
+                style = force_style.replace("'", "")
+                frag += f":force_style='{style}'"
+            parts.append(frag)
         elif etype == "blur":
             if stream != "video":
                 continue

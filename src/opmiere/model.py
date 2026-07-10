@@ -49,7 +49,7 @@ TrackKind = Literal["video", "audio"]
 KNOWN_EFFECT_TYPES = {
     "color", "fade", "gain", "text", "blur", "vignette", "chroma_key", "luma_key", "curves",
     "crop", "rotate", "sharpen", "film_grain", "glow", "lut3d", "ken_burns", "white_balance",
-    "shape_mask", "compression", "noise_reduction", "audio_eq",
+    "shape_mask", "subtitles", "compression", "noise_reduction", "audio_eq",
 }
 
 SHAPE_MASK_SHAPES = {"circle", "rect"}

@@ -39,6 +39,9 @@ from .render.contact_sheet import make_contact_sheet as _make_contact_sheet
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
 from .render.quality_check import quality_check as _quality_check
+from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
+from .render.asr import transcribe as _transcribe
+from .render.asr import write_srt as _write_srt
 
 # Maps a GenerationJob.kind (what an agent asked to generate) to the
 # Media.kind it becomes once it's a file on disk. image/video are their own
@@ -309,6 +312,12 @@ class Editor:
                 border_width = effect.get("border_width", 2)
                 if not isinstance(border_width, int) or border_width < 0:
                     raise ValueError("text effect 'border_width' must be a non-negative integer")
+            elif etype == "subtitles":
+                path = effect.get("path")
+                if not isinstance(path, str) or not path.strip():
+                    raise ValueError("subtitles effect requires non-empty string 'path' to an .srt/.ass file")
+                if not Path(path).exists():
+                    raise FileNotFoundError(f"subtitles effect path not found: {path}")
             elif etype == "blur":
                 amount = effect.get("amount", 5.0)
                 if not isinstance(amount, (int, float)) or amount <= 0:
@@ -803,6 +812,95 @@ class Editor:
         Read the returned path to actually look at it.
         """
         return str(_make_contact_sheet(Path(path), Path(output_path), cols=cols, rows=rows))
+
+    def transcribe(
+        self,
+        path: str | Path,
+        *,
+        model_size: str = "base",
+        language: str | None = None,
+        device: str = "cpu",
+        compute_type: str = "int8",
+        word_timestamps: bool = True,
+    ) -> dict[str, Any]:
+        """Speech-to-text on a media file (faster-whisper). Returns segments
+        with start/end/text (+ words when word_timestamps). Does not mutate
+        the project — pair with write_srt + apply_effect subtitles, or use
+        caption_clip for the one-shot path.
+        """
+        return _transcribe(
+            Path(path),
+            model_size=model_size,
+            language=language,
+            device=device,
+            compute_type=compute_type,
+            word_timestamps=word_timestamps,
+        )
+
+    def write_srt(self, path: str | Path, segments: list[dict[str, Any]]) -> str:
+        """Write segments (from transcribe) to an .srt file. Returns path."""
+        return str(_write_srt(Path(path), segments))
+
+    def suggest_silence_cuts(
+        self,
+        path: str | Path,
+        *,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.4,
+        pad_seconds: float = 0.08,
+        min_keep_seconds: float = 0.2,
+    ) -> dict[str, Any]:
+        """Suggest keep_ranges between silences (ffmpeg silencedetect).
+
+        Agent uses these to trim/split dead air — does not edit the timeline
+        automatically.
+        """
+        return _suggest_keep_ranges(
+            Path(path),
+            silence_threshold_db=silence_threshold_db,
+            min_silence_seconds=min_silence_seconds,
+            pad_seconds=pad_seconds,
+            min_keep_seconds=min_keep_seconds,
+        )
+
+    def caption_clip(
+        self,
+        clip_id: str,
+        *,
+        srt_path: str | Path | None = None,
+        model_size: str = "base",
+        language: str | None = None,
+        device: str = "cpu",
+        compute_type: str = "int8",
+    ) -> dict[str, Any]:
+        """Transcribe a clip's media, write SRT, apply subtitles effect.
+
+        One undoable apply_effect for the subtitle burn-in; SRT is written
+        next to the project bundle (or to srt_path). Returns
+        {clip, srt_path, transcript}.
+        """
+        clip = self._find_clip(clip_id)
+        media = self.project.media_by_id(clip.media)
+        src = self.bundle.media_path(media.path)
+        if not src.exists():
+            raise FileNotFoundError(f"media file for clip {clip_id} not found: {src}")
+
+        transcript = self.transcribe(
+            src,
+            model_size=model_size,
+            language=language,
+            device=device,
+            compute_type=compute_type,
+        )
+        if srt_path is None:
+            srt_path = self.bundle.root / f"captions_{clip_id}.srt"
+        srt = self.write_srt(srt_path, transcript["segments"])
+        updated = self.apply_effect(clip_id, {"type": "subtitles", "path": srt})
+        return {
+            "clip": updated.to_dict(),
+            "srt_path": srt,
+            "transcript": transcript,
+        }
 
     # --- render -----------------------------------------------------------
     def export(self, output_path: Path) -> Path:

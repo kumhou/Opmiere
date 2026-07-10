@@ -59,12 +59,15 @@ per-fragment quality gates; call `plan_director_session` for a step list.
    (a_roll, music, vo). Generate only for **gaps**.
 3. `quality_check` on questionable user files (silent VO, black video) before
    building structure on top of them.
+4. **Understand speech:** `transcribe` (faster-whisper) on talking footage →
+   `write_srt` / `caption_clip` to burn captions. `suggest_silence_cuts` for
+   dead-air keep_ranges (agent trims; no auto-destruct of the timeline).
 
 ## 3. Structure the cut
 1. Order A-roll / hero shots on the base video track (`place_after` + optional
    `transition_type`).
 2. Overlay B-roll / PiP / keyed layers on later video tracks.
-3. Timing: trim dead air; `set_speed` sparingly; leave room for VO.
+3. Timing: use silence keep_ranges to cut dead air; `set_speed` sparingly; leave room for VO.
 
 ## 4. Generate only gaps
 1. `recommend_generation_profile(kind)` when unsure of model.
@@ -245,6 +248,24 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
             "Order A-roll / hero shots; optional transition_type on place_after",
             note="Base video track first; overlays later",
         )
+        # User talking-head / a_roll: understand speech + cut dead air before polish
+        if roles & {"a_roll", "vo", "b_roll"} or any(
+            isinstance(a, dict) and str(a.get("path", "")).lower().endswith(
+                (".mp4", ".mov", ".mkv", ".webm", ".wav", ".mp3", ".m4a", ".flac")
+            )
+            for a in assets
+        ):
+            add(
+                "understand_speech",
+                "transcribe",
+                "ASR on user footage (faster-whisper); optional caption_clip to burn SRT",
+                note="write_srt + apply_effect subtitles, or caption_clip one-shot",
+            )
+            add(
+                "cut_dead_air",
+                "suggest_silence_cuts",
+                "Get keep_ranges between silences; agent trims/splits from those numbers",
+            )
     else:
         add(
             "no_assets",
