@@ -1210,16 +1210,31 @@ def delivery_check(
 
 @mcp.tool()
 def export_preview(
-    output_path: str,
+    output_path: str | None = None,
     height: int = 360,
     fps: float = 12.0,
+    force: bool = False,
 ) -> dict:
     """Build a low-res timeline proxy for scrubbing (not delivery).
 
-    Then use frame_at(time) or play the proxy file. Proxy is auto-invalidated
-    on timeline mutate/undo/redo — re-run after edits.
+    force=false reuses a fresh proxy (cache hit). Auto-invalidated on
+    mutate/undo/redo. Prefer ensure_preview_proxy for agent loops.
     """
-    return _require_editor().export_preview(output_path, height=height, fps=fps)
+    return _require_editor().export_preview(
+        output_path, height=height, fps=fps, force=force,
+    )
+
+
+@mcp.tool()
+def ensure_preview_proxy(
+    output_path: str | None = None,
+    height: int = 360,
+    fps: float = 12.0,
+) -> dict:
+    """Build preview proxy only if missing/stale; else return cache hit."""
+    return _require_editor().ensure_preview_proxy(
+        output_path, height=height, fps=fps,
+    )
 
 
 @mcp.tool()
@@ -1242,6 +1257,22 @@ def frame_at(
     """
     return _require_editor().frame_at(
         time_seconds, output_path, width=width, prefer_proxy=prefer_proxy,
+    )
+
+
+@mcp.tool()
+def review_keyframes(
+    output_dir: str,
+    count: int = 5,
+    width: int = 640,
+    ensure_proxy: bool = True,
+) -> dict:
+    """Evenly spaced frames across the cut (0%…100%) for pacing/continuity.
+
+    ensure_proxy=true builds/reuses scrub proxy first. Read the image paths.
+    """
+    return _require_editor().review_keyframes(
+        output_dir, count=count, width=width, ensure_proxy=ensure_proxy,
     )
 
 

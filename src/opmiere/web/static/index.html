@@ -53,6 +53,7 @@
     <span>P3 · delivery-aware</span>
     <span class="pill" id="status">no project</span>
     <span class="pill" id="docPill">doctor ?</span>
+    <span class="pill" id="proxyPill">proxy ?</span>
   </header>
   <main>
     <section>
@@ -96,8 +97,12 @@
         <button type="button" class="secondary" id="btnLook">Apply look</button>
       </div>
       <h2>Preview scrub</h2>
-      <button type="button" class="secondary" id="btnProxy">Build proxy (slow once)</button>
-      <label>Time (s)</label>
+      <div class="row">
+        <button type="button" class="secondary" id="btnProxy">Ensure proxy</button>
+        <button type="button" class="secondary" id="btnProxyForce">Force rebuild</button>
+      </div>
+      <button type="button" class="secondary" id="btnKeys">Keyframes 0–100%</button>
+      <label>Time (s) · <span id="tcLabel">00:00.0</span></label>
       <input id="scrub" type="range" min="0" max="10" step="0.1" value="0" />
       <div class="row">
         <input id="scrubVal" type="number" step="0.1" value="0" style="flex:0.4" />
@@ -132,9 +137,33 @@
     const logEl = document.getElementById('log');
     const statusEl = document.getElementById('status');
     const docPill = document.getElementById('docPill');
+    const proxyPill = document.getElementById('proxyPill');
     function log(msg, isErr) {
       const t = new Date().toLocaleTimeString();
       logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+    }
+    function fmtTc(s) {
+      s = Math.max(0, +s || 0);
+      const m = Math.floor(s / 60);
+      const sec = s - m * 60;
+      return String(m).padStart(2,'0') + ':' + sec.toFixed(1).padStart(4,'0');
+    }
+    async function refreshProxyPill() {
+      try {
+        const st = await api('/api/preview/status');
+        if (st.fresh) {
+          proxyPill.textContent = 'proxy fresh';
+          proxyPill.classList.remove('bad');
+        } else if (st.exists) {
+          proxyPill.textContent = 'proxy STALE';
+          proxyPill.classList.add('bad');
+        } else {
+          proxyPill.textContent = 'no proxy';
+          proxyPill.classList.add('bad');
+        }
+      } catch {
+        proxyPill.textContent = 'proxy ?';
+      }
     }
     async function api(path, opts) {
       const r = await fetch(path, {
@@ -209,12 +238,6 @@
         if (dc && !dc.ok) log('delivery errors: ' + (dc.errors || []).join('; '), true);
       } catch (e) { log(String(e.message || e), true); }
     };
-    document.getElementById('btnRefresh').onclick = async () => {
-      try {
-        const s = await api('/api/project/state');
-        renderState(s); log('refreshed');
-      } catch (e) { log(String(e.message || e), true); }
-    };
     document.getElementById('btnReview').onclick = async () => {
       try {
         const r = await api('/api/review', { method: 'POST', body: '{}' });
@@ -249,25 +272,57 @@
     }
     document.getElementById('btnProxy').onclick = async () => {
       try {
-        log('building proxy…');
-        const r = await api('/api/preview/build', { method: 'POST', body: '{}' });
+        log('ensure proxy…');
+        const r = await api('/api/preview/ensure', { method: 'POST', body: '{}' });
         scrubMax = Math.max(0.5, +(r.duration_seconds || 10));
         document.getElementById('scrub').max = scrubMax;
-        log('proxy ' + r.path + ' ' + scrubMax.toFixed(2) + 's');
+        log((r.cache_hit ? 'cache hit ' : 'built ') + r.path + ' ' + scrubMax.toFixed(2) + 's');
+        await refreshProxyPill();
         showFrame(0);
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnProxyForce').onclick = async () => {
+      try {
+        log('force rebuild proxy…');
+        const r = await api('/api/preview/build', {
+          method: 'POST', body: JSON.stringify({ force: true }),
+        });
+        scrubMax = Math.max(0.5, +(r.duration_seconds || 10));
+        document.getElementById('scrub').max = scrubMax;
+        log('rebuilt ' + scrubMax.toFixed(2) + 's');
+        await refreshProxyPill();
+        showFrame(0);
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnKeys').onclick = async () => {
+      try {
+        const r = await api('/api/preview/keyframes?count=5', { method: 'POST' });
+        log('keyframes ' + r.count + ' · ' + r.duration_seconds + 's');
+        await refreshProxyPill();
+        if (r.frames && r.frames[0]) showFrame(r.frames[0].time_seconds);
       } catch (e) { log(String(e.message || e), true); }
     };
     document.getElementById('btnFrame').onclick = () => {
       const t = +document.getElementById('scrubVal').value || 0;
       showFrame(t);
-      log('frame @ ' + t + 's');
+      log('frame @ ' + fmtTc(t));
     };
     document.getElementById('scrub').oninput = (ev) => {
       const t = +ev.target.value;
       document.getElementById('scrubVal').value = t;
+      document.getElementById('tcLabel').textContent = fmtTc(t);
     };
     document.getElementById('scrub').onchange = (ev) => {
-      showFrame(+ev.target.value);
+      const t = +ev.target.value;
+      document.getElementById('tcLabel').textContent = fmtTc(t);
+      showFrame(t);
+    };
+    document.getElementById('btnRefresh').onclick = async () => {
+      try {
+        const s = await api('/api/project/state');
+        renderState(s); log('refreshed');
+        await refreshProxyPill();
+      } catch (e) { log(String(e.message || e), true); }
     };
     document.getElementById('btnDoctor').onclick = async () => {
       try {

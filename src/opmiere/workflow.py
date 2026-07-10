@@ -436,10 +436,10 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
     )
     add(
         "export_preview",
-        "export_preview",
-        "Low-res scrub proxy; then frame_at at key beats (invalidated on edit)",
-        params={"output_path": "<bundle>/review/preview_proxy.mp4", "height": 360, "fps": 12},
-        optional_tools=["frame_at", "preview_proxy_status"],
+        "ensure_preview_proxy",
+        "Low-res scrub proxy (cache if fresh); review_keyframes 0–100%",
+        params={"height": 360, "fps": 12},
+        optional_tools=["export_preview", "frame_at", "review_keyframes", "preview_proxy_status"],
     )
     add(
         "export",

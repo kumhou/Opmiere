@@ -1723,16 +1723,16 @@ class Editor:
 
     def export_preview(
         self,
-        output_path: str | Path,
+        output_path: str | Path | None = None,
         *,
         height: int = 360,
         fps: float = 12.0,
+        force: bool = False,
     ) -> dict[str, Any]:
         """Fast low-res timeline proxy for scrubbing (not delivery quality).
 
-        Temporarily lowers project resolution/fps, exports, then restores.
-        Overlays and effects still apply. Use frame_at() or a player on the
-        result. Sets the editor's last_preview_proxy path.
+        If a fresh proxy already exists and force=False, returns it without
+        re-encoding (cache hit). Otherwise lowers resolution, exports, restores.
         """
         import subprocess
 
@@ -1740,17 +1740,41 @@ class Editor:
             raise ValueError("height must be in [72, 2160]")
         if fps <= 0 or fps > 60:
             raise ValueError("fps must be in (0, 60]")
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         old_w, old_h = self.project.resolution.w, self.project.resolution.h
-        old_fps = self.project.timebase.fps
+        default_proxy = self.bundle.root / "review" / "preview_proxy.mp4"
+        if output_path is None:
+            output_path = default_proxy
+        output_path = Path(output_path)
+
+        status = self.preview_proxy_status()
+        if (
+            not force
+            and status.get("fresh")
+            and status.get("path")
+            and Path(status["path"]).exists()
+        ):
+            from .render.probe import probe as _probe
+            info = _probe(Path(status["path"]))
+            return {
+                "path": status["path"],
+                "width": info.width,
+                "height": info.height,
+                "fps": info.fps,
+                "duration_seconds": info.duration_seconds,
+                "project_resolution": {"w": old_w, "h": old_h},
+                "proxy_height": info.height,
+                "proxy_fps_request": fps,
+                "fingerprint": self._preview_proxy_fingerprint,
+                "fresh": True,
+                "cache_hit": True,
+                "agent_note": "Reused fresh proxy (no re-encode).",
+            }
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         aspect = old_w / max(old_h, 1)
         new_h = int(height) // 2 * 2
         new_w = max(2, int(round(new_h * aspect)) // 2 * 2)
-        # Snap fps to something export can use; keep timeline frame math by
-        # scaling is wrong if we change fps without remapping — so we keep
-        # project fps for the graph and down-sample the *output* file.
         try:
             self.project.resolution.w = new_w
             self.project.resolution.h = new_h
@@ -1761,7 +1785,6 @@ class Editor:
             self.project.resolution.w = old_w
             self.project.resolution.h = old_h
 
-        # Second pass: lower fps for smaller proxy (picture only intent)
         proxy = Path(output_path)
         proc = subprocess.run(
             [
@@ -1776,9 +1799,11 @@ class Editor:
             capture_output=True, text=True,
         )
         if proc.returncode != 0 or not proxy.exists():
-            # fall back to full low-res with audio
-            if written.exists():
-                written.replace(proxy) if written != proxy else None
+            if written.exists() and written != proxy:
+                try:
+                    written.replace(proxy)
+                except OSError:
+                    pass
             if not proxy.exists():
                 raise RuntimeError(
                     f"export_preview failed:\n{(proc.stderr or '')[-2000:]}"
@@ -1804,9 +1829,72 @@ class Editor:
             "proxy_fps_request": fps,
             "fingerprint": self._preview_proxy_fingerprint,
             "fresh": True,
+            "cache_hit": False,
             "agent_note": (
                 "Scrub proxy only — not for delivery. Auto-invalidated on "
                 "timeline mutate/undo/redo; re-run export_preview after edits."
+            ),
+        }
+
+    def ensure_preview_proxy(
+        self,
+        output_path: str | Path | None = None,
+        *,
+        height: int = 360,
+        fps: float = 12.0,
+    ) -> dict[str, Any]:
+        """Build proxy only if missing or stale; else return cache hit."""
+        return self.export_preview(
+            output_path, height=height, fps=fps, force=False,
+        )
+
+    def review_keyframes(
+        self,
+        output_dir: str | Path,
+        *,
+        count: int = 5,
+        width: int = 640,
+        ensure_proxy: bool = True,
+    ) -> dict[str, Any]:
+        """Extract evenly spaced frames across the cut for agent eyes.
+
+        Times at 0%, …, 100% of duration. Uses fresh proxy when possible.
+        """
+        if count < 2 or count > 24:
+            raise ValueError("count must be in [2, 24]")
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        if ensure_proxy:
+            self.ensure_preview_proxy()
+        dur_f = self.duration_frames()
+        fps = float(self.project.timebase.fps or 30.0)
+        dur_s = dur_f / fps if fps else 0.0
+        if dur_s <= 0:
+            raise ValueError("empty timeline — nothing to review")
+        frames: list[dict[str, Any]] = []
+        for i in range(count):
+            if count == 1:
+                t = 0.0
+            else:
+                t = dur_s * i / (count - 1)
+            # avoid exact end EOF on some demuxers
+            t = min(t, max(0.0, dur_s - 0.05))
+            out = output_dir / f"keyframe_{i:02d}_{t:.2f}s.jpg"
+            r = self.frame_at(t, out, width=width, prefer_proxy=True)
+            frames.append({
+                "index": i,
+                "time_seconds": round(t, 3),
+                "path": r["path"],
+                "mode": r.get("mode"),
+            })
+        return {
+            "duration_seconds": round(dur_s, 3),
+            "count": len(frames),
+            "frames": frames,
+            "proxy": self.preview_proxy_status(),
+            "agent_note": (
+                "Read these images in order for pacing/continuity. "
+                "Not a substitute for delivery_check on the final export."
             ),
         }
 

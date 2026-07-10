@@ -256,6 +256,7 @@ class PreviewBody(BaseModel):
     output_path: str | None = None
     height: int = 360
     fps: float = 12.0
+    force: bool = False
 
 
 class FrameBody(BaseModel):
@@ -267,10 +268,19 @@ class FrameBody(BaseModel):
 @app.post("/api/preview/build")
 def preview_build(body: PreviewBody) -> dict[str, Any]:
     ed = _ed()
-    out = body.output_path
-    if not out:
-        out = str(ed.bundle.root / "review" / "preview_proxy.mp4")
-    return ed.export_preview(out, height=body.height, fps=body.fps)
+    return ed.export_preview(
+        body.output_path,
+        height=body.height,
+        fps=body.fps,
+        force=body.force,
+    )
+
+
+@app.post("/api/preview/ensure")
+def preview_ensure(body: PreviewBody) -> dict[str, Any]:
+    return _ed().ensure_preview_proxy(
+        body.output_path, height=body.height, fps=body.fps,
+    )
 
 
 @app.get("/api/preview/status")
@@ -304,6 +314,13 @@ def preview_frame_jpg(t: float = 0.0, width: int = 640) -> FileResponse:
     if not _last_frame or not Path(_last_frame).exists():
         raise HTTPException(500, "frame extract failed")
     return FileResponse(_last_frame, media_type="image/jpeg")
+
+
+@app.post("/api/preview/keyframes")
+def preview_keyframes(count: int = 5, width: int = 480) -> dict[str, Any]:
+    ed = _ed()
+    out = ed.bundle.root / "review" / "keyframes"
+    return ed.review_keyframes(out, count=count, width=width, ensure_proxy=True)
 
 
 if _STATIC.is_dir():

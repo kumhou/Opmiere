@@ -53,6 +53,32 @@ def test_export_preview_and_proxy_frame(tmp_path: Path):
     assert Path(r["path"]).exists()
 
 
+def test_ensure_preview_cache_hit(tmp_path: Path):
+    v = tmp_path / "v.mp4"
+    _clip(v, "cyan", 0.6)
+    ed = Editor.create(tmp_path / "p.opm", fps=FPS, width=320, height=180)
+    tr = ed.add_track("video")
+    ed.place_from_file(v, "video", tr.id, 0)
+    p1 = ed.ensure_preview_proxy(tmp_path / "px.mp4", height=120, fps=8)
+    assert p1.get("cache_hit") is False
+    p2 = ed.ensure_preview_proxy(tmp_path / "px.mp4", height=120, fps=8)
+    assert p2.get("cache_hit") is True
+    assert p2["path"] == p1["path"]
+
+
+def test_review_keyframes(tmp_path: Path):
+    v = tmp_path / "v.mp4"
+    _clip(v, "magenta", 0.8)
+    ed = Editor.create(tmp_path / "p.opm", fps=FPS, width=320, height=180)
+    tr = ed.add_track("video")
+    ed.place_from_file(v, "video", tr.id, 0)
+    r = ed.review_keyframes(tmp_path / "keys", count=4, width=120)
+    assert r["count"] == 4
+    assert len(r["frames"]) == 4
+    for f in r["frames"]:
+        assert Path(f["path"]).exists()
+
+
 def test_proxy_invalidated_after_mutate(tmp_path: Path):
     v = tmp_path / "v.mp4"
     _clip(v, "blue", 0.6)

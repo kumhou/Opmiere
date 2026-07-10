@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Preview: `ensure_preview_proxy` cache hit, `review_keyframes` 0–100%, web proxy fresh/stale badge + timecode
+
 ## 0.1.0 — 2026-07-10
 
 **Agent-native cut baseline** (not a consumer NLE).
