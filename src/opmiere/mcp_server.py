@@ -742,6 +742,40 @@ def export_with_preset(
 
 
 @mcp.tool()
+def move_to_track(
+    clip_id: str,
+    track_id: str,
+    start: int | None = None,
+) -> dict:
+    """Reparent clip onto another track of the same kind."""
+    return _require_editor().move_to_track(clip_id, track_id, start=start)
+
+
+@mcp.tool()
+def align_clips(
+    clip_ids: list[str],
+    to_frame: int = 0,
+    mode: str = "relative",
+) -> dict:
+    """Align clip starts: relative (group shift) or start (stack at frame)."""
+    return _require_editor().align_clips(
+        clip_ids, to_frame=to_frame, mode=mode,
+    )
+
+
+@mcp.tool()
+def copy_effects(clip_id: str) -> dict:
+    """Copy clip effects into session effects clipboard."""
+    return _require_editor().copy_effects(clip_id)
+
+
+@mcp.tool()
+def paste_effects(clip_id: str, replace: bool = True) -> dict:
+    """Paste effects clipboard onto a clip (replace or append)."""
+    return _require_editor().paste_effects(clip_id, replace=replace)
+
+
+@mcp.tool()
 def clips_at(
     timeline_frame: int,
     track_id: str | None = None,

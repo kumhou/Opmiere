@@ -343,6 +343,22 @@
         <button type="button" class="secondary" id="btnTrimW" disabled title="W">Trim tail (W)</button>
         <button type="button" class="secondary" id="btnClearFx" disabled>Clear FX</button>
       </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnSlipL" disabled title=",">Slip −5</button>
+        <button type="button" class="secondary" id="btnSlipR" disabled title=".">Slip +5</button>
+        <button type="button" class="secondary" id="btnCopyFx" disabled>Copy FX</button>
+        <button type="button" class="secondary" id="btnPasteFx" disabled>Paste FX</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnAlignPh" disabled>Align → playhead</button>
+        <button type="button" class="secondary" id="btnRollL" disabled>Roll cut −5</button>
+        <button type="button" class="secondary" id="btnRollR" disabled>Roll cut +5</button>
+      </div>
+      <label>Move to track_id</label>
+      <div class="row">
+        <input id="moveTrackId" placeholder="trk_…" disabled />
+        <button type="button" class="secondary" id="btnMoveTrack" disabled style="flex:0.4">Move</button>
+      </div>
       <label>Export preset</label>
       <div class="row">
         <select id="exportPreset">
@@ -751,6 +767,8 @@
         'pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse',
         'btnDetach','btnMatch','fadeIn','fadeOut','btnFades','relinkMedia','btnRelink',
         'opacitySlider','btnOpacity','btnSubclip','btnTrimQ','btnTrimW','btnClearFx',
+        'btnSlipL','btnSlipR','btnCopyFx','btnPasteFx','btnAlignPh','btnRollL','btnRollR',
+        'moveTrackId','btnMoveTrack',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2097,6 +2115,16 @@
           if (!selectedClipId) return;
           ev.preventDefault();
           await doTrimPlayhead('tail');
+        } else if (ev.key === ',' || ev.key === '<') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doSlip(-5);
+        } else if (ev.key === '.' || ev.key === '>') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doSlip(5);
         }
       } catch (e) { log(String(e.message || e)); }
     });
@@ -2277,6 +2305,97 @@
           body: JSON.stringify({ output_path: name, preset }),
         });
         log('exported ' + (r.path || name) + (r.delivery_ok === false ? ' (delivery fail)' : ''));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    async function doSlip(delta) {
+      if (!selectedClipId) return;
+      const r = await api('/api/clip/slip', {
+        method: 'POST',
+        body: JSON.stringify({ clip_id: selectedClipId, delta_src_frames: delta }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log('slip ' + delta);
+      return r;
+    }
+    document.getElementById('btnSlipL').onclick = async () => {
+      try { await doSlip(-5); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSlipR').onclick = async () => {
+      try { await doSlip(5); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnCopyFx').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/copy_effects', {
+          method: 'POST', body: JSON.stringify({ clip_id: selectedClipId }),
+        });
+        log('copied FX count=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnPasteFx').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/paste_effects', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, replace: true }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('pasted FX count=' + r.to_count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnAlignPh').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) { log('no selection'); return; }
+      try {
+        const fps = (timeline && timeline.fps) || 30;
+        const frame = Math.round((+scrub.value || 0) * fps);
+        const r = await api('/api/clips/align', {
+          method: 'POST',
+          body: JSON.stringify({ clip_ids: ids, to_frame: frame, mode: 'relative' }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('align → ' + frame + ' count=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    async function doRoll(delta) {
+      // need two selected adjacent clips, or selected + neighbor
+      const ids = selectionList();
+      if (ids.length < 2) {
+        log('select left then right clip of the cut (2 clips)');
+        return;
+      }
+      const r = await api('/api/clip/roll', {
+        method: 'POST',
+        body: JSON.stringify({
+          left_clip_id: ids[0], right_clip_id: ids[1], delta_frames: delta,
+        }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log('roll ' + delta + ' cut@' + r.edit_frame);
+      return r;
+    }
+    document.getElementById('btnRollL').onclick = async () => {
+      try { await doRoll(-5); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRollR').onclick = async () => {
+      try { await doRoll(5); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnMoveTrack').onclick = async () => {
+      if (!selectedClipId) return;
+      const track_id = (document.getElementById('moveTrackId').value || '').trim();
+      if (!track_id) { log('need track_id'); return; }
+      try {
+        const r = await api('/api/clip/move_to_track', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, track_id }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('moved → ' + track_id);
       } catch (e) { log(String(e.message || e)); }
     };
 

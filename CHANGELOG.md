@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.13 — 2026-07-11
+
+### Added
+- **`move_to_track`**: reparent clip to another same-kind track
+- **`align_clips`**: relative group shift or stack starts
+- **`copy_effects` / `paste_effects`**: session FX clipboard
+- Web: Slip ,/. · Roll · Align → playhead · Copy/Paste FX · Move to track
+
 ## 0.2.12 — 2026-07-11
 
 ### Added

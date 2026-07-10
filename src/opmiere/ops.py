@@ -123,6 +123,7 @@ class Editor:
         self._redo_stack: list[dict] = []
         # Session clipboard + work in/out (not persisted in project.json)
         self._clipboard: dict[str, Any] | None = None
+        self._effects_clipboard: list[dict[str, Any]] | None = None
         self._in_point: int | None = None
         self._out_point: int | None = None
         self._dirty: bool = False
@@ -280,6 +281,7 @@ class Editor:
                 {"keys": "U", "action": "Subclip from work In/Out (selected clip)"},
                 {"keys": "Q", "action": "Ripple trim head to playhead"},
                 {"keys": "W", "action": "Ripple trim tail to playhead"},
+                {"keys": ", / .", "action": "Slip selected −/+ 5 source frames"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -1147,6 +1149,169 @@ class Editor:
                 raise ValueError(f"new_start must be >= 0, got {new_start}")
             clip.start = new_start
             return clip
+
+    def move_to_track(
+        self,
+        clip_id: str,
+        track_id: str,
+        *,
+        start: int | None = None,
+    ) -> dict[str, Any]:
+        """Reparent a clip onto another track of the same kind.
+
+        start=None keeps the current timeline start. One undo step.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            src_track, clip = self._find_clip_and_track(clip_id)
+            dest = self.project.track_by_id(track_id)
+            if dest.locked:
+                raise ValueError(f"track {track_id} is locked")
+            if dest.kind != src_track.kind:
+                raise ValueError(
+                    f"cannot move {src_track.kind} clip onto {dest.kind} track"
+                )
+            if dest.id == src_track.id:
+                if start is not None:
+                    if int(start) < 0:
+                        raise ValueError("start must be >= 0")
+                    old_start = clip.start
+                    clip.start = int(start)
+                    return {
+                        "clip_id": clip_id,
+                        "from_track_id": src_track.id,
+                        "to_track_id": dest.id,
+                        "start": {"from": old_start, "to": clip.start},
+                        "same_track": True,
+                    }
+                return {
+                    "clip_id": clip_id,
+                    "from_track_id": src_track.id,
+                    "to_track_id": dest.id,
+                    "start": {"from": clip.start, "to": clip.start},
+                    "same_track": True,
+                    "unchanged": True,
+                }
+            old_start = clip.start
+            new_start = old_start if start is None else int(start)
+            if new_start < 0:
+                raise ValueError("start must be >= 0")
+            src_track.clips.remove(clip)
+            clip.start = new_start
+            dest.clips.append(clip)
+            return {
+                "clip_id": clip_id,
+                "from_track_id": src_track.id,
+                "to_track_id": dest.id,
+                "start": {"from": old_start, "to": clip.start},
+                "same_track": False,
+                "agent_note": "Clip reparented; check overlaps on freeform tracks.",
+            }
+
+    def align_clips(
+        self,
+        clip_ids: list[str],
+        *,
+        to_frame: int = 0,
+        mode: str = "relative",
+    ) -> dict[str, Any]:
+        """Align many clips' starts.
+
+        mode:
+          - relative: shift group so earliest start becomes to_frame
+          - start: set every clip's start to to_frame (stack)
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if mode not in ("relative", "start"):
+            raise ValueError("mode must be relative|start")
+        if not isinstance(to_frame, int) or to_frame < 0:
+            raise ValueError("to_frame must be >= 0")
+        ids = list(dict.fromkeys(clip_ids))
+        with self._mutate():
+            clips: list[tuple[Any, Any]] = []
+            for cid in ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                clips.append((track, clip))
+            moved: list[dict[str, Any]] = []
+            if mode == "start":
+                for track, clip in clips:
+                    old = clip.start
+                    clip.start = int(to_frame)
+                    moved.append({
+                        "clip_id": clip.id,
+                        "track_id": track.id,
+                        "from": old,
+                        "to": clip.start,
+                    })
+            else:
+                min_start = min(c.start for _, c in clips)
+                delta = int(to_frame) - min_start
+                for track, clip in clips:
+                    old = clip.start
+                    clip.start = max(0, old + delta)
+                    moved.append({
+                        "clip_id": clip.id,
+                        "track_id": track.id,
+                        "from": old,
+                        "to": clip.start,
+                    })
+            return {
+                "mode": mode,
+                "to_frame": to_frame,
+                "moved": moved,
+                "count": len(moved),
+            }
+
+    def copy_effects(self, clip_id: str) -> dict[str, Any]:
+        """Copy clip effects list into session effects clipboard."""
+        clip = self._find_clip(clip_id)
+        self._effects_clipboard = [dict(e) for e in (clip.effects or [])]
+        return {
+            "copied": True,
+            "clip_id": clip_id,
+            "count": len(self._effects_clipboard),
+            "types": [e.get("type") for e in self._effects_clipboard],
+            "agent_note": "Session effects clipboard — paste_effects. Not in .opm.",
+        }
+
+    def paste_effects(
+        self,
+        clip_id: str,
+        *,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Paste effects clipboard onto a clip.
+
+        replace=True: overwrite effects list. replace=False: append.
+        """
+        if not self._effects_clipboard:
+            raise ValueError("effects clipboard empty — copy_effects first")
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            incoming = [dict(e) for e in self._effects_clipboard]
+            # Validate each via apply_effect rules by temporarily checking types
+            for e in incoming:
+                etype = e.get("type")
+                if etype not in KNOWN_EFFECT_TYPES:
+                    raise ValueError(
+                        f"unknown effect type {etype!r} on effects clipboard"
+                    )
+            old_count = len(clip.effects or [])
+            if replace:
+                clip.effects = incoming
+            else:
+                clip.effects = list(clip.effects or []) + incoming
+            return {
+                "clip_id": clip_id,
+                "replace": replace,
+                "from_count": old_count,
+                "to_count": len(clip.effects or []),
+                "types": [e.get("type") for e in (clip.effects or [])],
+            }
 
     def trim_clip(self, clip_id: str, src_in: int, src_out: int) -> Clip:
         with self._mutate():
@@ -2341,6 +2506,10 @@ class Editor:
             "dirty": bool(getattr(self, "_dirty", False)),
             "autosave": bool(getattr(self, "_autosave", False)),
             "has_clipboard": bool(self._clipboard),
+            "has_effects_clipboard": bool(self._effects_clipboard),
+            "effects_clipboard_count": (
+                len(self._effects_clipboard) if self._effects_clipboard else 0
+            ),
             "work_in_out": self.get_in_out(),
         }
 

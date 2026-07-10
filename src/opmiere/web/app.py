@@ -422,6 +422,78 @@ def clip_move(body: MoveClipBody) -> dict[str, Any]:
     }
 
 
+class MoveToTrackBody(BaseModel):
+    clip_id: str
+    track_id: str
+    start: int | None = None
+
+
+class AlignClipsBody(BaseModel):
+    clip_ids: list[str]
+    to_frame: int = 0
+    mode: str = "relative"
+
+
+class EffectsClipBody(BaseModel):
+    clip_id: str
+
+
+class PasteEffectsBody(BaseModel):
+    clip_id: str
+    replace: bool = True
+
+
+class SlipBody(BaseModel):
+    clip_id: str
+    delta_src_frames: int
+
+
+class RollBody(BaseModel):
+    left_clip_id: str
+    right_clip_id: str
+    delta_frames: int
+
+
+@app.post("/api/clip/move_to_track")
+def clip_move_to_track(body: MoveToTrackBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.move_to_track(body.clip_id, body.track_id, start=body.start)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/align")
+def clips_align(body: AlignClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.align_clips(body.clip_ids, to_frame=body.to_frame, mode=body.mode)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/copy_effects")
+def clip_copy_effects(body: EffectsClipBody) -> dict[str, Any]:
+    return _ed().copy_effects(body.clip_id)
+
+
+@app.post("/api/clip/paste_effects")
+def clip_paste_effects(body: PasteEffectsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.paste_effects(body.clip_id, replace=body.replace)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/slip")
+def clip_slip(body: SlipBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.slip_clip(body.clip_id, body.delta_src_frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/roll")
+def clip_roll(body: RollBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.roll_edit(body.left_clip_id, body.right_clip_id, body.delta_frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/preview/refresh")
 def preview_refresh(body: PreviewRefreshBody) -> dict[str, Any]:
     """Rebuild scrub proxy if stale (quick=true for post-drag snappiness)."""
