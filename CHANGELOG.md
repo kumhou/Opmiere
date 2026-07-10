@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8 — 2026-07-10
+
+### Added
+- **Cut templates**: `list_cut_templates` / `apply_cut_template` (talking_head, short_form, interview, vlog) — place + style + optional duck + hints
+- **Style assets inventory**: `list_style_assets`, `resolve_style_asset` (LUT/audio under `assets/` or `OPMIERE_STYLE_ASSETS`)
+- Web: template plan/apply; `assets/README.md` convention
+
 ## 0.1.7 — 2026-07-10
 
 ### Added

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.7")
+app = FastAPI(title="Opmiere", version="0.1.8")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.1.7",
+        "phase": "0.1.8",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -580,6 +580,47 @@ def duck_clear_api(body: ClearDuckBody) -> dict[str, Any]:
     ed = _ed()
     track = ed.clear_ducking(body.track_id)
     return {"track": track.to_dict(), "mix": ed.mix_view(), "timeline": ed.timeline_view()}
+
+
+class CutTemplateBody(BaseModel):
+    template: str = "talking_head"
+    paths: list[str] = Field(default_factory=list)
+    music: str | None = None
+    vo: str | None = None
+    style_override: str | None = None
+    dry_run: bool = False
+    build_proxy: bool = False
+
+
+@app.get("/api/templates")
+def templates_list() -> dict[str, Any]:
+    return _ed().list_cut_templates() if _editor else {
+        # allow listing without project
+        **__import__("opmiere.render.cut_templates", fromlist=["list_templates"]).list_templates()
+    }
+
+
+@app.post("/api/templates/apply")
+def templates_apply(body: CutTemplateBody) -> dict[str, Any]:
+    ed = _ed()
+    result = ed.apply_cut_template(
+        body.template,
+        paths=body.paths or None,
+        music=body.music,
+        vo=body.vo,
+        style_override=body.style_override,
+        dry_run=body.dry_run,
+        build_proxy=body.build_proxy,
+    )
+    return result
+
+
+@app.get("/api/style_assets")
+def style_assets_api() -> dict[str, Any]:
+    if _editor is None:
+        from ..render.style_presets import list_style_assets
+        return list_style_assets()
+    return _ed().list_style_assets()
 
 
 @app.post("/api/undo")

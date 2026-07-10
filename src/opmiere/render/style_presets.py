@@ -17,6 +17,9 @@ __all__ = [
     "get_style",
     "blend_styles",
     "resolve_style_effects",
+    "style_asset_search_dirs",
+    "resolve_style_asset",
+    "list_style_assets",
 ]
 
 # Hand-tuned constants (edit like a colorist, not a prompt). Agents mix names.
@@ -149,6 +152,8 @@ def get_style(name: str) -> dict[str, Any]:
         "anderson": "wes_anderson",
         "doc": "documentary",
         "cyber": "cyberpunk",
+        "cinematic": "ang_lee",
+        "cinema": "ang_lee",
     }
     key = aliases.get(key, key)
     if key not in STYLE_PRESETS:
@@ -208,3 +213,94 @@ def resolve_style_effects(style: dict[str, Any]) -> list[dict[str, Any]]:
     for fx in style.get("effects") or []:
         out.append(dict(fx))
     return out
+
+
+def style_asset_search_dirs(bundle_root: Path | None = None) -> list[Path]:
+    """Ordered dirs for LUT (.cube) and drone audio assets.
+
+    Layout (any of these)::
+
+        $OPMIERE_STYLE_ASSETS/
+          luts/*.cube
+          audio/*.wav
+        <package>/assets/luts|audio
+        <repo>/assets/luts|audio
+        <cwd>/assets/luts|audio
+        <bundle>/assets/luts|audio
+    """
+    import os
+
+    dirs: list[Path] = []
+    env = os.environ.get("OPMIERE_STYLE_ASSETS", "").strip()
+    if env:
+        dirs.append(Path(env))
+    pkg = Path(__file__).resolve().parent.parent  # opmiere/
+    dirs.append(pkg / "assets")
+    # repo root when editable install: opmiere/src/opmiere/render → parents[3]
+    dirs.append(Path(__file__).resolve().parents[3] / "assets")
+    dirs.append(Path.cwd() / "assets")
+    if bundle_root is not None:
+        dirs.append(Path(bundle_root) / "assets")
+    # unique preserve order
+    seen: set[str] = set()
+    out: list[Path] = []
+    for d in dirs:
+        key = str(d.resolve()) if d.exists() else str(d)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
+
+
+def resolve_style_asset(
+    name: str,
+    *,
+    kind: str = "lut",
+    bundle_root: Path | None = None,
+) -> Path | None:
+    """Find a named style asset on disk, or None if missing.
+
+    kind: ``lut`` → luts/ subdir + .cube; ``audio`` → audio/ + as given.
+    Absolute paths that exist are returned as-is.
+    """
+    path = Path(name)
+    if path.is_absolute() and path.exists():
+        return path
+    sub = "luts" if kind == "lut" else "audio"
+    candidates: list[Path] = []
+    for root in style_asset_search_dirs(bundle_root):
+        candidates.append(root / sub / name)
+        candidates.append(root / name)
+    candidates.append(Path.cwd() / name)
+    for c in candidates:
+        if c.exists():
+            return c.resolve()
+    return None
+
+
+def list_style_assets(bundle_root: Path | None = None) -> dict[str, Any]:
+    """Inventory available LUT/audio files under search dirs (for agents)."""
+    luts: list[str] = []
+    audio: list[str] = []
+    roots: list[str] = []
+    for root in style_asset_search_dirs(bundle_root):
+        roots.append(str(root))
+        lut_dir = root / "luts"
+        if lut_dir.is_dir():
+            for p in sorted(lut_dir.glob("*.cube")):
+                luts.append(str(p))
+        aud_dir = root / "audio"
+        if aud_dir.is_dir():
+            for p in sorted(aud_dir.iterdir()):
+                if p.suffix.lower() in {".wav", ".mp3", ".m4a", ".aac", ".flac"}:
+                    audio.append(str(p))
+    return {
+        "search_dirs": roots,
+        "luts": luts,
+        "audio": audio,
+        "agent_note": (
+            "Place .cube under assets/luts and beds under assets/audio "
+            "(or OPMIERE_STYLE_ASSETS). Missing files are skipped, never invented."
+        ),
+    }

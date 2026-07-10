@@ -339,6 +339,45 @@ def mix_view() -> dict:
 
 
 @mcp.tool()
+def list_cut_templates() -> dict:
+    """Named first-cut recipes: talking_head, short_form, interview, vlog."""
+    return _require_editor().list_cut_templates()
+
+
+@mcp.tool()
+def apply_cut_template(
+    template: str,
+    paths: list[str] | None = None,
+    a_roll: list[str] | None = None,
+    music: str | None = None,
+    vo: str | None = None,
+    style_override: str | None = None,
+    dry_run: bool = False,
+    build_proxy: bool = False,
+) -> dict:
+    """Run a cut template: place media, apply style, optional duck; return hints.
+
+    dry_run=true only returns the plan. paths auto-split video vs audio.
+    """
+    return _require_editor().apply_cut_template(
+        template,
+        paths=paths,
+        a_roll=a_roll,
+        music=music,
+        vo=vo,
+        style_override=style_override,
+        dry_run=dry_run,
+        build_proxy=build_proxy,
+    )
+
+
+@mcp.tool()
+def list_style_assets() -> dict:
+    """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
+    return _require_editor().list_style_assets()
+
+
+@mcp.tool()
 def split_clip(clip_id: str, at_frame: int) -> dict:
     """Split a clip at an absolute timeline frame into two clips."""
     first, second = _require_editor().split_clip(clip_id, at_frame)

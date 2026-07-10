@@ -49,8 +49,12 @@ from .render.look import measure_frame_stats as _measure_frame_stats
 from .render.look import resolve_look as _resolve_look
 from .render.look import suggest_color_match_effects as _suggest_color_match_effects
 from .render.style_presets import blend_styles as _blend_styles
+from .render.style_presets import list_style_assets as _list_style_assets
 from .render.style_presets import list_styles as _list_styles
+from .render.style_presets import resolve_style_asset as _resolve_style_asset
 from .render.style_presets import resolve_style_effects as _resolve_style_effects
+from .render.cut_templates import get_template as _get_cut_template
+from .render.cut_templates import list_templates as _list_cut_templates
 from .render.mix_suggest import suggest_dialogue_chain as _suggest_dialogue_chain
 from .render.mix_suggest import suggest_mix as _suggest_mix
 from .render.quality_check import quality_check as _quality_check
@@ -2820,23 +2824,13 @@ class Editor:
         style = _blend_styles(names)
         effects = _resolve_style_effects(style)
 
-        # Optional LUT if file exists (style may name a .cube under assets/)
+        # Optional LUT if file exists under style asset search path
         lut = style.get("color_lut") or (style.get("audio") or {}).get("color_lut")
         if isinstance(lut, str) and lut.strip():
-            lut_path = Path(lut)
-            if not lut_path.is_absolute():
-                # try package assets, then CWD, then bundle
-                candidates = [
-                    Path(__file__).resolve().parent / "assets" / "luts" / lut,
-                    Path(__file__).resolve().parent.parent.parent / "assets" / "luts" / lut,
-                    Path.cwd() / lut,
-                    self.bundle.root / lut,
-                ]
-                for c in candidates:
-                    if c.exists():
-                        lut_path = c
-                        break
-            if lut_path.exists():
+            lut_path = _resolve_style_asset(
+                lut.strip(), kind="lut", bundle_root=self.bundle.root,
+            )
+            if lut_path is not None:
                 effects.append({"type": "lut3d", "path": str(lut_path)})
 
         # Motion: slow push for ang_lee-like camera_movement
@@ -2873,17 +2867,10 @@ class Editor:
             "audio_track_layer"
         )
         if place_audio_assets and isinstance(drone, str) and drone.strip():
-            drone_path = Path(drone)
-            if not drone_path.is_absolute():
-                for c in (
-                    Path(__file__).resolve().parent / "assets" / "audio" / drone,
-                    Path.cwd() / drone,
-                    self.bundle.root / drone,
-                ):
-                    if c.exists():
-                        drone_path = c
-                        break
-            if drone_path.exists():
+            drone_path = _resolve_style_asset(
+                drone.strip(), kind="audio", bundle_root=self.bundle.root,
+            )
+            if drone_path is not None and drone_path.exists():
                 try:
                     tr = self.add_track("audio")
                     clip = self.place_from_file(drone_path, "audio", tr.id, 0)
@@ -2918,6 +2905,160 @@ class Editor:
     def encode_status(self) -> dict[str, Any]:
         """Whether NVENC is usable for delivery encode."""
         return _encode_status()
+
+    def list_style_assets(self) -> dict[str, Any]:
+        """Available LUTs/audio beds on the style asset search path."""
+        return _list_style_assets(self.bundle.root)
+
+    def list_cut_templates(self) -> dict[str, Any]:
+        """Named first-cut recipes (talking_head, short_form, …)."""
+        return _list_cut_templates()
+
+    def apply_cut_template(
+        self,
+        template: str,
+        paths: list[str | Path] | None = None,
+        *,
+        a_roll: list[str | Path] | None = None,
+        music: str | Path | None = None,
+        vo: str | Path | None = None,
+        style_override: str | None = None,
+        dry_run: bool = False,
+        build_proxy: bool = False,
+    ) -> dict[str, Any]:
+        """Apply a cut template: place media, style, optional duck; return next steps.
+
+        paths: mixed list (auto-split video vs audio) if role lists omitted.
+        dry_run=True: only return the plan without mutating.
+        """
+        tmpl = _get_cut_template(template)
+        opts = dict(tmpl.get("options") or {})
+        style_name = style_override or tmpl.get("style") or "documentary"
+
+        a_paths = [Path(p) for p in (a_roll or [])]
+        music_path = Path(music) if music else None
+        vo_path = Path(vo) if vo else None
+        extra_audio: list[Path] = []
+
+        for p in paths or []:
+            pp = Path(p)
+            kind = self.guess_media_kind(pp)
+            if kind == "audio":
+                if music_path is None:
+                    music_path = pp
+                elif vo_path is None:
+                    vo_path = pp
+                else:
+                    extra_audio.append(pp)
+            else:
+                a_paths.append(pp)
+
+        plan = {
+            "template": tmpl.get("id") or template,
+            "label": tmpl.get("label"),
+            "style": style_name,
+            "a_roll": [str(p) for p in a_paths],
+            "music": str(music_path) if music_path else None,
+            "vo": str(vo_path) if vo_path else None,
+            "extra_audio": [str(p) for p in extra_audio],
+            "options": opts,
+            "next_steps": list(tmpl.get("next_steps") or []),
+        }
+
+        if dry_run:
+            plan["applied"] = False
+            plan["agent_note"] = "dry_run — re-call with dry_run=false to place+style."
+            return plan
+
+        if not a_paths and not music_path and not vo_path:
+            raise ValueError("provide paths and/or a_roll/music/vo")
+
+        result: dict[str, Any] = {
+            **plan,
+            "applied": True,
+            "batch": None,
+            "style_result": None,
+            "duck": None,
+            "hints": [],
+        }
+
+        if a_paths:
+            result["batch"] = self.place_batch(
+                a_paths,
+                sequential=bool(opts.get("sequential_video", True)),
+                build_proxy=build_proxy,
+                image_duration_frames=int(opts.get("image_duration_frames", 90)),
+            )
+
+        music_track_id = None
+        vo_track_id = None
+        if music_path and music_path.exists():
+            tr = self.add_track("audio")
+            clip = self.place_from_file(music_path, "audio", tr.id, 0)
+            g = opts.get("music_gain_db", -12)
+            if abs(float(g)) >= 0.1:
+                self.set_clip_gain(clip.id, float(g))
+            music_track_id = tr.id
+            result["music_clip_id"] = clip.id
+            result["music_track_id"] = tr.id
+        if vo_path and vo_path.exists():
+            tr = self.add_track("audio")
+            clip = self.place_from_file(vo_path, "audio", tr.id, 0)
+            vo_track_id = tr.id
+            result["vo_clip_id"] = clip.id
+            result["vo_track_id"] = tr.id
+        for ap in extra_audio:
+            if ap.exists():
+                tr = self.add_track("audio")
+                self.place_from_file(ap, "audio", tr.id, 0)
+
+        if (
+            opts.get("duck_music_under_vo")
+            and music_track_id
+            and vo_track_id
+        ):
+            try:
+                self.set_ducking(music_track_id, vo_track_id)
+                result["duck"] = {
+                    "music": music_track_id,
+                    "vo": vo_track_id,
+                }
+            except Exception as e:
+                result["duck"] = {"error": str(e)}
+
+        # Style on video clips
+        try:
+            result["style_result"] = self.apply_style_preset(str(style_name))
+        except Exception as e:
+            result["style_result"] = {"error": str(e)}
+
+        # Hints for silence/filler without auto-destroying timeline
+        video_clips = [
+            c for t in self.project.tracks if t.kind == "video" for c in t.clips
+        ]
+        if opts.get("suggest_silence") and video_clips:
+            result["hints"].append({
+                "tool": "suggest_silence_cuts",
+                "clip_id": video_clips[0].id,
+                "note": "Dead-air keep_ranges → apply_keep_ranges if approved",
+            })
+        if opts.get("suggest_filler") and video_clips:
+            result["hints"].append({
+                "tool": "apply_filler_cuts",
+                "clip_id": video_clips[0].id,
+                "dry_run": True,
+                "note": "Review cut_ranges before dry_run=false",
+            })
+        result["hints"].append({
+            "tool": "export",
+            "normalize_preset": opts.get("normalize_preset", "streaming"),
+        })
+        result["timeline"] = self.timeline_view()
+        result["agent_note"] = (
+            f"Template {tmpl.get('id')} applied. Follow next_steps / hints; "
+            "do not claim delivery until delivery_check ok."
+        )
+        return result
 
     def apply_project_look(
         self,

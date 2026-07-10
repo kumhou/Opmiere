@@ -192,6 +192,18 @@
       <label>Batch paths (one per line, kind=auto)</label>
       <textarea id="batchPaths" placeholder="C:/a.mp4&#10;C:/vo.wav&#10;C:/b.mp4"></textarea>
       <button type="button" class="secondary" id="btnBatch">Place batch</button>
+      <h2>Cut template</h2>
+      <select id="cutTpl">
+        <option value="talking_head">talking_head 口播</option>
+        <option value="short_form">short_form 短视频</option>
+        <option value="interview">interview 访谈</option>
+        <option value="vlog">vlog</option>
+      </select>
+      <div class="row">
+        <button type="button" class="secondary" id="btnTplDry">Plan only</button>
+        <button type="button" id="btnTplApply">Apply template</button>
+      </div>
+      <div id="tplBox" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
       <label>Export path</label>
       <input id="export" value="G:/Development/Opmiere/.opmiere_web_demo_out.mp4" />
       <label><input type="checkbox" id="norm" checked style="width:auto" /> normalize streaming</label>
@@ -784,6 +796,41 @@
           ' err=' + (r.result && r.result.error_count));
         await renderMix();
       } catch (e) { log(String(e.message || e)); }
+    };
+
+    async function runTemplate(dry) {
+      const paths = document.getElementById('batchPaths').value
+        .split(/\n/).map(s => s.trim()).filter(Boolean);
+      const single = document.getElementById('media').value.trim();
+      const all = paths.length ? paths : (single ? [single] : []);
+      if (!all.length && !dry) { log('add paths for template'); return; }
+      const body = {
+        template: document.getElementById('cutTpl').value,
+        paths: all,
+        dry_run: !!dry,
+        build_proxy: document.getElementById('buildProxy').checked,
+      };
+      const r = await api('/api/templates/apply', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+      const box = document.getElementById('tplBox');
+      box.innerHTML =
+        `<b>${r.label || r.template}</b> style=${r.style} applied=${r.applied}` +
+        `<div>next: ${(r.next_steps || []).slice(0, 3).map(s => '· ' + s).join('<br/>')}</div>` +
+        (r.hints ? `<div style="margin-top:4px">${(r.hints || []).map(h =>
+          'hint: ' + (h.tool || '') + ' ' + (h.note || '')).join('<br/>')}</div>` : '');
+      if (r.timeline) renderTimeline(r.timeline);
+      if (r.applied) {
+        await refreshBin();
+        await renderMix();
+      }
+      log('template ' + r.template + ' dry=' + !!dry);
+    }
+    document.getElementById('btnTplDry').onclick = async () => {
+      try { await runTemplate(true); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnTplApply').onclick = async () => {
+      try { await runTemplate(false); } catch (e) { log(String(e.message || e)); }
     };
 
     async function renderMix() {
