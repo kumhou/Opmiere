@@ -864,6 +864,52 @@ def list_tracks() -> dict:
 
 
 @mcp.tool()
+def set_clip_rotate(clip_id: str, degrees: float) -> dict:
+    """Set rotate degrees (0 clears). Replaces existing rotate effect."""
+    return _require_editor().set_clip_rotate(clip_id, degrees)
+
+
+@mcp.tool()
+def reset_clip_transform(
+    clip_id: str,
+    position: bool = True,
+    crop: bool = True,
+    rotate: bool = True,
+    opacity: bool = True,
+) -> dict:
+    """Clear PiP position / crop / rotate / opacity (not grade effects)."""
+    return _require_editor().reset_clip_transform(
+        clip_id,
+        position=position,
+        crop=crop,
+        rotate=rotate,
+        opacity=opacity,
+    )
+
+
+@mcp.tool()
+def swap_clips(clip_a: str, clip_b: str) -> dict:
+    """Swap two clips' timeline start times."""
+    return _require_editor().swap_clips(clip_a, clip_b)
+
+
+@mcp.tool()
+def move_track(
+    track_id: str,
+    index: int | None = None,
+    delta: int | None = None,
+) -> dict:
+    """Reorder track (index or delta). Later video tracks = higher overlay."""
+    return _require_editor().move_track(track_id, index=index, delta=delta)
+
+
+@mcp.tool()
+def set_track_name(track_id: str, name: str | None = None) -> dict:
+    """Set optional track display name."""
+    return _require_editor().set_track_name(track_id, name)
+
+
+@mcp.tool()
 def clips_at(
     timeline_frame: int,
     track_id: str | None = None,

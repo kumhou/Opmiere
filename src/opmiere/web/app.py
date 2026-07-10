@@ -612,6 +612,76 @@ def tracks_list() -> dict[str, Any]:
     return _ed().list_tracks()
 
 
+class RotateBody(BaseModel):
+    clip_id: str
+    degrees: float = 0.0
+
+
+class ResetTransformBody(BaseModel):
+    clip_id: str
+    position: bool = True
+    crop: bool = True
+    rotate: bool = True
+    opacity: bool = True
+
+
+class SwapClipsBody(BaseModel):
+    clip_a: str
+    clip_b: str
+
+
+class MoveTrackBody(BaseModel):
+    track_id: str
+    index: int | None = None
+    delta: int | None = None
+
+
+class TrackNameBody(BaseModel):
+    track_id: str
+    name: str | None = None
+
+
+@app.post("/api/clip/rotate")
+def clip_rotate(body: RotateBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clip_rotate(body.clip_id, body.degrees)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/reset_transform")
+def clip_reset_transform(body: ResetTransformBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.reset_clip_transform(
+        body.clip_id,
+        position=body.position,
+        crop=body.crop,
+        rotate=body.rotate,
+        opacity=body.opacity,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/swap")
+def clips_swap(body: SwapClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.swap_clips(body.clip_a, body.clip_b)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/track/move")
+def track_move(body: MoveTrackBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.move_track(body.track_id, index=body.index, delta=body.delta)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/track/name")
+def track_name(body: TrackNameBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_track_name(body.track_id, body.name)
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/preview/refresh")
 def preview_refresh(body: PreviewRefreshBody) -> dict[str, Any]:
     """Rebuild scrub proxy if stale (quick=true for post-drag snappiness)."""

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.16 — 2026-07-11
+
+### Added
+- **`swap_clips`**: exchange two clips' timeline starts
+- **`move_track`**: reorder tracks (z-order for video overlays)
+- **`set_track_name`**: optional track label on Project JSON
+- **`set_clip_rotate` / `reset_clip_transform`**: rotate + clear PiP/crop/rotate/opacity
+- Web: Swap 2, Track ↑/↓, rename, Rotate, Reset xform (R)
+
 ## 0.2.15 — 2026-07-11
 
 ### Added

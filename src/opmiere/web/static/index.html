@@ -347,6 +347,22 @@
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnBatchBlur" disabled>Batch blur sel</button>
+        <button type="button" class="secondary" id="btnResetXform" disabled title="R">Reset xform</button>
+      </div>
+      <label>Rotate °</label>
+      <div class="row">
+        <input id="rotDeg" type="number" step="1" value="0" disabled />
+        <button type="button" class="secondary" id="btnRotate" disabled style="flex:0.4">Set</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnSwap" disabled>Swap 2 sel</button>
+        <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
+        <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
+      </div>
+      <label>Track rename</label>
+      <div class="row">
+        <input id="trackNameIn" placeholder="V1 / Music…" />
+        <button type="button" class="secondary" id="btnTrackName" style="flex:0.4">Name</button>
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnSubclip" disabled>Subclip I/O</button>
@@ -679,10 +695,13 @@
           </div>`;
         }
         const flags = (tr.muted ? 'M' : '') + (tr.solo ? 'S' : '') + (tr.locked ? 'L' : '') + (tr.duck ? 'D' : '');
+        const tLab = tr.name
+          ? String(tr.name).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
+          : tr.kind;
         html += `<div class="track-row">
           <div class="track-name" data-tid="${tr.id}">
-            ${tr.kind}${flags ? ' ·' + flags : ''}<br/>
-            <span style="font-size:9px">${tr.id.slice(0,8)}</span><br/>
+            ${tLab}${flags ? ' ·' + flags : ''}<br/>
+            <span style="font-size:9px">${tr.kind} · ${tr.id.slice(0,8)}</span><br/>
             <button type="button" class="secondary trkM" data-tid="${tr.id}" data-v="${tr.muted?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">M</button>
             <button type="button" class="secondary trkS" data-tid="${tr.id}" data-v="${tr.solo?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">S</button>
             <button type="button" class="secondary trkL" data-tid="${tr.id}" data-v="${tr.locked?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">L</button>
@@ -789,7 +808,7 @@
         'opacitySlider','btnOpacity','btnSubclip','btnTrimQ','btnTrimW','btnClearFx',
         'btnSlipL','btnSlipR','btnCopyFx','btnPasteFx','btnAlignPh','btnRollL','btnRollR',
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
-        'cropW','cropH','btnCrop','btnBatchBlur',
+        'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2030,6 +2049,101 @@
         log('batch blur count=' + r.count);
       } catch (e) { log(String(e.message || e)); }
     };
+    async function doResetXform() {
+      if (!selectedClipId) return;
+      const r = await api('/api/clip/reset_transform', {
+        method: 'POST',
+        body: JSON.stringify({ clip_id: selectedClipId }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log('reset xform ' + (r.cleared || []).join(','));
+      return r;
+    }
+    document.getElementById('btnResetXform').onclick = async () => {
+      try { await doResetXform(); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRotate').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const degrees = +document.getElementById('rotDeg').value || 0;
+        const r = await api('/api/clip/rotate', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, degrees }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('rotate ' + degrees);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSwap').onclick = async () => {
+      const ids = selectionList();
+      if (ids.length !== 2) { log('select exactly 2 clips'); return; }
+      try {
+        const r = await api('/api/clips/swap', {
+          method: 'POST',
+          body: JSON.stringify({ clip_a: ids[0], clip_b: ids[1] }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('swapped ' + ids[0] + ' ↔ ' + ids[1]);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    async function moveSelectedTrack(delta) {
+      // use track of selected clip, or first track
+      let track_id = null;
+      if (selectedClipId && timeline) {
+        for (const tr of timeline.tracks || []) {
+          for (const c of tr.clips || []) {
+            if (c.id === selectedClipId) { track_id = tr.id; break; }
+          }
+          if (track_id) break;
+        }
+      }
+      if (!track_id && timeline && timeline.tracks && timeline.tracks[0]) {
+        track_id = timeline.tracks[0].id;
+      }
+      if (!track_id) { log('no track'); return; }
+      const r = await api('/api/track/move', {
+        method: 'POST',
+        body: JSON.stringify({ track_id, delta }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log('track ' + track_id + ' → idx ' + r.index.to);
+      return r;
+    }
+    document.getElementById('btnTrackUp').onclick = async () => {
+      try { await moveSelectedTrack(-1); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnTrackDown').onclick = async () => {
+      try { await moveSelectedTrack(1); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnTrackName').onclick = async () => {
+      let track_id = null;
+      if (selectedClipId && timeline) {
+        for (const tr of timeline.tracks || []) {
+          for (const c of tr.clips || []) {
+            if (c.id === selectedClipId) { track_id = tr.id; break; }
+          }
+          if (track_id) break;
+        }
+      }
+      if (!track_id && timeline && timeline.tracks && timeline.tracks[0]) {
+        track_id = timeline.tracks[0].id;
+      }
+      if (!track_id) { log('no track'); return; }
+      const name = document.getElementById('trackNameIn').value;
+      try {
+        const r = await api('/api/track/name', {
+          method: 'POST',
+          body: JSON.stringify({ track_id, name: name || null }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('track name ' + (r.name && r.name.to));
+      } catch (e) { log(String(e.message || e)); }
+    };
     document.getElementById('btnMark').onclick = async () => {
       try {
         const t = +scrub.value || 0;
@@ -2176,6 +2290,11 @@
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
           document.getElementById('btnCloseAllGaps').click();
+        } else if (ev.key === 'r' || ev.key === 'R') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await doResetXform();
         } else if (ev.key === 'j' || ev.key === 'J') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();

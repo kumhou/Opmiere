@@ -291,6 +291,8 @@ class Track:
     muted: bool = False
     solo: bool = False
     locked: bool = False
+    # Optional UI label (does not affect render).
+    name: str | None = None
 
     def clips_in_order(self) -> list[Clip]:
         return sorted(self.clips, key=lambda c: c.start)
@@ -309,6 +311,8 @@ class Track:
             d["solo"] = True
         if self.locked:
             d["locked"] = True
+        if self.name:
+            d["name"] = self.name
         return d
 
     @classmethod
@@ -321,6 +325,7 @@ class Track:
             muted=bool(d.get("muted", False)),
             solo=bool(d.get("solo", False)),
             locked=bool(d.get("locked", False)),
+            name=d.get("name"),
         )
 
 

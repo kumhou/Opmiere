@@ -285,6 +285,7 @@ class Editor:
                 {"keys": "; / '", "action": "Slide selected −/+ 5 frames"},
                 {"keys": "Shift+M", "action": "Jump to next marker"},
                 {"keys": "G", "action": "Close all track gaps"},
+                {"keys": "R", "action": "Reset transform on selection (PiP/crop/rotate/opacity)"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -366,6 +367,7 @@ class Editor:
             tracks_out.append({
                 "id": track.id,
                 "kind": track.kind,
+                "name": track.name,
                 "clip_count": len(clips_out),
                 "clips": clips_out,
                 "duck": track.duck,
@@ -3120,10 +3122,12 @@ class Editor:
     def list_tracks(self) -> dict[str, Any]:
         """Summarize tracks for agents/UI."""
         items = []
-        for t in self.project.tracks:
+        for i, t in enumerate(self.project.tracks):
             items.append({
                 "track_id": t.id,
+                "index": i,
                 "kind": t.kind,
+                "name": t.name,
                 "clip_count": len(t.clips),
                 "muted": bool(t.muted),
                 "solo": bool(t.solo),
@@ -3791,6 +3795,141 @@ class Editor:
             clip = self._find_clip(clip_id)
             clip.position = None
             return clip
+
+    def set_clip_rotate(self, clip_id: str, degrees: float) -> dict[str, Any]:
+        """Set rotate effect (replaces existing rotate). degrees=0 removes it."""
+        self._assert_clip_track_unlocked(clip_id)
+        if not isinstance(degrees, (int, float)):
+            raise ValueError("degrees must be numeric")
+        degrees = float(degrees)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            old = 0.0
+            for e in clip.effects or []:
+                if e.get("type") == "rotate" and isinstance(e.get("degrees"), (int, float)):
+                    old = float(e["degrees"])
+            clip.effects = [e for e in (clip.effects or []) if e.get("type") != "rotate"]
+            if abs(degrees) > 1e-6:
+                self._apply_effect_unlocked(
+                    clip_id, {"type": "rotate", "degrees": degrees},
+                )
+            return {
+                "clip_id": clip_id,
+                "degrees": {"from": old, "to": degrees if abs(degrees) > 1e-6 else 0.0},
+            }
+
+    def reset_clip_transform(
+        self,
+        clip_id: str,
+        *,
+        position: bool = True,
+        crop: bool = True,
+        rotate: bool = True,
+        opacity: bool = True,
+    ) -> dict[str, Any]:
+        """Clear layout/transform FX: PiP position, crop, rotate, opacity.
+
+        Does not touch grade/look effects (color, curves, lut, gain, …).
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        drop: set[str] = set()
+        if crop:
+            drop.add("crop")
+        if rotate:
+            drop.add("rotate")
+        if opacity:
+            drop.add("opacity")
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            cleared: list[str] = []
+            if position and clip.position is not None:
+                clip.position = None
+                cleared.append("position")
+            if drop:
+                before = list(clip.effects or [])
+                clip.effects = [e for e in before if e.get("type") not in drop]
+                for e in before:
+                    t = e.get("type")
+                    if t in drop and t not in cleared:
+                        cleared.append(str(t))
+            return {
+                "clip_id": clip_id,
+                "cleared": cleared,
+                "remaining_effects": len(clip.effects or []),
+            }
+
+    def swap_clips(self, clip_a: str, clip_b: str) -> dict[str, Any]:
+        """Swap two clips' timeline start times (same or different tracks).
+
+        Source ranges, effects, and track membership stay; only ``start``
+        swaps. Tracks must be unlocked.
+        """
+        with self._mutate():
+            ta, a = self._find_clip_and_track(clip_a)
+            tb, b = self._find_clip_and_track(clip_b)
+            if ta.locked or tb.locked:
+                raise ValueError("cannot swap clips on a locked track")
+            if a.id == b.id:
+                raise ValueError("clip_a and clip_b must be different")
+            sa, sb = a.start, b.start
+            a.start = sb
+            b.start = sa
+            return {
+                "a": {"clip_id": a.id, "track_id": ta.id, "start": {"from": sa, "to": a.start}},
+                "b": {"clip_id": b.id, "track_id": tb.id, "start": {"from": sb, "to": b.start}},
+                "agent_note": "Starts swapped; check overlaps on freeform tracks.",
+            }
+
+    def move_track(
+        self,
+        track_id: str,
+        *,
+        index: int | None = None,
+        delta: int | None = None,
+    ) -> dict[str, Any]:
+        """Reorder tracks (video z-order: later list index = higher overlay).
+
+        Provide index (absolute 0-based) or delta (+1 = later / on top).
+        """
+        if (index is None) == (delta is None):
+            raise ValueError("provide exactly one of index or delta")
+        with self._mutate():
+            tracks = self.project.tracks
+            ids = [t.id for t in tracks]
+            if track_id not in ids:
+                raise KeyError(f"no track with id {track_id!r}")
+            old_i = ids.index(track_id)
+            if index is not None:
+                new_i = int(index)
+            else:
+                new_i = old_i + int(delta)  # type: ignore[arg-type]
+            new_i = max(0, min(len(tracks) - 1, new_i))
+            if new_i == old_i:
+                return {
+                    "track_id": track_id,
+                    "index": {"from": old_i, "to": new_i},
+                    "unchanged": True,
+                    "order": [t.id for t in tracks],
+                }
+            track = tracks.pop(old_i)
+            tracks.insert(new_i, track)
+            return {
+                "track_id": track_id,
+                "index": {"from": old_i, "to": new_i},
+                "order": [t.id for t in tracks],
+                "agent_note": "Video overlay z-order follows track list order after base.",
+            }
+
+    def set_track_name(self, track_id: str, name: str | None) -> dict[str, Any]:
+        """Set optional track display name (UI only)."""
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            old = track.name
+            track.name = (str(name).strip() or None) if name is not None else None
+            return {
+                "track_id": track_id,
+                "name": {"from": old, "to": track.name},
+            }
 
     def set_ducking(
         self,
