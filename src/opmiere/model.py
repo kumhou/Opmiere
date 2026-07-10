@@ -144,6 +144,8 @@ class Media:
     # For generated assets: {"provider","job","prompt",...} — lets an agent reason
     # about how a clip came to exist and regenerate it. None for imported media.
     origin: dict[str, Any] | None = None
+    # Optional low-res scrub proxy, path relative to bundle root (e.g. proxies/med_x.mp4).
+    proxy_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -155,6 +157,8 @@ class Media:
         }
         if self.origin is not None:
             d["origin"] = self.origin
+        if self.proxy_path is not None:
+            d["proxy_path"] = self.proxy_path
         return d
 
     @classmethod
@@ -166,6 +170,7 @@ class Media:
             duration_frames=d.get("duration_frames", 0),
             has_audio=d.get("has_audio", False),
             origin=d.get("origin"),
+            proxy_path=d.get("proxy_path"),
         )
 
 

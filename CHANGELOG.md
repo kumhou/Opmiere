@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 — 2026-07-10
+
+### Added
+- **Media proxy bin**: `ensure_media_proxy` / `ensure_all_media_proxies` / `list_media_bin`; optional `import_media(build_proxy=True)`; `Media.proxy_path` under `proxies/`
+- **Transcript search**: `transcribe_media` cache + `search_transcripts` keyword ranking (timestamps for “找到我说但是”)
+- **Filler 粗剪**: `suggest_filler_cuts` / `apply_keep_ranges` / `apply_filler_cuts` (dry_run default); EN+ZH filler lexicon from word-level ASR
+
 ## 0.1.2 — 2026-07-10
 
 ### Added

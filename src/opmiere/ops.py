@@ -61,6 +61,12 @@ from .render.sequence_review import review_cut as _review_cut
 from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
 from .render.asr import transcribe as _transcribe
 from .render.asr import write_srt as _write_srt
+from .render.filler_edit import suggest_filler_cuts_from_segments as _suggest_filler_cuts
+from .render.media_proxy import build_media_proxy as _build_media_proxy
+from .render.transcript_index import load_transcript as _load_transcript
+from .render.transcript_index import save_transcript as _save_transcript
+from .render.transcript_index import search_segments as _search_segments
+from .render.transcript_index import search_transcript_dict as _search_transcript_dict
 from .render.asset_analysis import analyze_asset as _analyze_asset
 from .render.asset_analysis import check_delivery_limits as _check_delivery_limits
 from .render.asset_analysis import load_analysis_cache as _load_analysis_cache
@@ -220,14 +226,17 @@ class Editor:
         conform: bool = True,
         fit: str = "none",
         origin: dict[str, Any] | None = None,
+        build_proxy: bool = False,
+        proxy_height: int = 480,
     ) -> Media:
         """Import media.
 
         conform=True: re-encode when source fps ≠ project.
         fit: none | contain (letterbox) | cover (crop-fill) to project resolution.
+        build_proxy=True: also encode a low-res asset proxy under proxies/ (video).
         """
         with self._mutate():
-            return _ffmpeg_import_media(
+            media = _ffmpeg_import_media(
                 self.bundle,
                 self.project,
                 Path(src_path),
@@ -236,6 +245,130 @@ class Editor:
                 conform=conform,
                 fit=fit,
             )
+        if build_proxy and kind == "video":
+            try:
+                self.ensure_media_proxy(media.id, height=proxy_height)
+            except Exception as e:
+                # Import must not fail because proxy encode failed.
+                media = self.project.media_by_id(media.id)
+                if media.origin is None:
+                    media.origin = {}
+                media.origin = dict(media.origin)
+                media.origin["proxy_error"] = str(e)[:500]
+                self.save()
+        return self.project.media_by_id(media.id)
+
+    def list_media_bin(self) -> dict[str, Any]:
+        """Media bin status: source paths, proxy readiness, transcript cache."""
+        items: list[dict[str, Any]] = []
+        for m in self.project.media:
+            proxy_abs = None
+            proxy_ready = False
+            if m.proxy_path:
+                proxy_abs = self.bundle.resolve_bundle_path(m.proxy_path)
+                proxy_ready = proxy_abs.exists()
+            tr = _load_transcript(self.bundle.analysis_dir, m.id)
+            items.append({
+                "id": m.id,
+                "kind": m.kind,
+                "path": m.path,
+                "abs_path": str(self.bundle.media_path(m.path)),
+                "duration_frames": m.duration_frames,
+                "has_audio": m.has_audio,
+                "proxy_path": m.proxy_path,
+                "proxy_ready": proxy_ready,
+                "proxy_abs": str(proxy_abs) if proxy_abs else None,
+                "transcript_cached": tr is not None,
+                "transcript_segments": (
+                    len(tr.get("segments") or []) if tr else 0
+                ),
+            })
+        return {
+            "count": len(items),
+            "media": items,
+            "agent_note": (
+                "Per-asset proxies (ensure_media_proxy) for bin scrub; "
+                "timeline preview is separate (ensure_preview_proxy)."
+            ),
+        }
+
+    def ensure_media_proxy(
+        self,
+        media_id: str,
+        *,
+        height: int = 480,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Build or reuse a low-res proxy for one media asset (video preferred)."""
+        media = self.project.media_by_id(media_id)
+        if media.kind == "audio":
+            raise ValueError("audio-only media has no video proxy; use waveform tools")
+        if media.proxy_path and not force:
+            existing = self.bundle.resolve_bundle_path(media.proxy_path)
+            if existing.exists():
+                return {
+                    "media_id": media_id,
+                    "path": str(existing),
+                    "proxy_path": media.proxy_path,
+                    "cache_hit": True,
+                    "fresh": True,
+                }
+        src = self.bundle.media_path(media.path)
+        if not src.exists():
+            raise FileNotFoundError(src)
+        self.bundle.proxies_dir.mkdir(parents=True, exist_ok=True)
+        dest = self.bundle.proxies_dir / f"{media_id}.mp4"
+        report = _build_media_proxy(src, dest, height=height, audio=media.has_audio)
+        rel = dest.relative_to(self.bundle.root).as_posix()
+        with self._mutate():
+            m = self.project.media_by_id(media_id)
+            m.proxy_path = rel
+        return {
+            "media_id": media_id,
+            "path": report["path"],
+            "proxy_path": rel,
+            "cache_hit": False,
+            "width": report.get("width"),
+            "height": report.get("height"),
+            "duration_seconds": report.get("duration_seconds"),
+            "agent_note": "Asset proxy for bin scrub — not delivery master.",
+        }
+
+    def ensure_all_media_proxies(
+        self,
+        *,
+        height: int = 480,
+        force: bool = False,
+        kinds: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Build proxies for all video/image media missing one."""
+        kinds_set = set(kinds or ["video"])
+        results: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        for m in list(self.project.media):
+            if m.kind not in kinds_set:
+                continue
+            if m.kind == "image":
+                # stills: skip proxy encode (cheap to load full)
+                results.append({
+                    "media_id": m.id,
+                    "skipped": True,
+                    "reason": "image — use full still",
+                })
+                continue
+            try:
+                results.append(
+                    self.ensure_media_proxy(m.id, height=height, force=force)
+                )
+            except Exception as e:
+                errors.append({"media_id": m.id, "error": str(e)[:400]})
+        return {
+            "built": [r for r in results if not r.get("skipped") and not r.get("cache_hit")],
+            "cache_hits": [r for r in results if r.get("cache_hit")],
+            "skipped": [r for r in results if r.get("skipped")],
+            "errors": errors,
+            "count": len(results),
+        }
 
     def add_track(self, kind: TrackKind) -> Track:
         with self._mutate():
@@ -1437,6 +1570,306 @@ class Editor:
             pad_seconds=pad_seconds,
             min_keep_seconds=min_keep_seconds,
         )
+
+    def cache_transcript(
+        self,
+        media_id: str,
+        transcript: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Persist a transcript dict under analysis/transcripts/{media_id}.json."""
+        self.project.media_by_id(media_id)  # validate
+        path = _save_transcript(self.bundle.analysis_dir, media_id, transcript)
+        return {
+            "media_id": media_id,
+            "path": str(path),
+            "segments": len(transcript.get("segments") or []),
+        }
+
+    def load_cached_transcript(self, media_id: str) -> dict[str, Any] | None:
+        self.project.media_by_id(media_id)
+        return _load_transcript(self.bundle.analysis_dir, media_id)
+
+    def transcribe_media(
+        self,
+        media_id: str,
+        *,
+        model_size: str = "base",
+        language: str | None = None,
+        device: str = "cpu",
+        compute_type: str = "int8",
+        word_timestamps: bool = True,
+        cache: bool = True,
+    ) -> dict[str, Any]:
+        """Transcribe a registered media asset and optionally cache the result."""
+        media = self.project.media_by_id(media_id)
+        path = self.bundle.media_path(media.path)
+        result = _transcribe(
+            path,
+            model_size=model_size,
+            language=language,
+            device=device,
+            compute_type=compute_type,
+            word_timestamps=word_timestamps,
+        )
+        result["media_id"] = media_id
+        if cache:
+            cached = self.cache_transcript(media_id, result)
+            result["cache_path"] = cached["path"]
+        return result
+
+    def search_transcripts(
+        self,
+        query: str,
+        *,
+        media_id: str | None = None,
+        segments: list[dict[str, Any]] | None = None,
+        max_hits: int = 20,
+    ) -> dict[str, Any]:
+        """Keyword search over cached transcripts or an explicit segments list.
+
+        Pass media_id to search one asset cache; omit to search all caches.
+        Pass segments to search an in-memory transcript without cache.
+        """
+        if segments is not None:
+            return _search_segments(query, segments, max_hits=max_hits)
+
+        if media_id is not None:
+            tr = _load_transcript(self.bundle.analysis_dir, media_id)
+            if tr is None:
+                return {
+                    "query": query,
+                    "media_id": media_id,
+                    "hits": [],
+                    "hit_count": 0,
+                    "error": "no cached transcript — run transcribe_media first",
+                }
+            return _search_transcript_dict(query, tr, max_hits=max_hits)
+
+        all_hits: list[dict[str, Any]] = []
+        searched: list[str] = []
+        for m in self.project.media:
+            tr = _load_transcript(self.bundle.analysis_dir, m.id)
+            if tr is None:
+                continue
+            searched.append(m.id)
+            part = _search_transcript_dict(query, tr, max_hits=max_hits)
+            for h in part.get("hits") or []:
+                h = dict(h)
+                h["media_id"] = m.id
+                all_hits.append(h)
+        all_hits.sort(key=lambda h: (-float(h.get("score", 0)), float(h.get("start", 0))))
+        all_hits = all_hits[: max(1, int(max_hits))]
+        return {
+            "query": query,
+            "searched_media_ids": searched,
+            "hits": all_hits,
+            "hit_count": len(all_hits),
+            "agent_note": (
+                "Keyword ranking across cached transcripts. "
+                "Cache via transcribe_media / cache_transcript."
+            ),
+        }
+
+    def suggest_filler_cuts(
+        self,
+        *,
+        path: str | Path | None = None,
+        clip_id: str | None = None,
+        media_id: str | None = None,
+        segments: list[dict[str, Any]] | None = None,
+        extra_words: list[str] | None = None,
+        pad_seconds: float = 0.02,
+        model_size: str = "base",
+        language: str | None = None,
+        use_cache: bool = True,
+    ) -> dict[str, Any]:
+        """Suggest cut/keep ranges for um/uh/那个/就是… from word-level ASR.
+
+        Provide segments, or path/clip_id/media_id to load/transcribe.
+        Does not edit the timeline — use apply_keep_ranges or apply_filler_cuts.
+        """
+        resolved_media_id = media_id
+        src_path: Path | None = Path(path) if path else None
+        duration: float | None = None
+
+        if clip_id is not None:
+            clip = self._find_clip(clip_id)
+            media = self.project.media_by_id(clip.media)
+            resolved_media_id = media.id
+            src_path = self.bundle.media_path(media.path)
+            duration = self.project.timebase.frames_to_seconds(media.duration_frames)
+
+        if segments is None:
+            if resolved_media_id and use_cache:
+                cached = _load_transcript(self.bundle.analysis_dir, resolved_media_id)
+                if cached and cached.get("segments"):
+                    segments = list(cached["segments"])
+                    duration = duration or float(cached.get("duration_seconds") or 0) or None
+            if segments is None:
+                if src_path is None and resolved_media_id:
+                    media = self.project.media_by_id(resolved_media_id)
+                    src_path = self.bundle.media_path(media.path)
+                if src_path is None:
+                    raise ValueError(
+                        "provide segments, path, clip_id, or media_id with audio"
+                    )
+                tr = _transcribe(
+                    src_path,
+                    model_size=model_size,
+                    language=language,
+                    word_timestamps=True,
+                )
+                segments = list(tr.get("segments") or [])
+                duration = float(tr.get("duration_seconds") or 0) or duration
+                if resolved_media_id and use_cache:
+                    tr["media_id"] = resolved_media_id
+                    self.cache_transcript(resolved_media_id, tr)
+
+        plan = _suggest_filler_cuts(
+            segments or [],
+            duration_seconds=duration,
+            extra_words=extra_words,
+            pad_seconds=pad_seconds,
+        )
+        if clip_id is not None:
+            plan["clip_id"] = clip_id
+        if resolved_media_id:
+            plan["media_id"] = resolved_media_id
+        if src_path is not None:
+            plan["path"] = str(src_path)
+        return plan
+
+    def apply_keep_ranges(
+        self,
+        clip_id: str,
+        keep_ranges: list[dict[str, Any]],
+        *,
+        time_unit: str = "seconds",
+    ) -> dict[str, Any]:
+        """Replace one clip with contiguous pieces covering only keep_ranges.
+
+        keep_ranges use media source time (seconds default, or frames).
+        Intersected with the clip's current [src_in, src_out). Packed left from
+        the original timeline start. Followers after the clip keep relative gaps.
+        Single undo step.
+        """
+        if time_unit not in ("seconds", "frames"):
+            raise ValueError("time_unit must be 'seconds' or 'frames'")
+        if not keep_ranges:
+            raise ValueError(
+                "keep_ranges is empty — refusing to delete entire clip silently"
+            )
+
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            if clip.speed != 1.0:
+                raise ValueError("apply_keep_ranges requires speed=1.0")
+            media = self.project.media_by_id(clip.media)
+            fps = float(self.project.timebase.fps or 30.0)
+
+            def to_frames(start: float, end: float) -> tuple[int, int]:
+                if time_unit == "frames":
+                    return int(start), int(end)
+                return (
+                    int(round(float(start) * fps)),
+                    int(round(float(end) * fps)),
+                )
+
+            windows: list[tuple[int, int]] = []
+            for r in keep_ranges:
+                s, e = to_frames(r["start"], r["end"])
+                s = max(s, clip.src_in)
+                e = min(e, clip.src_out)
+                if e > s:
+                    windows.append((s, e))
+            windows.sort()
+            merged: list[tuple[int, int]] = []
+            for s, e in windows:
+                if not merged or s > merged[-1][1]:
+                    merged.append((s, e))
+                else:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+            if not merged:
+                raise ValueError(
+                    "no keep_ranges intersect the clip source window "
+                    f"[{clip.src_in}, {clip.src_out})"
+                )
+
+            old_start = clip.start
+            old_end = clip.end
+            old_id = clip.id
+            # Preserve gap from original clip end to each later clip
+            followers = [
+                (c, c.start - old_end)
+                for c in track.clips_in_order()
+                if c.id != clip.id and c.start >= old_end
+            ]
+            track.clips.remove(clip)
+
+            new_ids: list[str] = []
+            cursor = old_start
+            for s, e in merged:
+                new_c = self.project.add_clip(track, media, cursor, s, e)
+                new_ids.append(new_c.id)
+                cursor = new_c.end
+            new_len = cursor - old_start
+
+            for c, offset in followers:
+                c.start = cursor + max(0, int(offset))
+
+            return {
+                "removed_clip_id": old_id,
+                "track_id": track.id,
+                "new_clip_ids": new_ids,
+                "keep_windows_frames": [
+                    {"src_in": s, "src_out": e} for s, e in merged
+                ],
+                "timeline_start": old_start,
+                "timeline_duration_frames": new_len,
+                "followers_shifted": [c.id for c, _ in followers],
+                "agent_note": (
+                    "Original clip replaced by keep pieces; single undo restores all."
+                ),
+            }
+
+    def apply_filler_cuts(
+        self,
+        clip_id: str,
+        *,
+        dry_run: bool = True,
+        extra_words: list[str] | None = None,
+        pad_seconds: float = 0.02,
+        model_size: str = "base",
+        language: str | None = None,
+        use_cache: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot filler 粗剪: plan from ASR, optionally apply_keep_ranges.
+
+        dry_run=True (default) only returns the plan — set dry_run=False to cut.
+        """
+        plan = self.suggest_filler_cuts(
+            clip_id=clip_id,
+            extra_words=extra_words,
+            pad_seconds=pad_seconds,
+            model_size=model_size,
+            language=language,
+            use_cache=use_cache,
+        )
+        if dry_run:
+            plan["applied"] = False
+            plan["agent_note"] = (
+                (plan.get("agent_note") or "")
+                + " dry_run=true — re-call with dry_run=false to apply."
+            )
+            return plan
+        if not plan.get("keep_ranges"):
+            plan["applied"] = False
+            plan["error"] = "no keep_ranges (nothing left after cuts?)"
+            return plan
+        applied = self.apply_keep_ranges(
+            clip_id, plan["keep_ranges"], time_unit="seconds",
+        )
+        return {**plan, "applied": True, "result": applied}
 
     def detect_scenes(
         self,
@@ -2670,6 +3103,12 @@ class Editor:
 
         media = self.project.media_by_id(clip.media)
         media_path = self.bundle.media_path(media.path)
+        mode = "base_track"
+        if media.proxy_path:
+            proxy_abs = self.bundle.resolve_bundle_path(media.proxy_path)
+            if proxy_abs.exists():
+                media_path = proxy_abs
+                mode = "media_proxy"
         # map timeline → source seconds
         local = t_frame - clip.start
         if clip.transition_in:
@@ -2679,12 +3118,14 @@ class Editor:
         src_frame = min(max(src_frame, clip.src_in), max(clip.src_in, clip.src_out - 1))
         src_t = self.project.timebase.frames_to_seconds(src_frame)
         result = self.extract_frame(media_path, src_t, output_path, width=width)
-        result["mode"] = "base_track"
+        result["mode"] = mode
         result["clip_id"] = clip.id
         result["proxy_fresh"] = False
         note = (
             "Base-track approximation (overlays/effects may differ). "
             "Call export_preview for fuller picture."
+            if mode == "base_track"
+            else "Seek via per-asset media proxy (effects/overlays not applied)."
         )
         if stale_note:
             note = stale_note + ". " + note

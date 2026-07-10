@@ -12,6 +12,9 @@ Opmiere will often *technically* succeed while the result is not honest professi
 | `doctor.ok=false` | missing ffmpeg/python | Fix environment before a film session |
 | `review_cut` severity=error | gaps, empty base | Fix timeline before export |
 | Proxy `preview_proxy_status.fresh=false` | after edit | Rebuild `export_preview` before trusting scrub frames |
+| Media bin proxy missing | large footage scrub | `ensure_media_proxy` / `list_media_bin` (asset-level, not timeline) |
+| Filler cut without review | `apply_filler_cuts` | Default `dry_run=true`; inspect keep_ranges first |
+| Transcript search empty | query | `transcribe_media` first — search only hits cache |
 
 ## Soft craft (warn, can continue)
 

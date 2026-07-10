@@ -24,10 +24,13 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 
 | Tool | Purpose |
 |------|---------|
-| `import_media` | `conform`, `fit=none\|contain\|cover` |
+| `import_media` | `conform`, `fit=none\|contain\|cover`, optional `build_proxy` |
+| `list_media_bin` / `ensure_media_proxy` / `ensure_all_media_proxies` | per-asset scrub proxies |
 | `place_from_file` / `place_after` / `place_generated` | place |
 | `analyze_asset` | card: scenes, silence, motion, role |
-| `detect_scenes` / `suggest_silence_cuts` / `transcribe` / `separate_stems` | understand footage |
+| `detect_scenes` / `suggest_silence_cuts` / `transcribe` / `transcribe_media` / `separate_stems` | understand footage |
+| `search_transcripts` | keyword search cached transcripts → timestamps |
+| `suggest_filler_cuts` / `apply_keep_ranges` / `apply_filler_cuts` | filler 粗剪 (um/uh/那个…) |
 | `plan_edit` / `apply_edit_plan` | EDL from cards |
 
 ## Edit / grade / audio

@@ -15,6 +15,8 @@ from .model import Project
 
 PROJECT_FILENAME = "project.json"
 MEDIA_DIRNAME = "media"
+PROXIES_DIRNAME = "proxies"
+ANALYSIS_DIRNAME = "analysis"
 
 
 class Bundle:
@@ -27,6 +29,8 @@ class Bundle:
             media/
                 clip1.mp4
                 gen_sunrise.png
+            proxies/          # optional per-asset scrub proxies
+            analysis/         # transcripts, asset cards, …
     """
 
     def __init__(self, root: Path):
@@ -39,6 +43,18 @@ class Bundle:
     @property
     def media_dir(self) -> Path:
         return self.root / MEDIA_DIRNAME
+
+    @property
+    def proxies_dir(self) -> Path:
+        return self.root / PROXIES_DIRNAME
+
+    @property
+    def analysis_dir(self) -> Path:
+        return self.root / ANALYSIS_DIRNAME
+
+    def resolve_bundle_path(self, relative: str) -> Path:
+        """Resolve a path stored relative to the bundle root."""
+        return (self.root / relative).resolve()
 
     # --- lifecycle ----------------------------------------------------
     @classmethod

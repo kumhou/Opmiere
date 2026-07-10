@@ -41,14 +41,14 @@ product depth in the **editor**, not a wrong core.
 | Director brief / session plan | `workflow` + `director_policy` | Ordered tool path for agents |
 | **CUDA / NVENC** export | **0.1.2** when available | Perf for any export, agent or human |
 
-## Editor depth still open (product roadmap)
+## Editor depth (product roadmap)
 
-| Gap | Direction |
-|-----|-----------|
-| **Proxy media bin** for scrub | Import-time low-res proxy (timeline proxy exists) |
-| **Semantic search** “找到我说但是” | Transcript index + search tool |
-| **One-click AI 粗剪** filler words | ASR + filler lexicon → ripple_trim plan |
-| **Tauri/Electron dual UI** | Keep Python core; shell later (Tauri preferred) |
+| Gap | Status |
+|-----|--------|
+| **Proxy media bin** for scrub | **0.1.3** `ensure_media_proxy` / `list_media_bin` |
+| **Transcript search** “找到我说但是” | **0.1.3** keyword cache search (not embeddings) |
+| **One-click filler 粗剪** | **0.1.3** `suggest_filler_cuts` + `apply_filler_cuts` |
+| **Tauri/Electron dual UI** | Later — keep Python core |
 | Realtime filter scrub | libopenshot/MLT still open |
 
 ## Disagreements / nuances
@@ -72,4 +72,4 @@ product depth in the **editor**, not a wrong core.
 2. Hand-tuned style files → **hero feature (0.1.2)**  
 3. Squeeze 3070 → **NVENC export + doctor**  
 
-Next wedges are **editor product** first: proxy bin, filler 粗剪, semantic search, real UI.
+0.1.3 shipped proxy bin + filler 粗剪 + transcript search. Next: real UI shell, realtime scrub backend.

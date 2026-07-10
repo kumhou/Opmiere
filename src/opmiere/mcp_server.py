@@ -96,18 +96,53 @@ def import_media(
     kind: MediaKind,
     conform: bool = True,
     fit: str = "none",
+    build_proxy: bool = False,
+    proxy_height: int = 480,
 ) -> dict:
     """Copy a source file into the project and register it as media.
 
     kind: video | audio | image.
     conform=true: re-encode when source fps ≠ project timebase.
     fit: none | contain (letterbox to project WxH) | cover (crop-fill).
+    build_proxy=true: also build a low-res asset proxy under proxies/.
     origin.conformed records from/to fps and size when re-encoded.
     """
     media = _require_editor().import_media(
-        Path(src_path), kind, conform=conform, fit=fit,
+        Path(src_path),
+        kind,
+        conform=conform,
+        fit=fit,
+        build_proxy=build_proxy,
+        proxy_height=proxy_height,
     )
     return media.to_dict()
+
+
+@mcp.tool()
+def list_media_bin() -> dict:
+    """Media bin: sources, per-asset proxy readiness, transcript cache flags."""
+    return _require_editor().list_media_bin()
+
+
+@mcp.tool()
+def ensure_media_proxy(
+    media_id: str,
+    height: int = 480,
+    force: bool = False,
+) -> dict:
+    """Build or reuse a low-res proxy for one media asset (bin scrub, not delivery)."""
+    return _require_editor().ensure_media_proxy(
+        media_id, height=height, force=force,
+    )
+
+
+@mcp.tool()
+def ensure_all_media_proxies(
+    height: int = 480,
+    force: bool = False,
+) -> dict:
+    """Build missing proxies for all video media in the project."""
+    return _require_editor().ensure_all_media_proxies(height=height, force=force)
 
 
 @mcp.tool()
@@ -838,6 +873,103 @@ def suggest_silence_cuts(
         min_silence_seconds=min_silence_seconds,
         pad_seconds=pad_seconds,
         min_keep_seconds=min_keep_seconds,
+    )
+
+
+@mcp.tool()
+def transcribe_media(
+    media_id: str,
+    model_size: str = "base",
+    language: str | None = None,
+    device: str = "cpu",
+    compute_type: str = "int8",
+    word_timestamps: bool = True,
+    cache: bool = True,
+) -> dict:
+    """Transcribe a registered media asset; caches under analysis/transcripts/."""
+    return _require_editor().transcribe_media(
+        media_id,
+        model_size=model_size,
+        language=language,
+        device=device,
+        compute_type=compute_type,
+        word_timestamps=word_timestamps,
+        cache=cache,
+    )
+
+
+@mcp.tool()
+def search_transcripts(
+    query: str,
+    media_id: str | None = None,
+    max_hits: int = 20,
+) -> dict:
+    """Keyword search cached transcripts (“找到我说但是…” → timestamps).
+
+    Run transcribe_media first. Omit media_id to search all cached assets.
+    """
+    return _require_editor().search_transcripts(
+        query, media_id=media_id, max_hits=max_hits,
+    )
+
+
+@mcp.tool()
+def suggest_filler_cuts(
+    clip_id: str | None = None,
+    media_id: str | None = None,
+    path: str | None = None,
+    extra_words: list[str] | None = None,
+    pad_seconds: float = 0.02,
+    model_size: str = "base",
+    language: str | None = None,
+) -> dict:
+    """Plan filler-word cuts (um/uh/那个/就是…) from word-level ASR.
+
+    Returns cut_ranges + keep_ranges. Does not edit — use apply_filler_cuts.
+    """
+    return _require_editor().suggest_filler_cuts(
+        path=path,
+        clip_id=clip_id,
+        media_id=media_id,
+        extra_words=extra_words,
+        pad_seconds=pad_seconds,
+        model_size=model_size,
+        language=language,
+    )
+
+
+@mcp.tool()
+def apply_keep_ranges(
+    clip_id: str,
+    keep_ranges: list,
+    time_unit: str = "seconds",
+) -> dict:
+    """Replace one clip with pieces for keep_ranges (source seconds/frames)."""
+    return _require_editor().apply_keep_ranges(
+        clip_id, keep_ranges, time_unit=time_unit,
+    )
+
+
+@mcp.tool()
+def apply_filler_cuts(
+    clip_id: str,
+    dry_run: bool = True,
+    extra_words: list[str] | None = None,
+    pad_seconds: float = 0.02,
+    model_size: str = "base",
+    language: str | None = None,
+) -> dict:
+    """Filler 粗剪: plan from ASR; dry_run=false applies keep ranges (ripple).
+
+    Default dry_run=true so agents review before cutting.
+    """
+    return _require_editor().apply_filler_cuts(
+        clip_id,
+        dry_run=dry_run,
+        extra_words=extra_words,
+        pad_seconds=pad_seconds,
+        model_size=model_size,
+        language=language,
     )
 
 
