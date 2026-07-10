@@ -13,6 +13,8 @@ command-pattern-with-manual-undo approach invites.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -85,12 +87,50 @@ class Editor:
         self.project: Project = bundle.load()
         self.render_backend = render_backend or FFmpegBackend()
         self._preview_proxy_path: str | None = None
+        self._preview_proxy_fingerprint: str | None = None
         # No default provider: generation is optional and pluggable (section
         # 4 principle 3) - unlike rendering, there's no single obvious
         # default (local vs cloud, which model), so the caller must choose.
         self.generation_provider = generation_provider
         self._undo_stack: list[dict] = []
         self._redo_stack: list[dict] = []
+
+    def _timeline_fingerprint(self) -> str:
+        """Hash of timeline-relevant project state for proxy freshness."""
+        blob = json.dumps(self.project.to_dict(), sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+    def invalidate_preview_proxy(self) -> None:
+        """Mark scrub proxy stale (path kept so status can report file exists)."""
+        # Keep path for diagnostics; fingerprint None ⇒ not fresh
+        self._preview_proxy_fingerprint = None
+
+    def preview_proxy_status(self) -> dict[str, Any]:
+        """Is the last export_preview still valid for this timeline?"""
+        path = self._preview_proxy_path
+        exists = bool(path and Path(path).exists())
+        fp_now = self._timeline_fingerprint()
+        fresh = (
+            exists
+            and self._preview_proxy_fingerprint is not None
+            and self._preview_proxy_fingerprint == fp_now
+        )
+        return {
+            "path": path if exists else None,
+            "exists": exists,
+            "fresh": fresh,
+            "fingerprint": self._preview_proxy_fingerprint,
+            "timeline_fingerprint": fp_now,
+            "agent_note": (
+                "Proxy is current — frame_at prefer_proxy is safe."
+                if fresh
+                else (
+                    "Proxy stale after timeline edit — re-run export_preview."
+                    if exists
+                    else "No proxy — call export_preview for full-timeline scrub."
+                )
+            ),
+        }
 
     @classmethod
     def create(
@@ -135,12 +175,15 @@ class Editor:
             raise
         else:
             self._redo_stack.clear()
+            # Timeline changed — scrub proxy no longer matches
+            self.invalidate_preview_proxy()
 
     def undo(self) -> bool:
         if not self._undo_stack:
             return False
         self._redo_stack.append(self.project.to_dict())
         self.project = Project.from_dict(self._undo_stack.pop())
+        self.invalidate_preview_proxy()
         return True
 
     def redo(self) -> bool:
@@ -148,6 +191,7 @@ class Editor:
             return False
         self._undo_stack.append(self.project.to_dict())
         self.project = Project.from_dict(self._redo_stack.pop())
+        self.invalidate_preview_proxy()
         return True
 
     # --- lookup helpers -------------------------------------------------
@@ -1746,6 +1790,7 @@ class Editor:
                 pass
 
         self._preview_proxy_path = str(proxy.resolve())
+        self._preview_proxy_fingerprint = self._timeline_fingerprint()
         from .render.probe import probe as _probe
         info = _probe(proxy)
         return {
@@ -1757,8 +1802,11 @@ class Editor:
             "project_resolution": {"w": old_w, "h": old_h},
             "proxy_height": new_h,
             "proxy_fps_request": fps,
+            "fingerprint": self._preview_proxy_fingerprint,
+            "fresh": True,
             "agent_note": (
-                "Scrub proxy only — not for delivery. Re-run after timeline edits."
+                "Scrub proxy only — not for delivery. Auto-invalidated on "
+                "timeline mutate/undo/redo; re-run export_preview after edits."
             ),
         }
 
@@ -1818,11 +1866,17 @@ class Editor:
         """
         t = max(0.0, float(time_seconds))
         output_path = Path(output_path)
-        proxy = getattr(self, "_preview_proxy_path", None)
-        if prefer_proxy and proxy and Path(proxy).exists():
-            result = self.extract_frame(proxy, t, output_path, width=width)
+        status = self.preview_proxy_status()
+        if prefer_proxy and status.get("fresh"):
+            result = self.extract_frame(
+                status["path"], t, output_path, width=width,
+            )
             result["mode"] = "proxy"
+            result["proxy_fresh"] = True
             return result
+        stale_note = None
+        if prefer_proxy and status.get("exists") and not status.get("fresh"):
+            stale_note = "proxy stale after timeline edit — used base_track"
 
         # Base-track source seek
         video_tracks = [tr for tr in self.project.tracks if tr.kind == "video"]
@@ -1855,8 +1909,12 @@ class Editor:
         result = self.extract_frame(media_path, src_t, output_path, width=width)
         result["mode"] = "base_track"
         result["clip_id"] = clip.id
-        result["agent_note"] = (
+        result["proxy_fresh"] = False
+        note = (
             "Base-track approximation (overlays/effects may differ). "
             "Call export_preview for fuller picture."
         )
+        if stale_note:
+            note = stale_note + ". " + note
+        result["agent_note"] = note
         return result

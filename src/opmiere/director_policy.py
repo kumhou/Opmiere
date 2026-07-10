@@ -62,7 +62,8 @@ tools + selective generation*, not "generate everything and hope."
 - Audio: multi-track mix; `set_ducking` so music yields to voice; `analyze_timeline`
   (or `analyze_audio` on a file) as ears before export.
 - Before export: `review_cut` (structure/craft) + `make_sequence_contact_sheet`
-  (whole-cut eyes).
+  (whole-cut eyes). Optional `export_preview` + `frame_at` for scrub eyes;
+  proxy is auto-invalidated on mutate/undo/redo — check `preview_proxy_status`.
 - Export → prefer `normalize_preset="streaming"` (-14 LUFS) or
   `normalize_loudness` on the file → **`delivery_check` required**. ok=false
   means do not call the cut professional delivery without fix or user waiver.

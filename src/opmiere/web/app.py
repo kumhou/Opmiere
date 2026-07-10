@@ -273,6 +273,11 @@ def preview_build(body: PreviewBody) -> dict[str, Any]:
     return ed.export_preview(out, height=body.height, fps=body.fps)
 
 
+@app.get("/api/preview/status")
+def preview_status() -> dict[str, Any]:
+    return _ed().preview_proxy_status()
+
+
 @app.post("/api/preview/frame")
 def preview_frame(body: FrameBody) -> dict[str, Any]:
     global _last_frame

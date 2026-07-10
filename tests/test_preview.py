@@ -53,6 +53,29 @@ def test_export_preview_and_proxy_frame(tmp_path: Path):
     assert Path(r["path"]).exists()
 
 
+def test_proxy_invalidated_after_mutate(tmp_path: Path):
+    v = tmp_path / "v.mp4"
+    _clip(v, "blue", 0.6)
+    ed = Editor.create(tmp_path / "p.opm", fps=FPS, width=320, height=180)
+    tr = ed.add_track("video")
+    ed.place_from_file(v, "video", tr.id, 0)
+    proxy = tmp_path / "px.mp4"
+    ed.export_preview(proxy, height=120, fps=8)
+    st = ed.preview_proxy_status()
+    assert st["fresh"] is True
+    # mutate timeline
+    ed.apply_effect(
+        ed.project.tracks[0].clips[0].id,
+        {"type": "color", "brightness": 0.05, "contrast": 1.0, "saturation": 1.0},
+    )
+    st2 = ed.preview_proxy_status()
+    assert st2["fresh"] is False
+    frame = tmp_path / "stale.jpg"
+    r = ed.frame_at(0.1, frame, prefer_proxy=True)
+    assert r["mode"] == "base_track"
+    assert "stale" in (r.get("agent_note") or "").lower()
+
+
 def test_web_preview_endpoints(tmp_path: Path):
     from fastapi.testclient import TestClient
     from opmiere.web.app import app

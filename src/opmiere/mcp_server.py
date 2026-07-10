@@ -1216,9 +1216,16 @@ def export_preview(
 ) -> dict:
     """Build a low-res timeline proxy for scrubbing (not delivery).
 
-    Then use frame_at(time) or play the proxy file. Re-run after big edits.
+    Then use frame_at(time) or play the proxy file. Proxy is auto-invalidated
+    on timeline mutate/undo/redo — re-run after edits.
     """
     return _require_editor().export_preview(output_path, height=height, fps=fps)
+
+
+@mcp.tool()
+def preview_proxy_status() -> dict:
+    """Whether the last export_preview is still fresh for the current timeline."""
+    return _require_editor().preview_proxy_status()
 
 
 @mcp.tool()
@@ -1230,8 +1237,8 @@ def frame_at(
 ) -> dict:
     """Grab one frame at timeline time for cheap eyes.
 
-    Uses last export_preview proxy when present (includes overlays); else
-    base-track source seek (approximate).
+    Uses last *fresh* export_preview proxy when present (includes overlays);
+    else base-track source seek (approximate). Stale proxy falls back safely.
     """
     return _require_editor().frame_at(
         time_seconds, output_path, width=width, prefer_proxy=prefer_proxy,

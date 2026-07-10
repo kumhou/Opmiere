@@ -100,14 +100,16 @@ per-fragment quality gates; call `plan_director_session` for a step list.
 ## 6. Deliver
 1. `review_cut` — fix severity=error (gaps, empty base); note craft warnings.
 2. `make_sequence_contact_sheet` — judge whole-cut pacing/continuity in one image.
-3. `export(export_path, normalize_preset=\"streaming\")` for net delivery loudness
+3. Optional eyes: `export_preview` then `frame_at` at key times (proxy auto-stales
+   after further edits — re-build if timeline changes).
+4. `export(export_path, normalize_preset=\"streaming\")` for net delivery loudness
    (or normalize_loudness on the raw export). Prefer -14 LUFS streaming /
    youtube / bilibili; broadcast -23.
-4. `delivery_check(export_path)` — **required**. ok=false → fix levels/specs or
+5. `delivery_check(export_path)` — **required**. ok=false → fix levels/specs or
    warn the user; do not claim professional delivery.
-5. Optional per-file `quality_check` / contact_sheet already embedded in
+6. Optional per-file `quality_check` / contact_sheet already embedded in
    delivery_check when video/audio present.
-6. Report: brief version, generated vs user media, `get_license_report` if needed.
+7. Report: brief version, generated vs user media, `get_license_report` if needed.
 
 ## Anti-patterns
 - Generate B-roll before placing the user's A-roll.
@@ -431,6 +433,13 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
         "make_sequence_contact_sheet",
         "Whole-cut mid-frame grid — judge pacing/continuity before export",
         params={"output_path": "<bundle>/review/sequence_sheet.png"},
+    )
+    add(
+        "export_preview",
+        "export_preview",
+        "Low-res scrub proxy; then frame_at at key beats (invalidated on edit)",
+        params={"output_path": "<bundle>/review/preview_proxy.mp4", "height": 360, "fps": 12},
+        optional_tools=["frame_at", "preview_proxy_status"],
     )
     add(
         "export",
