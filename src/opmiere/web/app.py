@@ -1407,6 +1407,63 @@ def clip_reverse(body: ReverseBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class StabilizeBody(BaseModel):
+    clip_id: str
+    replace: bool = True
+    strength: float = 1.0
+
+
+class ExportMarkersBody(BaseModel):
+    path: str | None = None
+    format: str = "youtube"
+
+
+class AttrClipBody(BaseModel):
+    clip_id: str
+
+
+class PasteAttrBody(BaseModel):
+    clip_id: str
+    speed: bool = True
+    position: bool = True
+    gain: bool = True
+    opacity: bool = True
+    fades: bool = True
+
+
+@app.post("/api/clip/stabilize")
+def clip_stabilize(body: StabilizeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.stabilize_clip(
+        body.clip_id, replace=body.replace, strength=body.strength,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/markers/export")
+def markers_export(body: ExportMarkersBody) -> dict[str, Any]:
+    return _ed().export_markers(body.path, format=body.format)
+
+
+@app.post("/api/clip/copy_attributes")
+def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
+    return _ed().copy_attributes(body.clip_id)
+
+
+@app.post("/api/clip/paste_attributes")
+def clip_paste_attributes(body: PasteAttrBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.paste_attributes(
+        body.clip_id,
+        speed=body.speed,
+        position=body.position,
+        gain=body.gain,
+        opacity=body.opacity,
+        fades=body.fades,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ClipsAtBody(BaseModel):
     timeline_frame: int
     track_id: str | None = None

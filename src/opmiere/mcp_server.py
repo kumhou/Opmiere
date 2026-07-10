@@ -753,6 +753,53 @@ def reverse_clip(clip_id: str, replace: bool = True) -> dict:
 
 
 @mcp.tool()
+def stabilize_clip(
+    clip_id: str,
+    replace: bool = True,
+    strength: float = 1.0,
+) -> dict:
+    """Re-encode with deshake (video). strength scales rx/ry ~0.25–2."""
+    return _require_editor().stabilize_clip(
+        clip_id, replace=replace, strength=strength,
+    )
+
+
+@mcp.tool()
+def export_markers(
+    path: str | None = None,
+    format: str = "youtube",
+) -> dict:
+    """Export markers as youtube chapters, csv, or json."""
+    return _require_editor().export_markers(path, format=format)
+
+
+@mcp.tool()
+def copy_attributes(clip_id: str) -> dict:
+    """Copy speed/position/gain/fades/opacity to session attributes clipboard."""
+    return _require_editor().copy_attributes(clip_id)
+
+
+@mcp.tool()
+def paste_attributes(
+    clip_id: str,
+    speed: bool = True,
+    position: bool = True,
+    gain: bool = True,
+    opacity: bool = True,
+    fades: bool = True,
+) -> dict:
+    """Paste attributes clipboard onto a clip."""
+    return _require_editor().paste_attributes(
+        clip_id,
+        speed=speed,
+        position=position,
+        gain=gain,
+        opacity=opacity,
+        fades=fades,
+    )
+
+
+@mcp.tool()
 def trim_to_playhead(
     clip_id: str,
     playhead_frame: int,

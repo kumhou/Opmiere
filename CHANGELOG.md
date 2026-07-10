@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.18 — 2026-07-11
+
+### Added
+- **`stabilize_clip`**: deshake re-encode (replace media by default)
+- **`export_markers`**: youtube chapters / csv / json
+- **`copy_attributes` / `paste_attributes`**: speed, PiP, gain, fades, opacity
+- Web: Stabilize, Copy/Paste attrs, Export marks, Sel track (A)
+
 ## 0.2.17 — 2026-07-11
 
 ### Added

@@ -364,6 +364,7 @@
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
+        <button type="button" class="secondary" id="btnSelTrack" disabled title="A">Sel track</button>
       </div>
       <label>Track rename</label>
       <div class="row">
@@ -438,6 +439,12 @@
       <div class="row">
         <button type="button" class="secondary" id="btnFreeze" disabled>Freeze frame</button>
         <button type="button" class="secondary" id="btnReverse" disabled>Reverse</button>
+        <button type="button" class="secondary" id="btnStabilize" disabled>Stabilize</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnCopyAttr" disabled>Copy attrs</button>
+        <button type="button" class="secondary" id="btnPasteAttr" disabled>Paste attrs</button>
+        <button type="button" class="secondary" id="btnExportMarks">Export marks</button>
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnDetach" disabled>Detach audio</button>
@@ -809,13 +816,13 @@
       const speedSl = document.getElementById('speedSlider');
       const speedBtn = document.getElementById('btnSpeed');
       const pipIds = [
-        'pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse',
+        'pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse','btnStabilize',
         'btnDetach','btnMatch','fadeIn','fadeOut','btnFades','relinkMedia','btnRelink',
         'opacitySlider','btnOpacity','btnSubclip','btnTrimQ','btnTrimW','btnClearFx',
         'btnSlipL','btnSlipR','btnCopyFx','btnPasteFx','btnAlignPh','btnRollL','btnRollR',
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
-        'btnLink','btnUnlink','btnSelLinked',
+        'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -1802,6 +1809,72 @@
         log('reversed ' + selectedClipId);
       } catch (e) { log(String(e.message || e)); }
     };
+    document.getElementById('btnStabilize').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        log('stabilize encode…');
+        const r = await api('/api/clip/stabilize', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, replace: true, strength: 1 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('stabilized ' + selectedClipId + ' rx=' + r.rx);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnCopyAttr').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/copy_attributes', {
+          method: 'POST', body: JSON.stringify({ clip_id: selectedClipId }),
+        });
+        log('copied attrs from ' + selectedClipId);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnPasteAttr').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/paste_attributes', {
+          method: 'POST', body: JSON.stringify({ clip_id: selectedClipId }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('pasted attrs ' + (r.applied || []).join(','));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnExportMarks').onclick = async () => {
+      try {
+        const r = await api('/api/markers/export', {
+          method: 'POST', body: JSON.stringify({ format: 'youtube' }),
+        });
+        log('markers youtube:\n' + (r.body || '').trim());
+        if (r.body) {
+          try { await navigator.clipboard.writeText(r.body); log('(copied to clipboard)'); }
+          catch (_) {}
+        }
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSelTrack').onclick = () => {
+      if (!selectedClipId || !timeline) return;
+      let tid = null;
+      for (const tr of timeline.tracks || []) {
+        for (const c of tr.clips || []) {
+          if (c.id === selectedClipId) { tid = tr.id; break; }
+        }
+        if (tid) break;
+      }
+      if (!tid) return;
+      const ids = [];
+      for (const tr of timeline.tracks || []) {
+        if (tr.id !== tid) continue;
+        for (const c of tr.clips || []) ids.push(c.id);
+      }
+      selectedIds = new Set(ids);
+      if (ids.length) selectedClipId = ids[0];
+      updateSelBar();
+      renderTimeline(timeline);
+      log('selected track ' + tid + ' n=' + ids.length);
+    };
     async function doMatchFrame() {
       const fps = (timeline && timeline.fps) || 30;
       const frame = Math.round((+scrub.value || 0) * fps);
@@ -2356,6 +2429,11 @@
         } else if (ev.key === '\\') {
           ev.preventDefault();
           document.getElementById('btnZoomFit').click();
+        } else if (ev.key === 'a' || ev.key === 'A') {
+          if (ev.ctrlKey || ev.metaKey) return; // browser select-all
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          document.getElementById('btnSelTrack').click();
         } else if (ev.key === 'j' || ev.key === 'J') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();

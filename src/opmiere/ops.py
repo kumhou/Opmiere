@@ -124,6 +124,7 @@ class Editor:
         # Session clipboard + work in/out (not persisted in project.json)
         self._clipboard: dict[str, Any] | None = None
         self._effects_clipboard: list[dict[str, Any]] | None = None
+        self._attributes_clipboard: dict[str, Any] | None = None
         self._in_point: int | None = None
         self._out_point: int | None = None
         self._dirty: bool = False
@@ -289,6 +290,7 @@ class Editor:
                 {"keys": "Ctrl+L", "action": "Link selected clips"},
                 {"keys": "Ctrl+Shift+L", "action": "Select entire link group"},
                 {"keys": "\\", "action": "Zoom timeline to fit"},
+                {"keys": "A", "action": "Select all clips on selected clip's track"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -2725,6 +2727,7 @@ class Editor:
             "effects_clipboard_count": (
                 len(self._effects_clipboard) if self._effects_clipboard else 0
             ),
+            "has_attributes_clipboard": bool(self._attributes_clipboard),
             "work_in_out": self.get_in_out(),
         }
 
@@ -3748,6 +3751,281 @@ class Editor:
                 "path": name,
                 "duration_frames": dur_f,
                 "replaced": False,
+            }
+
+    def stabilize_clip(
+        self,
+        clip_id: str,
+        *,
+        replace: bool = True,
+        strength: float = 1.0,
+    ) -> dict[str, Any]:
+        """Re-encode clip source range with ffmpeg ``deshake`` (video only).
+
+        strength scales deshake rx/ry (1.0 → 64/64; range about 0.25–2).
+        replace=True retargets this clip (src 0..dur, speed 1.0).
+        """
+        import subprocess
+        import uuid
+
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip.media)
+        if media.kind != "video":
+            raise ValueError("stabilize_clip requires a video clip")
+        if not isinstance(strength, (int, float)) or not (0.1 <= float(strength) <= 3.0):
+            raise ValueError("strength must be in [0.1, 3]")
+        strength = float(strength)
+        rx = max(16, min(128, int(round(64 * strength))))
+        ry = rx
+
+        src_path = self.bundle.media_path(media.path)
+        t0 = self.project.timebase.frames_to_seconds(clip.src_in)
+        t1 = self.project.timebase.frames_to_seconds(clip.src_out)
+        if t1 <= t0:
+            raise ValueError("empty source range")
+
+        self.bundle.media_dir.mkdir(parents=True, exist_ok=True)
+        tag = uuid.uuid4().hex[:6]
+        name = f"stab_{clip_id}_{tag}.mp4"
+        dest = self.bundle.media_dir / name
+        vf = f"deshake=rx={rx}:ry={ry}"
+        cmd = [
+            "ffmpeg", "-y", "-hide_banner",
+            "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
+            "-i", str(src_path),
+            "-vf", vf,
+        ]
+        if media.has_audio:
+            cmd += ["-c:a", "aac", "-b:a", "192k"]
+        else:
+            cmd += ["-an"]
+        cmd += [
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast",
+            str(dest),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0 or not dest.exists():
+            raise RuntimeError(
+                f"stabilize_clip encode failed:\n{(proc.stderr or '')[-1500:]}"
+            )
+
+        from .render.probe import probe as _probe
+        info = _probe(dest)
+        dur_f = self.project.timebase.seconds_to_frames(info.duration_seconds)
+
+        with self._mutate():
+            new_media = self.project.add_media(
+                kind="video",
+                path=name,
+                duration_frames=dur_f,
+                has_audio=bool(media.has_audio and info.has_audio),
+                origin={
+                    "stabilized_from_clip": clip_id,
+                    "source_media": media.id,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "deshake_rx": rx,
+                    "deshake_ry": ry,
+                },
+            )
+            if replace:
+                old = {
+                    "media": clip.media,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "speed": clip.speed,
+                }
+                clip.media = new_media.id
+                clip.src_in = 0
+                clip.src_out = dur_f
+                clip.speed = 1.0
+                return {
+                    "clip_id": clip_id,
+                    "media_id": new_media.id,
+                    "path": name,
+                    "duration_frames": dur_f,
+                    "rx": rx,
+                    "ry": ry,
+                    "replaced": True,
+                    "from": old,
+                    "agent_note": "Stabilized media; re-export proxy. deshake is mild — not cinematic gyro.",
+                }
+            new_clip = self.project.add_clip(track, new_media, clip.end, 0, dur_f)
+            return {
+                "clip_id": new_clip.id,
+                "media_id": new_media.id,
+                "path": name,
+                "duration_frames": dur_f,
+                "replaced": False,
+                "rx": rx,
+                "ry": ry,
+            }
+
+    def export_markers(
+        self,
+        path: str | Path | None = None,
+        *,
+        format: str = "youtube",
+    ) -> dict[str, Any]:
+        """Export timeline markers as YouTube chapters, CSV, or JSON.
+
+        format: youtube | csv | json
+        path=None → return body only (no file write).
+        """
+        if format not in ("youtube", "csv", "json"):
+            raise ValueError("format must be youtube|csv|json")
+        fps = float(self.project.timebase.fps or 30.0)
+        markers = sorted(self.project.markers, key=lambda m: m.frame)
+        if format == "youtube":
+            # YouTube needs a 0:00 line first for chapters
+            lines: list[str] = []
+            if not markers or markers[0].frame > 0:
+                lines.append("0:00 Intro")
+            for m in markers:
+                total_s = int(m.frame // max(1, int(round(fps))))
+                # also include remainder as mm:ss from total seconds
+                total_s = int(round(m.frame / fps))
+                hh = total_s // 3600
+                mm = (total_s % 3600) // 60
+                ss = total_s % 60
+                if hh > 0:
+                    stamp = f"{hh}:{mm:02d}:{ss:02d}"
+                else:
+                    stamp = f"{mm}:{ss:02d}"
+                label = (m.label or m.id).strip() or "Chapter"
+                lines.append(f"{stamp} {label}")
+            body = "\n".join(lines) + ("\n" if lines else "")
+        elif format == "csv":
+            rows = ["frame,seconds,tc,label,color,id"]
+            for m in markers:
+                tc = self.frames_to_tc(m.frame)["tc"]
+                sec = round(m.frame / fps, 3)
+                lab = (m.label or "").replace(",", " ")
+                rows.append(
+                    f"{m.frame},{sec},{tc},{lab},{m.color},{m.id}"
+                )
+            body = "\n".join(rows) + "\n"
+        else:
+            body = json.dumps(
+                {
+                    "fps": fps,
+                    "markers": [
+                        {
+                            **m.to_dict(),
+                            "time_seconds": round(m.frame / fps, 3),
+                            "tc": self.frames_to_tc(m.frame)["tc"],
+                        }
+                        for m in markers
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            ) + "\n"
+
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "format": format,
+            "count": len(markers),
+            "path": written,
+            "body": body,
+        }
+
+    def copy_attributes(self, clip_id: str) -> dict[str, Any]:
+        """Copy speed/position/gain/fades/opacity into session attributes clipboard.
+
+        Does not copy grade/effects list (use copy_effects for that).
+        """
+        clip = self._find_clip(clip_id)
+        fades = self.get_clip_fades(clip_id)
+        self._attributes_clipboard = {
+            "speed": clip.speed,
+            "position": dict(clip.position) if clip.position else None,
+            "gain_db": self.get_clip_gain_db(clip_id),
+            "opacity": self.get_clip_opacity(clip_id),
+            "fade_in_frames": fades["fade_in_frames"],
+            "fade_out_frames": fades["fade_out_frames"],
+            "source_clip_id": clip_id,
+        }
+        return {
+            "copied": True,
+            "clip_id": clip_id,
+            "attributes": dict(self._attributes_clipboard),
+            "agent_note": "Session attributes clipboard — paste_attributes.",
+        }
+
+    def paste_attributes(
+        self,
+        clip_id: str,
+        *,
+        speed: bool = True,
+        position: bool = True,
+        gain: bool = True,
+        opacity: bool = True,
+        fades: bool = True,
+    ) -> dict[str, Any]:
+        """Paste attributes clipboard fields onto a clip (one undo)."""
+        if not self._attributes_clipboard:
+            raise ValueError("attributes clipboard empty — copy_attributes first")
+        bp = self._attributes_clipboard
+        self._assert_clip_track_unlocked(clip_id)
+        applied: list[str] = []
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if speed and isinstance(bp.get("speed"), (int, float)):
+                sp = float(bp["speed"])
+                if 0.25 <= sp <= 4.0:
+                    clip.speed = sp
+                    applied.append("speed")
+            if position:
+                if bp.get("position") is None:
+                    clip.position = None
+                else:
+                    clip.position = dict(bp["position"])
+                applied.append("position")
+            if gain and isinstance(bp.get("gain_db"), (int, float)):
+                # inline gain set without nested mutate
+                db = float(bp["gain_db"])
+                clip.effects = [e for e in (clip.effects or []) if e.get("type") != "gain"]
+                if abs(db) >= 0.05:
+                    clip.effects.append({"type": "gain", "db": db})
+                applied.append("gain")
+            if opacity and isinstance(bp.get("opacity"), (int, float)):
+                amount = float(bp["opacity"])
+                clip.effects = [e for e in (clip.effects or []) if e.get("type") != "opacity"]
+                if amount < 0.999:
+                    clip.effects.append({"type": "opacity", "amount": amount})
+                applied.append("opacity")
+            if fades:
+                fin = int(bp.get("fade_in_frames") or 0)
+                fout = int(bp.get("fade_out_frames") or 0)
+                # reuse fade set logic inline
+                kept = [e for e in (clip.effects or []) if e.get("type") != "fade"]
+                src_len = clip.duration_frames
+                if fin + fout > src_len and src_len > 0:
+                    # scale down proportionally
+                    scale = src_len / float(fin + fout)
+                    fin = int(fin * scale)
+                    fout = max(0, src_len - fin)
+                if fin > 0:
+                    kept.append({
+                        "type": "fade", "direction": "in", "duration_frames": fin,
+                    })
+                if fout > 0:
+                    kept.append({
+                        "type": "fade", "direction": "out", "duration_frames": fout,
+                    })
+                clip.effects = kept
+                applied.append("fades")
+            return {
+                "clip_id": clip_id,
+                "applied": applied,
+                "from_clip_id": bp.get("source_clip_id"),
             }
 
     def clips_at(
