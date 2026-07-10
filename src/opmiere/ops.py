@@ -763,9 +763,15 @@ class Editor:
         analyzing a single stem, but the only honest way to answer "did
         ducking make room for the VO?" before a final export path is chosen.
         """
+        import os
         import tempfile
+        import time
 
-        tmp = Path(tempfile.mkstemp(prefix="opmiere_mix_", suffix=".mp4")[1])
+        # mkstemp leaves the handle open — close it before ffmpeg writes, or
+        # export fails / Windows keeps a lock that survives analyze_audio.
+        fd, raw = tempfile.mkstemp(prefix="opmiere_mix_", suffix=".mp4")
+        os.close(fd)
+        tmp = Path(raw)
         try:
             self.export(tmp)
             result = self.analyze_audio(
@@ -778,7 +784,14 @@ class Editor:
             result["timeline_frames"] = self.duration_frames()
             return result
         finally:
-            tmp.unlink(missing_ok=True)
+            # Windows: antivirus/indexer may hold the file briefly after ffmpeg
+            # exits — retry unlink rather than raise and lose a good result.
+            for _ in range(5):
+                try:
+                    tmp.unlink(missing_ok=True)
+                    break
+                except PermissionError:
+                    time.sleep(0.1)
 
     def make_contact_sheet(
         self, path: str | Path, output_path: str | Path, cols: int = 3, rows: int = 3
