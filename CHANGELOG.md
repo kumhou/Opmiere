@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 — 2026-07-10
+
+### Added
+- **Batch import**: `place_batch` (auto kind by suffix, sequential append); web multi-path place
+- **Mix console**: `mix_view` (gains + duck graph); web mix panel, duck set/clear, per-clip gain sliders
+- `timeline_view` includes `mix` + per-track `duck`
+
 ## 0.1.6 — 2026-07-10
 
 ### Added

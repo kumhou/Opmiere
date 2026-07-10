@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.1.6)
+# Opmiere tool surface (0.1.7)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -26,7 +26,8 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 |------|---------|
 | `import_media` | `conform`, `fit=none\|contain\|cover`, optional `build_proxy` |
 | `list_media_bin` / `ensure_media_proxy` / `ensure_all_media_proxies` | per-asset scrub proxies |
-| `place_from_file` / `place_after` / `place_generated` | place |
+| `place_from_file` / `place_after` / `place_generated` / `place_batch` | place (+ batch) |
+| `mix_view` | audio gains + ducking graph |
 | `analyze_asset` | card: scenes, silence, motion, role |
 | `detect_scenes` / `suggest_silence_cuts` / `transcribe` / `transcribe_media` / `separate_stems` | understand footage |
 | `search_transcripts` | keyword search cached transcripts → timestamps |

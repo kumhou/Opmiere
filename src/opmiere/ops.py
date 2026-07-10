@@ -226,6 +226,7 @@ class Editor:
                 "kind": track.kind,
                 "clip_count": len(clips_out),
                 "clips": clips_out,
+                "duck": track.duck,
             })
         duration_frames = max_end
         duration_seconds = round(duration_frames / fps, 3) if fps else 0.0
@@ -242,6 +243,7 @@ class Editor:
             "proxy": proxy,
             "can_undo": bool(self._undo_stack),
             "can_redo": bool(self._redo_stack),
+            "mix": self.mix_view(),
         }
 
     # --- undo/redo -----------------------------------------------------
@@ -522,6 +524,165 @@ class Editor:
             if duration_frames is None:
                 duration_frames = media.duration_frames
             return self.project.add_clip(track, media, start, 0, duration_frames)
+
+    @staticmethod
+    def guess_media_kind(path: Path | str) -> MediaKind:
+        """Infer media kind from file suffix (fallback: video)."""
+        suf = Path(path).suffix.lower()
+        if suf in {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus"}:
+            return "audio"
+        if suf in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}:
+            return "image"
+        return "video"
+
+    def place_batch(
+        self,
+        paths: list[str | Path],
+        *,
+        kind: MediaKind | None = None,
+        track_id: str | None = None,
+        start: int | None = None,
+        sequential: bool = True,
+        conform: bool = True,
+        fit: str = "none",
+        build_proxy: bool = False,
+        image_duration_frames: int = 90,
+    ) -> dict[str, Any]:
+        """Import and place many local files (batch bin → timeline).
+
+        sequential=True places each clip after the previous on the same track.
+        kind=None auto-detects per file (audio/image/video by suffix).
+        track_id=None creates/uses first track matching the *first* item's kind
+        (mixed video+audio batches: video goes to video track; audio to audio).
+        """
+        if not paths:
+            raise ValueError("paths is empty")
+        placed: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        # Cursor per track for sequential append
+        cursors: dict[str, int] = {}
+        first_start = 0 if start is None else int(start)
+
+        for raw in paths:
+            p = Path(raw)
+            try:
+                item_kind: MediaKind = kind or self.guess_media_kind(p)
+                track_kind: TrackKind = "audio" if item_kind == "audio" else "video"
+                tid = track_id
+                if tid is None:
+                    existing = [t for t in self.project.tracks if t.kind == track_kind]
+                    if existing:
+                        tid = existing[0].id
+                    else:
+                        tid = self.add_track(track_kind).id
+                if sequential:
+                    if tid not in cursors:
+                        track = self.project.track_by_id(tid)
+                        ordered = track.clips_in_order()
+                        if ordered and start is None:
+                            cursors[tid] = ordered[-1].end
+                        else:
+                            cursors[tid] = first_start
+                    clip_start = cursors[tid]
+                else:
+                    clip_start = first_start
+
+                dur: int | None = None
+                if item_kind == "image":
+                    dur = int(image_duration_frames)
+
+                if build_proxy and item_kind == "video":
+                    media = self.import_media(
+                        p, item_kind, conform=conform, fit=fit, build_proxy=True,
+                    )
+                    clip = self.add_clip(
+                        tid, media.id, clip_start, 0,
+                        dur if dur is not None else media.duration_frames,
+                    )
+                else:
+                    clip = self.place_from_file(
+                        p, item_kind, tid, clip_start,
+                        duration_frames=dur,
+                        conform=conform,
+                        fit=fit,
+                    )
+                if sequential:
+                    cursors[tid] = clip.end
+                placed.append({
+                    "path": str(p),
+                    "clip_id": clip.id,
+                    "media_id": clip.media,
+                    "track_id": tid,
+                    "kind": item_kind,
+                    "start": clip.start,
+                    "end": clip.end,
+                })
+            except Exception as e:
+                errors.append({"path": str(p), "error": str(e)[:400]})
+
+        return {
+            "placed_count": len(placed),
+            "error_count": len(errors),
+            "placed": placed,
+            "errors": errors,
+            "agent_note": (
+                "Batch place complete. Review errors; base video track must "
+                "stay contiguous from frame 0 for export."
+            ),
+        }
+
+    def mix_view(self) -> dict[str, Any]:
+        """Mix console snapshot: audio tracks, per-clip gains, ducking graph."""
+        audio_tracks: list[dict[str, Any]] = []
+        video_tracks: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            clips_info: list[dict[str, Any]] = []
+            for clip in track.clips_in_order():
+                media = self.project.media_by_id(clip.media)
+                gain = 0.0
+                for fx in clip.effects or []:
+                    if fx.get("type") == "gain" and isinstance(fx.get("db"), (int, float)):
+                        gain = float(fx["db"])
+                clips_info.append({
+                    "clip_id": clip.id,
+                    "media_id": clip.media,
+                    "label": media.path.split("/")[-1] if media.path else clip.id,
+                    "start": clip.start,
+                    "end": clip.end,
+                    "gain_db": gain,
+                })
+            entry = {
+                "track_id": track.id,
+                "kind": track.kind,
+                "clip_count": len(clips_info),
+                "clips": clips_info,
+                "duck": track.duck,
+            }
+            if track.kind == "audio":
+                audio_tracks.append(entry)
+            else:
+                video_tracks.append(entry)
+
+        duck_edges = []
+        for t in audio_tracks:
+            if t.get("duck") and t["duck"].get("against"):
+                duck_edges.append({
+                    "from": t["track_id"],
+                    "against": t["duck"]["against"],
+                    "threshold_db": t["duck"].get("threshold_db"),
+                    "ratio": t["duck"].get("ratio"),
+                })
+
+        return {
+            "audio_tracks": audio_tracks,
+            "video_tracks": video_tracks,
+            "duck_edges": duck_edges,
+            "audio_track_count": len(audio_tracks),
+            "agent_note": (
+                "Duck: music track ducks under VO (against=vo). "
+                "set_ducking(music_id, vo_id); clear_ducking(music_id)."
+            ),
+        }
 
     def move_clip(self, clip_id: str, new_start: int) -> Clip:
         with self._mutate():

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.6")
+app = FastAPI(title="Opmiere", version="0.1.7")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.1.6",
+        "phase": "0.1.7",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -512,6 +512,74 @@ def close_gaps_api(body: CloseGapsBody) -> dict[str, Any]:
         track_id = vids[0].id
     result = ed.close_gaps(track_id, from_frame=body.from_frame)
     return {"result": result, "timeline": ed.timeline_view()}
+
+
+class PlaceBatchBody(BaseModel):
+    paths: list[str] = Field(default_factory=list)
+    kind: str | None = None
+    sequential: bool = True
+    build_proxy: bool = False
+    conform: bool = True
+    fit: str = "none"
+    image_duration_frames: int = 90
+
+
+class DuckBody(BaseModel):
+    track_id: str
+    against_track_id: str
+    threshold_db: float = -30.0
+    ratio: float = 8.0
+    attack_ms: float = 20.0
+    release_ms: float = 300.0
+    makeup_db: float = 0.0
+
+
+class ClearDuckBody(BaseModel):
+    track_id: str
+
+
+@app.post("/api/place_batch")
+def place_batch_api(body: PlaceBatchBody) -> dict[str, Any]:
+    ed = _ed()
+    if not body.paths:
+        raise HTTPException(400, "paths required")
+    result = ed.place_batch(
+        body.paths,
+        kind=body.kind,  # type: ignore[arg-type]
+        sequential=body.sequential,
+        build_proxy=body.build_proxy,
+        conform=body.conform,
+        fit=body.fit,
+        image_duration_frames=body.image_duration_frames,
+    )
+    return {"result": result, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/mix")
+def mix_api() -> dict[str, Any]:
+    return _ed().mix_view()
+
+
+@app.post("/api/duck")
+def duck_api(body: DuckBody) -> dict[str, Any]:
+    ed = _ed()
+    track = ed.set_ducking(
+        body.track_id,
+        body.against_track_id,
+        threshold_db=body.threshold_db,
+        ratio=body.ratio,
+        attack_ms=body.attack_ms,
+        release_ms=body.release_ms,
+        makeup_db=body.makeup_db,
+    )
+    return {"track": track.to_dict(), "mix": ed.mix_view(), "timeline": ed.timeline_view()}
+
+
+@app.post("/api/duck/clear")
+def duck_clear_api(body: ClearDuckBody) -> dict[str, Any]:
+    ed = _ed()
+    track = ed.clear_ducking(body.track_id)
+    return {"track": track.to_dict(), "mix": ed.mix_view(), "timeline": ed.timeline_view()}
 
 
 @app.post("/api/undo")

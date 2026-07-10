@@ -180,7 +180,7 @@
         <input id="w" type="number" value="1280" />
         <input id="h" type="number" value="720" />
       </div>
-      <label>Place media</label>
+      <label>Place media (single)</label>
       <input id="media" placeholder="C:/path/to/clip.mp4" />
       <div class="row">
         <select id="kind"><option>video</option><option>audio</option><option>image</option></select>
@@ -189,6 +189,9 @@
         </label>
       </div>
       <button type="button" id="btnPlace">Place file</button>
+      <label>Batch paths (one per line, kind=auto)</label>
+      <textarea id="batchPaths" placeholder="C:/a.mp4&#10;C:/vo.wav&#10;C:/b.mp4"></textarea>
+      <button type="button" class="secondary" id="btnBatch">Place batch</button>
       <label>Export path</label>
       <input id="export" value="G:/Development/Opmiere/.opmiere_web_demo_out.mp4" />
       <label><input type="checkbox" id="norm" checked style="width:auto" /> normalize streaming</label>
@@ -279,6 +282,19 @@
           <option value="thriller">thriller</option>
         </select>
         <button type="button" class="secondary" id="btnStyle">Apply</button>
+      </div>
+
+      <h2>Mix</h2>
+      <button type="button" class="secondary" id="btnMix">Refresh mix</button>
+      <div id="mixBox" style="font-size:11px;color:var(--muted)"></div>
+      <label>Duck: music track under VO</label>
+      <div class="row">
+        <select id="duckMusic"><option value="">music…</option></select>
+        <select id="duckVo"><option value="">VO…</option></select>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnDuck">Set duck</button>
+        <button type="button" class="secondary" id="btnDuckClear">Clear duck</button>
       </div>
 
       <h2>Transcript search</h2>
@@ -434,7 +450,7 @@
           </div>`;
         }
         html += `<div class="track-row">
-          <div class="track-name">${tr.kind}<br/>${tr.id.slice(0,10)}</div>
+          <div class="track-name">${tr.kind}${tr.duck ? ' ·duck' : ''}<br/>${tr.id.slice(0,10)}</div>
           <div class="track-lane" data-view-frames="${viewDurF}">${clipsHtml}</div>
         </div>`;
       }
@@ -632,9 +648,7 @@
       renderTimeline(tv);
       await refreshProxyPill();
       await refreshBin();
-      if (tv.proxy && tv.proxy.exists && tv.proxy.fresh) {
-        // keep current video if already loaded
-      }
+      try { await renderMix(); } catch (_) {}
       return tv;
     }
 
@@ -749,6 +763,120 @@
         await api('/api/place', { method: 'POST', body: JSON.stringify(body) });
         await refreshAll();
         log('placed ' + body.path);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnBatch').onclick = async () => {
+      try {
+        const paths = document.getElementById('batchPaths').value
+          .split(/\n/).map(s => s.trim()).filter(Boolean);
+        if (!paths.length) { log('no batch paths'); return; }
+        const r = await api('/api/place_batch', {
+          method: 'POST',
+          body: JSON.stringify({
+            paths,
+            sequential: true,
+            build_proxy: document.getElementById('buildProxy').checked,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        await refreshBin();
+        log('batch placed=' + (r.result && r.result.placed_count) +
+          ' err=' + (r.result && r.result.error_count));
+        await renderMix();
+      } catch (e) { log(String(e.message || e)); }
+    };
+
+    async function renderMix() {
+      try {
+        const mix = await api('/api/mix');
+        const box = document.getElementById('mixBox');
+        const musicSel = document.getElementById('duckMusic');
+        const voSel = document.getElementById('duckVo');
+        const opts = (mix.audio_tracks || []).map(t =>
+          `<option value="${t.track_id}">${t.track_id} (${t.clip_count})</option>`
+        ).join('');
+        musicSel.innerHTML = '<option value="">music…</option>' + opts;
+        voSel.innerHTML = '<option value="">VO…</option>' + opts;
+
+        let html = '';
+        if ((mix.duck_edges || []).length) {
+          html += '<div style="color:var(--acc);margin-bottom:6px">Ducks:</div>';
+          for (const e of mix.duck_edges) {
+            html += `<div>· ${e.from.slice(0,10)} → under ${e.against.slice(0,10)} ` +
+              `(thr ${e.threshold_db} r=${e.ratio})</div>`;
+          }
+        } else {
+          html += '<div style="margin-bottom:6px">No ducking set.</div>';
+        }
+        for (const t of mix.audio_tracks || []) {
+          html += `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">
+            <b>${t.kind}</b> ${t.track_id.slice(0,12)}
+            ${t.duck ? ' · duck on' : ''}</div>`;
+          for (const c of t.clips || []) {
+            const g = c.gain_db || 0;
+            html += `<div class="row" style="align-items:center;margin:2px 0">
+              <span style="flex:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                title="${c.clip_id}">${c.label}</span>
+              <input type="range" min="-24" max="12" step="0.5" value="${g}"
+                data-cid="${c.clip_id}" class="mixGain" style="flex:1" />
+              <span style="width:36px;text-align:right">${g}</span>
+            </div>`;
+          }
+        }
+        if (!(mix.audio_tracks || []).length) {
+          html += '<p>No audio tracks yet — place .wav/.mp3 or detach_audio.</p>';
+        }
+        box.innerHTML = html;
+        box.querySelectorAll('.mixGain').forEach(sl => {
+          sl.oninput = () => {
+            sl.nextElementSibling.textContent = sl.value;
+          };
+          sl.onchange = async () => {
+            try {
+              const r = await api('/api/clip/gain', {
+                method: 'POST',
+                body: JSON.stringify({
+                  clip_id: sl.dataset.cid,
+                  db: +sl.value,
+                  refresh_preview: false,
+                }),
+              });
+              if (r.timeline) renderTimeline(r.timeline);
+              log('mix gain ' + sl.value + 'dB');
+            } catch (e) { log(String(e.message || e)); }
+          };
+        });
+      } catch (e) {
+        document.getElementById('mixBox').innerHTML =
+          `<span style="color:var(--bad)">${e.message || e}</span>`;
+      }
+    }
+    document.getElementById('btnMix').onclick = () => renderMix();
+    document.getElementById('btnDuck').onclick = async () => {
+      try {
+        const music = document.getElementById('duckMusic').value;
+        const vo = document.getElementById('duckVo').value;
+        if (!music || !vo) { log('pick music + VO tracks'); return; }
+        const r = await api('/api/duck', {
+          method: 'POST',
+          body: JSON.stringify({ track_id: music, against_track_id: vo }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        await renderMix();
+        log('duck set ' + music.slice(0, 8) + ' under ' + vo.slice(0, 8));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnDuckClear').onclick = async () => {
+      try {
+        const music = document.getElementById('duckMusic').value;
+        if (!music) { log('pick music track to clear'); return; }
+        const r = await api('/api/duck/clear', {
+          method: 'POST',
+          body: JSON.stringify({ track_id: music }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        await renderMix();
+        log('duck cleared');
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnExport').onclick = async () => {

@@ -307,6 +307,38 @@ def media_thumbnail(
 
 
 @mcp.tool()
+def place_batch(
+    paths: list[str],
+    kind: str | None = None,
+    track_id: str | None = None,
+    start: int | None = None,
+    sequential: bool = True,
+    conform: bool = True,
+    fit: str = "none",
+    build_proxy: bool = False,
+    image_duration_frames: int = 90,
+) -> dict:
+    """Import+place many files. kind=None auto-detects by suffix; sequential appends."""
+    return _require_editor().place_batch(
+        paths,
+        kind=kind,  # type: ignore[arg-type]
+        track_id=track_id,
+        start=start,
+        sequential=sequential,
+        conform=conform,
+        fit=fit,
+        build_proxy=build_proxy,
+        image_duration_frames=image_duration_frames,
+    )
+
+
+@mcp.tool()
+def mix_view() -> dict:
+    """Mix console: audio tracks, clip gains, ducking edges."""
+    return _require_editor().mix_view()
+
+
+@mcp.tool()
 def split_clip(clip_id: str, at_frame: int) -> dict:
     """Split a clip at an absolute timeline frame into two clips."""
     first, second = _require_editor().split_clip(clip_id, at_frame)
