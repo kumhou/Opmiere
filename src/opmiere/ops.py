@@ -377,6 +377,15 @@ class Editor:
                     val = effect.get(key, default)
                     if not isinstance(val, (int, float)) or not (lo <= float(val) <= hi):
                         raise ValueError(f"ken_burns effect {key!r} must be in [{lo}, {hi}]")
+            elif etype == "white_balance":
+                # Kelvin target via ffmpeg colortemperature. 6500 ≈ daylight
+                # neutral; lower = warmer (tungsten), higher = cooler (blue sky).
+                temperature = effect.get("temperature", 6500)
+                if not isinstance(temperature, (int, float)) or not (1000 <= temperature <= 40000):
+                    raise ValueError("white_balance effect 'temperature' must be in [1000, 40000] Kelvin")
+                mix = effect.get("mix", 1.0)
+                if not isinstance(mix, (int, float)) or not (0.0 <= mix <= 1.0):
+                    raise ValueError("white_balance effect 'mix' must be in [0, 1]")
             elif etype == "compression":
                 ratio = effect.get("ratio", 4.0)
                 if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):

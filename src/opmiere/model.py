@@ -48,7 +48,7 @@ TrackKind = Literal["video", "audio"]
 # timeline math the P0 render backend relies on.
 KNOWN_EFFECT_TYPES = {
     "color", "fade", "gain", "text", "blur", "vignette", "chroma_key", "luma_key", "curves",
-    "crop", "rotate", "sharpen", "film_grain", "glow", "lut3d", "ken_burns",
+    "crop", "rotate", "sharpen", "film_grain", "glow", "lut3d", "ken_burns", "white_balance",
     "compression", "noise_reduction", "audio_eq",
 }
 

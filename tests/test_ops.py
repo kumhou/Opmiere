@@ -717,6 +717,63 @@ def test_lut3d_changes_solid_blue_pixels(tmp_path):
     assert px[2] < 80, f"blue channel should be crushed by LUT, got {px}"
 
 
+def test_apply_effect_white_balance(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "white_balance", "temperature": 4500, "mix": 0.8})
+    assert clip.effects[0] == {"type": "white_balance", "temperature": 4500, "mix": 0.8}
+
+
+def test_apply_effect_white_balance_rejects_out_of_range(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "white_balance", "temperature": 500})
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "white_balance", "mix": 1.5})
+
+
+def test_white_balance_warms_neutral_gray(tmp_path):
+    """Real-pixel: cooling a mid-gray source must raise the blue channel relative to red."""
+    from PIL import Image
+
+    src = tmp_path / "gray.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=0x808080:size=160x90:duration=1:rate={FPS}",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+
+    def _frame(temp: int) -> tuple:
+        ed = Editor.create(tmp_path / f"wb_{temp}.opm", fps=FPS, width=160, height=90)
+        media = ed.import_media(src, kind="video")
+        track = ed.add_track("video")
+        clip = ed.add_clip(track.id, media.id, start=0, src_in=0, src_out=15)
+        ed.apply_effect(clip.id, {"type": "white_balance", "temperature": temp, "mix": 1.0})
+        out = tmp_path / f"wb_{temp}.mp4"
+        ed.export(out)
+        frame = tmp_path / f"wb_{temp}.png"
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(out), "-frames:v", "1", "-update", "1", str(frame)],
+            capture_output=True, text=True, check=True,
+        )
+        return Image.open(frame).load()[80, 45]
+
+    warm = _frame(3200)   # tungsten-ish
+    cool = _frame(9000)   # blue sky-ish
+    # Cool grade should be bluer (higher B relative to R) than the warm grade.
+    warm_rb = warm[0] - warm[2]
+    cool_rb = cool[0] - cool[2]
+    assert cool_rb < warm_rb - 10, (
+        f"cool temp should shift toward blue vs warm: warm={warm} cool={cool}"
+    )
+
+
 def test_apply_effect_ken_burns(editor, sample_video):
     media = editor.import_media(sample_video, kind="video")
     track = editor.add_track("video")

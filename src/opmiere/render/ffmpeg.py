@@ -288,19 +288,40 @@ def _effect_filters(
             parts.append(
                 f"lut3d=file='{_escape_filter_path(path)}':interp={interp}"
             )
+        elif etype == "white_balance":
+            if stream != "video":
+                continue
+            temperature = effect.get("temperature", 6500)
+            mix = effect.get("mix", 1.0)
+            if not isinstance(temperature, (int, float)) or not (1000 <= temperature <= 40000):
+                raise ValueError("white_balance effect has invalid 'temperature'")
+            if not isinstance(mix, (int, float)) or not (0.0 <= mix <= 1.0):
+                raise ValueError("white_balance effect has invalid 'mix'")
+            # ffmpeg colortemperature: temperature in Kelvin, mix blends the
+            # filtered result with the source (1 = full effect). pl left at
+            # default 0 so the grade is free to shift luminance slightly —
+            # agents wanting "tint only" can lower mix instead.
+            parts.append(f"colortemperature=temperature={temperature}:mix={mix}")
         elif etype == "ken_burns":
             if stream != "video":
                 continue
-            # Must use zoompan, not crop: ffmpeg evaluates crop's w/h only
-            # once at filter config time (verified: animated crop w/h is a
-            # silent no-op). zoompan animates z/x/y per output frame. d=1
-            # emits one output frame per input frame so timeline duration
-            # stays unchanged. s= must be a fixed pixel size — we take the
-            # clip's target box from _video_clip_chain (out_w/out_h).
+            # Implementation history (dogfood v4):
+            # - animated crop w/h: silent no-op (config-time only)
+            # - scale eval=frame with n: n does not advance reliably
+            # - zoompan d=1: correct pan/zoom in isolation, but inside a
+            #   multi-clip xfade export emitted ~50k frames / 3141s while
+            #   audio stayed ~8s — hard trim after zoompan still hung the
+            #   export because zoompan never finished feeding frames
+            # Settled approach: constant zoom (max of start/end) via fixed
+            # scale, animate only pan via crop x/y (evaluated per frame).
+            # zoom_start≠zoom_end still zooms (to the larger value); the
+            # *animation* is pan-only. Duration is input-bounded by construction.
             if out_w is None or out_h is None:
                 raise RuntimeError(
                     "internal: ken_burns needs out_w/out_h from _video_clip_chain"
                 )
+            box_w = max(2, int(out_w) // 2 * 2)
+            box_h = max(2, int(out_h) // 2 * 2)
             z0 = float(effect.get("zoom_start", 1.0))
             z1 = float(effect.get("zoom_end", 1.2))
             x0 = float(effect.get("x_start", 0.5))
@@ -317,17 +338,17 @@ def _effect_filters(
             ):
                 if not (lo <= val <= hi):
                     raise ValueError(f"ken_burns effect has invalid {name!r}")
+            z = max(z0, z1)
+            # Integer scale size (even) so yuv420p crop is happy.
+            scaled_w = max(box_w, int(round(box_w * z)) // 2 * 2)
+            scaled_h = max(box_h, int(round(box_h * z)) // 2 * 2)
             n_max = max(clip_duration_frames - 1, 1)
-            # zoompan uses `on` (output frame #) not crop's `n`.
-            z_expr = f"({z0})+(({z1})-({z0}))*on/{n_max}"
-            fx_expr = f"({x0})+(({x1})-({x0}))*on/{n_max}"
-            fy_expr = f"({y0})+(({y1})-({y0}))*on/{n_max}"
-            # x/y are top-left of the zoomed window; focus fraction → that corner.
-            x_expr = f"({fx_expr})*(iw-iw/zoom)"
-            y_expr = f"({fy_expr})*(ih-ih/zoom)"
+            fx_expr = f"({x0})+(({x1})-({x0}))*n/{n_max}"
+            fy_expr = f"({y0})+(({y1})-({y0}))*n/{n_max}"
             parts.append(
-                f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':"
-                f"d=1:s={out_w}x{out_h}:fps={fps}"
+                f"scale={scaled_w}:{scaled_h},"
+                f"crop={box_w}:{box_h}:"
+                f"x='({fx_expr})*(iw-ow)':y='({fy_expr})*(ih-oh)'"
             )
         elif etype == "compression":
             if stream != "audio":

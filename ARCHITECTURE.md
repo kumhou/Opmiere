@@ -249,8 +249,9 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Editing:** cut / trim / ripple / roll / slip, split, speed & time-remap (slow-mo, ramps).
 - **Transitions:** cross-dissolve, dip-to-black/white, wipes — **all done** (§9), via ffmpeg xfade's
   own transition vocabulary (`_XFADE_TRANSITION_BY_TYPE`), not a separate implementation per style.
-- **Color:** curves, lut3d **done**; saturation/contrast via `color` **done**; white balance still open.
-- **Transform:** crop, scale/position (PiP), rotate, Ken-Burns **done**; (stabilization — later).
+- **Color:** curves, lut3d, white_balance **done**; saturation/contrast via `color` **done**.
+- **Transform:** crop, scale/position (PiP), rotate, Ken-Burns (constant zoom + animated pan) **done**;
+  (stabilization — later).
 - **Keying/masking:** chroma key (green screen), luma key, shape masks.
 - **Text:** titles, lower-thirds, captions/subtitles.
 - **Stylize:** blur, sharpen, vignette, film grain, glow **all done**. Glow is the multi-stage
@@ -475,14 +476,15 @@ scaling/positioning a clip smaller than the canvas (for PiP) needs the overlay c
 take a configurable position instead of always `x=0:y=0` full-frame — a real architecture change, not
 just another filter fragment — so that's its own not-yet-built item (see §10/roadmap), not folded in here.
 
-**`lut3d` and `ken_burns` are built too.** `lut3d` wraps ffmpeg's own `lut3d` filter over an
-external `.cube`/`.3dl` path (existence checked at `apply_effect` time); verified by crushing blue
-on a solid-blue source through a tiny test cube. `ken_burns` is *not* animated `crop` — ffmpeg
-evaluates crop `w`/`h` only once at config time (verified: animated crop sizes are a silent no-op) —
-so it uses `zoompan` with `d=1` (one output frame per input frame, duration preserved), focus
-interpolated as fractions of the frame, output size taken from the clip's target box so it cooperates
-with the existing scale/pad step. Real-pixel proof: red|blue hstack, zoom 1→2 panning left→right,
-left-edge red at frame 0 and blue at frame 29.
+**`lut3d`, `white_balance`, and `ken_burns` are built.** `lut3d` wraps ffmpeg's `lut3d` over an
+external `.cube`/`.3dl` path (existence checked at apply time). `white_balance` is
+`colortemperature` in Kelvin (lower=warmer, higher=cooler) with a mix knob — real-pixel verified
+on mid-gray (cool grade bluer than warm). `ken_burns` history matters: animated crop w/h is a
+silent no-op; `scale eval=frame` + `n` doesn't advance reliably; `zoompan d=1` pans correctly in
+isolation but inside a multi-clip xfade export produced ~50k frames / 3141s while audio stayed ~8s
+(dogfood v4). Settled implementation: **constant zoom** (`max(zoom_start, zoom_end)`) via fixed
+`scale`, **animated pan** via per-frame crop x/y — duration bounded by input. Real-pixel: red|blue
+hstack panning left→right changes left-edge color over the clip.
 
 **PiP position/scale is now built** — the item flagged above. `Clip.position` (`{"x", "y", "scale"}`,
 `None` = full-frame, unchanged default) is a clip-level field like `transition_in`/`speed`, not an
@@ -684,9 +686,10 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 
 Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed), further
-offload-tier video candidates beyond wan2.2-moe if wanted, white balance as its own effect, shape masks.
-Director policy (§5.10), SFX, video upscale, glow, lut3d, ken_burns are done. Cloud deferred — JH:
-local free only.
+offload-tier video candidates beyond wan2.2-moe if wanted, shape masks, true animated-zoom Ken Burns
+(current is constant-zoom + pan after zoompan multi-clip blow-up). Director policy, SFX, upscale, glow,
+lut3d, white_balance, ken_burns pan are done. Cloud deferred — JH: local free only. Dogfood v4
+(`examples/_after_the_rain/after_the_rain_v4.mp4`) re-assembled with ducking+sfx+white_balance+ken_burns.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
