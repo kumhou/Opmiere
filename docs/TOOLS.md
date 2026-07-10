@@ -47,7 +47,8 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 |------|---------|
 | `quality_check` / `make_contact_sheet` | fragment gate |
 | `review_cut` / `make_sequence_contact_sheet` | whole-cut craft |
-| `ensure_preview_proxy` / `export_preview` / `frame_at` / `review_keyframes` / `preview_proxy_status` | scrub eyes (proxy auto-stales) |
+| `ensure_preview_proxy` / `export_preview` / `frame_at` / `review_keyframes` / `preview_range` / `preview_proxy_status` | scrub eyes (proxy auto-stales) |
+| `suggest_room_tone` / `extract_room_tone` / `place_room_tone` | fill digital silence after dialogue cuts |
 | `export` | optional `normalize_preset`, default `delivery_check` in MCP |
 | `normalize_loudness` / `delivery_check` | finish |
 

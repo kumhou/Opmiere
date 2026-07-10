@@ -50,6 +50,8 @@ from .render.look import suggest_color_match_effects as _suggest_color_match_eff
 from .render.mix_suggest import suggest_dialogue_chain as _suggest_dialogue_chain
 from .render.mix_suggest import suggest_mix as _suggest_mix
 from .render.quality_check import quality_check as _quality_check
+from .render.room_tone import extract_room_tone as _extract_room_tone
+from .render.room_tone import suggest_room_tone as _suggest_room_tone
 from .render.sequence_review import make_sequence_contact_sheet as _make_sequence_contact_sheet
 from .render.sequence_review import review_cut as _review_cut
 from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
@@ -1895,6 +1897,126 @@ class Editor:
             "agent_note": (
                 "Read these images in order for pacing/continuity. "
                 "Not a substitute for delivery_check on the final export."
+            ),
+        }
+
+    def preview_range(
+        self,
+        output_path: str | Path,
+        start_seconds: float,
+        end_seconds: float,
+        *,
+        ensure_proxy: bool = True,
+        height: int = 360,
+        fps: float = 12.0,
+    ) -> dict[str, Any]:
+        """Cheap segment proxy: cut a time range from a *fresh* full proxy.
+
+        Does not re-render the timeline graph — only ffmpeg -ss/-to on the
+        scrub proxy. Use after ensure_preview_proxy for focused review.
+        """
+        import subprocess
+
+        start = max(0.0, float(start_seconds))
+        end = float(end_seconds)
+        if end <= start:
+            raise ValueError(f"end_seconds ({end}) must be > start_seconds ({start})")
+        if ensure_proxy:
+            self.ensure_preview_proxy(height=height, fps=fps)
+        status = self.preview_proxy_status()
+        if not status.get("fresh") or not status.get("path"):
+            raise ValueError(
+                "no fresh preview proxy — call ensure_preview_proxy first "
+                f"(status={status})"
+            )
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-y", "-hide_banner",
+                "-ss", f"{start:.3f}",
+                "-to", f"{end:.3f}",
+                "-i", str(status["path"]),
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-preset", "veryfast", "-an",
+                str(output_path),
+            ],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0 or not output_path.exists():
+            raise RuntimeError(
+                f"preview_range failed:\n{(proc.stderr or '')[-1500:]}"
+            )
+        return {
+            "path": str(output_path.resolve()),
+            "start_seconds": start,
+            "end_seconds": end,
+            "duration_seconds": round(end - start, 3),
+            "source_proxy": status["path"],
+            "agent_note": (
+                "Segment from full scrub proxy only — not delivery quality."
+            ),
+        }
+
+    def suggest_room_tone(
+        self,
+        path: str | Path,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Find a quiet donor segment in a take for ambience fill."""
+        return _suggest_room_tone(path, **kwargs)
+
+    def extract_room_tone(
+        self,
+        path: str | Path,
+        output_path: str | Path,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Extract (and optional loop) room tone WAV from a donor range."""
+        return _extract_room_tone(path, output_path, **kwargs)
+
+    def place_room_tone(
+        self,
+        source_path: str | Path,
+        track_id: str | None = None,
+        *,
+        start_frame: int = 0,
+        loop_to_seconds: float | None = None,
+        gain_db: float = -8.0,
+        output_wav: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """Suggest + extract room tone and place on an audio track under the cut.
+
+        Creates an audio track if track_id is None. Applies gain_db on the clip.
+        """
+        import tempfile
+
+        src = Path(source_path)
+        if output_wav is None:
+            # Outside media/ so place_from_file can import without collision
+            td = Path(tempfile.mkdtemp(prefix="opmiere_rt_"))
+            output_wav = td / f"room_tone_{new_id('rt')}.wav"
+        # duration of bed: timeline length or explicit loop
+        fps = float(self.project.timebase.fps or 30.0)
+        if loop_to_seconds is None:
+            loop_to_seconds = max(0.5, self.duration_frames() / fps)
+        extracted = self.extract_room_tone(
+            src, output_wav, loop_to_seconds=loop_to_seconds,
+        )
+        if track_id is None:
+            track_id = self.add_track("audio").id
+        clip = self.place_from_file(
+            Path(extracted["path"]), "audio", track_id, start=start_frame,
+        )
+        if abs(float(gain_db)) >= 0.1:
+            clip = self.apply_effect(clip.id, {"type": "gain", "db": float(gain_db)})
+        return {
+            "clip": clip.to_dict(),
+            "track_id": track_id,
+            "extracted": extracted,
+            "gain_db": gain_db,
+            "agent_note": (
+                "Room tone under dialogue; duck or lower further if it muddies VO."
             ),
         }
 

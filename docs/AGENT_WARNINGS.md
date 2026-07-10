@@ -23,6 +23,7 @@ Opmiere will often *technically* succeed while the result is not honest professi
 | B-roll on base after A-roll | plan_edit warning | Prefer `b_roll_mode=overlay` |
 | Import re-encode | `origin.conformed` | Tell user source was fps/size/sample-rate converted (not lossless) |
 | Intentional blur vs fail | `quality_check` blur | Artistic DOF can trip free gate — confirm with contact sheet |
+| Dead air after silence cuts | digital black between VO | `place_room_tone` from same take; do not leave pure silence |
 
 ## Session order (do not freestyle)
 

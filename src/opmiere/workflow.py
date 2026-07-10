@@ -355,6 +355,12 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
                 "suggest_silence_cuts",
                 "Get keep_ranges between silences; agent trims/splits from those numbers",
             )
+            add(
+                "room_tone",
+                "place_room_tone",
+                "Fill digital silence with ambience from same take (after dialogue cuts)",
+                optional_tools=["suggest_room_tone", "extract_room_tone"],
+            )
             if roles & {"a_roll", "music", "vo"} or True:
                 add(
                     "optional_stems",

@@ -1277,6 +1277,74 @@ def review_keyframes(
 
 
 @mcp.tool()
+def preview_range(
+    output_path: str,
+    start_seconds: float,
+    end_seconds: float,
+    ensure_proxy: bool = True,
+    height: int = 360,
+    fps: float = 12.0,
+) -> dict:
+    """Cut a time range from the fresh scrub proxy (no full re-render).
+
+    For focused review of one section after ensure_preview_proxy.
+    """
+    return _require_editor().preview_range(
+        output_path,
+        start_seconds,
+        end_seconds,
+        ensure_proxy=ensure_proxy,
+        height=height,
+        fps=fps,
+    )
+
+
+@mcp.tool()
+def suggest_room_tone(path: str) -> dict:
+    """Find a quiet donor segment in a take for room-tone / ambience fill."""
+    return _require_editor().suggest_room_tone(path)
+
+
+@mcp.tool()
+def extract_room_tone(
+    path: str,
+    output_path: str,
+    start: float | None = None,
+    end: float | None = None,
+    loop_to_seconds: float | None = None,
+) -> dict:
+    """Extract room-tone audio (optional loop) from a donor range."""
+    return _require_editor().extract_room_tone(
+        path,
+        output_path,
+        start=start,
+        end=end,
+        loop_to_seconds=loop_to_seconds,
+    )
+
+
+@mcp.tool()
+def place_room_tone(
+    source_path: str,
+    track_id: str | None = None,
+    start_frame: int = 0,
+    loop_to_seconds: float | None = None,
+    gain_db: float = -8.0,
+) -> dict:
+    """Extract room tone from source_path and place under the timeline.
+
+    Fills digital silence after dialogue cuts. gain_db default -8.
+    """
+    return _require_editor().place_room_tone(
+        source_path,
+        track_id,
+        start_frame=start_frame,
+        loop_to_seconds=loop_to_seconds,
+        gain_db=gain_db,
+    )
+
+
+@mcp.tool()
 def export(
     output_path: str,
     normalize_preset: str | None = None,

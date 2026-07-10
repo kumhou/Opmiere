@@ -9,6 +9,7 @@ from .mix_suggest import suggest_dialogue_chain, suggest_mix
 from .probe import FFmpegNotFoundError, ProbeResult, probe
 from .quality_check import QualityCheckResult, quality_check
 from .asr import WhisperNotInstalledError, segments_to_srt, transcribe, write_srt
+from .room_tone import extract_room_tone, suggest_room_tone
 from .scene_detect import SceneDetectNotInstalledError, detect_scenes
 from .sequence_review import make_sequence_contact_sheet, review_cut
 from .silence_edit import suggest_keep_ranges
@@ -37,6 +38,8 @@ __all__ = [
     "detect_beats",
     "suggest_mix",
     "suggest_dialogue_chain",
+    "suggest_room_tone",
+    "extract_room_tone",
     "transcribe",
     "write_srt",
     "segments_to_srt",
