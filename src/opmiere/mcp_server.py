@@ -670,6 +670,30 @@ def get_keymap_help() -> dict:
 
 
 @mcp.tool()
+def freeze_frame(
+    clip_id: str,
+    at_timeline_frame: int | None = None,
+    duration_frames: int = 30,
+    track_id: str | None = None,
+    start: int | None = None,
+) -> dict:
+    """Hold a still frame extracted from a video clip as a new image clip."""
+    return _require_editor().freeze_frame(
+        clip_id,
+        at_timeline_frame=at_timeline_frame,
+        duration_frames=duration_frames,
+        track_id=track_id,
+        start=start,
+    )
+
+
+@mcp.tool()
+def reverse_clip(clip_id: str, replace: bool = True) -> dict:
+    """Re-encode clip source range reversed; replace clip media by default."""
+    return _require_editor().reverse_clip(clip_id, replace=replace)
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

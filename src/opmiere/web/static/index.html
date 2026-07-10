@@ -344,6 +344,10 @@
         <button type="button" class="secondary" id="btnPip" disabled>Set PiP</button>
         <button type="button" class="secondary" id="btnPipClear" disabled>Full</button>
       </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnFreeze" disabled>Freeze frame</button>
+        <button type="button" class="secondary" id="btnReverse" disabled>Reverse</button>
+      </div>
       <label>Project notes</label>
       <textarea id="notes" placeholder="备注…" style="min-height:48px"></textarea>
       <button type="button" class="secondary" id="btnNotes">Save notes</button>
@@ -694,7 +698,7 @@
       const nameBtn = document.getElementById('btnClipName');
       const speedSl = document.getElementById('speedSlider');
       const speedBtn = document.getElementById('btnSpeed');
-      const pipIds = ['pipX','pipY','pipS','btnPip','btnPipClear'];
+      const pipIds = ['pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse'];
       if (!selectedClipId) {
         slider.disabled = true;
         btn.disabled = true;
@@ -1635,6 +1639,38 @@
         if (r.timeline) renderTimeline(r.timeline);
         setDirty(true);
         log('PiP clear');
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnFreeze').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const fps = (timeline && timeline.fps) || 30;
+        const frame = Math.round((+scrub.value || 0) * fps);
+        log('freeze…');
+        const r = await api('/api/clip/freeze', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_id: selectedClipId,
+            at_timeline_frame: frame,
+            duration_frames: Math.round(fps),
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('freeze → ' + r.clip_id);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnReverse').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        log('reverse encode…');
+        const r = await api('/api/clip/reverse', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, replace: true }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('reversed ' + selectedClipId);
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnNotes').onclick = async () => {

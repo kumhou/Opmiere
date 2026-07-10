@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8 — 2026-07-11
+
+### Added
+- **`freeze_frame`**: extract a still from a video clip and place as image hold
+- **`reverse_clip`**: re-encode source range reversed; replace clip media by default
+- Web: Freeze frame / Reverse buttons on selection
+
 ## 0.2.7 — 2026-07-11
 
 ### Added

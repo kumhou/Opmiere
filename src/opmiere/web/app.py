@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.7")
+app = FastAPI(title="Opmiere", version="0.2.8")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.7",
+        "phase": "0.2.8",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -1034,6 +1034,35 @@ def notes_set(body: NotesBody) -> dict[str, Any]:
 @app.get("/api/help/keymap")
 def keymap_help() -> dict[str, Any]:
     return Editor.get_keymap_help()
+
+
+class FreezeBody(BaseModel):
+    clip_id: str
+    at_timeline_frame: int | None = None
+    duration_frames: int = 30
+
+
+class ReverseBody(BaseModel):
+    clip_id: str
+    replace: bool = True
+
+
+@app.post("/api/clip/freeze")
+def clip_freeze(body: FreezeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.freeze_frame(
+        body.clip_id,
+        at_timeline_frame=body.at_timeline_frame,
+        duration_frames=body.duration_frames,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/reverse")
+def clip_reverse(body: ReverseBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.reverse_clip(body.clip_id, replace=body.replace)
+    return {**r, "timeline": ed.timeline_view()}
 
 
 @app.get("/api/style_assets")

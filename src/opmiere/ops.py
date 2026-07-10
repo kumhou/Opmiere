@@ -2536,6 +2536,227 @@ class Editor:
             clip.position = {"x": float(x), "y": float(y), "scale": float(scale)}
             return clip
 
+    def freeze_frame(
+        self,
+        clip_id: str,
+        *,
+        at_timeline_frame: int | None = None,
+        duration_frames: int = 30,
+        track_id: str | None = None,
+        start: int | None = None,
+    ) -> dict[str, Any]:
+        """Extract one frame from a video clip and place it as a still.
+
+        at_timeline_frame: absolute timeline frame (default = mid of clip).
+        duration_frames: how long the still holds on the timeline.
+        Places on same track after the clip unless track_id/start given.
+        """
+        import subprocess
+        import uuid
+
+        from .model import IMAGE_VIRTUAL_DURATION_FRAMES
+
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip.media)
+        if media.kind == "audio":
+            raise ValueError("freeze_frame needs a video/image clip")
+        if duration_frames <= 0:
+            raise ValueError("duration_frames must be positive")
+
+        if at_timeline_frame is None:
+            at_timeline_frame = clip.start + max(0, clip.timeline_duration_frames // 2)
+        if not (clip.start <= at_timeline_frame < clip.end):
+            raise ValueError("at_timeline_frame must be inside the clip")
+
+        local = at_timeline_frame - clip.start
+        if clip.speed != 1.0:
+            src_frame = clip.src_in + int(round(local * clip.speed))
+        else:
+            src_frame = clip.src_in + local
+        src_frame = min(max(src_frame, clip.src_in), max(clip.src_in, clip.src_out - 1))
+        src_t = self.project.timebase.frames_to_seconds(src_frame)
+
+        src_path = self.bundle.media_path(media.path)
+        self.bundle.media_dir.mkdir(parents=True, exist_ok=True)
+        name = f"freeze_{clip_id}_{uuid.uuid4().hex[:6]}.jpg"
+        dest = self.bundle.media_dir / name
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-y", "-hide_banner",
+                "-ss", f"{src_t:.3f}",
+                "-i", str(src_path),
+                "-frames:v", "1",
+                "-q:v", "2",
+                str(dest),
+            ],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0 or not dest.exists():
+            raise RuntimeError(
+                f"freeze_frame extract failed:\n{(proc.stderr or '')[-1200:]}"
+            )
+
+        place_track = track_id or track.id
+        place_start = start if start is not None else clip.end
+        with self._mutate():
+            still = self.project.add_media(
+                kind="image",
+                path=name,
+                duration_frames=IMAGE_VIRTUAL_DURATION_FRAMES,
+                has_audio=False,
+                origin={
+                    "freeze_from_clip": clip_id,
+                    "src_frame": src_frame,
+                    "src_time": src_t,
+                },
+            )
+            tr = self.project.track_by_id(place_track)
+            if tr.locked:
+                raise ValueError(f"track {place_track} is locked")
+            new_clip = self.project.add_clip(
+                tr, still, int(place_start), 0, int(duration_frames),
+            )
+            new_clip.name = (clip.name or "freeze") + "_still"
+            if clip.color:
+                new_clip.color = clip.color
+            return {
+                "clip_id": new_clip.id,
+                "media_id": still.id,
+                "path": name,
+                "src_frame": src_frame,
+                "src_time_seconds": round(src_t, 3),
+                "duration_frames": duration_frames,
+                "start": new_clip.start,
+                "track_id": place_track,
+                "agent_note": "Still image clip; export holds the frame for duration_frames.",
+            }
+
+    def reverse_clip(
+        self,
+        clip_id: str,
+        *,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Re-encode the clip's source range reversed and use it as new media.
+
+        replace=True: retarget this clip to reversed media (src_in=0, full length).
+        Timeline start/duration preserved when possible (speed reset to 1.0).
+        """
+        import subprocess
+        import uuid
+
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip.media)
+        if media.kind == "image":
+            raise ValueError("cannot reverse a still image")
+
+        src_path = self.bundle.media_path(media.path)
+        fps = float(self.project.timebase.fps or 30.0)
+        t0 = self.project.timebase.frames_to_seconds(clip.src_in)
+        t1 = self.project.timebase.frames_to_seconds(clip.src_out)
+        if t1 <= t0:
+            raise ValueError("empty source range")
+
+        self.bundle.media_dir.mkdir(parents=True, exist_ok=True)
+        tag = uuid.uuid4().hex[:6]
+        if media.kind == "audio" or (not media.has_audio and media.kind != "video"):
+            # audio-only reverse
+            name = f"rev_{clip_id}_{tag}.m4a"
+            dest = self.bundle.media_dir / name
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
+                    "-i", str(src_path),
+                    "-af", "areverse",
+                    "-c:a", "aac", str(dest),
+                ],
+                capture_output=True, text=True,
+            )
+            kind: MediaKind = "audio"
+            has_audio = True
+        else:
+            name = f"rev_{clip_id}_{tag}.mp4"
+            dest = self.bundle.media_dir / name
+            # reverse video (+audio if present)
+            vf = "reverse"
+            af = "areverse" if media.has_audio else None
+            cmd = [
+                "ffmpeg", "-y", "-hide_banner",
+                "-ss", f"{t0:.3f}", "-to", f"{t1:.3f}",
+                "-i", str(src_path),
+                "-vf", vf,
+            ]
+            if af:
+                cmd += ["-af", af, "-c:a", "aac"]
+            else:
+                cmd += ["-an"]
+            cmd += [
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast",
+                str(dest),
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            kind = "video"
+            has_audio = bool(media.has_audio)
+
+        if proc.returncode != 0 or not dest.exists():
+            raise RuntimeError(
+                f"reverse_clip encode failed:\n{(proc.stderr or '')[-1500:]}"
+            )
+
+        from .render.probe import probe as _probe
+        info = _probe(dest)
+        dur_f = self.project.timebase.seconds_to_frames(info.duration_seconds)
+
+        with self._mutate():
+            new_media = self.project.add_media(
+                kind=kind,
+                path=name,
+                duration_frames=dur_f,
+                has_audio=has_audio and info.has_audio if kind == "video" else has_audio,
+                origin={
+                    "reversed_from_clip": clip_id,
+                    "source_media": media.id,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                },
+            )
+            if replace:
+                old = {
+                    "media": clip.media,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "speed": clip.speed,
+                }
+                clip.media = new_media.id
+                clip.src_in = 0
+                clip.src_out = dur_f
+                clip.speed = 1.0
+                # Keep timeline footprint close: if durations differ slightly, ok
+                return {
+                    "clip_id": clip_id,
+                    "media_id": new_media.id,
+                    "path": name,
+                    "duration_frames": dur_f,
+                    "replaced": True,
+                    "from": old,
+                    "agent_note": "Clip now points at reversed media; re-export proxy.",
+                }
+            # place after as new clip
+            tr = track
+            new_clip = self.project.add_clip(
+                tr, new_media, clip.end, 0, dur_f,
+            )
+            return {
+                "clip_id": new_clip.id,
+                "media_id": new_media.id,
+                "path": name,
+                "duration_frames": dur_f,
+                "replaced": False,
+            }
+
     def clear_position(self, clip_id: str) -> Clip:
         """Restore a clip to full-frame (remove a previously set position)."""
         self._assert_clip_track_unlocked(clip_id)
