@@ -40,6 +40,10 @@ from .render.delivery import delivery_check as _delivery_check
 from .render.delivery import normalize_loudness as _normalize_loudness
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
+from .render.look import LOOK_PRESETS as _LOOK_PRESETS
+from .render.look import measure_frame_stats as _measure_frame_stats
+from .render.look import resolve_look as _resolve_look
+from .render.look import suggest_color_match_effects as _suggest_color_match_effects
 from .render.quality_check import quality_check as _quality_check
 from .render.sequence_review import make_sequence_contact_sheet as _make_sequence_contact_sheet
 from .render.sequence_review import review_cut as _review_cut
@@ -1040,6 +1044,11 @@ class Editor:
         transition_default: str = "auto",
         transition_frames: int = 12,
         analyze_if_needed: bool = True,
+        b_roll_mode: str = "overlay",
+        target_duration_seconds: float | None = None,
+        j_cut_seconds: float = 0.4,
+        l_cut_seconds: float = 0.25,
+        b_roll_max_seconds: float = 2.5,
     ) -> dict[str, Any]:
         """Build EDL from asset cards/paths. Does not mutate the project."""
         return _plan_edit(
@@ -1054,6 +1063,11 @@ class Editor:
             transition_default=transition_default,
             transition_frames=transition_frames,
             analyze_if_needed=analyze_if_needed,
+            b_roll_mode=b_roll_mode,
+            target_duration_seconds=target_duration_seconds,
+            j_cut_seconds=j_cut_seconds,
+            l_cut_seconds=l_cut_seconds,
+            b_roll_max_seconds=b_roll_max_seconds,
         )
 
     def apply_edit_plan(
@@ -1133,8 +1147,22 @@ class Editor:
                     errors.append(f"events[{i}]: empty range after clamp")
                     continue
 
+                # Absolute timeline start (overlay / J-cut) wins over sequential
+                abs_start = ev.get("timeline_start_frames")
+                if abs_start is None and ev.get("timeline_start_seconds") is not None:
+                    abs_start = self.project.timebase.seconds_to_frames(
+                        float(ev["timeline_start_seconds"])
+                    )
+                use_absolute = abs_start is not None or hint.endswith("overlay") or (
+                    hint.startswith("audio_") and abs_start is not None
+                )
+
                 prev_id = last_clip_on.get(track_id)
-                if prev_id is None:
+                if abs_start is not None:
+                    clip = self.add_clip(
+                        track_id, media_id, int(abs_start), src_in, src_out,
+                    )
+                elif prev_id is None:
                     track = self.project.track_by_id(track_id)
                     ordered = track.clips_in_order()
                     start = ordered[-1].end if ordered else 0
@@ -1145,7 +1173,12 @@ class Editor:
                     )
 
                 t_in = ev.get("transition_in")
-                if t_in and isinstance(t_in, dict) and prev_id is not None:
+                # Transitions only on contiguous base tracks with hard-cut neighbor
+                if (
+                    t_in and isinstance(t_in, dict)
+                    and prev_id is not None
+                    and abs_start is None
+                ):
                     t_type = t_in.get("type")
                     t_frames = int(t_in.get("duration_frames") or 0)
                     if t_type and t_frames > 0 and t_type in KNOWN_TRANSITION_TYPES:
@@ -1153,6 +1186,14 @@ class Editor:
                             clip = self.add_transition(clip.id, t_type, t_frames)
                         except ValueError as te:
                             errors.append(f"events[{i}] transition: {te}")
+
+                # Optional per-event effects (look, etc.)
+                for fx in ev.get("effects") or []:
+                    if isinstance(fx, dict) and fx.get("type"):
+                        try:
+                            clip = self.apply_effect(clip.id, dict(fx))
+                        except Exception as fe:
+                            errors.append(f"events[{i}] effect: {fe}")
 
                 last_clip_on[track_id] = clip.id
                 placed.append({
@@ -1165,6 +1206,7 @@ class Editor:
                     "src_in": clip.src_in,
                     "src_out": clip.src_out,
                     "transition_in": clip.transition_in,
+                    "absolute": abs_start is not None,
                 })
             except Exception as e:
                 if skip_missing:
@@ -1178,6 +1220,127 @@ class Editor:
             "track_ids": hint_to_id,
             "errors": errors,
             "duration_frames": self.duration_frames(),
+        }
+
+    def list_look_presets(self) -> dict[str, Any]:
+        """Available project looks (name → effect list)."""
+        return {
+            "presets": {k: list(v) for k, v in _LOOK_PRESETS.items()},
+            "names": sorted(_LOOK_PRESETS),
+        }
+
+    def apply_project_look(
+        self,
+        look: str | list[dict[str, Any]] = "cinematic",
+        *,
+        clip_ids: list[str] | None = None,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Apply one look language to many clips (default: all video clips).
+
+        ``look`` is a preset name (cool_setup, warm_resolve, cinematic, …)
+        or a list of effect dicts. Harmonizes the cut without regenerating.
+        """
+        effects = _resolve_look(look)
+        if not effects:
+            return {
+                "look": look if isinstance(look, str) else "custom",
+                "applied": [],
+                "effect_count": 0,
+                "note": "neutral look — nothing applied",
+            }
+        targets: list[str] = []
+        if clip_ids is not None:
+            targets = list(clip_ids)
+        else:
+            for track in self.project.tracks:
+                if video_only and track.kind != "video":
+                    continue
+                for clip in track.clips:
+                    targets.append(clip.id)
+
+        applied: list[dict[str, Any]] = []
+        for cid in targets:
+            for fx in effects:
+                clip = self.apply_effect(cid, dict(fx))
+                applied.append({"clip_id": cid, "effect": dict(fx), "effects_len": len(clip.effects)})
+        return {
+            "look": look if isinstance(look, str) else "custom",
+            "clip_count": len(targets),
+            "effect_count": len(effects),
+            "applied_count": len(applied),
+            "applied": applied,
+        }
+
+    def color_match_to_clip(
+        self,
+        reference_clip_id: str,
+        clip_ids: list[str] | None = None,
+        *,
+        strength: float = 0.65,
+    ) -> dict[str, Any]:
+        """Pull other video clips' grade toward the reference clip mid-frame.
+
+        Measures luma/chroma via signalstats, applies color + white_balance
+        deltas. Does not invent pixels — only deterministic grade shifts.
+        """
+        ref_track, ref_clip = self._find_clip_and_track(reference_clip_id)
+        ref_media = self.project.media_by_id(ref_clip.media)
+        if ref_media.kind == "audio":
+            raise ValueError("reference clip must be video/image")
+        ref_path = self.bundle.media_path(ref_media.path)
+        mid = (ref_clip.src_in + ref_clip.src_out) // 2
+        ref_t = self.project.timebase.frames_to_seconds(mid)
+        ref_stats = _measure_frame_stats(ref_path, ref_t)
+
+        if clip_ids is None:
+            clip_ids = []
+            for track in self.project.tracks:
+                if track.kind != "video":
+                    continue
+                for c in track.clips:
+                    if c.id != reference_clip_id:
+                        clip_ids.append(c.id)
+
+        matched: list[dict[str, Any]] = []
+        for cid in clip_ids:
+            track, clip = self._find_clip_and_track(cid)
+            media = self.project.media_by_id(clip.media)
+            if media.kind == "audio":
+                continue
+            path = self.bundle.media_path(media.path)
+            t_mid = self.project.timebase.frames_to_seconds(
+                (clip.src_in + clip.src_out) // 2
+            )
+            tgt_stats = _measure_frame_stats(path, t_mid)
+            fx_list = _suggest_color_match_effects(
+                ref_stats, tgt_stats, strength=strength,
+            )
+            for fx in fx_list:
+                self.apply_effect(cid, fx)
+            matched.append({
+                "clip_id": cid,
+                "effects": fx_list,
+                "target_stats": {
+                    "yavg": tgt_stats.get("yavg"),
+                    "ravg": tgt_stats.get("ravg"),
+                    "bavg": tgt_stats.get("bavg"),
+                },
+            })
+        return {
+            "reference_clip_id": reference_clip_id,
+            "reference_stats": {
+                "yavg": ref_stats.get("yavg"),
+                "ravg": ref_stats.get("ravg"),
+                "bavg": ref_stats.get("bavg"),
+                "time_seconds": ref_t,
+            },
+            "strength": strength,
+            "matched": matched,
+            "matched_count": len(matched),
+            "agent_note": (
+                "Re-check with make_sequence_contact_sheet; strength>0.8 can look forced."
+            ),
         }
 
     def analyze_asset(

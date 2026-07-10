@@ -86,10 +86,14 @@ per-fragment quality gates; call `plan_director_session` for a step list.
 3. Continuity: shared prompt anchors + same seed when iterating one shot.
 
 ## 5. Grade and polish
-1. Deterministic looks: `color`, `curves`, `lut3d`, `white_balance`, `ken_burns`,
-   `text`, stylize — not re-generate for small look fixes.
-2. Audio tracks: music base, VO, SFX; `set_ducking(music, vo)`; `gain` for levels.
-3. `analyze_timeline` to verify the mix (ducking room, peaks).
+1. **Session look:** `list_look_presets` → `apply_project_look("cinematic"|…)`
+   so the cut shares one grade language (prefer over per-clip freestyle).
+2. **Continuity:** `color_match_to_clip(hero_clip_id)` to pull drifted shots
+   toward a hero reference (deterministic; not a re-generate).
+3. Extra deterministic polish: `color`, `curves`, `lut3d`, `white_balance`,
+   `ken_burns`, `text`, stylize — not re-generate for small look fixes.
+4. Audio: music base, VO, SFX; `set_ducking(music, vo)`; `gain` for levels.
+5. `analyze_timeline` to verify the mix (ducking room, peaks).
 
 ## 6. Deliver
 1. `review_cut` — fix severity=error (gaps, empty base); note craft warnings.
@@ -298,8 +302,14 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
         add(
             "plan_edit",
             "plan_edit",
-            "EDL from cards (silence/scenes/transitions); review delivery.ok + events",
-            params={"paths": asset_paths, "cut_silence": True, "prefer_scenes": True},
+            "EDL: silence/scenes, B-roll overlay cutaways, L-cut lead, pace target",
+            params={
+                "paths": asset_paths,
+                "cut_silence": True,
+                "prefer_scenes": True,
+                "b_roll_mode": "overlay",
+                "target_duration_seconds": constraints.get("duration_seconds"),
+            },
         )
         add(
             "apply_edit_plan",
@@ -380,10 +390,17 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
             )
 
     add(
-        "grade",
-        "apply_effect",
-        "Deterministic grade/polish (color, white_balance, curves, lut3d, ken_burns, text)",
-        note="Apply DEFAULT_AESTHETIC grade if no_opinion",
+        "project_look",
+        "apply_project_look",
+        "One session look language across video clips (cinematic/warm_resolve/…)",
+        params={"look": "cinematic" if brief.get("no_opinion") else "documentary"},
+        optional_tools=["list_look_presets", "color_match_to_clip", "apply_effect"],
+    )
+    add(
+        "color_match",
+        "color_match_to_clip",
+        "Pull non-hero shots toward first A-roll clip grade (after look)",
+        note="Pick reference_clip_id from get_project_state; skip if single clip",
     )
     add(
         "audio_mix",

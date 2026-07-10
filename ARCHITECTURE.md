@@ -689,8 +689,10 @@ cannot support claimed delivery), `plan_edit` → `apply_edit_plan` EDL from car
 stem separation (Demucs optional). **Delivery finish:** `normalize_loudness` (loudnorm presets
 streaming -14 / broadcast -23), `delivery_check` on export (LUFS/peak/geometry/quality_check),
 `review_cut` + `make_sequence_contact_sheet` for whole-cut craft. **P3 minimal web** shell:
-`opmiere-web`. Still open: music beat sync, project look/color-match, full interactive preview,
-non-3070 re-benchmark. Cloud deferred (local free).
+`opmiere-web`. **Look continuity:** `apply_project_look` presets + `color_match_to_clip`
+(signalstats → color/white_balance). **EDL v2:** B-roll overlay cutaways, L-cut lead,
+pace target, VO/music under picture. Still open: music beat sync, true delayed-picture
+J-cut (needs base-track pad), full interactive preview, non-3070 re-benchmark. Cloud deferred.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

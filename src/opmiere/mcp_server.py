@@ -820,42 +820,44 @@ def plan_edit(
     transition_default: str = "auto",
     transition_frames: int = 12,
     analyze_if_needed: bool = True,
+    b_roll_mode: str = "overlay",
+    target_duration_seconds: float | None = None,
+    j_cut_seconds: float = 0.4,
+    l_cut_seconds: float = 0.25,
+    b_roll_max_seconds: float = 2.5,
 ) -> dict:
     """Build an EDL-like edit plan from asset paths or analyze_asset cards.
 
-    Does not mutate the project. Review events + delivery.ok, then
-    apply_edit_plan. Uses silence keep_ranges / scenes when available;
-    transition_default=auto uses motion affinity. Works without open project
-    when paths/cards provided (uses fps/width/height args or 30/1920/1080).
+    b_roll_mode=overlay (default): B-roll cutaways on video_overlay at speech
+    anchors with L-cut lead; after=append on base. target_duration_seconds
+    caps pace. VO/music from 0 under picture (J-cut bed). Review then
+    apply_edit_plan. Works without open project when paths/cards given.
     """
-    if _editor is not None:
-        return _editor.plan_edit(
-            cards=cards,
-            paths=paths,
-            fps=fps,
-            width=width,
-            height=height,
-            cut_silence=cut_silence,
-            prefer_scenes=prefer_scenes,
-            max_clip_seconds=max_clip_seconds,
-            transition_default=transition_default,
-            transition_frames=transition_frames,
-            analyze_if_needed=analyze_if_needed,
-        )
-    from .render.asset_analysis import plan_edit as _plan
-    return _plan(
+    kwargs = dict(
         cards=cards,
         paths=paths,
-        fps=float(fps if fps is not None else 30),
-        width=width if width is not None else 1920,
-        height=height if height is not None else 1080,
+        fps=fps,
+        width=width,
+        height=height,
         cut_silence=cut_silence,
         prefer_scenes=prefer_scenes,
         max_clip_seconds=max_clip_seconds,
         transition_default=transition_default,
         transition_frames=transition_frames,
         analyze_if_needed=analyze_if_needed,
+        b_roll_mode=b_roll_mode,
+        target_duration_seconds=target_duration_seconds,
+        j_cut_seconds=j_cut_seconds,
+        l_cut_seconds=l_cut_seconds,
+        b_roll_max_seconds=b_roll_max_seconds,
     )
+    if _editor is not None:
+        return _editor.plan_edit(**kwargs)
+    from .render.asset_analysis import plan_edit as _plan
+    kwargs["fps"] = float(fps if fps is not None else 30)
+    kwargs["width"] = width if width is not None else 1920
+    kwargs["height"] = height if height is not None else 1080
+    return _plan(**kwargs)
 
 
 @mcp.tool()
@@ -866,11 +868,48 @@ def apply_edit_plan(
 ) -> dict:
     """Apply a plan_edit result: import media, place clips, add transitions.
 
-    track_ids maps track_hint (video_base, audio_music, …) to existing track
-    ids; missing hints create tracks. Returns placed clip ids + errors.
+    Supports timeline_start_frames for overlay/audio (gaps OK). track_ids maps
+    track_hint → existing track id. Returns placed clip ids + errors.
     """
     return _require_editor().apply_edit_plan(
         plan, track_ids=track_ids, skip_missing=skip_missing,
+    )
+
+
+@mcp.tool()
+def list_look_presets() -> dict:
+    """List project look names (cool_setup, warm_resolve, cinematic, …)."""
+    return _require_editor().list_look_presets()
+
+
+@mcp.tool()
+def apply_project_look(
+    look: str = "cinematic",
+    clip_ids: list[str] | None = None,
+    video_only: bool = True,
+) -> dict:
+    """Apply one grade language to all (or listed) video clips.
+
+    look: neutral|cool_setup|warm_resolve|cinematic|vintage|documentary.
+    Prefer this over regenerating for continuity. Then sequence contact sheet.
+    """
+    return _require_editor().apply_project_look(
+        look, clip_ids=clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
+def color_match_to_clip(
+    reference_clip_id: str,
+    clip_ids: list[str] | None = None,
+    strength: float = 0.65,
+) -> dict:
+    """Match other clips' grade toward a reference clip (signalstats + eq/WB).
+
+    strength 0..1 (default 0.65). Does not invent detail — deterministic only.
+    """
+    return _require_editor().color_match_to_clip(
+        reference_clip_id, clip_ids, strength=strength,
     )
 
 

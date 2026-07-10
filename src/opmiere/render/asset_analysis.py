@@ -418,6 +418,34 @@ def _pick_transition(
     return _AFFINITY_TO_TRANSITION.get(preferred_in)
 
 
+def _speech_anchor_seconds(card: dict[str, Any]) -> list[float]:
+    """Midpoints of ASR segments (or silence keep ranges) for B-roll landing."""
+    anchors: list[float] = []
+    speech = card.get("speech") if isinstance(card.get("speech"), dict) else None
+    if speech and not speech.get("error"):
+        for seg in speech.get("segments") or []:
+            try:
+                a = float(seg.get("start", 0))
+                b = float(seg.get("end", a))
+                if b > a:
+                    anchors.append((a + b) / 2.0)
+            except (TypeError, ValueError):
+                continue
+    if anchors:
+        return anchors
+    silence = card.get("silence") if isinstance(card.get("silence"), dict) else None
+    if silence and not silence.get("error"):
+        for k in silence.get("keep_ranges") or []:
+            try:
+                a = float(k["start"])
+                b = float(k["end"])
+                if b > a:
+                    anchors.append((a + b) / 2.0)
+            except (TypeError, ValueError, KeyError):
+                continue
+    return anchors
+
+
 def plan_edit(
     cards: list[dict[str, Any]] | None = None,
     paths: list[Path | str] | None = None,
@@ -431,20 +459,33 @@ def plan_edit(
     transition_default: str = "auto",
     transition_frames: int = 12,
     analyze_if_needed: bool = True,
+    b_roll_mode: str = "overlay",
+    target_duration_seconds: float | None = None,
+    j_cut_seconds: float = 0.4,
+    l_cut_seconds: float = 0.25,
+    b_roll_max_seconds: float = 2.5,
 ) -> dict[str, Any]:
     """Build an EDL-like edit plan from asset cards (or paths).
 
-    Does **not** mutate a project. Agent (or ``Editor.apply_edit_plan``) applies
-    the events. Ordering: a_roll/vo on base tracks, then b_roll/still as
-    sequential base shots if no a_roll else listed as overlay candidates,
-    music/sfx on audio.
+    Does **not** mutate a project. ``Editor.apply_edit_plan`` applies events.
 
-    Each event:
-      op, path, kind, role, track_hint, src_in_seconds, src_out_seconds,
-      src_in_frames, src_out_frames, transition_in, note
+    b_roll_mode:
+      - ``overlay`` (default): B-roll cutaways on video_overlay at A-roll
+        speech/silence anchors (or evenly along the base timeline)
+      - ``after``: append B-roll on video_base after A-roll (simple montage)
+
+    j_cut_seconds: VO/music start at 0; first picture delayed (classic open).
+    l_cut_seconds: each overlay cutaway starts this early vs its anchor
+    (picture leads slightly into the next VO beat — soft L-cut feel).
+
+    target_duration_seconds: when set, caps/trims base segments to fit.
     """
     if transition_frames < 0:
         raise ValueError("transition_frames must be >= 0")
+    if b_roll_mode not in ("overlay", "after"):
+        raise ValueError("b_roll_mode must be 'overlay' or 'after'")
+    if j_cut_seconds < 0 or l_cut_seconds < 0:
+        raise ValueError("j_cut_seconds / l_cut_seconds must be >= 0")
 
     built: list[dict[str, Any]] = list(cards or [])
     if not built and paths:
@@ -472,7 +513,9 @@ def plan_edit(
                     "height": info.height,
                     "has_video": info.has_video,
                     "has_audio": info.has_audio,
-                    "role_guess": "b_roll" if info.has_video else ("music" if info.has_audio else "other"),
+                    "role_guess": "b_roll" if info.has_video else (
+                        "music" if info.has_audio else "other"
+                    ),
                     "transition_affinity": _transition_affinity({}),
                 })
 
@@ -484,7 +527,6 @@ def plan_edit(
         height=height,
     )
 
-    # Bucket by role
     buckets: dict[str, list[dict[str, Any]]] = {
         "a_roll": [], "b_roll": [], "vo": [], "music": [], "sfx": [],
         "still": [], "other": [],
@@ -497,40 +539,68 @@ def plan_edit(
 
     events: list[dict[str, Any]] = []
     warnings: list[str] = list(delivery.get("warnings") or [])
-    warnings.extend(delivery.get("errors") or [])  # surface hard limits in plan warnings too
+    warnings.extend(delivery.get("errors") or [])
+
+    # Effective max clip length from pacing target
+    effective_max = max_clip_seconds
+    if target_duration_seconds and target_duration_seconds > 0:
+        n_est = max(1, sum(
+            1 for c in (buckets["a_roll"] or buckets["b_roll"] or buckets["still"])
+            for _ in [0]
+        ) + 2)
+        pace_cap = max(0.8, float(target_duration_seconds) / n_est)
+        effective_max = (
+            min(effective_max, pace_cap) if effective_max else pace_cap
+        )
+
+    # Base video must start at frame 0 (P0 contiguous render). J-cut is expressed
+    # as VO/music from 0 under picture + L-cut early overlay cutaways — not a
+    # delayed picture track (that would leave an illegal gap at t=0).
+    base_cursor_frames = 0
+    j_cut_active = bool(
+        j_cut_seconds > 0 and (buckets["vo"] or buckets["music"])
+    )
+    if j_cut_active:
+        warnings.append(
+            f"J-cut style: VO/music from 0 under picture; L-cut overlay lead "
+            f"{l_cut_seconds:g}s (base video still starts at 0 — P0 constraint)"
+        )
 
     def _emit_video_sequence(card_list: list[dict[str, Any]], track_hint: str) -> None:
+        nonlocal base_cursor_frames
         prev_card: dict[str, Any] | None = None
         for card in card_list:
             segs = _segments_from_card(
                 card,
                 cut_silence=cut_silence,
                 prefer_scenes=prefer_scenes,
-                max_clip_seconds=max_clip_seconds,
+                max_clip_seconds=effective_max,
             )
             kind = _media_kind_from_card(card)
             role = str(card.get("role_guess") or card.get("role") or "other")
             for i, seg in enumerate(segs):
                 t_in = None
-                t_type = None
-                if events and track_hint.startswith("video"):
-                    # only transition between video base events
-                    last = events[-1]
-                    if last.get("track_hint") == track_hint and last.get("kind") == "video":
-                        t_type = _pick_transition(
-                            prev_card if i == 0 else card,
-                            card,
-                            transition_default=transition_default,
-                        )
-                        if t_type and transition_frames > 0:
-                            t_in = {
-                                "type": t_type,
-                                "duration_frames": int(transition_frames),
-                            }
+                base_events = [
+                    e for e in events
+                    if e.get("track_hint") == track_hint
+                    and e.get("kind") in ("video", "image")
+                ]
+                if base_events and track_hint == "video_base":
+                    t_type = _pick_transition(
+                        prev_card if i == 0 else card,
+                        card,
+                        transition_default=transition_default,
+                    )
+                    if t_type and transition_frames > 0:
+                        t_in = {
+                            "type": t_type,
+                            "duration_frames": int(transition_frames),
+                        }
                 src_in_f = _seconds_to_src_frames(seg["start"], fps)
                 src_out_f = _seconds_to_src_frames(seg["end"], fps)
                 if src_out_f <= src_in_f:
                     src_out_f = src_in_f + max(1, int(round(0.1 * fps)))
+                dur_f = src_out_f - src_in_f
                 events.append({
                     "op": "place",
                     "path": card.get("path"),
@@ -544,33 +614,109 @@ def plan_edit(
                     "transition_in": t_in,
                     "note": f"segment via {seg['reason']}",
                 })
+                if track_hint == "video_base":
+                    if t_in:
+                        base_cursor_frames += dur_f - int(t_in["duration_frames"])
+                    else:
+                        base_cursor_frames += dur_f
             prev_card = card
 
-    # Primary picture: a_roll first, else b_roll/still as base sequence
-    base_video = buckets["a_roll"] or buckets["b_roll"] or buckets["still"]
-    if buckets["a_roll"] and buckets["b_roll"]:
+    # --- picture spine ---
+    base_cards = buckets["a_roll"] or buckets["b_roll"] or buckets["still"]
+    if buckets["a_roll"]:
         _emit_video_sequence(buckets["a_roll"], "video_base")
-        # B-roll: sequential after A-roll on base for simple auto-cut;
-        # agent can re-layer as overlay later
-        _emit_video_sequence(buckets["b_roll"], "video_base")
-        warnings.append(
-            "b_roll placed on video_base after a_roll (simple auto EDL); "
-            "agent may move selected shots to video_overlay for cutaways"
-        )
+        if buckets["b_roll"]:
+            if b_roll_mode == "after":
+                _emit_video_sequence(buckets["b_roll"], "video_base")
+                warnings.append("b_roll_mode=after: B-roll appended on video_base")
+            else:
+                base_len_s = base_cursor_frames / fps if fps else 0.0
+                anchors: list[float] = []
+                for ac in buckets["a_roll"]:
+                    for a in _speech_anchor_seconds(ac):
+                        dur = float(ac.get("duration_seconds") or 1.0)
+                        frac = min(0.95, max(0.05, a / max(dur, 0.01)))
+                        anchors.append(frac * max(0.1, base_len_s))
+                if not anchors and base_len_s > 0:
+                    n_b = max(1, len(buckets["b_roll"]))
+                    for i in range(n_b):
+                        anchors.append((i + 1) / (n_b + 1) * base_len_s)
+                for bi, bcard in enumerate(buckets["b_roll"]):
+                    segs = _segments_from_card(
+                        bcard,
+                        cut_silence=False,
+                        prefer_scenes=prefer_scenes,
+                        max_clip_seconds=b_roll_max_seconds,
+                    )
+                    if not segs:
+                        continue
+                    seg = dict(segs[0])
+                    if seg["end"] - seg["start"] > b_roll_max_seconds:
+                        seg["end"] = seg["start"] + b_roll_max_seconds
+                        seg["reason"] = seg.get("reason", "b_roll") + "+cap"
+                    anchor_t = anchors[bi % len(anchors)] if anchors else (1.0 + bi * 2.0)
+                    start_t = max(0.0, anchor_t - l_cut_seconds)
+                    src_in_f = _seconds_to_src_frames(seg["start"], fps)
+                    src_out_f = _seconds_to_src_frames(seg["end"], fps)
+                    if src_out_f <= src_in_f:
+                        src_out_f = src_in_f + max(1, int(round(0.5 * fps)))
+                    events.append({
+                        "op": "place",
+                        "path": bcard.get("path"),
+                        "kind": _media_kind_from_card(bcard),
+                        "role": "b_roll",
+                        "track_hint": "video_overlay",
+                        "src_in_seconds": round(seg["start"], 3),
+                        "src_out_seconds": round(seg["end"], 3),
+                        "src_in_frames": src_in_f,
+                        "src_out_frames": src_out_f,
+                        "timeline_start_seconds": round(start_t, 3),
+                        "timeline_start_frames": _seconds_to_src_frames(start_t, fps),
+                        "transition_in": None,
+                        "note": (
+                            f"b_roll cutaway @ {start_t:.2f}s "
+                            f"(L-lead {l_cut_seconds:g}s, via {seg.get('reason')})"
+                        ),
+                    })
+                warnings.append(
+                    "b_roll_mode=overlay: cutaways on video_overlay at speech/pace anchors"
+                )
+        if buckets["still"]:
+            mid = base_cursor_frames // 2
+            for sc in buckets["still"]:
+                still_dur = min(2.0, b_roll_max_seconds)
+                events.append({
+                    "op": "place",
+                    "path": sc.get("path"),
+                    "kind": (
+                        "image" if not sc.get("has_video")
+                        else _media_kind_from_card(sc)
+                    ),
+                    "role": "still",
+                    "track_hint": "video_overlay",
+                    "src_in_seconds": 0.0,
+                    "src_out_seconds": still_dur,
+                    "src_in_frames": 0,
+                    "src_out_frames": _seconds_to_src_frames(still_dur, fps),
+                    "timeline_start_frames": int(mid),
+                    "timeline_start_seconds": round(mid / fps, 3),
+                    "transition_in": None,
+                    "note": "still cutaway mid-timeline",
+                })
     else:
-        _emit_video_sequence(base_video, "video_base")
+        _emit_video_sequence(base_cards, "video_base")
 
-    if not buckets["a_roll"] and buckets["still"] and buckets["b_roll"]:
-        pass  # already handled via base_video = b_roll
-    elif buckets["still"] and buckets["a_roll"]:
-        _emit_video_sequence(buckets["still"], "video_base")
-
-    # Audio beds
+    # --- audio: VO/music from 0 (sits under picture = soft J-cut bed) ---
     for card in buckets["vo"]:
         segs = _segments_from_card(
             card, cut_silence=cut_silence, prefer_scenes=False, max_clip_seconds=None,
         )
+        # Optional: start VO j_cut_seconds before picture end of first beat —
+        # with base at 0, shift VO earlier is impossible; start at 0 and note.
+        vo_cursor = 0
         for seg in segs:
+            src_in_f = _seconds_to_src_frames(seg["start"], fps)
+            src_out_f = _seconds_to_src_frames(seg["end"], fps)
             events.append({
                 "op": "place",
                 "path": card.get("path"),
@@ -579,13 +725,19 @@ def plan_edit(
                 "track_hint": "audio_vo",
                 "src_in_seconds": round(seg["start"], 3),
                 "src_out_seconds": round(seg["end"], 3),
-                "src_in_frames": _seconds_to_src_frames(seg["start"], fps),
-                "src_out_frames": _seconds_to_src_frames(seg["end"], fps),
+                "src_in_frames": src_in_f,
+                "src_out_frames": src_out_f,
+                "timeline_start_frames": vo_cursor,
+                "timeline_start_seconds": round(vo_cursor / fps, 3),
                 "transition_in": None,
-                "note": f"vo via {seg['reason']}",
+                "note": f"vo via {seg['reason']}" + (
+                    " (under picture / J-cut bed)" if j_cut_active else ""
+                ),
             })
+            vo_cursor += max(0, src_out_f - src_in_f)
     for card in buckets["music"]:
         dur = float(card.get("duration_seconds") or 0)
+        src_dur = dur if dur > 0 else (base_cursor_frames / fps if fps else 0)
         events.append({
             "op": "place",
             "path": card.get("path"),
@@ -593,11 +745,13 @@ def plan_edit(
             "role": "music",
             "track_hint": "audio_music",
             "src_in_seconds": 0.0,
-            "src_out_seconds": round(dur, 3),
+            "src_out_seconds": round(src_dur, 3),
             "src_in_frames": 0,
-            "src_out_frames": _seconds_to_src_frames(dur, fps),
+            "src_out_frames": _seconds_to_src_frames(src_dur, fps),
+            "timeline_start_frames": 0,
+            "timeline_start_seconds": 0.0,
             "transition_in": None,
-            "note": "music bed full file",
+            "note": "music bed from 0 under picture",
         })
     for card in buckets["sfx"]:
         dur = float(card.get("duration_seconds") or 0)
@@ -611,8 +765,10 @@ def plan_edit(
             "src_out_seconds": round(dur, 3),
             "src_in_frames": 0,
             "src_out_frames": _seconds_to_src_frames(dur, fps),
+            "timeline_start_frames": 0,
+            "timeline_start_seconds": 0.0,
             "transition_in": None,
-            "note": "sfx full file",
+            "note": "sfx at timeline 0",
         })
     for card in buckets["other"]:
         warnings.append(f"unclassified asset skipped in auto EDL: {card.get('path')}")
@@ -623,9 +779,17 @@ def plan_edit(
             total_tl += max(0, e["src_out_frames"] - e["src_in_frames"])
             if e.get("transition_in"):
                 total_tl -= int(e["transition_in"]["duration_frames"])
+    total_tl = max(total_tl, base_cursor_frames)
+    if target_duration_seconds and fps:
+        target_f = _seconds_to_src_frames(target_duration_seconds, fps)
+        if total_tl > target_f * 1.15:
+            warnings.append(
+                f"approx base length {total_tl / fps:.1f}s exceeds target "
+                f"{target_duration_seconds:g}s — tighten cut_silence or max_clip_seconds"
+            )
 
     return {
-        "version": 1,
+        "version": 2,
         "fps": float(fps),
         "width": width,
         "height": height,
@@ -633,12 +797,16 @@ def plan_edit(
         "events": events,
         "event_count": len(events),
         "approx_video_base_frames": max(0, total_tl),
+        "b_roll_mode": b_roll_mode,
+        "j_cut_seconds": j_cut_seconds if j_cut_active else 0.0,
+        "l_cut_seconds": l_cut_seconds,
+        "target_duration_seconds": target_duration_seconds,
         "warnings": warnings,
         "roles": {k: len(v) for k, v in buckets.items() if v},
         "agent_note": (
-            "Review events before apply_edit_plan. delivery.ok=false means "
-            "requested fps/resolution exceeds sources — warn user, do not claim "
-            "native 4k/60fps. Adjust transitions/order if auto affinity is wrong."
+            "Review events before apply_edit_plan. Overlay uses "
+            "timeline_start_frames (gaps OK). After apply: apply_project_look / "
+            "color_match_to_clip → review_cut → delivery_check."
         ),
     }
 

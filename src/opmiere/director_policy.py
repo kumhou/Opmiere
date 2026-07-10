@@ -56,8 +56,9 @@ tools + selective generation*, not "generate everything and hope."
      duration_frames for video/audio to use real probed length).
 
 ## After placing
-- Harmonize looks with deterministic grade (`color`, `curves`, `lut3d`,
-  `white_balance`) rather than regenerating whole shots for small color drift.
+- Session look first: `apply_project_look` (cinematic / warm_resolve / …),
+  then `color_match_to_clip(hero)` for residual drift — not full re-generate.
+- Fine grade: `color`, `curves`, `lut3d`, `white_balance` per clip if needed.
 - Audio: multi-track mix; `set_ducking` so music yields to voice; `analyze_timeline`
   (or `analyze_audio` on a file) as ears before export.
 - Before export: `review_cut` (structure/craft) + `make_sequence_contact_sheet`
