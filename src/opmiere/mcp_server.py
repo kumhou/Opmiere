@@ -195,8 +195,38 @@ def split_clip(clip_id: str, at_frame: int) -> dict:
 
 @mcp.tool()
 def delete_clip(clip_id: str) -> dict:
-    """Remove a clip from its track."""
+    """Remove a clip from its track (leaves a hole — use ripple_delete to close)."""
     return _require_editor().delete_clip(clip_id).to_dict()
+
+
+@mcp.tool()
+def ripple_delete(clip_id: str) -> dict:
+    """Delete a clip and pull later clips on the same track left to close the gap."""
+    return _require_editor().ripple_delete(clip_id)
+
+
+@mcp.tool()
+def close_gaps(track_id: str, from_frame: int = 0) -> dict:
+    """Pack clips on a track contiguous from from_frame (clears transitions)."""
+    return _require_editor().close_gaps(track_id, from_frame=from_frame)
+
+
+@mcp.tool()
+def detach_audio(
+    clip_id: str,
+    audio_track_id: str | None = None,
+    audio_start_offset_frames: int = 0,
+) -> dict:
+    """Split picture/sound: copy clip audio to an audio track for J/L timing.
+
+    audio_start_offset_frames: negative = audio leads (J-cut), positive = lags.
+    While any audio-track clips exist, embedded video audio is not mixed.
+    """
+    return _require_editor().detach_audio(
+        clip_id,
+        audio_track_id,
+        audio_start_offset_frames=audio_start_offset_frames,
+    )
 
 
 @mcp.tool()

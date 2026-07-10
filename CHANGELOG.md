@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Preview: `ensure_preview_proxy` cache hit, `review_keyframes` 0–100%, web proxy fresh/stale badge + timecode
+- `preview_range`, room tone fill (`place_room_tone`)
+- Edit craft: `ripple_delete`, `close_gaps`, `detach_audio` (J/L-cut timing)
 
 ## 0.1.0 — 2026-07-10
 

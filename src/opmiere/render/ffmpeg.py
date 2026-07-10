@@ -800,16 +800,21 @@ class FFmpegBackend(RenderBackend):
 
         base_video_clips = _validate_contiguous(base_video_track) if base_video_track else []
         overlay_clips_by_track = [_validate_no_overlaps(t) for t in overlay_video_tracks]
-        if base_audio_track:
+        # Empty base audio is allowed (detach_audio places free-timed clips on
+        # later overlay audio tracks and must not re-use embedded video audio).
+        any_audio_clips = any(t.clips for t in audio_tracks)
+        if base_audio_track and base_audio_track.clips:
             _validate_contiguous(base_audio_track)
+            audio_source_track = base_audio_track
+        else:
+            audio_source_track = None
         # Overlay audio tracks may have gaps (a voiceover line here, an SFX
         # there); an empty overlay track simply contributes nothing.
         overlay_audio_clips_by_track = [_validate_no_overlaps(t) for t in overlay_audio_tracks]
 
-        # A real base audio track wins; otherwise fall back to the base video
-        # track's own embedded audio if every clip on it actually has audio.
-        audio_source_track = base_audio_track
-        if audio_source_track is None and base_video_track is not None:
+        # Fall back to base video embedded audio only when *no* audio-track
+        # clips exist (otherwise detach_audio / music beds would double-mix).
+        if audio_source_track is None and base_video_track is not None and not any_audio_clips:
             audio_source_track = (
                 base_video_track if _track_all_media_have_audio(project, base_video_track) else None
             )

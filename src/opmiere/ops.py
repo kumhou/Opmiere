@@ -367,6 +367,131 @@ class Editor:
             track.clips.remove(clip)
             return clip
 
+    def ripple_delete(self, clip_id: str) -> dict[str, Any]:
+        """Delete a clip and pull later clips on the same track left to close the hole.
+
+        Also clears ``transition_in`` on the clip that becomes adjacent when that
+        transition no longer makes sense (first clip after ripple has no prev).
+        Returns deleted clip id, frames closed, and shifted clip ids.
+        """
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            gap = clip.timeline_duration_frames
+            # Account for transition overlap into this clip
+            if clip.transition_in:
+                gap = max(0, gap)  # start already overlapped; footprint still timeline_duration
+            cut_start = clip.start
+            deleted_id = clip.id
+            track.clips.remove(clip)
+            shifted: list[str] = []
+            for c in track.clips_in_order():
+                if c.start >= cut_start:
+                    c.start = max(0, c.start - gap)
+                    shifted.append(c.id)
+            # First remaining clip on track should not keep transition_in
+            ordered = track.clips_in_order()
+            if ordered and ordered[0].transition_in is not None:
+                # restore start if transition had pulled it left (we already
+                # only shifted by timeline duration; clear transition flag)
+                ordered[0].transition_in = None
+            # Re-pack hard cuts if we created accidental overlaps from transitions
+            return {
+                "deleted_id": deleted_id,
+                "track_id": track.id,
+                "frames_closed": gap,
+                "shifted": shifted,
+            }
+
+    def close_gaps(self, track_id: str, *, from_frame: int = 0) -> dict[str, Any]:
+        """Pack clips on a track leftward so they are contiguous from from_frame.
+
+        Base video/audio expect contiguity at export; use after lifts/deletes.
+        Transitions: cleared (agent re-applies) to avoid overlap math bugs.
+        """
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            ordered = track.clips_in_order()
+            if not ordered:
+                return {"track_id": track_id, "moved": [], "cursor": from_frame}
+            cursor = int(from_frame)
+            moved: list[dict[str, Any]] = []
+            for c in ordered:
+                if c.start < from_frame:
+                    continue
+                old = c.start
+                if c.transition_in is not None:
+                    c.transition_in = None
+                c.start = cursor
+                if old != cursor:
+                    moved.append({"clip_id": c.id, "from": old, "to": cursor})
+                cursor = c.end
+            return {
+                "track_id": track_id,
+                "moved": moved,
+                "cursor": cursor,
+                "agent_note": "Transitions cleared — re-add with place_after/add_transition if needed.",
+            }
+
+    def detach_audio(
+        self,
+        clip_id: str,
+        audio_track_id: str | None = None,
+        *,
+        audio_start_offset_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Copy a video clip's audio onto an audio track for independent J/L timing.
+
+        Places the same media range on an audio track (creates overlay audio
+        track when needed so starts may leave gaps). Once any audio-track clips
+        exist, export uses them instead of embedded video audio — so this
+        effectively splits picture vs sound. ``audio_start_offset_frames``
+        negative = J-cut lead (audio earlier); positive = L-cut lag.
+        """
+        with self._mutate():
+            vtrack, clip = self._find_clip_and_track(clip_id)
+            media = self.project.media_by_id(clip.media)
+            if not media.has_audio:
+                raise ValueError(
+                    f"clip {clip_id} media {media.id} has no audio to detach"
+                )
+            if vtrack.kind != "video":
+                raise ValueError("detach_audio expects a clip on a video track")
+
+            audio_tracks = [t for t in self.project.tracks if t.kind == "audio"]
+            if audio_track_id is not None:
+                atrack = self.project.track_by_id(audio_track_id)
+                if atrack.kind != "audio":
+                    raise ValueError(f"{audio_track_id} is not an audio track")
+            else:
+                # Prefer a non-base (overlay) audio track for free timing
+                if not audio_tracks:
+                    self.project.add_track("audio")  # possible empty base
+                    atrack = self.project.add_track("audio")
+                elif len(audio_tracks) == 1:
+                    # If only base exists and we need free start, add overlay
+                    atrack = self.project.add_track("audio")
+                else:
+                    atrack = audio_tracks[-1]
+
+            a_start = max(0, clip.start + int(audio_start_offset_frames))
+            audio_clip = self.project.add_clip(
+                atrack, media, a_start, clip.src_in, clip.src_out,
+            )
+            if clip.speed != 1.0:
+                audio_clip.speed = clip.speed
+            return {
+                "video_clip_id": clip.id,
+                "audio_clip_id": audio_clip.id,
+                "audio_track_id": atrack.id,
+                "audio_start": a_start,
+                "offset_frames": int(audio_start_offset_frames),
+                "agent_note": (
+                    "Picture stays on video; sound is on audio track. "
+                    "Negative offset = J-cut (audio leads). Embedded video "
+                    "audio is suppressed while any audio-track clips exist."
+                ),
+            }
+
     def apply_effect(self, clip_id: str, effect: dict) -> Clip:
         """Append a deterministic effect (ARCHITECTURE.md section 5.8) to a clip.
 
