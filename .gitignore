@@ -38,6 +38,7 @@ models/         # local model weights — never commit
 # Examples are local test/dogfood scaffolding — kept locally, not committed (JH's call, 2026-07-03)
 examples/
 scripts/_dogfood_pro_out/
+scripts/_dogfood_template_out/
 
 # JH's personal test footage/photos — large binaries, never commit
 /test_materials/
