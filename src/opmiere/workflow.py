@@ -256,6 +256,11 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
             for a in assets
         ):
             add(
+                "detect_scenes",
+                "detect_scenes",
+                "Shot boundaries on long video (PySceneDetect/ffmpeg); split/place per scene",
+            )
+            add(
                 "understand_speech",
                 "transcribe",
                 "ASR on user footage (faster-whisper); optional caption_clip to burn SRT",
@@ -266,6 +271,13 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
                 "suggest_silence_cuts",
                 "Get keep_ranges between silences; agent trims/splits from those numbers",
             )
+            if roles & {"a_roll", "music", "vo"} or True:
+                add(
+                    "optional_stems",
+                    "separate_stems",
+                    "Optional: Demucs vocals/no_vocals for dialogue vs bed control",
+                    note="Skip if no music bed conflict; needs demucs installed",
+                )
     else:
         add(
             "no_assets",

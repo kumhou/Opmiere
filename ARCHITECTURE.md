@@ -682,13 +682,13 @@ kind's default. Real audio verified via volume analysis + waveform plot (generat
 eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's own `probe()`/
 `import_media` path, not just raw ComfyUI.
 
-Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
-hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed), further
-offload-tier video candidates beyond wan2.2-moe if wanted. **User-footage understanding shipped:**
-`transcribe` / `write_srt` / `caption_clip` (faster-whisper, optional extra), `suggest_silence_cuts`
-(ffmpeg keep_ranges), `subtitles` burn-in effect; workflow plan inserts ASR + silence steps for
-a_roll. Animated Ken Burns, shape_mask, place_after, analyze_timeline, film workflow, SFX, upscale,
-glow, lut3d, white_balance done. Cloud deferred. Next product step: P3 GUI (user decision).
+**User-footage understanding:** transcribe/caption (faster-whisper), silence keep_ranges, scene
+detect (PySceneDetect + ffmpeg fallback), stem separation (Demucs, optional). **P3 minimal web**
+shell: `opmiere-web` / `python -m opmiere.web.app` — create/open project, place media, export,
+director brief→plan UI (no real-time scrub preview yet; libopenshot vs MLT still open).
+
+Still open: non-3070 profile re-benchmark (hardware), heavier offload video models, full interactive
+preview NLE, CapCut export bridge (out of core scope). Cloud deferred (local free).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

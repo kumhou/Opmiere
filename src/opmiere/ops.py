@@ -42,6 +42,8 @@ from .render.quality_check import quality_check as _quality_check
 from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
 from .render.asr import transcribe as _transcribe
 from .render.asr import write_srt as _write_srt
+from .render.scene_detect import detect_scenes as _detect_scenes
+from .render.stems import separate_stems as _separate_stems
 
 # Maps a GenerationJob.kind (what an agent asked to generate) to the
 # Media.kind it becomes once it's a file on disk. image/video are their own
@@ -861,6 +863,40 @@ class Editor:
             min_silence_seconds=min_silence_seconds,
             pad_seconds=pad_seconds,
             min_keep_seconds=min_keep_seconds,
+        )
+
+    def detect_scenes(
+        self,
+        path: str | Path,
+        *,
+        threshold: float = 27.0,
+        min_scene_len: int = 15,
+        backend: str = "auto",
+    ) -> dict[str, Any]:
+        """Detect shot boundaries in a video (PySceneDetect or ffmpeg fallback)."""
+        return _detect_scenes(
+            Path(path),
+            threshold=threshold,
+            min_scene_len=min_scene_len,
+            backend=backend,
+        )
+
+    def separate_stems(
+        self,
+        path: str | Path,
+        output_dir: str | Path,
+        *,
+        model: str = "htdemucs",
+        two_stems: str | None = "vocals",
+        device: str = "cpu",
+    ) -> dict[str, Any]:
+        """Separate vocals/accompaniment (Demucs). Returns stem file paths."""
+        return _separate_stems(
+            Path(path),
+            Path(output_dir),
+            model=model,
+            two_stems=two_stems,
+            device=device,
         )
 
     def caption_clip(

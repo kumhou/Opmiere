@@ -746,6 +746,42 @@ def caption_clip(
 
 
 @mcp.tool()
+def detect_scenes(
+    path: str,
+    threshold: float = 27.0,
+    min_scene_len: int = 15,
+    backend: str = "auto",
+) -> dict:
+    """Detect shot/scene boundaries in a video.
+
+    backend: auto (PySceneDetect if installed else ffmpeg), scenedetect, or
+    ffmpeg. Returns scenes[{start,end,duration,start_frame,end_frame}].
+    Agent uses these to split long footage onto the timeline.
+    """
+    return _require_editor().detect_scenes(
+        path, threshold=threshold, min_scene_len=min_scene_len, backend=backend,
+    )
+
+
+@mcp.tool()
+def separate_stems(
+    path: str,
+    output_dir: str,
+    model: str = "htdemucs",
+    two_stems: str | None = "vocals",
+    device: str = "cpu",
+) -> dict:
+    """Separate vocals vs accompaniment (Demucs). Needs pip install demucs.
+
+    Default two_stems=vocals → vocals.wav + no_vocals.wav under output_dir.
+    Place stems with place_from_file; duck/mute original dialogue as needed.
+    """
+    return _require_editor().separate_stems(
+        path, output_dir, model=model, two_stems=two_stems, device=device,
+    )
+
+
+@mcp.tool()
 def make_contact_sheet(path: str, output_path: str, cols: int = 3, rows: int = 3) -> str:
     """Tile cols*rows evenly-spaced thumbnails from a video into one small
     grid image - the cheap way to actually *look* at a shot's motion/
