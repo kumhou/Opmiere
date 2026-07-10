@@ -278,6 +278,7 @@ class Editor:
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
+                {"keys": "Shift+F", "action": "Match frame (source of selection at playhead)"},
                 {"keys": "Ctrl+click", "action": "Multi-select clips"},
                 {"keys": "Shift+click", "action": "Range select on track"},
                 {"keys": "?", "action": "Toggle this help"},
@@ -309,9 +310,16 @@ class Editor:
                 end = clip.end
                 max_end = max(max_end, end)
                 gain_db = 0.0
+                fade_in_f = 0
+                fade_out_f = 0
                 for fx in clip.effects or []:
                     if fx.get("type") == "gain" and isinstance(fx.get("db"), (int, float)):
                         gain_db = float(fx["db"])
+                    if fx.get("type") == "fade" and isinstance(fx.get("duration_frames"), int):
+                        if fx.get("direction") == "in":
+                            fade_in_f = int(fx["duration_frames"])
+                        elif fx.get("direction") == "out":
+                            fade_out_f = int(fx["duration_frames"])
                 clips_out.append({
                     "id": clip.id,
                     "media_id": clip.media,
@@ -328,6 +336,8 @@ class Editor:
                     "speed": clip.speed,
                     "effects_count": len(clip.effects or []),
                     "gain_db": gain_db,
+                    "fade_in_frames": fade_in_f,
+                    "fade_out_frames": fade_out_f,
                     "muted": bool(clip.muted),
                     "has_audio_media": bool(m and (m.kind == "audio" or m.has_audio)),
                     "transition_in": clip.transition_in,
@@ -2755,6 +2765,227 @@ class Editor:
                 "path": name,
                 "duration_frames": dur_f,
                 "replaced": False,
+            }
+
+    def clips_at(
+        self,
+        timeline_frame: int,
+        *,
+        track_id: str | None = None,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """Hit-test: clips covering an absolute timeline frame (end exclusive)."""
+        if not isinstance(timeline_frame, int):
+            raise ValueError("timeline_frame must be an int")
+        f = int(timeline_frame)
+        hits: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            if track_id is not None and track.id != track_id:
+                continue
+            if kind is not None and track.kind != kind:
+                continue
+            for clip in track.clips_in_order():
+                if clip.start <= f < clip.end:
+                    hits.append({
+                        "clip_id": clip.id,
+                        "track_id": track.id,
+                        "track_kind": track.kind,
+                        "start": clip.start,
+                        "end": clip.end,
+                        "media_id": clip.media,
+                        "src_in": clip.src_in,
+                        "src_out": clip.src_out,
+                        "name": clip.name,
+                    })
+        return {
+            "timeline_frame": f,
+            "hits": hits,
+            "count": len(hits),
+        }
+
+    def match_frame(
+        self,
+        *,
+        timeline_frame: int | None = None,
+        clip_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Map a timeline position to source media frame (NLE Match Frame).
+
+        If clip_id given, frame defaults to mid-clip. If only timeline_frame,
+        picks the topmost video hit, else first hit at that frame.
+        """
+        clip = None
+        track = None
+        if clip_id is not None:
+            track, clip = self._find_clip_and_track(clip_id)
+            if timeline_frame is None:
+                timeline_frame = clip.start + max(0, clip.timeline_duration_frames // 2)
+            if not (clip.start <= int(timeline_frame) < clip.end):
+                raise ValueError("timeline_frame must be inside the clip")
+        else:
+            if timeline_frame is None:
+                raise ValueError("timeline_frame or clip_id required")
+            hits = self.clips_at(int(timeline_frame))["hits"]
+            if not hits:
+                raise ValueError(f"no clip at frame {timeline_frame}")
+            pick = next((h for h in hits if h["track_kind"] == "video"), hits[0])
+            track, clip = self._find_clip_and_track(pick["clip_id"])
+
+        assert clip is not None and track is not None
+        f = int(timeline_frame)
+        local = f - clip.start
+        if clip.speed != 1.0:
+            src_frame = clip.src_in + int(round(local * clip.speed))
+        else:
+            src_frame = clip.src_in + local
+        src_frame = min(max(src_frame, clip.src_in), max(clip.src_in, clip.src_out - 1))
+        media = self.project.media_by_id(clip.media)
+        src_t = self.project.timebase.frames_to_seconds(src_frame)
+        abs_path = str(self.bundle.media_path(media.path))
+        proxy_abs = None
+        if media.proxy_path:
+            p = self.bundle.root / media.proxy_path
+            if p.exists():
+                proxy_abs = str(p)
+        return {
+            "clip_id": clip.id,
+            "track_id": track.id,
+            "track_kind": track.kind,
+            "timeline_frame": f,
+            "media_id": media.id,
+            "media_kind": media.kind,
+            "path": media.path,
+            "abs_path": abs_path,
+            "proxy_path": media.proxy_path,
+            "proxy_abs_path": proxy_abs,
+            "src_frame": src_frame,
+            "src_time_seconds": round(src_t, 4),
+            "src_in": clip.src_in,
+            "src_out": clip.src_out,
+            "agent_note": (
+                "Source frame for this timeline position. Use media_thumbnail / "
+                "frame_at / bin scrub — does not mutate the timeline."
+            ),
+        }
+
+    def set_clip_fades(
+        self,
+        clip_id: str,
+        *,
+        fade_in_frames: int = 0,
+        fade_out_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Set clip fade-in / fade-out (replaces existing fade effects). One undo.
+
+        Uses the validated ``fade`` effect (video fade + afade on export).
+        Zero frames removes that direction. Sum must not exceed source length.
+        """
+        if not isinstance(fade_in_frames, int) or fade_in_frames < 0:
+            raise ValueError("fade_in_frames must be a non-negative int")
+        if not isinstance(fade_out_frames, int) or fade_out_frames < 0:
+            raise ValueError("fade_out_frames must be a non-negative int")
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            src_len = clip.duration_frames
+            if fade_in_frames + fade_out_frames > src_len:
+                raise ValueError(
+                    f"fade_in ({fade_in_frames}) + fade_out ({fade_out_frames}) "
+                    f"exceeds source duration ({src_len})"
+                )
+            kept = [e for e in (clip.effects or []) if e.get("type") != "fade"]
+            if fade_in_frames > 0:
+                kept.append({
+                    "type": "fade",
+                    "direction": "in",
+                    "duration_frames": fade_in_frames,
+                })
+            if fade_out_frames > 0:
+                kept.append({
+                    "type": "fade",
+                    "direction": "out",
+                    "duration_frames": fade_out_frames,
+                })
+            clip.effects = kept
+            return {
+                "clip_id": clip_id,
+                "fade_in_frames": fade_in_frames,
+                "fade_out_frames": fade_out_frames,
+                "agent_note": "Fade effects applied; re-export proxy to see in scrub.",
+            }
+
+    def get_clip_fades(self, clip_id: str) -> dict[str, Any]:
+        """Read fade-in / fade-out frame counts from clip effects."""
+        clip = self._find_clip(clip_id)
+        fin = 0
+        fout = 0
+        for e in clip.effects or []:
+            if e.get("type") != "fade":
+                continue
+            d = e.get("duration_frames")
+            if not isinstance(d, int):
+                continue
+            if e.get("direction") == "in":
+                fin = d
+            elif e.get("direction") == "out":
+                fout = d
+        return {
+            "clip_id": clip_id,
+            "fade_in_frames": fin,
+            "fade_out_frames": fout,
+        }
+
+    def relink_clip(
+        self,
+        clip_id: str,
+        media_id: str,
+        *,
+        keep_source_range: bool = True,
+    ) -> dict[str, Any]:
+        """Point a clip at different project media (relink / replace source).
+
+        keep_source_range=True: keep src_in/src_out when they fit the new media;
+        otherwise clamp src_out to new duration (and src_in if needed).
+        keep_source_range=False: use full new media (0 → duration).
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            new_media = self.project.media_by_id(media_id)
+            # Kind compatibility: video track clips need video/image; audio needs audio
+            if track.kind == "video" and new_media.kind == "audio":
+                raise ValueError("cannot relink video-track clip to audio media")
+            if track.kind == "audio" and new_media.kind == "image":
+                raise ValueError("cannot relink audio-track clip to image media")
+            old = {
+                "media": clip.media,
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+            }
+            if not keep_source_range:
+                clip.media = new_media.id
+                clip.src_in = 0
+                clip.src_out = max(1, new_media.duration_frames)
+            else:
+                clip.media = new_media.id
+                max_out = max(1, new_media.duration_frames)
+                if clip.src_out > max_out:
+                    clip.src_out = max_out
+                if clip.src_in >= clip.src_out:
+                    clip.src_in = 0
+                    if clip.src_out <= 0:
+                        clip.src_out = max_out
+            return {
+                "clip_id": clip_id,
+                "media_id": new_media.id,
+                "from": old,
+                "to": {
+                    "media": clip.media,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                },
+                "track_id": track.id,
+                "agent_note": "Clip retargeted; re-export proxy. Timeline start unchanged.",
             }
 
     def clear_position(self, clip_id: str) -> Clip:

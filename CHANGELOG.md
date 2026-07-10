@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.9 — 2026-07-11
+
+### Added
+- **`clips_at` / `match_frame`**: hit-test + source frame under playhead (Shift+F)
+- **`set_clip_fades` / `get_clip_fades`**: fade in/out convenience (one undo)
+- **`relink_clip`**: retarget clip to another project media
+- Web: Detach audio, Match frame, fade controls, Relink; timeline exposes fade fields
+
 ## 0.2.8 — 2026-07-11
 
 ### Added

@@ -348,6 +348,22 @@
         <button type="button" class="secondary" id="btnFreeze" disabled>Freeze frame</button>
         <button type="button" class="secondary" id="btnReverse" disabled>Reverse</button>
       </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnDetach" disabled>Detach audio</button>
+        <button type="button" class="secondary" id="btnMatch" disabled>Match frame</button>
+      </div>
+      <label>Fade in / out (frames)</label>
+      <div class="row">
+        <input id="fadeIn" type="number" min="0" step="1" value="0" disabled />
+        <input id="fadeOut" type="number" min="0" step="1" value="0" disabled />
+        <button type="button" class="secondary" id="btnFades" disabled style="flex:0.4">Set</button>
+      </div>
+      <div id="matchLab" class="dragHint">Match: —</div>
+      <label>Relink media_id</label>
+      <div class="row">
+        <input id="relinkMedia" placeholder="med_…" disabled />
+        <button type="button" class="secondary" id="btnRelink" disabled style="flex:0.4">Relink</button>
+      </div>
       <label>Project notes</label>
       <textarea id="notes" placeholder="备注…" style="min-height:48px"></textarea>
       <button type="button" class="secondary" id="btnNotes">Save notes</button>
@@ -698,7 +714,10 @@
       const nameBtn = document.getElementById('btnClipName');
       const speedSl = document.getElementById('speedSlider');
       const speedBtn = document.getElementById('btnSpeed');
-      const pipIds = ['pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse'];
+      const pipIds = [
+        'pipX','pipY','pipS','btnPip','btnPipClear','btnFreeze','btnReverse',
+        'btnDetach','btnMatch','fadeIn','fadeOut','btnFades','relinkMedia','btnRelink',
+      ];
       if (!selectedClipId) {
         slider.disabled = true;
         btn.disabled = true;
@@ -724,13 +743,19 @@
       lab.textContent = g;
       if (muteBtn) muteBtn.textContent = (el && el.dataset.muted === '1') ? 'Unmute clip' : 'Mute clip';
       if (nameIn) nameIn.value = (el && el.dataset.name) || '';
-      // speed from timeline data
+      // speed / fades / position from timeline data
       let sp = 1;
       if (timeline) {
         for (const tr of timeline.tracks || []) {
           for (const c of tr.clips || []) {
             if (c.id === selectedClipId) {
               sp = c.speed || 1;
+              const fi = document.getElementById('fadeIn');
+              const fo = document.getElementById('fadeOut');
+              if (fi) fi.value = c.fade_in_frames || 0;
+              if (fo) fo.value = c.fade_out_frames || 0;
+              const rm = document.getElementById('relinkMedia');
+              if (rm && !rm.value) rm.value = c.media_id || '';
               if (c.position) {
                 document.getElementById('pipX').value = c.position.x;
                 document.getElementById('pipY').value = c.position.y;
@@ -1673,6 +1698,71 @@
         log('reversed ' + selectedClipId);
       } catch (e) { log(String(e.message || e)); }
     };
+    async function doMatchFrame() {
+      const fps = (timeline && timeline.fps) || 30;
+      const frame = Math.round((+scrub.value || 0) * fps);
+      const body = selectedClipId
+        ? { clip_id: selectedClipId, timeline_frame: frame }
+        : { timeline_frame: frame };
+      const r = await api('/api/clip/match_frame', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+      const lab = document.getElementById('matchLab');
+      if (lab) {
+        lab.textContent =
+          `Match: ${r.media_id} src@${r.src_frame} (${r.src_time_seconds}s) · ${r.path}`;
+      }
+      log('match_frame ' + r.media_id + ' src=' + r.src_frame);
+      return r;
+    }
+    document.getElementById('btnMatch').onclick = async () => {
+      try { await doMatchFrame(); }
+      catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnDetach').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/detach_audio', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('detach → audio ' + r.audio_clip_id);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnFades').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const fade_in_frames = Math.max(0, Math.round(+document.getElementById('fadeIn').value || 0));
+        const fade_out_frames = Math.max(0, Math.round(+document.getElementById('fadeOut').value || 0));
+        const r = await api('/api/clip/fades', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_id: selectedClipId, fade_in_frames, fade_out_frames,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('fades in=' + fade_in_frames + ' out=' + fade_out_frames);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRelink').onclick = async () => {
+      if (!selectedClipId) return;
+      const media_id = (document.getElementById('relinkMedia').value || '').trim();
+      if (!media_id) { log('relink needs media_id'); return; }
+      try {
+        const r = await api('/api/clip/relink', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_id: selectedClipId, media_id, keep_source_range: true,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('relink ' + selectedClipId + ' → ' + media_id);
+      } catch (e) { log(String(e.message || e)); }
+    };
     document.getElementById('btnNotes').onclick = async () => {
       try {
         const notes = document.getElementById('notes').value;
@@ -1931,7 +2021,11 @@
         } else if (ev.key === 'f' || ev.key === 'F') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
-          document.getElementById('btnFillGaps').click();
+          if (ev.shiftKey) {
+            await doMatchFrame();
+          } else {
+            document.getElementById('btnFillGaps').click();
+          }
         }
       } catch (e) { log(String(e.message || e)); }
     });

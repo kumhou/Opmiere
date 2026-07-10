@@ -694,6 +694,61 @@ def reverse_clip(clip_id: str, replace: bool = True) -> dict:
 
 
 @mcp.tool()
+def clips_at(
+    timeline_frame: int,
+    track_id: str | None = None,
+    kind: str | None = None,
+) -> dict:
+    """Hit-test clips covering a timeline frame."""
+    return _require_editor().clips_at(
+        timeline_frame, track_id=track_id, kind=kind,
+    )
+
+
+@mcp.tool()
+def match_frame(
+    timeline_frame: int | None = None,
+    clip_id: str | None = None,
+) -> dict:
+    """Map timeline position to source media frame (NLE Match Frame)."""
+    return _require_editor().match_frame(
+        timeline_frame=timeline_frame, clip_id=clip_id,
+    )
+
+
+@mcp.tool()
+def set_clip_fades(
+    clip_id: str,
+    fade_in_frames: int = 0,
+    fade_out_frames: int = 0,
+) -> dict:
+    """Set fade-in / fade-out (replaces existing fade effects)."""
+    return _require_editor().set_clip_fades(
+        clip_id,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+    )
+
+
+@mcp.tool()
+def get_clip_fades(clip_id: str) -> dict:
+    """Read fade-in / fade-out frame counts."""
+    return _require_editor().get_clip_fades(clip_id)
+
+
+@mcp.tool()
+def relink_clip(
+    clip_id: str,
+    media_id: str,
+    keep_source_range: bool = True,
+) -> dict:
+    """Point clip at different project media (relink / replace source)."""
+    return _require_editor().relink_clip(
+        clip_id, media_id, keep_source_range=keep_source_range,
+    )
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

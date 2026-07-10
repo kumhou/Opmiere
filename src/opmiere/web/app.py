@@ -1065,6 +1065,85 @@ def clip_reverse(body: ReverseBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClipsAtBody(BaseModel):
+    timeline_frame: int
+    track_id: str | None = None
+    kind: str | None = None
+
+
+class MatchFrameBody(BaseModel):
+    timeline_frame: int | None = None
+    clip_id: str | None = None
+
+
+class FadesBody(BaseModel):
+    clip_id: str
+    fade_in_frames: int = 0
+    fade_out_frames: int = 0
+
+
+class RelinkBody(BaseModel):
+    clip_id: str
+    media_id: str
+    keep_source_range: bool = True
+
+
+class DetachAudioBody(BaseModel):
+    clip_id: str
+    audio_track_id: str | None = None
+    audio_start_offset_frames: int = 0
+
+
+@app.post("/api/clips/at")
+def clips_at_api(body: ClipsAtBody) -> dict[str, Any]:
+    return _ed().clips_at(
+        body.timeline_frame, track_id=body.track_id, kind=body.kind,
+    )
+
+
+@app.post("/api/clip/match_frame")
+def match_frame_api(body: MatchFrameBody) -> dict[str, Any]:
+    return _ed().match_frame(
+        timeline_frame=body.timeline_frame, clip_id=body.clip_id,
+    )
+
+
+@app.post("/api/clip/fades")
+def clip_fades_set(body: FadesBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clip_fades(
+        body.clip_id,
+        fade_in_frames=body.fade_in_frames,
+        fade_out_frames=body.fade_out_frames,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/clip/fades/{clip_id}")
+def clip_fades_get(clip_id: str) -> dict[str, Any]:
+    return _ed().get_clip_fades(clip_id)
+
+
+@app.post("/api/clip/relink")
+def clip_relink(body: RelinkBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.relink_clip(
+        body.clip_id, body.media_id, keep_source_range=body.keep_source_range,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/detach_audio")
+def clip_detach_audio(body: DetachAudioBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.detach_audio(
+        body.clip_id,
+        body.audio_track_id,
+        audio_start_offset_frames=body.audio_start_offset_frames,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/style_assets")
 def style_assets_api() -> dict[str, Any]:
     if _editor is None:
