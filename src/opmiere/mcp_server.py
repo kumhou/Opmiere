@@ -231,6 +231,45 @@ def trim_clip(clip_id: str, src_in: int, src_out: int) -> dict:
 
 
 @mcp.tool()
+def set_clip_layout(
+    clip_id: str,
+    start: int | None = None,
+    src_in: int | None = None,
+    src_out: int | None = None,
+) -> dict:
+    """Atomic move+trim for UI/agent drag (one undo step)."""
+    return _require_editor().set_clip_layout(
+        clip_id, start=start, src_in=src_in, src_out=src_out,
+    )
+
+
+@mcp.tool()
+def edge_trim(
+    clip_id: str,
+    edge: str,
+    delta_frames: int,
+    mode: str = "normal",
+) -> dict:
+    """Trim left/right edge by delta_frames (mode: normal|ripple)."""
+    return _require_editor().edge_trim(
+        clip_id, edge, delta_frames, mode=mode,
+    )
+
+
+@mcp.tool()
+def refresh_preview_proxy(
+    quick: bool = False,
+    force: bool | None = None,
+    height: int | None = None,
+    fps: float | None = None,
+) -> dict:
+    """Rebuild timeline scrub proxy when stale (quick≈180p for snappy UI)."""
+    return _require_editor().refresh_preview_proxy(
+        quick=quick, force=force, height=height, fps=fps,
+    )
+
+
+@mcp.tool()
 def split_clip(clip_id: str, at_frame: int) -> dict:
     """Split a clip at an absolute timeline frame into two clips."""
     first, second = _require_editor().split_clip(clip_id, at_frame)

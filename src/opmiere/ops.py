@@ -100,6 +100,9 @@ class Editor:
         self.render_backend = render_backend or FFmpegBackend()
         self._preview_proxy_path: str | None = None
         self._preview_proxy_fingerprint: str | None = None
+        # Last successful scrub settings (used by refresh_preview_proxy).
+        self._preview_proxy_height: int = 360
+        self._preview_proxy_fps: float = 12.0
         # No default provider: generation is optional and pluggable (section
         # 4 principle 3) - unlike rendering, there's no single obvious
         # default (local vs cloud, which model), so the caller must choose.
@@ -533,6 +536,147 @@ class Editor:
             clip.src_in = src_in
             clip.src_out = src_out
             return clip
+
+    def set_clip_layout(
+        self,
+        clip_id: str,
+        *,
+        start: int | None = None,
+        src_in: int | None = None,
+        src_out: int | None = None,
+    ) -> dict[str, Any]:
+        """Atomic layout write for UI drag (move + trim in one undo step).
+
+        Pass any subset of start / src_in / src_out. Validates media bounds and
+        non-empty range. Does not auto-ripple neighbors — use ripple_trim for that.
+        """
+        if start is None and src_in is None and src_out is None:
+            raise ValueError("provide start and/or src_in and/or src_out")
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if clip.speed != 1.0 and (src_in is not None or src_out is not None):
+                raise ValueError("set_clip_layout trim requires speed=1.0")
+            media = self.project.media_by_id(clip.media)
+            old = {
+                "start": clip.start,
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+            }
+            new_start = old["start"] if start is None else int(start)
+            new_in = old["src_in"] if src_in is None else int(src_in)
+            new_out = old["src_out"] if src_out is None else int(src_out)
+            if new_start < 0:
+                raise ValueError(f"start must be >= 0, got {new_start}")
+            if new_out <= new_in:
+                raise ValueError(f"src_out ({new_out}) must be > src_in ({new_in})")
+            if new_in < 0:
+                raise ValueError("src_in must be >= 0")
+            if media.duration_frames and new_out > media.duration_frames:
+                raise ValueError(
+                    f"src_out ({new_out}) exceeds media duration "
+                    f"({media.duration_frames})"
+                )
+            clip.start = new_start
+            clip.src_in = new_in
+            clip.src_out = new_out
+            return {
+                "clip_id": clip.id,
+                "from": old,
+                "to": {
+                    "start": clip.start,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "end": clip.end,
+                    "duration_frames": clip.timeline_duration_frames,
+                },
+                "agent_note": "Layout applied in one undo step; refresh_preview_proxy if scrubbing.",
+            }
+
+    def edge_trim(
+        self,
+        clip_id: str,
+        edge: str,
+        delta_frames: int,
+        *,
+        mode: str = "normal",
+    ) -> dict[str, Any]:
+        """Trim one edge by delta frames.
+
+        edge: ``left`` | ``right``.
+        mode ``normal``: left edge moves start+src_in together (right edge fixed
+        on timeline); right edge only changes src_out.
+        mode ``ripple``: delegates to ripple_trim (followers close the hole).
+        Positive delta: left edge → later (shorter head); right edge → later
+        (longer tail).
+        """
+        if edge not in ("left", "right"):
+            raise ValueError("edge must be 'left' or 'right'")
+        if mode not in ("normal", "ripple"):
+            raise ValueError("mode must be 'normal' or 'ripple'")
+        if not isinstance(delta_frames, int):
+            raise ValueError("delta_frames must be an int")
+        if delta_frames == 0:
+            clip = self._find_clip(clip_id)
+            return {
+                "clip_id": clip_id,
+                "edge": edge,
+                "delta_frames": 0,
+                "unchanged": True,
+                "to": {
+                    "start": clip.start,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                },
+            }
+
+        clip = self._find_clip(clip_id)
+        if mode == "ripple":
+            if edge == "left":
+                return {
+                    **self.ripple_trim(
+                        clip_id, new_src_in=clip.src_in + delta_frames,
+                    ),
+                    "edge": edge,
+                    "mode": mode,
+                    "delta_frames": delta_frames,
+                }
+            return {
+                **self.ripple_trim(
+                    clip_id, new_src_out=clip.src_out + delta_frames,
+                ),
+                "edge": edge,
+                "mode": mode,
+                "delta_frames": delta_frames,
+            }
+
+        if edge == "left":
+            # Keep right edge fixed on the timeline.
+            new_in = clip.src_in + delta_frames
+            new_start = clip.start + delta_frames
+            if new_start < 0:
+                # clamp
+                shift = -new_start
+                new_start = 0
+                new_in += shift
+            return {
+                **self.set_clip_layout(
+                    clip_id, start=new_start, src_in=new_in, src_out=clip.src_out,
+                ),
+                "edge": edge,
+                "mode": mode,
+                "delta_frames": delta_frames,
+            }
+        return {
+            **self.set_clip_layout(
+                clip_id,
+                start=clip.start,
+                src_in=clip.src_in,
+                src_out=clip.src_out + delta_frames,
+            ),
+            "edge": edge,
+            "mode": mode,
+            "delta_frames": delta_frames,
+        }
 
     def split_clip(self, clip_id: str, at_frame: int) -> tuple[Clip, Clip]:
         with self._mutate():
@@ -2822,6 +2966,7 @@ class Editor:
                 "fingerprint": self._preview_proxy_fingerprint,
                 "fresh": True,
                 "cache_hit": True,
+                "quick": False,
                 "agent_note": "Reused fresh proxy (no re-encode).",
             }
 
@@ -2829,6 +2974,9 @@ class Editor:
         aspect = old_w / max(old_h, 1)
         new_h = int(height) // 2 * 2
         new_w = max(2, int(round(new_h * aspect)) // 2 * 2)
+        # Interactive edits: low res → ultrafast; normal scrub → veryfast
+        enc_preset = "ultrafast" if new_h <= 240 else "veryfast"
+        enc_crf = "30" if new_h <= 240 else "28"
         try:
             self.project.resolution.w = new_w
             self.project.resolution.h = new_h
@@ -2847,7 +2995,7 @@ class Editor:
                 "-vf", f"fps={fps}",
                 "-an",
                 "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                "-preset", "veryfast", "-crf", "28",
+                "-preset", enc_preset, "-crf", enc_crf,
                 str(proxy),
             ],
             capture_output=True, text=True,
@@ -2870,6 +3018,8 @@ class Editor:
 
         self._preview_proxy_path = str(proxy.resolve())
         self._preview_proxy_fingerprint = self._timeline_fingerprint()
+        self._preview_proxy_height = new_h
+        self._preview_proxy_fps = float(fps)
         from .render.probe import probe as _probe
         info = _probe(proxy)
         return {
@@ -2881,9 +3031,11 @@ class Editor:
             "project_resolution": {"w": old_w, "h": old_h},
             "proxy_height": new_h,
             "proxy_fps_request": fps,
+            "encode_preset": enc_preset,
             "fingerprint": self._preview_proxy_fingerprint,
             "fresh": True,
             "cache_hit": False,
+            "quick": new_h <= 240,
             "agent_note": (
                 "Scrub proxy only — not for delivery. Auto-invalidated on "
                 "timeline mutate/undo/redo; re-run export_preview after edits."
@@ -2901,6 +3053,45 @@ class Editor:
         return self.export_preview(
             output_path, height=height, fps=fps, force=False,
         )
+
+    def refresh_preview_proxy(
+        self,
+        *,
+        quick: bool = False,
+        force: bool | None = None,
+        height: int | None = None,
+        fps: float | None = None,
+    ) -> dict[str, Any]:
+        """Rebuild scrub proxy when stale (or force). Used after timeline drags.
+
+        quick=True → ~180p / 8fps / ultrafast for snappy UI feedback.
+        force=None → rebuild only if not fresh; force=True always; False never.
+        """
+        status = self.preview_proxy_status()
+        if force is False:
+            return {
+                **status,
+                "cache_hit": True,
+                "skipped": True,
+                "agent_note": "force=false — no rebuild",
+            }
+        need = True if force is True else (not status.get("fresh"))
+        if not need:
+            return self.export_preview(
+                height=height or self._preview_proxy_height,
+                fps=fps or self._preview_proxy_fps,
+                force=False,
+            )
+        if quick:
+            h = height if height is not None else 180
+            f = fps if fps is not None else 8.0
+        else:
+            h = height if height is not None else int(self._preview_proxy_height or 360)
+            f = fps if fps is not None else float(self._preview_proxy_fps or 12.0)
+        result = self.export_preview(height=h, fps=f, force=True)
+        result["refreshed"] = True
+        result["quick"] = bool(quick)
+        return result
 
     def review_keyframes(
         self,

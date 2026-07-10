@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.4")
+app = FastAPI(title="Opmiere", version="0.1.5")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -130,6 +130,31 @@ class RippleDeleteBody(BaseModel):
     clip_id: str
 
 
+class ClipLayoutBody(BaseModel):
+    clip_id: str
+    start_frame: int | None = None
+    src_in: int | None = None
+    src_out: int | None = None
+    refresh_preview: bool = True
+    quick_preview: bool = True
+
+
+class EdgeTrimBody(BaseModel):
+    clip_id: str
+    edge: str  # left | right
+    delta_frames: int
+    mode: str = "normal"
+    refresh_preview: bool = True
+    quick_preview: bool = True
+
+
+class PreviewRefreshBody(BaseModel):
+    quick: bool = True
+    force: bool | None = None
+    height: int | None = None
+    fps: float | None = None
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     html = _STATIC / "index.html"
@@ -142,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.1.4",
+        "phase": "0.1.5",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -318,6 +343,94 @@ def filler_cuts(body: FillerBody) -> dict[str, Any]:
 @app.post("/api/ripple_delete")
 def ripple_delete(body: RippleDeleteBody) -> dict[str, Any]:
     return _ed().ripple_delete(body.clip_id)
+
+
+def _maybe_refresh(ed: Editor, *, enabled: bool, quick: bool) -> dict[str, Any] | None:
+    """Best-effort proxy rebuild; layout must not fail if export is invalid mid-edit."""
+    if not enabled:
+        return None
+    try:
+        return ed.refresh_preview_proxy(quick=quick)
+    except Exception as e:
+        st = ed.preview_proxy_status()
+        return {
+            "error": str(e)[:500],
+            "fresh": False,
+            "exists": st.get("exists"),
+            "path": st.get("path"),
+            "agent_note": (
+                "Layout saved; preview rebuild failed (base track may need "
+                "start=0 + contiguity). Fix gaps or close_gaps then refresh."
+            ),
+        }
+
+
+@app.post("/api/clip/layout")
+def clip_layout(body: ClipLayoutBody) -> dict[str, Any]:
+    """Atomic move/trim for timeline drag. Optionally quick-refresh scrub proxy."""
+    ed = _ed()
+    layout = ed.set_clip_layout(
+        body.clip_id,
+        start=body.start_frame,
+        src_in=body.src_in,
+        src_out=body.src_out,
+    )
+    return {
+        "layout": layout,
+        "timeline": ed.timeline_view(),
+        "preview": _maybe_refresh(
+            ed, enabled=body.refresh_preview, quick=body.quick_preview,
+        ),
+    }
+
+
+@app.post("/api/clip/edge_trim")
+def clip_edge_trim(body: EdgeTrimBody) -> dict[str, Any]:
+    ed = _ed()
+    result = ed.edge_trim(
+        body.clip_id,
+        body.edge,
+        body.delta_frames,
+        mode=body.mode,
+    )
+    return {
+        "trim": result,
+        "timeline": ed.timeline_view(),
+        "preview": _maybe_refresh(
+            ed, enabled=body.refresh_preview, quick=body.quick_preview,
+        ),
+    }
+
+
+class MoveClipBody(BaseModel):
+    clip_id: str
+    start_frame: int
+    refresh_preview: bool = True
+    quick_preview: bool = True
+
+
+@app.post("/api/clip/move")
+def clip_move(body: MoveClipBody) -> dict[str, Any]:
+    ed = _ed()
+    clip = ed.move_clip(body.clip_id, body.start_frame)
+    return {
+        "clip": clip.to_dict(),
+        "timeline": ed.timeline_view(),
+        "preview": _maybe_refresh(
+            ed, enabled=body.refresh_preview, quick=body.quick_preview,
+        ),
+    }
+
+
+@app.post("/api/preview/refresh")
+def preview_refresh(body: PreviewRefreshBody) -> dict[str, Any]:
+    """Rebuild scrub proxy if stale (quick=true for post-drag snappiness)."""
+    return _ed().refresh_preview_proxy(
+        quick=body.quick,
+        force=body.force,
+        height=body.height,
+        fps=body.fps,
+    )
 
 
 @app.post("/api/undo")

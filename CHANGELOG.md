@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 — 2026-07-10
+
+### Added
+- **Timeline drag edit**: `set_clip_layout`, `edge_trim` (left/right, normal|ripple); web drag move + edge handles
+- **Quick proxy refresh**: `refresh_preview_proxy(quick=True)` (~180p/ultrafast) after layout; web `/api/clip/layout` + `/api/preview/refresh`
+- MCP: `set_clip_layout`, `edge_trim`, `refresh_preview_proxy`
+
 ## 0.1.4 — 2026-07-10
 
 ### Added

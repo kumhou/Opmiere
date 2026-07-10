@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.1.4)
+# Opmiere tool surface (0.1.5)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -40,6 +40,8 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `add_track` / `add_clip` / `trim` / `split` / `move` / `delete_*` | structure |
 | `ripple_delete` / `close_gaps` / `detach_audio` | ripple edits + J/L sound split |
 | `slip_clip` / `roll_edit` / `slide_clip` / `ripple_trim` | classic NLE trim suite |
+| `set_clip_layout` / `edge_trim` | UI drag move+trim (one undo) |
+| `refresh_preview_proxy` | rebuild scrub proxy when stale (`quick` for snappy UI) |
 | `export_range` | full render then cut a time range deliverable |
 | `apply_effect` / `add_transition` / `set_speed` / `set_position` | craft |
 | `apply_project_look` / `color_match_to_clip` / `list_look_presets` | session look |

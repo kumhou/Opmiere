@@ -96,12 +96,24 @@
     .tclip {
       position:absolute; top:3px; bottom:3px; border-radius:4px;
       border:1px solid rgba(255,255,255,0.12); font-size:10px;
-      padding:2px 6px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-      cursor:pointer; color:#e8eaed;
+      padding:2px 10px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+      cursor:grab; color:#e8eaed; user-select:none; touch-action:none;
     }
     .tclip.video { background:var(--vclip); }
     .tclip.audio { background:var(--aclip); }
     .tclip.selected { outline:2px solid var(--acc); z-index:2; }
+    .tclip.dragging { opacity:0.85; cursor:grabbing; z-index:4; }
+    .tclip .hL, .tclip .hR {
+      position:absolute; top:0; bottom:0; width:7px; cursor:ew-resize;
+      background:transparent; z-index:3;
+    }
+    .tclip .hL { left:0; border-radius:4px 0 0 4px; }
+    .tclip .hR { right:0; border-radius:0 4px 4px 0; }
+    .tclip:hover .hL, .tclip:hover .hR,
+    .tclip.selected .hL, .tclip.selected .hR {
+      background:rgba(255,255,255,0.22);
+    }
+    .dragHint { font-size:10px; color:var(--muted); margin:4px 0 0; }
     #playhead {
       position:absolute; top:0; bottom:0; width:2px; background:var(--play);
       z-index:5; pointer-events:none; left:0;
@@ -206,6 +218,7 @@
       <img id="previewImg" alt="" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;border:1px solid var(--border)" />
 
       <h2>Timeline</h2>
+      <p class="dragHint">拖中间 = 移动 · 拖两端 = 裁剪 · 松手后 quick proxy 刷新</p>
       <div id="ruler"></div>
       <div id="tracks"><p style="color:var(--muted);padding:12px;font-size:12px">Empty — place media.</p></div>
       <div class="row" style="margin-top:8px">
@@ -284,6 +297,7 @@
     let scrubMax = 10;
     let syncingFromVideo = false;
     let playheadEl = null;
+    let drag = null; // active drag state
 
     function log(msg) {
       const t = new Date().toLocaleTimeString();
@@ -377,48 +391,155 @@
         seekTo(pct * scrubMax);
       };
 
-      const durF = Math.max(tv.duration_frames, 1);
+      // Use a stable time base so dragging past end still has room
+      const fps = tv.fps || 30;
+      const durF = Math.max(tv.duration_frames, Math.round(fps * 2), 1);
+      const viewDurF = Math.max(durF, Math.round((scrubMax || 1) * fps));
       let html = '<div id="playhead"></div>';
       for (const tr of tv.tracks) {
         let clipsHtml = '';
         for (const c of tr.clips || []) {
-          const left = (c.start_frame / durF) * 100;
-          const width = Math.max(0.8, (c.duration_frames / durF) * 100);
+          const left = (c.start_frame / viewDurF) * 100;
+          const width = Math.max(0.8, (c.duration_frames / viewDurF) * 100);
           const sel = c.id === selectedClipId ? ' selected' : '';
           const kind = tr.kind === 'audio' ? 'audio' : 'video';
-          clipsHtml += `<div class="tclip ${kind}${sel}" data-id="${c.id}" data-t="${c.start_seconds}"
-            style="left:${left}%;width:${width}%" title="${c.label} · ${c.id}">${c.label}</div>`;
+          clipsHtml += `<div class="tclip ${kind}${sel}" data-id="${c.id}"
+            data-start="${c.start_frame}" data-in="${c.src_in}" data-out="${c.src_out}"
+            data-t="${c.start_seconds}" data-label="${(c.label||'').replace(/"/g,'')}"
+            style="left:${left}%;width:${width}%" title="${c.label} · ${c.id} · drag/trim">
+            <span class="hL" data-edge="left"></span>${c.label}<span class="hR" data-edge="right"></span>
+          </div>`;
         }
         html += `<div class="track-row">
           <div class="track-name">${tr.kind}<br/>${tr.id.slice(0,10)}</div>
-          <div class="track-lane">${clipsHtml}</div>
+          <div class="track-lane" data-view-frames="${viewDurF}">${clipsHtml}</div>
         </div>`;
       }
       tracksEl.innerHTML = html;
       playheadEl = document.getElementById('playhead');
       setPlayhead(+scrub.value || 0);
+      wireClipInteractions(tracksEl, viewDurF, fps);
+    }
 
+    function wireClipInteractions(tracksEl, viewDurF, fps) {
       tracksEl.querySelectorAll('.tclip').forEach(el => {
-        el.onclick = (e) => {
+        el.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          const edgeEl = e.target.closest('[data-edge]');
+          const mode = edgeEl ? edgeEl.dataset.edge : 'move';
+          e.preventDefault();
           e.stopPropagation();
           selectedClipId = el.dataset.id;
-          document.querySelectorAll('.tclip').forEach(x => x.classList.toggle('selected', x.dataset.id === selectedClipId));
+          document.querySelectorAll('.tclip').forEach(x =>
+            x.classList.toggle('selected', x.dataset.id === selectedClipId));
           document.getElementById('btnRippleDel').disabled = !selectedClipId;
           document.getElementById('btnFillerDry').disabled = !selectedClipId;
           document.getElementById('btnFillerApply').disabled = !selectedClipId;
-          seekTo(+el.dataset.t || 0);
-          log('select ' + selectedClipId);
-        };
+
+          const lane = el.closest('.track-lane');
+          const laneW = lane.getBoundingClientRect().width;
+          drag = {
+            mode,
+            el,
+            id: el.dataset.id,
+            startX: e.clientX,
+            laneW,
+            viewDurF,
+            fps,
+            origStart: +el.dataset.start,
+            origIn: +el.dataset.in,
+            origOut: +el.dataset.out,
+            moved: false,
+          };
+          el.classList.add('dragging');
+          el.setPointerCapture(e.pointerId);
+        });
       });
+
       tracksEl.querySelectorAll('.track-lane').forEach(lane => {
-        lane.onclick = (ev) => {
-          if (ev.target.classList.contains('tclip')) return;
+        lane.addEventListener('click', (ev) => {
+          if (drag || ev.target.closest('.tclip')) return;
           const rect = lane.getBoundingClientRect();
           const pct = (ev.clientX - rect.left) / rect.width;
-          seekTo(pct * scrubMax);
-        };
+          const vf = +(lane.dataset.viewFrames || viewDurF);
+          seekTo((pct * vf) / fps);
+        });
       });
     }
+
+    function framesFromDx(dx, laneW, viewDurF) {
+      if (!laneW) return 0;
+      return Math.round((dx / laneW) * viewDurF);
+    }
+
+    function applyDragVisual(d, dx) {
+      const df = framesFromDx(dx, d.laneW, d.viewDurF);
+      let start = d.origStart;
+      let inn = d.origIn;
+      let out = d.origOut;
+      if (d.mode === 'move') {
+        start = Math.max(0, d.origStart + df);
+      } else if (d.mode === 'left') {
+        // right edge fixed: start and src_in move together
+        let delta = df;
+        if (d.origStart + delta < 0) delta = -d.origStart;
+        if (d.origIn + delta >= d.origOut - 1) delta = d.origOut - 1 - d.origIn;
+        start = d.origStart + delta;
+        inn = d.origIn + delta;
+      } else if (d.mode === 'right') {
+        out = Math.max(d.origIn + 1, d.origOut + df);
+      }
+      const dur = out - inn;
+      d.el.style.left = (start / d.viewDurF) * 100 + '%';
+      d.el.style.width = Math.max(0.8, (dur / d.viewDurF) * 100) + '%';
+      d.pending = { start, src_in: inn, src_out: out };
+      if (Math.abs(dx) > 3) d.moved = true;
+    }
+
+    window.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      applyDragVisual(drag, e.clientX - drag.startX);
+    });
+
+    window.addEventListener('pointerup', async (e) => {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      d.el.classList.remove('dragging');
+      if (!d.moved || !d.pending) {
+        seekTo(+d.el.dataset.t || 0);
+        log('select ' + d.id);
+        return;
+      }
+      try {
+        log('layout ' + d.mode + '…');
+        const r = await api('/api/clip/layout', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_id: d.id,
+            start_frame: d.pending.start,
+            src_in: d.pending.src_in,
+            src_out: d.pending.src_out,
+            refresh_preview: true,
+            quick_preview: true,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        if (r.preview && r.preview.error) {
+          log('preview: ' + r.preview.error);
+          await refreshProxyPill();
+        } else if (r.preview && r.preview.path && !r.preview.cache_hit && !r.preview.skipped) {
+          attachProxyVideo(Date.now());
+          await refreshProxyPill();
+        } else {
+          await refreshProxyPill();
+        }
+        log('layout ok ' + d.id);
+      } catch (err) {
+        log(String(err.message || err));
+        try { await refreshAll(); } catch (_) {}
+      }
+    });
 
     function attachProxyVideo(bust) {
       const url = '/api/preview/proxy.mp4?t=' + (bust || Date.now());

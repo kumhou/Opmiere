@@ -72,5 +72,5 @@ product depth in the **editor**, not a wrong core.
 2. Hand-tuned style files → **hero feature (0.1.2)**  
 3. Squeeze 3070 → **NVENC export + doctor**  
 
-0.1.4 shipped dual-surface web NLE shell (proportional timeline + HTML5 proxy scrub).
-True realtime effects backend (libopenshot/MLT) and Tauri packaging remain later.
+0.1.4 dual-surface web shell; **0.1.5** timeline drag move/trim + quick proxy refresh.
+True realtime effects (libopenshot/MLT) and Tauri packaging remain later.
