@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.2.6)
+# Opmiere tool surface (0.2.7)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -64,6 +64,7 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `ripple_nudge` / `insert_time` / `extract_time` | magnetic-style track time ops |
 | `set_clip_meta` / `list_clip_colors` | clip name + color chips |
 | `list_recent_projects` / `set_autosave` / `project_dirty` | recents + autosave |
+| `set_project_notes` / `get_project_notes` / `get_keymap_help` | notes + shortcut help |
 | `set_ducking` / `gain` / `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain` | mix |
 | `detect_beats` | music onset anchors |
 | `analyze_audio` / `analyze_timeline` | ears |

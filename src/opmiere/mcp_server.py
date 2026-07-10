@@ -653,6 +653,23 @@ def project_dirty() -> dict:
 
 
 @mcp.tool()
+def set_project_notes(notes: str) -> dict:
+    """Persist free-text project notes (not burned into export)."""
+    return _require_editor().set_project_notes(notes)
+
+
+@mcp.tool()
+def get_project_notes() -> dict:
+    return _require_editor().get_project_notes()
+
+
+@mcp.tool()
+def get_keymap_help() -> dict:
+    """Web NLE keyboard shortcuts (for agents / help UI)."""
+    return _require_editor().get_keymap_help()
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

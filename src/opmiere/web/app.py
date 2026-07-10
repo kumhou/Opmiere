@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.6")
+app = FastAPI(title="Opmiere", version="0.2.7")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.6",
+        "phase": "0.2.7",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -982,6 +982,58 @@ def dirty_api() -> dict[str, Any]:
         "autosave": ed._autosave,
         "bundle_path": str(ed.bundle.root),
     }
+
+
+class SpeedBody(BaseModel):
+    clip_id: str
+    speed: float = 1.0
+
+
+class PositionBody(BaseModel):
+    clip_id: str
+    x: float = 0.05
+    y: float = 0.05
+    scale: float = 0.35
+
+
+class NotesBody(BaseModel):
+    notes: str = ""
+
+
+@app.post("/api/clip/speed")
+def clip_speed(body: SpeedBody) -> dict[str, Any]:
+    ed = _ed()
+    clip = ed.set_speed(body.clip_id, body.speed)
+    return {"clip": clip.to_dict(), "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/position")
+def clip_position(body: PositionBody) -> dict[str, Any]:
+    ed = _ed()
+    clip = ed.set_position(body.clip_id, body.x, body.y, body.scale)
+    return {"clip": clip.to_dict(), "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/position/clear")
+def clip_position_clear(body: ClipIdBody) -> dict[str, Any]:
+    ed = _ed()
+    clip = ed.clear_position(body.clip_id)
+    return {"clip": clip.to_dict(), "timeline": ed.timeline_view()}
+
+
+@app.get("/api/notes")
+def notes_get() -> dict[str, Any]:
+    return _ed().get_project_notes()
+
+
+@app.post("/api/notes")
+def notes_set(body: NotesBody) -> dict[str, Any]:
+    return _ed().set_project_notes(body.notes)
+
+
+@app.get("/api/help/keymap")
+def keymap_help() -> dict[str, Any]:
+    return Editor.get_keymap_help()
 
 
 @app.get("/api/style_assets")

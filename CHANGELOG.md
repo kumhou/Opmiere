@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.7 — 2026-07-11
+
+### Added
+- **Project notes**: `set_project_notes` / `get_project_notes` (persisted in `.opm`)
+- **Keymap help**: `get_keymap_help` + web `?` overlay
+- Web: speed slider, PiP x/y/scale, notes field; speed clamped to [0.25, 4]
+
 ## 0.2.6 — 2026-07-11
 
 ### Added

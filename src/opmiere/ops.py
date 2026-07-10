@@ -253,6 +253,38 @@ class Editor:
     def list_clip_colors(self) -> dict[str, Any]:
         return {"colors": list(_CLIP_COLORS)}
 
+    def set_project_notes(self, notes: str) -> dict[str, Any]:
+        """Free-text project notes (persisted in project.json, not in pixels)."""
+        with self._mutate():
+            self.project.notes = str(notes or "")
+            return {"notes": self.project.notes, "length": len(self.project.notes)}
+
+    def get_project_notes(self) -> dict[str, Any]:
+        return {"notes": self.project.notes or ""}
+
+    @staticmethod
+    def get_keymap_help(_self: Any = None) -> dict[str, Any]:
+        """Document web/NLE keyboard shortcuts for agents and the help overlay."""
+        return {
+            "shortcuts": [
+                {"keys": "Space", "action": "Play/pause proxy"},
+                {"keys": "← / →", "action": "Step frame (Shift = 1s)"},
+                {"keys": "Alt+← / Alt+→", "action": "Ripple nudge selection"},
+                {"keys": "M", "action": "Add marker at playhead"},
+                {"keys": "S", "action": "Split selected clip"},
+                {"keys": "C", "action": "Razor all tracks at playhead"},
+                {"keys": "I / O", "action": "Set work In / Out"},
+                {"keys": "Ctrl+C/V/D", "action": "Copy / paste / duplicate"},
+                {"keys": "Del", "action": "Ripple delete selection"},
+                {"keys": "[ / ]", "action": "Undo / redo"},
+                {"keys": "F", "action": "Fill base gaps (black)"},
+                {"keys": "Ctrl+click", "action": "Multi-select clips"},
+                {"keys": "Shift+click", "action": "Range select on track"},
+                {"keys": "?", "action": "Toggle this help"},
+            ],
+            "agent_note": "Human web shell only; MCP uses tools, not key events.",
+        }
+
     # --- read-only introspection (what an agent queries before it acts) ----
     def describe(self) -> dict:
         return self.project.to_dict()
@@ -301,6 +333,7 @@ class Editor:
                     "transition_in": clip.transition_in,
                     "name": clip.name,
                     "color": clip.color,
+                    "position": clip.position,
                     "label": (
                         clip.name
                         or (m.path.split("/")[-1] if m and m.path else clip.id)
@@ -342,6 +375,7 @@ class Editor:
             "dirty": self._dirty,
             "autosave": self._autosave,
             "bundle_path": str(self.bundle.root),
+            "notes": self.project.notes or "",
         }
 
     # --- undo/redo -----------------------------------------------------
@@ -2468,9 +2502,13 @@ class Editor:
         validated at export time (render/ffmpeg.py), consistent with how
         those two already behave.
         """
+        self._assert_clip_track_unlocked(clip_id)
         with self._mutate():
             if not isinstance(speed, (int, float)) or speed <= 0:
                 raise ValueError(f"speed must be a positive number, got {speed!r}")
+            # Practical range for single atempo / setpts path
+            if float(speed) < 0.25 or float(speed) > 4.0:
+                raise ValueError("speed must be in [0.25, 4.0]")
             clip = self._find_clip(clip_id)
             clip.speed = float(speed)
             return clip
@@ -2486,6 +2524,7 @@ class Editor:
         1 is flush against the opposite edge, so any value in range keeps the
         whole box on-canvas by construction.
         """
+        self._assert_clip_track_unlocked(clip_id)
         with self._mutate():
             if not isinstance(scale, (int, float)) or not (0.0 < scale <= 1.0):
                 raise ValueError(f"scale must be in (0, 1], got {scale!r}")
@@ -2499,6 +2538,7 @@ class Editor:
 
     def clear_position(self, clip_id: str) -> Clip:
         """Restore a clip to full-frame (remove a previously set position)."""
+        self._assert_clip_track_unlocked(clip_id)
         with self._mutate():
             clip = self._find_clip(clip_id)
             clip.position = None

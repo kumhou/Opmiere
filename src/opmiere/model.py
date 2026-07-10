@@ -361,6 +361,8 @@ class Project:
     media: list[Media] = field(default_factory=list)
     tracks: list[Track] = field(default_factory=list)
     markers: list[Marker] = field(default_factory=list)
+    # Free-text project notes (shown in UI; not burned into export).
+    notes: str = ""
     schema: int = SCHEMA_VERSION
 
     # --- lookup -----------------------------------------------------------
@@ -443,6 +445,8 @@ class Project:
         }
         if self.markers:
             d["markers"] = [m.to_dict() for m in self.markers]
+        if self.notes:
+            d["notes"] = self.notes
         return d
 
     @classmethod
@@ -454,5 +458,6 @@ class Project:
             media=[Media.from_dict(m) for m in d.get("media", [])],
             tracks=[Track.from_dict(t) for t in d.get("tracks", [])],
             markers=[Marker.from_dict(m) for m in d.get("markers", [])],
+            notes=str(d.get("notes") or ""),
             schema=d.get("schema", SCHEMA_VERSION),
         )
