@@ -91,6 +91,15 @@ def get_project_state() -> dict:
 
 
 @mcp.tool()
+def get_timeline_view() -> dict:
+    """Proportional timeline layout: clip seconds, labels, proxy/undo flags.
+
+    Prefer for scrub UI / layout; get_project_state remains the full model dump.
+    """
+    return _require_editor().timeline_view()
+
+
+@mcp.tool()
 def import_media(
     src_path: str,
     kind: MediaKind,

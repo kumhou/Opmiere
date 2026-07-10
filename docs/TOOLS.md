@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.1)
+# Opmiere tool surface (0.1.4)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -15,7 +15,7 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 
 | Tool | Purpose |
 |------|---------|
-| `create_project` / `open_project` / `save_project` / `get_project_state` | lifecycle |
+| `create_project` / `open_project` / `save_project` / `get_project_state` / `get_timeline_view` | lifecycle + layout scrub |
 | `suggest_project_fps` | auto\|24\|25\|30\|50\|60 |
 | `suggest_project_resolution` | auto\|720p\|1080p\|1440p\|4k + feasibility |
 | `check_delivery_limits` | honest fps/res vs sources |

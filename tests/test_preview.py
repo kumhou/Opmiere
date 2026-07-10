@@ -120,3 +120,41 @@ def test_web_preview_endpoints(tmp_path: Path):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("image/")
     assert len(r.content) > 100
+
+
+def test_timeline_view_and_web_shell(tmp_path: Path):
+    from fastapi.testclient import TestClient
+    from opmiere.web.app import app
+
+    v = tmp_path / "v.mp4"
+    _clip(v, "red", 0.6)
+    ed = Editor.create(tmp_path / "tv.opm", fps=FPS, width=320, height=180)
+    tr = ed.add_track("video")
+    ed.place_from_file(v, "video", tr.id, 0)
+    view = ed.timeline_view()
+    assert view["duration_frames"] > 0
+    assert view["tracks"][0]["clip_count"] == 1
+    assert view["tracks"][0]["clips"][0]["duration_seconds"] > 0
+    assert "proxy" in view
+
+    client = TestClient(app)
+    bundle = tmp_path / "shell.opm"
+    assert client.post("/api/project/create", json={
+        "bundle_path": str(bundle), "fps": FPS, "width": 320, "height": 180,
+    }).status_code == 200
+    assert client.post("/api/place", json={"path": str(v), "kind": "video"}).status_code == 200
+    r = client.get("/api/project/timeline")
+    assert r.status_code == 200
+    assert r.json()["duration_frames"] > 0
+    r = client.get("/api/media")
+    assert r.status_code == 200
+    assert r.json()["count"] >= 1
+    # ensure proxy then stream
+    r = client.post("/api/preview/ensure", json={"height": 120, "fps": 8})
+    assert r.status_code == 200
+    r = client.get("/api/preview/proxy.mp4")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("video/")
+    assert len(r.content) > 500
+    r = client.get("/api/styles")
+    assert r.status_code == 200

@@ -1,7 +1,7 @@
-"""P3 web GUI — thin HTTP shell over Editor (ARCHITECTURE §5.4).
+"""Web GUI shell over Editor — dual surface with MCP (ARCHITECTURE §5.4).
 
-Not a full NLE scrubber (libopenshot/MLT still open). Ships reachability:
-create/place/export + doctor, review_cut, sequence sheet, delivery-aware export.
+Product is the NLE; this is a thin HTTP viewport: proportional timeline,
+HTML5 proxy scrub, media bin, style/filler helpers. Not libopenshot realtime.
 
 Run:  python -m opmiere.web.app  |  opmiere web  |  opmiere-web
 """
@@ -20,10 +20,9 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.0")
+app = FastAPI(title="Opmiere", version="0.1.4")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
-# last sequence sheet / preview frame for UI
 _last_sheet: str | None = None
 _last_frame: str | None = None
 
@@ -54,6 +53,7 @@ class PlaceBody(BaseModel):
     kind: str = "video"
     track_id: str | None = None
     start: int = 0
+    build_proxy: bool = False
 
 
 class ExportBody(BaseModel):
@@ -74,6 +74,13 @@ class LookBody(BaseModel):
     look: str = "cinematic"
 
 
+class StyleBody(BaseModel):
+    styles: str = "cinematic"
+    clip_ids: list[str] | None = None
+    video_only: bool = True
+    apply_motion: bool = True
+
+
 class SheetBody(BaseModel):
     output_path: str | None = None
     max_tiles: int = 12
@@ -85,6 +92,42 @@ class PlanEditBody(BaseModel):
     b_roll_mode: str = "overlay"
     j_cut_seconds: float = 0.4
     apply: bool = True
+
+
+class PreviewBody(BaseModel):
+    output_path: str | None = None
+    height: int = 360
+    fps: float = 12.0
+    force: bool = False
+
+
+class FrameBody(BaseModel):
+    time_seconds: float = 0.0
+    width: int = 640
+    prefer_proxy: bool = True
+
+
+class MediaProxyBody(BaseModel):
+    media_id: str
+    height: int = 480
+    force: bool = False
+
+
+class SearchBody(BaseModel):
+    query: str
+    media_id: str | None = None
+    max_hits: int = 20
+
+
+class FillerBody(BaseModel):
+    clip_id: str
+    dry_run: bool = True
+    extra_words: list[str] | None = None
+    pad_seconds: float = 0.02
+
+
+class RippleDeleteBody(BaseModel):
+    clip_id: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -99,7 +142,8 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "p3",
+        "phase": "0.1.4",
+        "product": "video_editor",
         "project_open": _editor is not None,
     }
 
@@ -135,6 +179,12 @@ def project_state() -> dict[str, Any]:
     return _ed().describe()
 
 
+@app.get("/api/project/timeline")
+def project_timeline() -> dict[str, Any]:
+    """Proportional timeline + proxy status for the scrub UI."""
+    return _ed().timeline_view()
+
+
 @app.post("/api/track")
 def add_track(kind: str = "video") -> dict[str, Any]:
     if kind not in ("video", "audio"):
@@ -154,6 +204,12 @@ def place_file(body: PlaceBody) -> dict[str, Any]:
             track_id = existing[0].id
         else:
             track_id = ed.add_track(track_kind).id  # type: ignore[arg-type]
+    if body.build_proxy and body.kind == "video":
+        media = ed.import_media(
+            Path(body.path), body.kind, build_proxy=True,  # type: ignore[arg-type]
+        )
+        clip = ed.add_clip(track_id, media.id, body.start, 0, media.duration_frames)
+        return clip.to_dict()
     clip = ed.place_from_file(
         Path(body.path), body.kind, track_id, start=body.start,  # type: ignore[arg-type]
     )
@@ -210,6 +266,72 @@ def apply_look(body: LookBody) -> dict[str, Any]:
     return _ed().apply_project_look(body.look)
 
 
+@app.get("/api/styles")
+def list_styles() -> dict[str, Any]:
+    return _ed().list_style_presets()
+
+
+@app.post("/api/style")
+def apply_style(body: StyleBody) -> dict[str, Any]:
+    return _ed().apply_style_preset(
+        body.styles,
+        clip_ids=body.clip_ids,
+        video_only=body.video_only,
+        apply_motion=body.apply_motion,
+    )
+
+
+@app.get("/api/media")
+def media_bin() -> dict[str, Any]:
+    return _ed().list_media_bin()
+
+
+@app.post("/api/media/proxy")
+def media_proxy(body: MediaProxyBody) -> dict[str, Any]:
+    return _ed().ensure_media_proxy(
+        body.media_id, height=body.height, force=body.force,
+    )
+
+
+@app.post("/api/media/proxies")
+def media_proxies_all(height: int = 480, force: bool = False) -> dict[str, Any]:
+    return _ed().ensure_all_media_proxies(height=height, force=force)
+
+
+@app.post("/api/search_transcripts")
+def search_transcripts(body: SearchBody) -> dict[str, Any]:
+    return _ed().search_transcripts(
+        body.query, media_id=body.media_id, max_hits=body.max_hits,
+    )
+
+
+@app.post("/api/filler")
+def filler_cuts(body: FillerBody) -> dict[str, Any]:
+    return _ed().apply_filler_cuts(
+        body.clip_id,
+        dry_run=body.dry_run,
+        extra_words=body.extra_words,
+        pad_seconds=body.pad_seconds,
+    )
+
+
+@app.post("/api/ripple_delete")
+def ripple_delete(body: RippleDeleteBody) -> dict[str, Any]:
+    return _ed().ripple_delete(body.clip_id)
+
+
+@app.post("/api/undo")
+def undo() -> dict[str, Any]:
+    ok = _ed().undo()
+    return {"ok": ok, "timeline": _ed().timeline_view() if ok else None}
+
+
+@app.post("/api/redo")
+def redo() -> dict[str, Any]:
+    ok = _ed().redo()
+    return {"ok": ok, "timeline": _ed().timeline_view() if ok else None}
+
+
 @app.post("/api/plan_edit")
 def plan_edit_api(body: PlanEditBody) -> dict[str, Any]:
     ed = _ed()
@@ -252,19 +374,6 @@ def save_project() -> dict[str, bool]:
     return {"saved": True}
 
 
-class PreviewBody(BaseModel):
-    output_path: str | None = None
-    height: int = 360
-    fps: float = 12.0
-    force: bool = False
-
-
-class FrameBody(BaseModel):
-    time_seconds: float = 0.0
-    width: int = 640
-    prefer_proxy: bool = True
-
-
 @app.post("/api/preview/build")
 def preview_build(body: PreviewBody) -> dict[str, Any]:
     ed = _ed()
@@ -286,6 +395,25 @@ def preview_ensure(body: PreviewBody) -> dict[str, Any]:
 @app.get("/api/preview/status")
 def preview_status() -> dict[str, Any]:
     return _ed().preview_proxy_status()
+
+
+@app.get("/api/preview/proxy.mp4")
+def preview_proxy_mp4() -> FileResponse:
+    """Stream the timeline scrub proxy for HTML5 <video> playback."""
+    ed = _ed()
+    st = ed.preview_proxy_status()
+    path = st.get("path")
+    if not path or not Path(path).exists():
+        raise HTTPException(
+            404,
+            "no preview proxy — POST /api/preview/ensure first",
+        )
+    # Allow browsers to re-fetch after rebuild via query cache bust on client
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename="preview_proxy.mp4",
+    )
 
 
 @app.post("/api/preview/frame")

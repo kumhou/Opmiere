@@ -175,6 +175,63 @@ class Editor:
     def duration_frames(self) -> int:
         return self.project.duration_frames()
 
+    def timeline_view(self) -> dict[str, Any]:
+        """UI/agent-friendly timeline: seconds, clip layout, media labels, proxy.
+
+        Complements describe() with layout metrics for proportional tracks and
+        scrub players. Read-only — no mutation.
+        """
+        fps = float(self.project.timebase.fps or 30.0)
+        media_by_id = {m.id: m for m in self.project.media}
+        tracks_out: list[dict[str, Any]] = []
+        max_end = 0
+        for track in self.project.tracks:
+            clips_out: list[dict[str, Any]] = []
+            for clip in track.clips_in_order():
+                m = media_by_id.get(clip.media)
+                end = clip.end
+                max_end = max(max_end, end)
+                clips_out.append({
+                    "id": clip.id,
+                    "media_id": clip.media,
+                    "media_path": m.path if m else None,
+                    "media_kind": m.kind if m else None,
+                    "start_frame": clip.start,
+                    "end_frame": end,
+                    "duration_frames": clip.timeline_duration_frames,
+                    "start_seconds": round(clip.start / fps, 3),
+                    "end_seconds": round(end / fps, 3),
+                    "duration_seconds": round(clip.timeline_duration_frames / fps, 3),
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "speed": clip.speed,
+                    "effects_count": len(clip.effects or []),
+                    "transition_in": clip.transition_in,
+                    "label": (m.path.split("/")[-1] if m and m.path else clip.id),
+                })
+            tracks_out.append({
+                "id": track.id,
+                "kind": track.kind,
+                "clip_count": len(clips_out),
+                "clips": clips_out,
+            })
+        duration_frames = max_end
+        duration_seconds = round(duration_frames / fps, 3) if fps else 0.0
+        proxy = self.preview_proxy_status()
+        return {
+            "project_id": self.project.id,
+            "fps": fps,
+            "width": self.project.resolution.w,
+            "height": self.project.resolution.h,
+            "duration_frames": duration_frames,
+            "duration_seconds": duration_seconds,
+            "tracks": tracks_out,
+            "media_count": len(self.project.media),
+            "proxy": proxy,
+            "can_undo": bool(self._undo_stack),
+            "can_redo": bool(self._redo_stack),
+        }
+
     # --- undo/redo -----------------------------------------------------
     @contextmanager
     def _mutate(self) -> Iterator[None]:

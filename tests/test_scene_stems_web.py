@@ -79,7 +79,10 @@ def test_web_app_health_and_brief():
     client = TestClient(app)
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.json()["phase"] == "p3"
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body.get("product") == "video_editor"
+    assert "phase" in body
 
     r = client.get("/api/doctor?check_comfy=false")
     assert r.status_code == 200
@@ -88,7 +91,7 @@ def test_web_app_health_and_brief():
     r = client.get("/")
     assert r.status_code == 200
     assert "Opmiere" in r.text
-    assert "delivery" in r.text.lower() or "doctor" in r.text.lower()
+    assert "timeline" in r.text.lower() or "doctor" in r.text.lower()
 
     r = client.post("/api/brief", json={
         "intent": "",

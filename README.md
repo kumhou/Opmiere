@@ -11,8 +11,8 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: 0.1.3 — agent-native video editor (pre-consumer-GUI).** Headless core + MCP + P3 web shell.
-> Product is the **NLE** (timeline, media bin proxies, craft, filler 粗剪, delivery); director/style is a **hero feature**.
+> **Status: 0.1.4 — agent-native video editor.** Headless core + MCP + web NLE shell (timeline scrub, media bin).
+> Product is the **NLE**; director/style is a **hero feature**. Dual surface: human GUI + agent MCP on one Editor.
 > Not a full Premiere replacement. See [CHANGELOG.md](CHANGELOG.md), [docs/TOOLS.md](docs/TOOLS.md),
 > [docs/AGENT_WARNINGS.md](docs/AGENT_WARNINGS.md), [docs/VISION_ALIGNMENT.md](docs/VISION_ALIGNMENT.md), [ARCHITECTURE.md](ARCHITECTURE.md) §9.
 

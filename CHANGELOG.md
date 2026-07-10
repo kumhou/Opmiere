@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 — 2026-07-10
+
+### Added
+- **Editor shell UI**: proportional multi-track timeline, HTML5 proxy player (`/api/preview/proxy.mp4`), playhead seek, media bin panel, style apply, transcript search, filler dry/apply, undo/redo
+- `Editor.timeline_view` / MCP `get_timeline_view` / `GET /api/project/timeline`
+- Web APIs: media bin, style, filler, search, ripple_delete, proxy stream
+
 ## 0.1.3 — 2026-07-10
 
 ### Added

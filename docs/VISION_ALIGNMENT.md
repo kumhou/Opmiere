@@ -48,8 +48,8 @@ product depth in the **editor**, not a wrong core.
 | **Proxy media bin** for scrub | **0.1.3** `ensure_media_proxy` / `list_media_bin` |
 | **Transcript search** “找到我说但是” | **0.1.3** keyword cache search (not embeddings) |
 | **One-click filler 粗剪** | **0.1.3** `suggest_filler_cuts` + `apply_filler_cuts` |
-| **Tauri/Electron dual UI** | Later — keep Python core |
-| Realtime filter scrub | libopenshot/MLT still open |
+| **Dual UI surface** | **0.1.4** FastAPI web shell (timeline + proxy video scrub); Tauri packaging later |
+| Realtime filter scrub | Still FFmpeg proxy path; libopenshot/MLT open for true realtime effects |
 
 ## Disagreements / nuances
 
@@ -72,4 +72,5 @@ product depth in the **editor**, not a wrong core.
 2. Hand-tuned style files → **hero feature (0.1.2)**  
 3. Squeeze 3070 → **NVENC export + doctor**  
 
-0.1.3 shipped proxy bin + filler 粗剪 + transcript search. Next: real UI shell, realtime scrub backend.
+0.1.4 shipped dual-surface web NLE shell (proportional timeline + HTML5 proxy scrub).
+True realtime effects backend (libopenshot/MLT) and Tauri packaging remain later.
