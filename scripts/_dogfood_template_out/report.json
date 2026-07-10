@@ -1,0 +1,82 @@
+{
+  "opmiere_version": "0.1.9",
+  "template": "talking_head",
+  "gates": [
+    {
+      "id": "doctor",
+      "ok": true,
+      "detail": "core ready — can edit/export with FFmpeg"
+    },
+    {
+      "id": "template_dry",
+      "ok": true,
+      "detail": "Talking head / 口播"
+    },
+    {
+      "id": "template_apply",
+      "ok": true,
+      "detail": "placed=2 style=documentary"
+    },
+    {
+      "id": "edge_trim",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "mix_view",
+      "ok": true,
+      "detail": "audio=2 duck=1"
+    },
+    {
+      "id": "quick_proxy",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "finish_ok",
+      "ok": true,
+      "detail": "{'path': 'G:\\\\Development\\\\Opmiere\\\\scripts\\\\_dogfood_template_out\\\\export_loud.mp4', 'exists': True, 'size': 1304325, 'normalize_preset': 'streaming'}"
+    },
+    {
+      "id": "export_probe",
+      "ok": true,
+      "detail": "dur=2.41"
+    },
+    {
+      "id": "list_templates",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "id": "list_style_assets",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "source_mode": "test_materials",
+  "template_result": {
+    "applied": true,
+    "style": "documentary",
+    "batch": 2,
+    "duck": {
+      "music": "trk_eec8b9",
+      "vo": "trk_bfc068"
+    },
+    "hints": 3
+  },
+  "finish": {
+    "ok": true,
+    "delivery_ok": true,
+    "export": {
+      "path": "G:\\Development\\Opmiere\\scripts\\_dogfood_template_out\\export_loud.mp4",
+      "exists": true,
+      "size": 1304325,
+      "normalize_preset": "streaming"
+    },
+    "review_ok": true
+  },
+  "ok": true,
+  "gates_passed": 10,
+  "gates_total": 10,
+  "elapsed_seconds": 25.08
+}

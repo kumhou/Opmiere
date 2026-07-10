@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.1.8)
+# Opmiere tool surface (0.1.9)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -51,6 +51,8 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `apply_project_look` / `color_match_to_clip` / `list_look_presets` | session look |
 | `list_style_presets` / `apply_style_preset` / `list_style_assets` | film aesthetics + optional LUT/drone files |
 | `list_cut_templates` / `apply_cut_template` | first-cut recipes (口播/短视频/访谈/vlog) |
+| `apply_silence_to_clip` | dead-air keep ranges (dry_run default) |
+| `finish_delivery` | review → export → delivery_check |
 | `set_ducking` / `gain` / `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain` | mix |
 | `detect_beats` | music onset anchors |
 | `analyze_audio` / `analyze_timeline` | ears |

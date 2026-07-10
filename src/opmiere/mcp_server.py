@@ -354,10 +354,12 @@ def apply_cut_template(
     style_override: str | None = None,
     dry_run: bool = False,
     build_proxy: bool = False,
+    apply_silence: bool = False,
 ) -> dict:
     """Run a cut template: place media, apply style, optional duck; return hints.
 
     dry_run=true only returns the plan. paths auto-split video vs audio.
+    apply_silence=true trims dead air on first A-roll when ≥2 keep islands.
     """
     return _require_editor().apply_cut_template(
         template,
@@ -368,6 +370,43 @@ def apply_cut_template(
         style_override=style_override,
         dry_run=dry_run,
         build_proxy=build_proxy,
+        apply_silence=apply_silence,
+    )
+
+
+@mcp.tool()
+def apply_silence_to_clip(
+    clip_id: str,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.4,
+    pad_seconds: float = 0.08,
+    dry_run: bool = True,
+) -> dict:
+    """Silence keep-ranges on a clip; dry_run default. Applies only if ≥2 islands."""
+    return _require_editor().apply_silence_to_clip(
+        clip_id,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        pad_seconds=pad_seconds,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+def finish_delivery(
+    output_path: str,
+    normalize_preset: str | None = "streaming",
+    delivery_preset: str = "streaming",
+    run_review: bool = True,
+    run_sequence_sheet: bool = False,
+) -> dict:
+    """review_cut (opt) + export + delivery_check. Honest ok / delivery_ok flags."""
+    return _require_editor().finish_delivery(
+        output_path,
+        normalize_preset=normalize_preset,
+        delivery_preset=delivery_preset,
+        run_review=run_review,
+        run_sequence_sheet=run_sequence_sheet,
     )
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9 — 2026-07-10
+
+### Added
+- **`finish_delivery`**: review + export + delivery_check one-shot (honest `ok` / `delivery_ok`)
+- **`apply_silence_to_clip`**: silence keep-ranges with safe apply (≥2 islands)
+- Cut template `apply_silence` flag; dogfood `scripts/dogfood_template_pipeline.py` + CI step
+
 ## 0.1.8 — 2026-07-10
 
 ### Added

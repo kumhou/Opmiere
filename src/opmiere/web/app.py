@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.1.8")
+app = FastAPI(title="Opmiere", version="0.1.9")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.1.8",
+        "phase": "0.1.9",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -590,6 +590,15 @@ class CutTemplateBody(BaseModel):
     style_override: str | None = None
     dry_run: bool = False
     build_proxy: bool = False
+    apply_silence: bool = False
+
+
+class FinishBody(BaseModel):
+    output_path: str
+    normalize_preset: str | None = "streaming"
+    delivery_preset: str = "streaming"
+    run_review: bool = True
+    run_sequence_sheet: bool = False
 
 
 @app.get("/api/templates")
@@ -611,8 +620,20 @@ def templates_apply(body: CutTemplateBody) -> dict[str, Any]:
         style_override=body.style_override,
         dry_run=body.dry_run,
         build_proxy=body.build_proxy,
+        apply_silence=body.apply_silence,
     )
     return result
+
+
+@app.post("/api/finish")
+def finish_api(body: FinishBody) -> dict[str, Any]:
+    return _ed().finish_delivery(
+        body.output_path,
+        normalize_preset=body.normalize_preset,
+        delivery_preset=body.delivery_preset,
+        run_review=body.run_review,
+        run_sequence_sheet=body.run_sequence_sheet,
+    )
 
 
 @app.get("/api/style_assets")

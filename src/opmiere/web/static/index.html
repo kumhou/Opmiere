@@ -208,6 +208,7 @@
       <input id="export" value="G:/Development/Opmiere/.opmiere_web_demo_out.mp4" />
       <label><input type="checkbox" id="norm" checked style="width:auto" /> normalize streaming</label>
       <button type="button" id="btnExport">Export + delivery_check</button>
+      <button type="button" class="secondary" id="btnFinish">Finish delivery</button>
       <button type="button" class="secondary" id="btnRefresh">Refresh</button>
 
       <h2>Media bin</h2>
@@ -940,6 +941,23 @@
         const dc = r.delivery_check;
         log('exported ' + r.output_path + (dc ? ` · delivery ok=${dc.ok}` : ''));
         if (dc && !dc.ok) log('delivery errors: ' + (dc.errors || []).join('; '));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnFinish').onclick = async () => {
+      try {
+        const out = document.getElementById('export').value;
+        log('finish_delivery…');
+        const r = await api('/api/finish', {
+          method: 'POST',
+          body: JSON.stringify({
+            output_path: out,
+            normalize_preset: document.getElementById('norm').checked ? 'streaming' : null,
+            run_review: true,
+            run_sequence_sheet: true,
+          }),
+        });
+        log('finish ok=' + r.ok + ' delivery_ok=' + r.delivery_ok +
+          ' path=' + ((r.export && r.export.path) || ''));
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnRefresh').onclick = async () => {

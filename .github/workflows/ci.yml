@@ -36,5 +36,8 @@ jobs:
           # Keep tests offline; no ComfyUI in CI
           OPMIERE_SKIP_COMFY: "1"
 
-      - name: Dogfood (lavfi if no test_materials)
+      - name: Dogfood pro pipeline
         run: python scripts/dogfood_pro_pipeline.py --seconds 1.5
+
+      - name: Dogfood cut template → finish_delivery
+        run: python scripts/dogfood_template_pipeline.py --seconds 1.2 --template talking_head

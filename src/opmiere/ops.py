@@ -2925,11 +2925,14 @@ class Editor:
         style_override: str | None = None,
         dry_run: bool = False,
         build_proxy: bool = False,
+        apply_silence: bool = False,
     ) -> dict[str, Any]:
         """Apply a cut template: place media, style, optional duck; return next steps.
 
         paths: mixed list (auto-split video vs audio) if role lists omitted.
         dry_run=True: only return the plan without mutating.
+        apply_silence=True: run silence keep-ranges on first A-roll clip when
+        multiple keep islands exist (safe no-op if no silence detected).
         """
         tmpl = _get_cut_template(template)
         opts = dict(tmpl.get("options") or {})
@@ -3036,11 +3039,25 @@ class Editor:
         video_clips = [
             c for t in self.project.tracks if t.kind == "video" for c in t.clips
         ]
-        if opts.get("suggest_silence") and video_clips:
+        result["silence"] = None
+        if apply_silence and video_clips:
+            try:
+                result["silence"] = self.apply_silence_to_clip(
+                    video_clips[0].id,
+                    min_silence_seconds=0.35,
+                    dry_run=False,
+                )
+                # refresh clip list after possible replace
+                video_clips = [
+                    c for t in self.project.tracks if t.kind == "video" for c in t.clips
+                ]
+            except Exception as e:
+                result["silence"] = {"error": str(e)[:400]}
+        if opts.get("suggest_silence") and video_clips and not apply_silence:
             result["hints"].append({
-                "tool": "suggest_silence_cuts",
+                "tool": "apply_silence_to_clip",
                 "clip_id": video_clips[0].id,
-                "note": "Dead-air keep_ranges → apply_keep_ranges if approved",
+                "note": "Dead-air keep_ranges; or apply_silence=True on template",
             })
         if opts.get("suggest_filler") and video_clips:
             result["hints"].append({
@@ -3050,15 +3067,130 @@ class Editor:
                 "note": "Review cut_ranges before dry_run=false",
             })
         result["hints"].append({
-            "tool": "export",
+            "tool": "finish_delivery",
             "normalize_preset": opts.get("normalize_preset", "streaming"),
         })
         result["timeline"] = self.timeline_view()
         result["agent_note"] = (
             f"Template {tmpl.get('id')} applied. Follow next_steps / hints; "
-            "do not claim delivery until delivery_check ok."
+            "finish_delivery for export+delivery_check."
         )
         return result
+
+    def apply_silence_to_clip(
+        self,
+        clip_id: str,
+        *,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.4,
+        pad_seconds: float = 0.08,
+        min_keep_seconds: float = 0.2,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """Suggest (and optionally apply) silence keep-ranges on one clip's media.
+
+        dry_run=True only returns keep_ranges. apply only when ≥2 keep islands
+        (otherwise a full-duration keep is a no-op / refused).
+        """
+        clip = self._find_clip(clip_id)
+        media = self.project.media_by_id(clip.media)
+        path = self.bundle.media_path(media.path)
+        plan = self.suggest_silence_cuts(
+            path,
+            silence_threshold_db=silence_threshold_db,
+            min_silence_seconds=min_silence_seconds,
+            pad_seconds=pad_seconds,
+            min_keep_seconds=min_keep_seconds,
+        )
+        keeps = list(plan.get("keep_ranges") or [])
+        out: dict[str, Any] = {
+            "clip_id": clip_id,
+            "path": str(path),
+            "keep_ranges": keeps,
+            "silence_count": len(plan.get("silences") or []),
+            "applied": False,
+        }
+        if dry_run:
+            out["agent_note"] = "dry_run — re-call dry_run=false to apply_keep_ranges"
+            return out
+        if len(keeps) < 2:
+            out["skipped"] = True
+            out["agent_note"] = (
+                "Need ≥2 keep islands to trim; continuous audio = no silence cut."
+            )
+            return out
+        applied = self.apply_keep_ranges(clip_id, keeps, time_unit="seconds")
+        out["applied"] = True
+        out["result"] = applied
+        return out
+
+    def finish_delivery(
+        self,
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+        run_review: bool = True,
+        run_sequence_sheet: bool = False,
+        sequence_sheet_path: str | Path | None = None,
+        lufs_tolerance: float = 3.5,
+    ) -> dict[str, Any]:
+        """Review (optional) + export + delivery_check in one honest finish step.
+
+        Does not lie: if delivery_check ok=false, returns ok=False with details.
+        """
+        out: dict[str, Any] = {
+            "output_path": str(output_path),
+            "review": None,
+            "sequence_sheet": None,
+            "export": None,
+            "delivery_check": None,
+            "ok": False,
+        }
+        if run_review:
+            try:
+                out["review"] = self.review_cut()
+            except Exception as e:
+                out["review"] = {"ok": False, "error": str(e)[:400]}
+        if run_sequence_sheet:
+            sp = sequence_sheet_path or (
+                self.bundle.root / "review" / "sequence_sheet.png"
+            )
+            try:
+                out["sequence_sheet"] = self.make_sequence_contact_sheet(sp)
+            except Exception as e:
+                out["sequence_sheet"] = {"error": str(e)[:400]}
+
+        written = self.export(
+            Path(output_path),
+            normalize_preset=normalize_preset,
+        )
+        out["export"] = {
+            "path": str(written),
+            "exists": written.exists(),
+            "size": written.stat().st_size if written.exists() else 0,
+            "normalize_preset": normalize_preset,
+        }
+        dc = self.delivery_check(
+            written, preset=delivery_preset, lufs_tolerance=lufs_tolerance,
+        )
+        out["delivery_check"] = dc
+        # Hard ok: file exists + no geometry-class errors; soft on LUFS for shorts
+        geo_errors = [
+            e for e in (dc.get("errors") or [])
+            if any(k in str(e).lower() for k in ("width", "height", "fps", "no video", "empty"))
+        ]
+        out["ok"] = bool(
+            written.exists()
+            and written.stat().st_size > 500
+            and not geo_errors
+        )
+        out["delivery_ok"] = bool(dc.get("ok"))
+        out["agent_note"] = (
+            "ok=true means file+geometry gate; delivery_ok is full delivery_check. "
+            "Do not claim pro delivery if delivery_ok=false without user waiver."
+        )
+        return out
 
     def apply_project_look(
         self,

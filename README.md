@@ -11,7 +11,7 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: 0.1.8 — agent-native video editor.** Headless core + MCP + web NLE shell (cut templates, mix, drag, batch).
+> **Status: 0.1.9 — agent-native video editor.** Headless core + MCP + web NLE shell (templates, finish_delivery, mix, drag).
 > Product is the **NLE**; director/style is a **hero feature**. Dual surface: human GUI + agent MCP on one Editor.
 > Not a full Premiere replacement. See [CHANGELOG.md](CHANGELOG.md), [docs/TOOLS.md](docs/TOOLS.md),
 > [docs/AGENT_WARNINGS.md](docs/AGENT_WARNINGS.md), [docs/VISION_ALIGNMENT.md](docs/VISION_ALIGNMENT.md), [ARCHITECTURE.md](ARCHITECTURE.md) §9.
@@ -54,8 +54,11 @@ Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stem
 
 ```bash
 python scripts/dogfood_pro_pipeline.py
-# → scripts/_dogfood_pro_out/{report.json,checklist.md,export_loud.mp4}
-# Exit 0 only if hard gates pass (doctor, EDL, export, geometry).
+# → scripts/_dogfood_pro_out/{report.json,checklist.md,export*}
+
+python scripts/dogfood_template_pipeline.py --template talking_head
+# → scripts/_dogfood_template_out/  (template → finish_delivery)
+# Exit 0 only if hard gates pass.
 ```
 
 Agent docs: [docs/TOOLS.md](docs/TOOLS.md) · [docs/AGENT_WARNINGS.md](docs/AGENT_WARNINGS.md)
