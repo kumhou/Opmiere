@@ -95,12 +95,23 @@
         </select>
         <button type="button" class="secondary" id="btnLook">Apply look</button>
       </div>
+      <h2>Preview scrub</h2>
+      <button type="button" class="secondary" id="btnProxy">Build proxy (slow once)</button>
+      <label>Time (s)</label>
+      <input id="scrub" type="range" min="0" max="10" step="0.1" value="0" />
+      <div class="row">
+        <input id="scrubVal" type="number" step="0.1" value="0" style="flex:0.4" />
+        <button type="button" class="secondary" id="btnFrame">Frame</button>
+      </div>
       <h2>Log</h2>
       <div id="log"></div>
     </section>
     <section>
       <h2>Timeline</h2>
       <div id="timeline"><p style="color:var(--muted)">Open or create a project.</p></div>
+      <div id="previewWrap" style="margin-top:12px">
+        <img id="previewImg" alt="preview" style="max-width:100%;border-radius:8px;border:1px solid var(--border);background:#000;display:none" />
+      </div>
       <div id="reviewBox"></div>
       <div id="sheetWrap"></div>
     </section>
@@ -229,6 +240,34 @@
         const r = await api('/api/look', { method: 'POST', body: JSON.stringify({ look }) });
         log('look ' + look + ' applied to ' + r.clip_count + ' clips');
       } catch (e) { log(String(e.message || e), true); }
+    };
+    let scrubMax = 10;
+    function showFrame(t) {
+      const img = document.getElementById('previewImg');
+      img.style.display = 'block';
+      img.src = '/api/preview/frame.jpg?t=' + encodeURIComponent(t) + '&width=720&_=' + Date.now();
+    }
+    document.getElementById('btnProxy').onclick = async () => {
+      try {
+        log('building proxy…');
+        const r = await api('/api/preview/build', { method: 'POST', body: '{}' });
+        scrubMax = Math.max(0.5, +(r.duration_seconds || 10));
+        document.getElementById('scrub').max = scrubMax;
+        log('proxy ' + r.path + ' ' + scrubMax.toFixed(2) + 's');
+        showFrame(0);
+      } catch (e) { log(String(e.message || e), true); }
+    };
+    document.getElementById('btnFrame').onclick = () => {
+      const t = +document.getElementById('scrubVal').value || 0;
+      showFrame(t);
+      log('frame @ ' + t + 's');
+    };
+    document.getElementById('scrub').oninput = (ev) => {
+      const t = +ev.target.value;
+      document.getElementById('scrubVal').value = t;
+    };
+    document.getElementById('scrub').onchange = (ev) => {
+      showFrame(+ev.target.value);
     };
     document.getElementById('btnDoctor').onclick = async () => {
       try {

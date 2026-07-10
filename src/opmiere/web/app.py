@@ -23,8 +23,9 @@ from ..ops import Editor
 app = FastAPI(title="Opmiere", version="0.0.1-p3")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
-# last sequence sheet / export artifacts for UI
+# last sequence sheet / preview frame for UI
 _last_sheet: str | None = None
+_last_frame: str | None = None
 
 
 def _ed() -> Editor:
@@ -249,6 +250,55 @@ def make_brief(body: BriefBody) -> dict[str, Any]:
 def save_project() -> dict[str, bool]:
     _ed().save()
     return {"saved": True}
+
+
+class PreviewBody(BaseModel):
+    output_path: str | None = None
+    height: int = 360
+    fps: float = 12.0
+
+
+class FrameBody(BaseModel):
+    time_seconds: float = 0.0
+    width: int = 640
+    prefer_proxy: bool = True
+
+
+@app.post("/api/preview/build")
+def preview_build(body: PreviewBody) -> dict[str, Any]:
+    ed = _ed()
+    out = body.output_path
+    if not out:
+        out = str(ed.bundle.root / "review" / "preview_proxy.mp4")
+    return ed.export_preview(out, height=body.height, fps=body.fps)
+
+
+@app.post("/api/preview/frame")
+def preview_frame(body: FrameBody) -> dict[str, Any]:
+    global _last_frame
+    ed = _ed()
+    out = ed.bundle.root / "review" / f"frame_{body.time_seconds:.2f}.jpg"
+    result = ed.frame_at(
+        body.time_seconds,
+        out,
+        width=body.width,
+        prefer_proxy=body.prefer_proxy,
+    )
+    _last_frame = result.get("path")
+    return result
+
+
+@app.get("/api/preview/frame.jpg")
+def preview_frame_jpg(t: float = 0.0, width: int = 640) -> FileResponse:
+    """GET convenience for <img src> scrubbing."""
+    global _last_frame
+    ed = _ed()
+    out = ed.bundle.root / "review" / "scrub_frame.jpg"
+    result = ed.frame_at(t, out, width=width, prefer_proxy=True)
+    _last_frame = result.get("path")
+    if not _last_frame or not Path(_last_frame).exists():
+        raise HTTPException(500, "frame extract failed")
+    return FileResponse(_last_frame, media_type="image/jpeg")
 
 
 if _STATIC.is_dir():

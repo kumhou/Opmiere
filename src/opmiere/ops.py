@@ -84,6 +84,7 @@ class Editor:
         self.bundle = bundle
         self.project: Project = bundle.load()
         self.render_backend = render_backend or FFmpegBackend()
+        self._preview_proxy_path: str | None = None
         # No default provider: generation is optional and pluggable (section
         # 4 principle 3) - unlike rendering, there's no single obvious
         # default (local vs cloud, which model), so the caller must choose.
@@ -1675,3 +1676,187 @@ class Editor:
             self.normalize_loudness(out, loud_path, preset=normalize_preset)
             return Path(loud_path)
         return written
+
+    def export_preview(
+        self,
+        output_path: str | Path,
+        *,
+        height: int = 360,
+        fps: float = 12.0,
+    ) -> dict[str, Any]:
+        """Fast low-res timeline proxy for scrubbing (not delivery quality).
+
+        Temporarily lowers project resolution/fps, exports, then restores.
+        Overlays and effects still apply. Use frame_at() or a player on the
+        result. Sets the editor's last_preview_proxy path.
+        """
+        import subprocess
+
+        if height < 72 or height > 2160:
+            raise ValueError("height must be in [72, 2160]")
+        if fps <= 0 or fps > 60:
+            raise ValueError("fps must be in (0, 60]")
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        old_w, old_h = self.project.resolution.w, self.project.resolution.h
+        old_fps = self.project.timebase.fps
+        aspect = old_w / max(old_h, 1)
+        new_h = int(height) // 2 * 2
+        new_w = max(2, int(round(new_h * aspect)) // 2 * 2)
+        # Snap fps to something export can use; keep timeline frame math by
+        # scaling is wrong if we change fps without remapping — so we keep
+        # project fps for the graph and down-sample the *output* file.
+        try:
+            self.project.resolution.w = new_w
+            self.project.resolution.h = new_h
+            written = self.render_backend.export(
+                self.project, self.bundle, output_path.with_suffix(".full.mp4")
+            )
+        finally:
+            self.project.resolution.w = old_w
+            self.project.resolution.h = old_h
+
+        # Second pass: lower fps for smaller proxy (picture only intent)
+        proxy = Path(output_path)
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-y", "-hide_banner",
+                "-i", str(written),
+                "-vf", f"fps={fps}",
+                "-an",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-preset", "veryfast", "-crf", "28",
+                str(proxy),
+            ],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0 or not proxy.exists():
+            # fall back to full low-res with audio
+            if written.exists():
+                written.replace(proxy) if written != proxy else None
+            if not proxy.exists():
+                raise RuntimeError(
+                    f"export_preview failed:\n{(proc.stderr or '')[-2000:]}"
+                )
+        else:
+            try:
+                written.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        self._preview_proxy_path = str(proxy.resolve())
+        from .render.probe import probe as _probe
+        info = _probe(proxy)
+        return {
+            "path": self._preview_proxy_path,
+            "width": info.width,
+            "height": info.height,
+            "fps": info.fps,
+            "duration_seconds": info.duration_seconds,
+            "project_resolution": {"w": old_w, "h": old_h},
+            "proxy_height": new_h,
+            "proxy_fps_request": fps,
+            "agent_note": (
+                "Scrub proxy only — not for delivery. Re-run after timeline edits."
+            ),
+        }
+
+    def extract_frame(
+        self,
+        path: str | Path,
+        time_seconds: float,
+        output_path: str | Path,
+        *,
+        width: int = 640,
+    ) -> dict[str, Any]:
+        """Extract one JPEG/PNG frame from a media file at time_seconds."""
+        import subprocess
+
+        path = Path(path)
+        output_path = Path(output_path)
+        if not path.exists():
+            raise FileNotFoundError(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        t = max(0.0, float(time_seconds))
+        w = max(16, int(width))
+        # -ss before -i for fast seek; fine for proxy scrub
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-y", "-hide_banner",
+                "-ss", f"{t:.3f}",
+                "-i", str(path),
+                "-frames:v", "1",
+                "-vf", f"scale={w}:-1",
+                str(output_path),
+            ],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0 or not output_path.exists():
+            raise RuntimeError(
+                f"extract_frame failed @ {t:.3f}s:\n{(proc.stderr or '')[-1500:]}"
+            )
+        return {
+            "path": str(output_path.resolve()),
+            "time_seconds": t,
+            "source": str(path),
+            "width": w,
+        }
+
+    def frame_at(
+        self,
+        time_seconds: float,
+        output_path: str | Path,
+        *,
+        width: int = 640,
+        prefer_proxy: bool = True,
+    ) -> dict[str, Any]:
+        """Frame at timeline time for cheap scrub eyes.
+
+        Prefer last export_preview proxy when available (includes overlays).
+        Else approximate from base video track source media (overlays ignored).
+        """
+        t = max(0.0, float(time_seconds))
+        output_path = Path(output_path)
+        proxy = getattr(self, "_preview_proxy_path", None)
+        if prefer_proxy and proxy and Path(proxy).exists():
+            result = self.extract_frame(proxy, t, output_path, width=width)
+            result["mode"] = "proxy"
+            return result
+
+        # Base-track source seek
+        video_tracks = [tr for tr in self.project.tracks if tr.kind == "video"]
+        if not video_tracks or not video_tracks[0].clips:
+            raise ValueError("no base video clips — build a timeline or export_preview first")
+        base = video_tracks[0]
+        fps = float(self.project.timebase.fps or 30.0)
+        t_frame = int(round(t * fps))
+        clip = None
+        for c in base.clips_in_order():
+            if c.start <= t_frame < c.end:
+                clip = c
+                break
+        if clip is None:
+            # clamp to last frame of last clip
+            ordered = base.clips_in_order()
+            clip = ordered[-1]
+            t_frame = max(clip.start, min(t_frame, clip.end - 1))
+
+        media = self.project.media_by_id(clip.media)
+        media_path = self.bundle.media_path(media.path)
+        # map timeline → source seconds
+        local = t_frame - clip.start
+        if clip.transition_in:
+            # still inside clip's timeline footprint
+            pass
+        src_frame = clip.src_in + int(round(local * clip.speed))
+        src_frame = min(max(src_frame, clip.src_in), max(clip.src_in, clip.src_out - 1))
+        src_t = self.project.timebase.frames_to_seconds(src_frame)
+        result = self.extract_frame(media_path, src_t, output_path, width=width)
+        result["mode"] = "base_track"
+        result["clip_id"] = clip.id
+        result["agent_note"] = (
+            "Base-track approximation (overlays/effects may differ). "
+            "Call export_preview for fuller picture."
+        )
+        return result

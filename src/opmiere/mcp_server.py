@@ -1209,6 +1209,36 @@ def delivery_check(
 
 
 @mcp.tool()
+def export_preview(
+    output_path: str,
+    height: int = 360,
+    fps: float = 12.0,
+) -> dict:
+    """Build a low-res timeline proxy for scrubbing (not delivery).
+
+    Then use frame_at(time) or play the proxy file. Re-run after big edits.
+    """
+    return _require_editor().export_preview(output_path, height=height, fps=fps)
+
+
+@mcp.tool()
+def frame_at(
+    time_seconds: float,
+    output_path: str,
+    width: int = 640,
+    prefer_proxy: bool = True,
+) -> dict:
+    """Grab one frame at timeline time for cheap eyes.
+
+    Uses last export_preview proxy when present (includes overlays); else
+    base-track source seek (approximate).
+    """
+    return _require_editor().frame_at(
+        time_seconds, output_path, width=width, prefer_proxy=prefer_proxy,
+    )
+
+
+@mcp.tool()
 def export(
     output_path: str,
     normalize_preset: str | None = None,
