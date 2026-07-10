@@ -226,6 +226,7 @@ class Editor:
                     "speed": clip.speed,
                     "effects_count": len(clip.effects or []),
                     "gain_db": gain_db,
+                    "muted": bool(clip.muted),
                     "has_audio_media": bool(m and (m.kind == "audio" or m.has_audio)),
                     "transition_in": clip.transition_in,
                     "label": (m.path.split("/")[-1] if m and m.path else clip.id),
@@ -236,6 +237,9 @@ class Editor:
                 "clip_count": len(clips_out),
                 "clips": clips_out,
                 "duck": track.duck,
+                "muted": bool(track.muted),
+                "solo": bool(track.solo),
+                "locked": bool(track.locked),
             })
         duration_frames = max_end
         duration_seconds = round(duration_frames / fps, 3) if fps else 0.0
@@ -700,7 +704,39 @@ class Editor:
             ),
         }
 
+    def _assert_clip_track_unlocked(self, clip_id: str) -> Track:
+        track, _ = self._find_clip_and_track(clip_id)
+        if track.locked:
+            raise ValueError(f"track {track.id} is locked — unlock to edit")
+        return track
+
+    def set_track_muted(self, track_id: str, muted: bool = True) -> dict[str, Any]:
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            track.muted = bool(muted)
+            return {"track_id": track_id, "muted": track.muted, "solo": track.solo, "locked": track.locked}
+
+    def set_track_solo(self, track_id: str, solo: bool = True) -> dict[str, Any]:
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            track.solo = bool(solo)
+            return {"track_id": track_id, "muted": track.muted, "solo": track.solo, "locked": track.locked}
+
+    def set_track_locked(self, track_id: str, locked: bool = True) -> dict[str, Any]:
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            track.locked = bool(locked)
+            return {"track_id": track_id, "muted": track.muted, "solo": track.solo, "locked": track.locked}
+
+    def set_clip_muted(self, clip_id: str, muted: bool = True) -> dict[str, Any]:
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.muted = bool(muted)
+            return {"clip_id": clip_id, "muted": clip.muted}
+
     def move_clip(self, clip_id: str, new_start: int) -> Clip:
+        self._assert_clip_track_unlocked(clip_id)
         with self._mutate():
             clip = self._find_clip(clip_id)
             if new_start < 0:
@@ -738,6 +774,7 @@ class Editor:
         """
         if start is None and src_in is None and src_out is None:
             raise ValueError("provide start and/or src_in and/or src_out")
+        self._assert_clip_track_unlocked(clip_id)
         with self._mutate():
             clip = self._find_clip(clip_id)
             if clip.speed != 1.0 and (src_in is not None or src_out is not None):

@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.2.2)
+# Opmiere tool surface (0.2.3)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -58,6 +58,8 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `split_all_at` / `link_transition` / `snap_points` | razor, xfade, snap targets |
 | `copy_clip` / `paste_clip` / `duplicate_clip` | session clipboard |
 | `set_in_point` / `set_out_point` / `export_work_area` | work area export |
+| `set_track_muted` / `set_track_solo` / `set_track_locked` | track M/S/L |
+| `set_clip_muted` | clip mute (black/silence) |
 | `set_ducking` / `gain` / `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain` | mix |
 | `detect_beats` | music onset anchors |
 | `analyze_audio` / `analyze_timeline` | ears |

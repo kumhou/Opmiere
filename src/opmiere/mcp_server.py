@@ -544,6 +544,29 @@ def export_work_area(
 
 
 @mcp.tool()
+def set_track_muted(track_id: str, muted: bool = True) -> dict:
+    return _require_editor().set_track_muted(track_id, muted)
+
+
+@mcp.tool()
+def set_track_solo(track_id: str, solo: bool = True) -> dict:
+    """Solo track (same kind); muted tracks ignored when any solo is on."""
+    return _require_editor().set_track_solo(track_id, solo)
+
+
+@mcp.tool()
+def set_track_locked(track_id: str, locked: bool = True) -> dict:
+    """Lock track against layout edits."""
+    return _require_editor().set_track_locked(track_id, locked)
+
+
+@mcp.tool()
+def set_clip_muted(clip_id: str, muted: bool = True) -> dict:
+    """Mute clip (black/silence in export; keeps timeline duration)."""
+    return _require_editor().set_clip_muted(clip_id, muted)
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

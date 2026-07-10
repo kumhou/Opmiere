@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 — 2026-07-10
+
+### Added
+- **Track mute / solo / lock** on Project JSON; export respects mute/solo
+- **Clip mute** (black/silence, keeps duration); lock blocks layout edits
+- Web: per-track M/S/L buttons; clip mute toggle
+
 ## 0.2.2 — 2026-07-10
 
 ### Added

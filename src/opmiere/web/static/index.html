@@ -291,6 +291,7 @@
         <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
         <button type="button" class="secondary" id="btnGain" disabled style="flex:0.4">Set</button>
       </div>
+      <button type="button" class="secondary" id="btnClipMute" disabled>Toggle clip mute</button>
       <div id="fillerBox"></div>
       <div id="reviewBox"></div>
       <div id="sheetWrap"></div>
@@ -513,19 +514,29 @@
           const sel = c.id === selectedClipId ? ' selected' : '';
           const kind = tr.kind === 'audio' ? 'audio' : 'video';
           const g = (c.gain_db != null && c.gain_db !== 0) ? ` ${c.gain_db>0?'+':''}${c.gain_db}dB` : '';
-          clipsHtml += `<div class="tclip ${kind}${sel}" data-id="${c.id}" data-media="${c.media_id||''}"
+          const mut = c.muted ? ' muted' : '';
+          const opacity = c.muted ? 'opacity:0.45;' : '';
+          clipsHtml += `<div class="tclip ${kind}${sel}${mut}" data-id="${c.id}" data-media="${c.media_id||''}"
             data-start="${c.start_frame}" data-in="${c.src_in}" data-out="${c.src_out}"
             data-t="${c.start_seconds}" data-gain="${c.gain_db||0}" data-ha="${c.has_audio_media?1:0}"
+            data-muted="${c.muted?1:0}"
             data-label="${(c.label||'').replace(/"/g,'')}"
-            style="left:${left}%;width:${width}%" title="${c.label} · ${c.id}${g}">
+            style="left:${left}%;width:${width}%;${opacity}" title="${c.label} · ${c.id}${g}${c.muted?' ·MUTED':''}">
             <canvas class="wave"></canvas>
             <span class="hL" data-edge="left"></span>
             <span class="clipLab" style="position:relative;z-index:1">${c.label}${g}</span>
             <span class="hR" data-edge="right"></span>
           </div>`;
         }
+        const flags = (tr.muted ? 'M' : '') + (tr.solo ? 'S' : '') + (tr.locked ? 'L' : '') + (tr.duck ? 'D' : '');
         html += `<div class="track-row">
-          <div class="track-name">${tr.kind}${tr.duck ? ' ·duck' : ''}<br/>${tr.id.slice(0,10)}</div>
+          <div class="track-name" data-tid="${tr.id}">
+            ${tr.kind}${flags ? ' ·' + flags : ''}<br/>
+            <span style="font-size:9px">${tr.id.slice(0,8)}</span><br/>
+            <button type="button" class="secondary trkM" data-tid="${tr.id}" data-v="${tr.muted?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">M</button>
+            <button type="button" class="secondary trkS" data-tid="${tr.id}" data-v="${tr.solo?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">S</button>
+            <button type="button" class="secondary trkL" data-tid="${tr.id}" data-v="${tr.locked?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">L</button>
+          </div>
           <div class="track-lane" data-view-frames="${viewDurF}">${clipsHtml}</div>
         </div>`;
       }
@@ -536,6 +547,45 @@
       wireClipInteractions(tracksEl, viewDurF, fps);
       paintWaveforms();
       syncGainUi();
+      tracksEl.querySelectorAll('.trkM').forEach(b => {
+        b.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            const r = await api('/api/track/mute', {
+              method: 'POST',
+              body: JSON.stringify({ track_id: b.dataset.tid, value: b.dataset.v === '1' }),
+            });
+            if (r.timeline) renderTimeline(r.timeline);
+            log('track mute ' + b.dataset.tid + '=' + r.muted);
+          } catch (err) { log(String(err.message || err)); }
+        };
+      });
+      tracksEl.querySelectorAll('.trkS').forEach(b => {
+        b.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            const r = await api('/api/track/solo', {
+              method: 'POST',
+              body: JSON.stringify({ track_id: b.dataset.tid, value: b.dataset.v === '1' }),
+            });
+            if (r.timeline) renderTimeline(r.timeline);
+            log('track solo ' + b.dataset.tid + '=' + r.solo);
+          } catch (err) { log(String(err.message || err)); }
+        };
+      });
+      tracksEl.querySelectorAll('.trkL').forEach(b => {
+        b.onclick = async (e) => {
+          e.stopPropagation();
+          try {
+            const r = await api('/api/track/lock', {
+              method: 'POST',
+              body: JSON.stringify({ track_id: b.dataset.tid, value: b.dataset.v === '1' }),
+            });
+            if (r.timeline) renderTimeline(r.timeline);
+            log('track lock ' + b.dataset.tid + '=' + r.locked);
+          } catch (err) { log(String(err.message || err)); }
+        };
+      });
     }
 
     function updateIoLab() {
@@ -578,17 +628,21 @@
       const slider = document.getElementById('gainSlider');
       const btn = document.getElementById('btnGain');
       const lab = document.getElementById('gainLabel');
+      const muteBtn = document.getElementById('btnClipMute');
       if (!selectedClipId) {
         slider.disabled = true;
         btn.disabled = true;
+        if (muteBtn) muteBtn.disabled = true;
         return;
       }
       slider.disabled = false;
       btn.disabled = false;
+      if (muteBtn) muteBtn.disabled = false;
       const el = document.querySelector(`.tclip[data-id="${selectedClipId}"]`);
       const g = el ? (+el.dataset.gain || 0) : 0;
       slider.value = g;
       lab.textContent = g;
+      if (muteBtn) muteBtn.textContent = (el && el.dataset.muted === '1') ? 'Unmute clip' : 'Mute clip';
     }
 
     function wireClipInteractions(tracksEl, viewDurF, fps) {
@@ -1283,6 +1337,19 @@
         });
         if (r.timeline) renderTimeline(r.timeline);
         log('gain ' + db + ' dB on ' + selectedClipId);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnClipMute').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const el = document.querySelector(`.tclip[data-id="${selectedClipId}"]`);
+        const next = !(el && el.dataset.muted === '1');
+        const r = await api('/api/clip/mute', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, muted: next }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        log('clip muted=' + r.muted);
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnCloseGaps').onclick = async () => {

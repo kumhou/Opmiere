@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.2")
+app = FastAPI(title="Opmiere", version="0.2.3")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.2",
+        "phase": "0.2.3",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -808,6 +808,44 @@ def export_work_api(body: ExportWorkBody) -> dict[str, Any]:
         normalize_preset=body.normalize_preset,
         run_delivery_check=body.run_delivery_check,
     )
+
+
+class TrackFlagBody(BaseModel):
+    track_id: str
+    value: bool = True
+
+
+class ClipMuteBody(BaseModel):
+    clip_id: str
+    muted: bool = True
+
+
+@app.post("/api/track/mute")
+def track_mute(body: TrackFlagBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_track_muted(body.track_id, body.value)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/track/solo")
+def track_solo(body: TrackFlagBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_track_solo(body.track_id, body.value)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/track/lock")
+def track_lock(body: TrackFlagBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_track_locked(body.track_id, body.value)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/mute")
+def clip_mute(body: ClipMuteBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clip_muted(body.clip_id, body.muted)
+    return {**r, "timeline": ed.timeline_view()}
 
 
 @app.get("/api/style_assets")

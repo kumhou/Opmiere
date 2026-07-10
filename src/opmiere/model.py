@@ -210,6 +210,8 @@ class Clip:
     # fraction of the *room it has to move in* (canvas size minus box size),
     # so 0..1 always keeps the whole box on-canvas — see Editor.set_position.
     position: dict[str, Any] | None = None
+    # muted: still occupies timeline; render blacks/silences (see ffmpeg export).
+    muted: bool = False
 
     @property
     def duration_frames(self) -> int:
@@ -242,6 +244,8 @@ class Clip:
             d["speed"] = self.speed
         if self.position is not None:
             d["position"] = self.position
+        if self.muted:
+            d["muted"] = True
         return d
 
     @classmethod
@@ -256,6 +260,7 @@ class Clip:
             transition_in=d.get("transition_in"),
             speed=d.get("speed", 1.0),
             position=d.get("position"),
+            muted=bool(d.get("muted", False)),
         )
 
 
@@ -274,6 +279,9 @@ class Track:
     kind: TrackKind
     clips: list[Clip] = field(default_factory=list)
     duck: dict[str, Any] | None = None
+    muted: bool = False
+    solo: bool = False
+    locked: bool = False
 
     def clips_in_order(self) -> list[Clip]:
         return sorted(self.clips, key=lambda c: c.start)
@@ -286,6 +294,12 @@ class Track:
         }
         if self.duck is not None:
             d["duck"] = self.duck
+        if self.muted:
+            d["muted"] = True
+        if self.solo:
+            d["solo"] = True
+        if self.locked:
+            d["locked"] = True
         return d
 
     @classmethod
@@ -295,6 +309,9 @@ class Track:
             kind=d["kind"],
             clips=[Clip.from_dict(c) for c in d.get("clips", [])],
             duck=d.get("duck"),
+            muted=bool(d.get("muted", False)),
+            solo=bool(d.get("solo", False)),
+            locked=bool(d.get("locked", False)),
         )
 
 

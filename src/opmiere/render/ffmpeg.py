@@ -484,6 +484,15 @@ def _speed_filter(speed: float, stream: Literal["video", "audio"]) -> str | None
     return f"atempo={speed}"
 
 
+def _active_tracks(tracks: list, kind: str) -> list:
+    """Apply mute/solo: if any track of kind is solo, only solos; else drop muted."""
+    kind_tracks = [t for t in tracks if t.kind == kind]
+    solos = [t for t in kind_tracks if getattr(t, "solo", False)]
+    if solos:
+        return solos
+    return [t for t in kind_tracks if not getattr(t, "muted", False)]
+
+
 def _validate_contiguous(track: Track) -> list:
     """Each clip must either hard-cut from the previous one (start == prev.end)
     or declare a transition_in whose duration_frames exactly explains the
@@ -546,14 +555,20 @@ def _video_clip_chain(
     embedded ``;`` is fine.
     """
     speed_pts = _speed_filter(clip.speed, "video") or "setpts=PTS-STARTPTS"
+    effects = list(clip.effects or [])
+    if getattr(clip, "muted", False):
+        # Black out while keeping duration/contiguity
+        effects = effects + [
+            {"type": "color", "brightness": -1.0, "contrast": 1.0, "saturation": 0.0},
+        ]
     has_alpha = any(
-        e.get("type") in ("chroma_key", "luma_key", "shape_mask") for e in clip.effects
+        e.get("type") in ("chroma_key", "luma_key", "shape_mask") for e in effects
     )
     # ken_burns (zoompan) already emits exactly box_w x box_h at project fps.
     # Appending the normal scale/pad/fps tail after zoompan multiplies frame
     # count into the thousands (spike: 30 → 15360). Skip size/fps tail when
     # present; keep setsar (+ alpha format if needed).
-    has_ken_burns = any(e.get("type") == "ken_burns" for e in clip.effects)
+    has_ken_burns = any(e.get("type") == "ken_burns" for e in effects)
     pad_color = "black@0.0" if has_alpha else "black"
     if has_ken_burns:
         tail_filters = []
@@ -574,7 +589,7 @@ def _video_clip_chain(
     # Linear runs still go through _effect_filters; glow expands here.
     segments: list[tuple[str, Any]] = []
     linear_batch: list[dict[str, Any]] = []
-    for effect in clip.effects:
+    for effect in effects:
         if effect.get("type") == "glow":
             if linear_batch:
                 segments.append(("linear", linear_batch))
@@ -588,7 +603,7 @@ def _video_clip_chain(
     has_glow = any(kind == "glow" for kind, _ in segments)
     if not has_glow:
         fx = _effect_filters(
-            clip.effects, clip.timeline_duration_frames, fps, "video", text_dir,
+            effects, clip.timeline_duration_frames, fps, "video", text_dir,
             out_w=box_w, out_h=box_h,
         )
         chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
@@ -675,7 +690,10 @@ def _audio_clip_chain(clip: Clip, idx: int, tb, sample_rate: int, label: str) ->
     which need their inputs to agree on format — normalising here once beats
     letting a mono voiceover meet a stereo music bed inside amix."""
     fps = tb.fps
-    fx = _effect_filters(clip.effects, clip.timeline_duration_frames, fps, "audio")
+    effects = list(clip.effects or [])
+    if getattr(clip, "muted", False):
+        effects = effects + [{"type": "gain", "db": -100.0}]
+    fx = _effect_filters(effects, clip.timeline_duration_frames, fps, "audio")
     chain = (
         f"[{idx}:a]atrim=start={tb.frames_to_seconds(clip.src_in):.6f}:"
         f"end={tb.frames_to_seconds(clip.src_out):.6f},asetpts=PTS-STARTPTS"
@@ -793,14 +811,17 @@ class FFmpegBackend(RenderBackend):
         # see _video_clip_chain/_validate_no_overlaps and the overlay loop
         # below. Nothing about Editor/model changed for this: it never
         # restricted track counts, only this backend did.
-        video_tracks = [t for t in project.tracks if t.kind == "video"]
-        audio_tracks = [t for t in project.tracks if t.kind == "audio"]
+        video_tracks = _active_tracks(project.tracks, "video")
+        audio_tracks = _active_tracks(project.tracks, "audio")
         base_video_track = video_tracks[0] if video_tracks else None
         overlay_video_tracks = video_tracks[1:]
         base_audio_track = audio_tracks[0] if audio_tracks else None
         overlay_audio_tracks = audio_tracks[1:]
         if base_video_track is None and base_audio_track is None:
-            raise ValueError("project has no tracks to render")
+            raise ValueError(
+                "project has no audible/visible tracks to render "
+                "(all muted? clear mute or enable solo)"
+            )
 
         base_video_clips = _validate_contiguous(base_video_track) if base_video_track else []
         overlay_clips_by_track = [_validate_no_overlaps(t) for t in overlay_video_tracks]
