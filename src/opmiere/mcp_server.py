@@ -958,16 +958,128 @@ def save_project() -> str:
 
 
 @mcp.tool()
-def export(output_path: str) -> dict:
+def make_sequence_contact_sheet(
+    output_path: str,
+    max_tiles: int = 12,
+    tile_width: int = 160,
+    tile_height: int = 90,
+    cols: int | None = None,
+) -> dict:
+    """Whole-cut eyes: mid-frame of each base-track clip in one grid image.
+
+    Read the returned image to judge pacing/continuity. Use after structure,
+    before or after export. Not a substitute for delivery_check on the file.
+    """
+    return _require_editor().make_sequence_contact_sheet(
+        output_path,
+        max_tiles=max_tiles,
+        tile_width=tile_width,
+        tile_height=tile_height,
+        cols=cols,
+    )
+
+
+@mcp.tool()
+def review_cut(
+    min_clip_seconds: float = 0.4,
+    max_brightness_jump: float = 45.0,
+    check_brightness_jumps: bool = True,
+    expect_music_duck: bool = True,
+) -> dict:
+    """Structural craft review of the live timeline.
+
+    Flags gaps/overlaps, flash-cut short clips, hard-cut brightness jumps,
+    multi-audio without ducking. Fix severity=error before export; treat
+    warnings as craft notes. Pair with make_sequence_contact_sheet.
+    """
+    return _require_editor().review_cut(
+        min_clip_seconds=min_clip_seconds,
+        max_brightness_jump=max_brightness_jump,
+        check_brightness_jumps=check_brightness_jumps,
+        expect_music_duck=expect_music_duck,
+    )
+
+
+@mcp.tool()
+def normalize_loudness(
+    path: str,
+    output_path: str,
+    preset: str = "streaming",
+    target_lufs: float | None = None,
+    true_peak: float | None = None,
+    lra: float | None = None,
+    two_pass: bool = True,
+) -> dict:
+    """Loudness-normalize a file (export or stem) to a platform target.
+
+    preset: streaming|youtube|bilibili|douyin|podcast|broadcast
+    (streaming ≈ -14 LUFS / -1.5 dBTP). Returns before/after meters.
+    Then run delivery_check on output_path.
+    """
+    return _require_editor().normalize_loudness(
+        path,
+        output_path,
+        preset=preset,
+        target_lufs=target_lufs,
+        true_peak=true_peak,
+        lra=lra,
+        two_pass=two_pass,
+    )
+
+
+@mcp.tool()
+def delivery_check(
+    path: str,
+    preset: str = "streaming",
+    target_lufs: float | None = None,
+    true_peak_limit: float | None = None,
+    lufs_tolerance: float = 1.5,
+    expected_width: int | None = None,
+    expected_height: int | None = None,
+    expected_fps: float | None = None,
+    expected_duration_seconds: float | None = None,
+    run_quality_check: bool = True,
+    match_project: bool = True,
+) -> dict:
+    """Honest gate on a finished export — do not call it final if ok=false.
+
+    Checks LUFS/true-peak vs preset, resolution/fps vs project (when
+    match_project), optional quality_check (black/frozen/silent). Agent must
+    warn the user or fix (normalize_loudness / re-export) when errors present.
+    """
+    return _require_editor().delivery_check(
+        path,
+        preset=preset,
+        target_lufs=target_lufs,
+        true_peak_limit=true_peak_limit,
+        lufs_tolerance=lufs_tolerance,
+        expected_width=expected_width,
+        expected_height=expected_height,
+        expected_fps=expected_fps,
+        expected_duration_seconds=expected_duration_seconds,
+        run_quality_check=run_quality_check,
+        match_project=match_project,
+    )
+
+
+@mcp.tool()
+def export(
+    output_path: str,
+    normalize_preset: str | None = None,
+    run_delivery_check: bool = True,
+    delivery_preset: str = "streaming",
+) -> dict:
     """Render the full timeline to a real video file at output_path.
 
-    Returns ffprobe-verified facts about the file actually written — the
-    agent should read these back rather than assume the export matched intent.
+    Optional normalize_preset (streaming/youtube/…) loudness-normalizes to a
+    *_loud sibling and returns that path. When run_delivery_check (default
+    true), includes delivery_check result — agent must not claim professional
+    delivery if delivery_check.ok is false.
     """
     editor = _require_editor()
-    written = editor.export(Path(output_path))
+    written = editor.export(Path(output_path), normalize_preset=normalize_preset)
     result = _probe(written)
-    return {
+    payload: dict = {
         "path": str(written),
         "duration_seconds": result.duration_seconds,
         "fps": result.fps,
@@ -975,7 +1087,13 @@ def export(output_path: str) -> dict:
         "height": result.height,
         "has_video": result.has_video,
         "has_audio": result.has_audio,
+        "normalize_preset": normalize_preset,
     }
+    if run_delivery_check:
+        payload["delivery_check"] = editor.delivery_check(
+            written, preset=delivery_preset,
+        )
+    return payload
 
 
 def main() -> None:

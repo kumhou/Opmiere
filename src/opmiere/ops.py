@@ -36,9 +36,13 @@ from .model import (
 from .render.audio_critic import analyze_audio as _analyze_audio
 from .render.backend import RenderBackend
 from .render.contact_sheet import make_contact_sheet as _make_contact_sheet
+from .render.delivery import delivery_check as _delivery_check
+from .render.delivery import normalize_loudness as _normalize_loudness
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
 from .render.quality_check import quality_check as _quality_check
+from .render.sequence_review import make_sequence_contact_sheet as _make_sequence_contact_sheet
+from .render.sequence_review import review_cut as _review_cut
 from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
 from .render.asr import transcribe as _transcribe
 from .render.asr import write_srt as _write_srt
@@ -824,6 +828,111 @@ class Editor:
         """
         return str(_make_contact_sheet(Path(path), Path(output_path), cols=cols, rows=rows))
 
+    def make_sequence_contact_sheet(
+        self,
+        output_path: str | Path,
+        *,
+        max_tiles: int = 12,
+        tile_width: int = 160,
+        tile_height: int = 90,
+        cols: int | None = None,
+    ) -> dict[str, Any]:
+        """Grid of mid-frames from each base-track clip — whole-cut eyes."""
+        return _make_sequence_contact_sheet(
+            self.project,
+            self.bundle,
+            Path(output_path),
+            max_tiles=max_tiles,
+            tile_width=tile_width,
+            tile_height=tile_height,
+            cols=cols,
+        )
+
+    def review_cut(
+        self,
+        *,
+        min_clip_seconds: float = 0.4,
+        max_brightness_jump: float = 45.0,
+        check_brightness_jumps: bool = True,
+        expect_music_duck: bool = True,
+    ) -> dict[str, Any]:
+        """Structural craft review of the live timeline (gaps, flash cuts, ducking)."""
+        return _review_cut(
+            self.project,
+            self.bundle,
+            min_clip_seconds=min_clip_seconds,
+            max_brightness_jump=max_brightness_jump,
+            check_brightness_jumps=check_brightness_jumps,
+            expect_music_duck=expect_music_duck,
+        )
+
+    def normalize_loudness(
+        self,
+        path: str | Path,
+        output_path: str | Path,
+        *,
+        preset: str = "streaming",
+        target_lufs: float | None = None,
+        true_peak: float | None = None,
+        lra: float | None = None,
+        two_pass: bool = True,
+    ) -> dict[str, Any]:
+        """Loudness-normalize a media file (export or stem) to a platform target."""
+        return _normalize_loudness(
+            Path(path),
+            Path(output_path),
+            preset=preset,
+            target_lufs=target_lufs,
+            true_peak=true_peak,
+            lra=lra,
+            two_pass=two_pass,
+        )
+
+    def delivery_check(
+        self,
+        path: str | Path,
+        *,
+        preset: str = "streaming",
+        target_lufs: float | None = None,
+        true_peak_limit: float | None = None,
+        lufs_tolerance: float = 1.5,
+        expected_width: int | None = None,
+        expected_height: int | None = None,
+        expected_fps: float | None = None,
+        expected_duration_seconds: float | None = None,
+        duration_tolerance_seconds: float = 0.35,
+        run_quality_check: bool = True,
+        match_project: bool = True,
+    ) -> dict[str, Any]:
+        """Gate a finished export: LUFS/true-peak, geometry, quality_check.
+
+        When match_project=True (default), expected width/height/fps default
+        from the open project if not passed explicitly.
+        """
+        w = expected_width
+        h = expected_height
+        fps = expected_fps
+        if match_project:
+            if w is None:
+                w = self.project.resolution.w
+            if h is None:
+                h = self.project.resolution.h
+            if fps is None:
+                fps = self.project.timebase.fps
+        return _delivery_check(
+            Path(path),
+            preset=preset,
+            target_lufs=target_lufs,
+            true_peak_limit=true_peak_limit,
+            lufs_tolerance=lufs_tolerance,
+            expected_width=w,
+            expected_height=h,
+            expected_fps=fps,
+            expected_duration_seconds=expected_duration_seconds,
+            duration_tolerance_seconds=duration_tolerance_seconds,
+            run_quality_check=run_quality_check,
+        )
+
     def transcribe(
         self,
         path: str | Path,
@@ -1168,5 +1277,24 @@ class Editor:
         }
 
     # --- render -----------------------------------------------------------
-    def export(self, output_path: Path) -> Path:
-        return self.render_backend.export(self.project, self.bundle, Path(output_path))
+    def export(
+        self,
+        output_path: Path,
+        *,
+        normalize_preset: str | None = None,
+    ) -> Path:
+        """Render timeline to ``output_path``.
+
+        Optional ``normalize_preset`` (e.g. ``\"streaming\"``) writes a
+        loudness-normalized sibling ``*_loud.ext`` and returns that path.
+        Always run ``delivery_check`` on the result before calling it final.
+        """
+        written = self.render_backend.export(
+            self.project, self.bundle, Path(output_path)
+        )
+        if normalize_preset:
+            out = Path(written)
+            loud_path = out.with_name(out.stem + "_loud" + out.suffix)
+            self.normalize_loudness(out, loud_path, preset=normalize_preset)
+            return Path(loud_path)
+        return written

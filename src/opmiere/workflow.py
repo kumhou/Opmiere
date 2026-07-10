@@ -92,10 +92,16 @@ per-fragment quality gates; call `plan_director_session` for a step list.
 3. `analyze_timeline` to verify the mix (ducking room, peaks).
 
 ## 6. Deliver
-1. `export(export_path)`.
-2. `quality_check(export_path)` + optional final contact sheet.
-3. Report: brief version, what was generated vs user-supplied, license notes
-   via `get_license_report` if any generated media is restricted.
+1. `review_cut` — fix severity=error (gaps, empty base); note craft warnings.
+2. `make_sequence_contact_sheet` — judge whole-cut pacing/continuity in one image.
+3. `export(export_path, normalize_preset=\"streaming\")` for net delivery loudness
+   (or normalize_loudness on the raw export). Prefer -14 LUFS streaming /
+   youtube / bilibili; broadcast -23.
+4. `delivery_check(export_path)` — **required**. ok=false → fix levels/specs or
+   warn the user; do not claim professional delivery.
+5. Optional per-file `quality_check` / contact_sheet already embedded in
+   delivery_check when video/audio present.
+6. Report: brief version, generated vs user media, `get_license_report` if needed.
 
 ## Anti-patterns
 - Generate B-roll before placing the user's A-roll.
@@ -386,15 +392,31 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
         optional_tools=["gain", "analyze_timeline"],
     )
     add(
+        "review_cut",
+        "review_cut",
+        "Structural craft review: gaps, flash cuts, brightness jumps, missing duck",
+    )
+    add(
+        "sequence_sheet",
+        "make_sequence_contact_sheet",
+        "Whole-cut mid-frame grid — judge pacing/continuity before export",
+        params={"output_path": "<bundle>/review/sequence_sheet.png"},
+    )
+    add(
         "export",
         "export",
-        "Write final file",
-        params={"output_path": deliverable.get("export_path") or "<choose export path>"},
+        "Write final file; prefer normalize_preset=streaming for -14 LUFS",
+        params={
+            "output_path": deliverable.get("export_path") or "<choose export path>",
+            "normalize_preset": "streaming",
+            "run_delivery_check": True,
+        },
     )
     add(
         "verify_export",
-        "quality_check",
-        "Free gate on the export path; optional contact sheet + get_license_report",
+        "delivery_check",
+        "Honest delivery gate (LUFS/peak/geometry/quality_check); ok=false → fix or warn user",
+        optional_tools=["normalize_loudness", "quality_check", "get_license_report"],
     )
 
     return {

@@ -73,7 +73,8 @@ def test_plan_session_prefers_ingest_before_generate(tmp_path: Path):
     assert "plan_edit" in tools
     assert "create_project" in tools
     assert "export" in tools
-    assert "quality_check" in tools
+    assert "delivery_check" in tools
+    assert "review_cut" in tools
     # a_roll present → speech/music may still be gaps
     gen_step = next(s for s in plan["steps"] if s["id"] == "generate_gaps")
     assert "speech" in gen_step["kinds"] or "music" in gen_step["kinds"]

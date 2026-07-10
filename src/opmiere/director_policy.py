@@ -60,7 +60,12 @@ tools + selective generation*, not "generate everything and hope."
   `white_balance`) rather than regenerating whole shots for small color drift.
 - Audio: multi-track mix; `set_ducking` so music yields to voice; `analyze_timeline`
   (or `analyze_audio` on a file) as ears before export.
-- Export → run `quality_check` on the export path; trust pixels, not "no error."
+- Before export: `review_cut` (structure/craft) + `make_sequence_contact_sheet`
+  (whole-cut eyes).
+- Export → prefer `normalize_preset="streaming"` (-14 LUFS) or
+  `normalize_loudness` on the file → **`delivery_check` required**. ok=false
+  means do not call the cut professional delivery without fix or user waiver.
+  Trust meters and pixels, not "ffmpeg exited 0."
 
 ## Continuity (no frame-chaining yet)
 - Shared prompt anchor words across related shots.

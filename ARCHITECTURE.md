@@ -686,8 +686,11 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 transition_affinity + role_guess; optional ASR), `suggest_project_fps` (24/30/60 + 25/50),
 `suggest_project_resolution` / `check_delivery_limits` (up to 4k; agent must warn when sources
 cannot support claimed delivery), `plan_edit` → `apply_edit_plan` EDL from cards, transcribe/caption,
-stem separation (Demucs optional). **P3 minimal web** shell: `opmiere-web`. Still open: music beat
-sync, full interactive preview, non-3070 re-benchmark. Cloud deferred (local free).
+stem separation (Demucs optional). **Delivery finish:** `normalize_loudness` (loudnorm presets
+streaming -14 / broadcast -23), `delivery_check` on export (LUFS/peak/geometry/quality_check),
+`review_cut` + `make_sequence_contact_sheet` for whole-cut craft. **P3 minimal web** shell:
+`opmiere-web`. Still open: music beat sync, project look/color-match, full interactive preview,
+non-3070 re-benchmark. Cloud deferred (local free).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
