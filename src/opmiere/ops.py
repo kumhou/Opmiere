@@ -42,6 +42,10 @@ from .render.quality_check import quality_check as _quality_check
 from .render.silence_edit import suggest_keep_ranges as _suggest_keep_ranges
 from .render.asr import transcribe as _transcribe
 from .render.asr import write_srt as _write_srt
+from .render.asset_analysis import analyze_asset as _analyze_asset
+from .render.asset_analysis import load_analysis_cache as _load_analysis_cache
+from .render.asset_analysis import save_analysis_cache as _save_analysis_cache
+from .render.asset_analysis import suggest_project_fps as _suggest_project_fps
 from .render.scene_detect import detect_scenes as _detect_scenes
 from .render.stems import separate_stems as _separate_stems
 
@@ -82,6 +86,8 @@ class Editor:
         height: int = 1080,
         generation_provider: GenerationProvider | None = None,
     ) -> "Editor":
+        # Default 30 for social/delivery clarity; use suggest_project_fps()
+        # when user footage is nearer 24. Avoid defaulting to gen-model 16fps.
         project = Project()
         project.timebase.fps = fps
         project.resolution.w, project.resolution.h = width, height
@@ -880,6 +886,53 @@ class Editor:
             min_scene_len=min_scene_len,
             backend=backend,
         )
+
+    def suggest_project_fps(
+        self,
+        paths: list[str] | None = None,
+        preference: str = "auto",
+    ) -> dict[str, Any]:
+        """Recommend 24 or 30 fps for the timeline from source material."""
+        return _suggest_project_fps(paths, preference=preference)
+
+    def analyze_asset(
+        self,
+        path: str | Path,
+        *,
+        do_scenes: bool = True,
+        do_silence: bool = True,
+        do_motion: bool = True,
+        do_transcribe: bool = False,
+        scene_backend: str = "auto",
+        language: str | None = None,
+        model_size: str = "base",
+        cache: bool = True,
+    ) -> dict[str, Any]:
+        """Build an asset card (probe/scenes/silence/motion/optional ASR).
+
+        When cache=True and a project is open, write JSON under bundle/analysis/.
+        """
+        card = _analyze_asset(
+            Path(path),
+            do_scenes=do_scenes,
+            do_silence=do_silence,
+            do_motion=do_motion,
+            do_transcribe=do_transcribe,
+            scene_backend=scene_backend,
+            transcribe_language=language,
+            model_size=model_size,
+        )
+        if cache:
+            try:
+                cache_path = _save_analysis_cache(self.bundle.root, card)
+                card["cache_path"] = str(cache_path)
+            except Exception:
+                pass
+        return card
+
+    def load_asset_analysis(self, media_path: str | Path) -> dict[str, Any] | None:
+        """Load a previously cached asset card from the open project."""
+        return _load_analysis_cache(self.bundle.root, media_path)
 
     def separate_stems(
         self,

@@ -764,6 +764,48 @@ def detect_scenes(
 
 
 @mcp.tool()
+def suggest_project_fps(paths: list[str] | None = None, preference: str = "auto") -> dict:
+    """Recommend timeline fps (24 or 30) from source videos.
+
+    preference: auto | 24 | 30. Prefer matching user A-roll; do not drag the
+    whole project to 16fps just because one generated draft is 16.
+    """
+    return _require_editor().suggest_project_fps(paths, preference=preference)
+
+
+@mcp.tool()
+def analyze_asset(
+    path: str,
+    do_scenes: bool = True,
+    do_silence: bool = True,
+    do_motion: bool = True,
+    do_transcribe: bool = False,
+    scene_backend: str = "auto",
+    language: str | None = None,
+    model_size: str = "base",
+    cache: bool = True,
+) -> dict:
+    """Professional asset card for one media file.
+
+    Returns probe, scenes, silence keep_ranges, motion label, transition
+    affinity (preferred in/out), role_guess, suggested_uses. Optional ASR
+    when do_transcribe=true (needs faster-whisper). Caches under .opm/analysis/.
+    Use before plan_edit / place to allocate shots intelligently.
+    """
+    return _require_editor().analyze_asset(
+        path,
+        do_scenes=do_scenes,
+        do_silence=do_silence,
+        do_motion=do_motion,
+        do_transcribe=do_transcribe,
+        scene_backend=scene_backend,
+        language=language,
+        model_size=model_size,
+        cache=cache,
+    )
+
+
+@mcp.tool()
 def separate_stems(
     path: str,
     output_dir: str,

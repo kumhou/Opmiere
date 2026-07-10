@@ -682,13 +682,11 @@ kind's default. Real audio verified via volume analysis + waveform plot (generat
 eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's own `probe()`/
 `import_media` path, not just raw ComfyUI.
 
-**User-footage understanding:** transcribe/caption (faster-whisper), silence keep_ranges, scene
-detect (PySceneDetect + ffmpeg fallback), stem separation (Demucs, optional). **P3 minimal web**
-shell: `opmiere-web` / `python -m opmiere.web.app` — create/open project, place media, export,
-director brief→plan UI (no real-time scrub preview yet; libopenshot vs MLT still open).
-
-Still open: non-3070 profile re-benchmark (hardware), heavier offload video models, full interactive
-preview NLE, CapCut export bridge (out of core scope). Cloud deferred (local free).
+**User-footage understanding:** `analyze_asset` cards (probe + scenes + silence + motion +
+transition_affinity + role_guess; optional ASR), `suggest_project_fps` (24/30 from sources — do not
+inherit gen-model 16fps), transcribe/caption, stem separation (Demucs optional). **P3 minimal web**
+shell: `opmiere-web`. Still open: EDL auto-apply from cards, music beat sync, full interactive
+preview, non-3070 re-benchmark. Cloud deferred (local free).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

@@ -49,9 +49,12 @@ per-fragment quality gates; call `plan_director_session` for a step list.
 3. `plan_director_session(brief)` → ordered steps. Follow them; skip only with reason.
 
 ## 1. Project
-1. `create_project(bundle_path, fps, width, height)` — match user constraints or
-   defaults (often 16fps if heavy wan2.1 video gen, else 24/30).
-2. `get_project_state` before any id-based call.
+1. `suggest_project_fps(paths)` when constraints.fps unset — prefer **24 or 30**
+   from user A-roll (not 16 from a generated draft).
+2. `create_project(bundle_path, fps, width, height)`.
+3. `get_project_state` before any id-based call.
+4. `analyze_asset` each user file → role_guess, motion, transition_affinity,
+   scenes, silence; use cards to allocate order and transitions.
 
 ## 2. Ingest user assets first
 1. For each asset: `place_from_file` / import + place (video/audio/still).
@@ -219,13 +222,24 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
     add("read_policy", "get_director_policy", "Load per-fragment quality gates")
     add("read_workflow", "get_film_workflow", "Load full session process + defaults")
 
+    asset_paths = [
+        a.get("path") for a in assets
+        if isinstance(a, dict) and a.get("path")
+    ]
     fps = constraints.get("fps")
     width = constraints.get("width", 1920)
     height = constraints.get("height", 1080)
+    if fps is None and asset_paths:
+        add(
+            "suggest_fps",
+            "suggest_project_fps",
+            "Pick 24 or 30 from user footage (do not inherit low gen fps)",
+            params={"paths": asset_paths, "preference": "auto"},
+        )
     add(
         "create_project",
         "create_project",
-        "Open a new .opm bundle",
+        "Open a new .opm bundle at recommended or constraint fps",
         params={
             "bundle_path": deliverable.get("bundle_path") or "<choose .opm path>",
             "fps": fps if fps is not None else 30,
@@ -235,6 +249,13 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
     )
 
     if assets:
+        add(
+            "analyze_assets",
+            "analyze_asset",
+            "Asset cards: scenes, silence, motion, transition affinity, role_guess",
+            assets=assets,
+            note="Loop analyze_asset per file; cache under .opm/analysis/",
+        )
         add(
             "ingest_assets",
             "place_from_file",
