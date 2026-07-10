@@ -40,10 +40,13 @@ from .render.delivery import delivery_check as _delivery_check
 from .render.delivery import normalize_loudness as _normalize_loudness
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
+from .render.beats import detect_beats as _detect_beats
 from .render.look import LOOK_PRESETS as _LOOK_PRESETS
 from .render.look import measure_frame_stats as _measure_frame_stats
 from .render.look import resolve_look as _resolve_look
 from .render.look import suggest_color_match_effects as _suggest_color_match_effects
+from .render.mix_suggest import suggest_dialogue_chain as _suggest_dialogue_chain
+from .render.mix_suggest import suggest_mix as _suggest_mix
 from .render.quality_check import quality_check as _quality_check
 from .render.sequence_review import make_sequence_contact_sheet as _make_sequence_contact_sheet
 from .render.sequence_review import review_cut as _review_cut
@@ -1049,6 +1052,8 @@ class Editor:
         j_cut_seconds: float = 0.4,
         l_cut_seconds: float = 0.25,
         b_roll_max_seconds: float = 2.5,
+        use_music_beats: bool = True,
+        black_pad_j_cut: bool = True,
     ) -> dict[str, Any]:
         """Build EDL from asset cards/paths. Does not mutate the project."""
         return _plan_edit(
@@ -1068,6 +1073,8 @@ class Editor:
             j_cut_seconds=j_cut_seconds,
             l_cut_seconds=l_cut_seconds,
             b_roll_max_seconds=b_roll_max_seconds,
+            use_music_beats=use_music_beats,
+            black_pad_j_cut=black_pad_j_cut,
         )
 
     def apply_edit_plan(
@@ -1110,25 +1117,64 @@ class Editor:
             hint_to_id[hint] = trk.id
             return trk.id
 
+        import os
+        import subprocess
+        import tempfile
+
         for i, ev in enumerate(events):
-            if not isinstance(ev, dict) or ev.get("op") != "place":
-                errors.append(f"events[{i}]: skip non-place op")
+            if not isinstance(ev, dict):
+                errors.append(f"events[{i}]: skip non-dict")
                 continue
-            path = ev.get("path")
-            if not path or not Path(path).exists():
-                msg = f"events[{i}]: missing file {path!r}"
-                if skip_missing:
-                    errors.append(msg)
-                    continue
-                raise FileNotFoundError(msg)
+            op = ev.get("op")
+            if op not in ("place", "place_black"):
+                errors.append(f"events[{i}]: skip op {op!r}")
+                continue
 
             kind = ev.get("kind") or "video"
             if kind not in ("video", "audio", "image"):
                 kind = "video"
-            hint = str(ev.get("track_hint") or ("video_base" if kind != "audio" else "audio_music"))
+            hint = str(
+                ev.get("track_hint")
+                or ("video_base" if kind != "audio" else "audio_music")
+            )
             track_id = _ensure_track(hint)
 
             try:
+                if op == "place_black":
+                    dur_s = float(
+                        ev.get("src_out_seconds")
+                        or (int(ev.get("src_out_frames") or 1) / self.project.timebase.fps)
+                    )
+                    dur_s = max(0.05, dur_s)
+                    w, h = self.project.resolution.w, self.project.resolution.h
+                    fps = self.project.timebase.fps
+                    fd, raw = tempfile.mkstemp(prefix="opmiere_jcut_", suffix=".mp4")
+                    os.close(fd)
+                    slug_path = Path(raw)
+                    proc = subprocess.run(
+                        [
+                            "ffmpeg", "-y", "-f", "lavfi",
+                            "-i", f"color=c=black:s={w}x{h}:d={dur_s}:r={fps}",
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                            str(slug_path),
+                        ],
+                        capture_output=True, text=True,
+                    )
+                    if proc.returncode != 0 or not slug_path.exists():
+                        raise RuntimeError(
+                            f"place_black failed:\n{(proc.stderr or '')[-1200:]}"
+                        )
+                    path = str(slug_path)
+                    kind = "video"
+                else:
+                    path = ev.get("path")
+                    if not path or not Path(path).exists():
+                        msg = f"events[{i}]: missing file {path!r}"
+                        if skip_missing:
+                            errors.append(msg)
+                            continue
+                        raise FileNotFoundError(msg)
+
                 if path not in media_by_path:
                     media = self.import_media(Path(path), kind)  # type: ignore[arg-type]
                     media_by_path[path] = media.id
@@ -1147,15 +1193,11 @@ class Editor:
                     errors.append(f"events[{i}]: empty range after clamp")
                     continue
 
-                # Absolute timeline start (overlay / J-cut) wins over sequential
                 abs_start = ev.get("timeline_start_frames")
                 if abs_start is None and ev.get("timeline_start_seconds") is not None:
                     abs_start = self.project.timebase.seconds_to_frames(
                         float(ev["timeline_start_seconds"])
                     )
-                use_absolute = abs_start is not None or hint.endswith("overlay") or (
-                    hint.startswith("audio_") and abs_start is not None
-                )
 
                 prev_id = last_clip_on.get(track_id)
                 if abs_start is not None:
@@ -1173,7 +1215,6 @@ class Editor:
                     )
 
                 t_in = ev.get("transition_in")
-                # Transitions only on contiguous base tracks with hard-cut neighbor
                 if (
                     t_in and isinstance(t_in, dict)
                     and prev_id is not None
@@ -1187,7 +1228,6 @@ class Editor:
                         except ValueError as te:
                             errors.append(f"events[{i}] transition: {te}")
 
-                # Optional per-event effects (look, etc.)
                 for fx in ev.get("effects") or []:
                     if isinstance(fx, dict) and fx.get("type"):
                         try:
@@ -1207,6 +1247,7 @@ class Editor:
                     "src_out": clip.src_out,
                     "transition_in": clip.transition_in,
                     "absolute": abs_start is not None,
+                    "op": op,
                 })
             except Exception as e:
                 if skip_missing:
@@ -1220,6 +1261,145 @@ class Editor:
             "track_ids": hint_to_id,
             "errors": errors,
             "duration_frames": self.duration_frames(),
+        }
+
+    def detect_beats(
+        self,
+        path: str | Path,
+        *,
+        max_seconds: float | None = 180.0,
+        sensitivity: float = 1.15,
+    ) -> dict[str, Any]:
+        """Beat/onset times from music or video audio (energy peak-pick)."""
+        return _detect_beats(
+            Path(path), max_seconds=max_seconds, sensitivity=sensitivity,
+        )
+
+    def suggest_mix(
+        self,
+        *,
+        vo_path: str | Path | None = None,
+        music_path: str | Path | None = None,
+        sfx_path: str | Path | None = None,
+        vo_track_id: str | None = None,
+        music_track_id: str | None = None,
+        target_vo_lufs: float = -16.0,
+        target_music_lufs: float = -22.0,
+    ) -> dict[str, Any]:
+        """Suggest gain dB + ducking from VO/music stem meters."""
+        return _suggest_mix(
+            vo_path=vo_path,
+            music_path=music_path,
+            sfx_path=sfx_path,
+            vo_track_id=vo_track_id,
+            music_track_id=music_track_id,
+            target_vo_lufs=target_vo_lufs,
+            target_music_lufs=target_music_lufs,
+        )
+
+    def suggest_dialogue_chain(
+        self,
+        path: str | Path,
+        *,
+        has_music_bleed: bool = False,
+    ) -> dict[str, Any]:
+        """Recommended denoise/compress/gain steps for a VO file."""
+        return _suggest_dialogue_chain(path, has_music_bleed=has_music_bleed)
+
+    def apply_mix_plan(
+        self,
+        plan: dict[str, Any],
+        *,
+        role_clip_ids: dict[str, list[str]] | None = None,
+        music_track_id: str | None = None,
+        vo_track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply a suggest_mix result: gain on clips by role + set_ducking.
+
+        ``role_clip_ids`` maps ``vo``/``music``/``sfx`` → clip id lists.
+        If omitted, gains apply to all clips on the matching track_id from
+        each action (when present).
+        """
+        if not isinstance(plan, dict) or "actions" not in plan:
+            raise ValueError("plan must be a suggest_mix result with 'actions'")
+        applied: list[dict[str, Any]] = []
+        errors: list[str] = []
+        role_clip_ids = role_clip_ids or {}
+
+        def _clips_for_role(role: str, track_hint: str | None) -> list[str]:
+            if role in role_clip_ids and role_clip_ids[role]:
+                return list(role_clip_ids[role])
+            tid = track_hint
+            if not tid:
+                return []
+            try:
+                track = self.project.track_by_id(tid)
+            except KeyError:
+                return []
+            return [c.id for c in track.clips]
+
+        for action in plan.get("actions") or []:
+            if not isinstance(action, dict):
+                continue
+            op = action.get("op")
+            try:
+                if op == "gain":
+                    role = str(action.get("role") or "")
+                    db = float(action["db"])
+                    track_id = action.get("track_id")
+                    cids = _clips_for_role(role, track_id)
+                    if not cids and track_id:
+                        cids = _clips_for_role(role, track_id)
+                    # Fallback: all clips on first audio track matching role name
+                    if not cids:
+                        for t in self.project.tracks:
+                            if t.kind != "audio":
+                                continue
+                            # heuristic: use track with clips if only one audio
+                            if len([x for x in self.project.tracks if x.kind == "audio"]) == 1:
+                                cids = [c.id for c in t.clips]
+                                break
+                    for cid in cids:
+                        self.apply_effect(cid, {"type": "gain", "db": db})
+                        applied.append({"op": "gain", "clip_id": cid, "db": db})
+                    if not cids:
+                        errors.append(f"gain {role}: no clips found — pass role_clip_ids")
+                elif op == "set_ducking":
+                    m_id = action.get("music_track_id") or music_track_id
+                    v_id = action.get("vo_track_id") or vo_track_id
+                    if not m_id or not v_id:
+                        # try resolve from project: first two audio tracks
+                        audio = [t for t in self.project.tracks if t.kind == "audio"]
+                        if len(audio) >= 2 and not m_id:
+                            m_id = audio[0].id
+                        if len(audio) >= 2 and not v_id:
+                            v_id = audio[1].id
+                    if not m_id or not v_id:
+                        errors.append("set_ducking: need music_track_id and vo_track_id")
+                        continue
+                    self.set_ducking(
+                        m_id,
+                        v_id,
+                        threshold_db=float(action.get("threshold_db", -30)),
+                        ratio=float(action.get("ratio", 8)),
+                        attack_ms=float(action.get("attack_ms", 20)),
+                        release_ms=float(action.get("release_ms", 280)),
+                        makeup_db=float(action.get("makeup_db", 0)),
+                    )
+                    applied.append({
+                        "op": "set_ducking",
+                        "music_track_id": m_id,
+                        "vo_track_id": v_id,
+                    })
+                else:
+                    errors.append(f"unknown mix action {op!r}")
+            except Exception as e:
+                errors.append(f"{op}: {e}")
+
+        return {
+            "applied": applied,
+            "applied_count": len(applied),
+            "errors": errors,
         }
 
     def list_look_presets(self) -> dict[str, Any]:

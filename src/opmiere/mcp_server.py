@@ -825,13 +825,13 @@ def plan_edit(
     j_cut_seconds: float = 0.4,
     l_cut_seconds: float = 0.25,
     b_roll_max_seconds: float = 2.5,
+    use_music_beats: bool = True,
+    black_pad_j_cut: bool = True,
 ) -> dict:
     """Build an EDL-like edit plan from asset paths or analyze_asset cards.
 
-    b_roll_mode=overlay (default): B-roll cutaways on video_overlay at speech
-    anchors with L-cut lead; after=append on base. target_duration_seconds
-    caps pace. VO/music from 0 under picture (J-cut bed). Review then
-    apply_edit_plan. Works without open project when paths/cards given.
+    b_roll_mode=overlay: cutaways on video_overlay (speech → music beats →
+    even). black_pad_j_cut: true opening J-cut pad. Review then apply_edit_plan.
     """
     kwargs = dict(
         cards=cards,
@@ -850,6 +850,8 @@ def plan_edit(
         j_cut_seconds=j_cut_seconds,
         l_cut_seconds=l_cut_seconds,
         b_roll_max_seconds=b_roll_max_seconds,
+        use_music_beats=use_music_beats,
+        black_pad_j_cut=black_pad_j_cut,
     )
     if _editor is not None:
         return _editor.plan_edit(**kwargs)
@@ -873,6 +875,84 @@ def apply_edit_plan(
     """
     return _require_editor().apply_edit_plan(
         plan, track_ids=track_ids, skip_missing=skip_missing,
+    )
+
+
+@mcp.tool()
+def detect_beats(
+    path: str,
+    max_seconds: float | None = 180.0,
+    sensitivity: float = 1.15,
+) -> dict:
+    """Detect beat/onset times in a music or video file (energy peak-pick).
+
+    Returns beat_times[], bpm_estimate. Use for cutaway landing or to feed
+    plan_edit (use_music_beats=true is default when music is in assets).
+    """
+    from .render.beats import detect_beats as _db
+    if _editor is not None:
+        return _editor.detect_beats(path, max_seconds=max_seconds, sensitivity=sensitivity)
+    return _db(path, max_seconds=max_seconds, sensitivity=sensitivity)
+
+
+@mcp.tool()
+def suggest_mix(
+    vo_path: str | None = None,
+    music_path: str | None = None,
+    sfx_path: str | None = None,
+    vo_track_id: str | None = None,
+    music_track_id: str | None = None,
+    target_vo_lufs: float = -16.0,
+    target_music_lufs: float = -22.0,
+) -> dict:
+    """Suggest VO/music gains + set_ducking from real LUFS/volume meters.
+
+    Pass stem paths (best). Then apply_mix_plan or apply_effect gain + set_ducking.
+    """
+    from .render.mix_suggest import suggest_mix as _sm
+    if _editor is not None:
+        return _editor.suggest_mix(
+            vo_path=vo_path,
+            music_path=music_path,
+            sfx_path=sfx_path,
+            vo_track_id=vo_track_id,
+            music_track_id=music_track_id,
+            target_vo_lufs=target_vo_lufs,
+            target_music_lufs=target_music_lufs,
+        )
+    return _sm(
+        vo_path=vo_path,
+        music_path=music_path,
+        sfx_path=sfx_path,
+        vo_track_id=vo_track_id,
+        music_track_id=music_track_id,
+        target_vo_lufs=target_vo_lufs,
+        target_music_lufs=target_music_lufs,
+    )
+
+
+@mcp.tool()
+def suggest_dialogue_chain(path: str, has_music_bleed: bool = False) -> dict:
+    """Recommended denoise → compress → gain chain for a dialogue/VO file."""
+    from .render.mix_suggest import suggest_dialogue_chain as _sdc
+    if _editor is not None:
+        return _editor.suggest_dialogue_chain(path, has_music_bleed=has_music_bleed)
+    return _sdc(path, has_music_bleed=has_music_bleed)
+
+
+@mcp.tool()
+def apply_mix_plan(
+    plan: dict,
+    role_clip_ids: dict[str, list[str]] | None = None,
+    music_track_id: str | None = None,
+    vo_track_id: str | None = None,
+) -> dict:
+    """Apply suggest_mix actions (gain on role clips + set_ducking)."""
+    return _require_editor().apply_mix_plan(
+        plan,
+        role_clip_ids=role_clip_ids,
+        music_track_id=music_track_id,
+        vo_track_id=vo_track_id,
     )
 
 

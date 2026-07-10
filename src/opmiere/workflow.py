@@ -92,7 +92,9 @@ per-fragment quality gates; call `plan_director_session` for a step list.
    toward a hero reference (deterministic; not a re-generate).
 3. Extra deterministic polish: `color`, `curves`, `lut3d`, `white_balance`,
    `ken_burns`, `text`, stylize — not re-generate for small look fixes.
-4. Audio: music base, VO, SFX; `set_ducking(music, vo)`; `gain` for levels.
+4. Audio: `suggest_mix(vo_path, music_path)` → `apply_mix_plan` (gain + ducking).
+   Optional `suggest_dialogue_chain` on VO before place. `set_ducking` manually
+   if preferred; `gain` for fine trim.
 5. `analyze_timeline` to verify the mix (ducking room, peaks).
 
 ## 6. Deliver
@@ -403,10 +405,16 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
         note="Pick reference_clip_id from get_project_state; skip if single clip",
     )
     add(
-        "audio_mix",
-        "set_ducking",
-        "Multi-track audio levels; duck music under VO when both exist",
-        optional_tools=["gain", "analyze_timeline"],
+        "suggest_mix",
+        "suggest_mix",
+        "Meter VO/music stems → gain dB + ducking params",
+        optional_tools=["suggest_dialogue_chain", "detect_beats"],
+    )
+    add(
+        "apply_mix",
+        "apply_mix_plan",
+        "Apply suggested gains + set_ducking(music, vo)",
+        optional_tools=["set_ducking", "gain", "analyze_timeline"],
     )
     add(
         "review_cut",

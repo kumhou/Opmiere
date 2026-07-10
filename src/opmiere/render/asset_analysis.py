@@ -464,6 +464,8 @@ def plan_edit(
     j_cut_seconds: float = 0.4,
     l_cut_seconds: float = 0.25,
     b_roll_max_seconds: float = 2.5,
+    use_music_beats: bool = True,
+    black_pad_j_cut: bool = True,
 ) -> dict[str, Any]:
     """Build an EDL-like edit plan from asset cards (or paths).
 
@@ -471,13 +473,13 @@ def plan_edit(
 
     b_roll_mode:
       - ``overlay`` (default): B-roll cutaways on video_overlay at A-roll
-        speech/silence anchors (or evenly along the base timeline)
+        speech/silence anchors, else music beat phrases, else even spacing
       - ``after``: append B-roll on video_base after A-roll (simple montage)
 
-    j_cut_seconds: VO/music start at 0; first picture delayed (classic open).
-    l_cut_seconds: each overlay cutaway starts this early vs its anchor
-    (picture leads slightly into the next VO beat — soft L-cut feel).
-
+    j_cut_seconds + black_pad_j_cut: insert a black base slug for that long
+    so VO/music from 0 truly leads picture (legal for P0 contiguous base).
+    l_cut_seconds: overlay cutaways start early vs anchor.
+    use_music_beats: prefer detect_beats phrase anchors when music present.
     target_duration_seconds: when set, caps/trims base segments to fit.
     """
     if transition_frames < 0:
@@ -553,18 +555,58 @@ def plan_edit(
             min(effective_max, pace_cap) if effective_max else pace_cap
         )
 
-    # Base video must start at frame 0 (P0 contiguous render). J-cut is expressed
-    # as VO/music from 0 under picture + L-cut early overlay cutaways — not a
-    # delayed picture track (that would leave an illegal gap at t=0).
+    # Base video must start at frame 0 (P0 contiguous). Opening J-cut uses a
+    # black pad slug on video_base, then A-roll — VO/music still from 0.
     base_cursor_frames = 0
     j_cut_active = bool(
         j_cut_seconds > 0 and (buckets["vo"] or buckets["music"])
     )
-    if j_cut_active:
+    j_pad_frames = 0
+    if j_cut_active and black_pad_j_cut and j_cut_seconds > 0:
+        j_pad_frames = _seconds_to_src_frames(j_cut_seconds, fps)
+        events.append({
+            "op": "place_black",
+            "kind": "video",
+            "role": "slug",
+            "track_hint": "video_base",
+            "src_in_seconds": 0.0,
+            "src_out_seconds": round(j_cut_seconds, 3),
+            "src_in_frames": 0,
+            "src_out_frames": j_pad_frames,
+            "transition_in": None,
+            "note": f"J-cut black pad {j_cut_seconds:g}s so VO/music leads picture",
+        })
+        base_cursor_frames = j_pad_frames
         warnings.append(
-            f"J-cut style: VO/music from 0 under picture; L-cut overlay lead "
-            f"{l_cut_seconds:g}s (base video still starts at 0 — P0 constraint)"
+            f"J-cut: {j_cut_seconds:g}s black pad on video_base; VO/music from 0"
         )
+    elif j_cut_active:
+        warnings.append(
+            "J-cut requested but black_pad_j_cut=false — VO/music under picture "
+            "from 0 without delayed picture"
+        )
+
+    # Music beat anchors (for B-roll) — best-effort
+    beat_info: dict[str, Any] | None = None
+    beat_anchors: list[float] = []
+    if use_music_beats and buckets["music"] and b_roll_mode == "overlay":
+        try:
+            from .beats import detect_beats, phrase_anchors
+            mp = buckets["music"][0].get("path")
+            if mp and Path(mp).exists():
+                beat_info = detect_beats(mp)
+                # shift phrase times by j_pad so they land on picture
+                raw = phrase_anchors(beat_info.get("beat_times") or [], every_n=4)
+                pad_s = j_pad_frames / fps if fps else 0.0
+                beat_anchors = [pad_s + t for t in raw if t >= 0]
+                if beat_anchors:
+                    warnings.append(
+                        f"B-roll anchors from music beats "
+                        f"(~{beat_info.get('bpm_estimate')} BPM, "
+                        f"{len(beat_anchors)} phrase points)"
+                    )
+        except Exception as e:
+            warnings.append(f"detect_beats skipped: {e}")
 
     def _emit_video_sequence(card_list: list[dict[str, Any]], track_hint: str) -> None:
         nonlocal base_cursor_frames
@@ -631,16 +673,24 @@ def plan_edit(
                 warnings.append("b_roll_mode=after: B-roll appended on video_base")
             else:
                 base_len_s = base_cursor_frames / fps if fps else 0.0
+                pad_s = j_pad_frames / fps if fps else 0.0
+                picture_span = max(0.1, base_len_s - pad_s)
                 anchors: list[float] = []
+                # Prefer speech → music beats → even spacing
                 for ac in buckets["a_roll"]:
                     for a in _speech_anchor_seconds(ac):
                         dur = float(ac.get("duration_seconds") or 1.0)
                         frac = min(0.95, max(0.05, a / max(dur, 0.01)))
-                        anchors.append(frac * max(0.1, base_len_s))
+                        anchors.append(pad_s + frac * picture_span)
+                if not anchors and beat_anchors:
+                    anchors = [
+                        t for t in beat_anchors
+                        if pad_s <= t <= base_len_s
+                    ] or list(beat_anchors)
                 if not anchors and base_len_s > 0:
                     n_b = max(1, len(buckets["b_roll"]))
                     for i in range(n_b):
-                        anchors.append((i + 1) / (n_b + 1) * base_len_s)
+                        anchors.append(pad_s + (i + 1) / (n_b + 1) * picture_span)
                 for bi, bcard in enumerate(buckets["b_roll"]):
                     segs = _segments_from_card(
                         bcard,
@@ -789,7 +839,7 @@ def plan_edit(
             )
 
     return {
-        "version": 2,
+        "version": 3,
         "fps": float(fps),
         "width": width,
         "height": height,
@@ -799,14 +849,16 @@ def plan_edit(
         "approx_video_base_frames": max(0, total_tl),
         "b_roll_mode": b_roll_mode,
         "j_cut_seconds": j_cut_seconds if j_cut_active else 0.0,
+        "j_pad_frames": j_pad_frames,
         "l_cut_seconds": l_cut_seconds,
         "target_duration_seconds": target_duration_seconds,
+        "beats": beat_info,
         "warnings": warnings,
         "roles": {k: len(v) for k, v in buckets.items() if v},
         "agent_note": (
-            "Review events before apply_edit_plan. Overlay uses "
-            "timeline_start_frames (gaps OK). After apply: apply_project_look / "
-            "color_match_to_clip → review_cut → delivery_check."
+            "Review events before apply_edit_plan. place_black = J-cut pad. "
+            "Overlay uses timeline_start_frames. After apply: suggest_mix / "
+            "apply_mix_plan → apply_project_look → review_cut → delivery_check."
         ),
     }
 
