@@ -249,8 +249,8 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Editing:** cut / trim / ripple / roll / slip, split, speed & time-remap (slow-mo, ramps).
 - **Transitions:** cross-dissolve, dip-to-black/white, wipes — **all done** (§9), via ffmpeg xfade's
   own transition vocabulary (`_XFADE_TRANSITION_BY_TYPE`), not a separate implementation per style.
-- **Color:** curves, LUT/3D-LUT, white balance, saturation/contrast — carries most of the "pro look".
-- **Transform:** crop, scale, position, rotate, Ken-Burns pan/zoom; (stabilization — later).
+- **Color:** curves, lut3d **done**; saturation/contrast via `color` **done**; white balance still open.
+- **Transform:** crop, scale/position (PiP), rotate, Ken-Burns **done**; (stabilization — later).
 - **Keying/masking:** chroma key (green screen), luma key, shape masks.
 - **Text:** titles, lower-thirds, captions/subtitles.
 - **Stylize:** blur, sharpen, vignette, film grain, glow **all done**. Glow is the multi-stage
@@ -327,7 +327,7 @@ Call it on a job's `result_path` before `place_generated` ever commits a broken 
 timeline. This is the first, cheapest stage of the funnel below; the agent's actual attention is reserved
 for what this can't catch (composition, subject fidelity, style match).
 
-**The agent's eyes (feedback loop) — contact sheets IMPLEMENTED, full inspect loop still open.**
+**The agent's eyes (feedback loop) — contact sheets + policy encoding IMPLEMENTED.**
 Compositional direction requires the agent to *see* what it made and decide keep / regenerate / adjust,
 for judgments quality_check can't make (composition, subject fidelity, does the motion look right).
 `render.make_contact_sheet` tiles cols*rows evenly-spaced thumbnails from a clip into one small grid
@@ -341,13 +341,13 @@ an approved draft (image *or* video) straight into a finished asset without a fu
 in a new combined "accept/regenerate" method — that would either force `make_contact_sheet` to run right
 after `quality_check` every time (defeating the free-gate-before-expensive-step staging this section
 argued for) or duplicate what `generate`/`place_generated` already do. The decision itself stays agent
-policy over existing tools: quality_check fails → regenerate; passes but composition/fidelity is off on
-the contact sheet → regenerate (optionally with a higher-tier `model`, same `seed`, for continuity) or
-adjust params; looks right → `generate(kind="upscale", params={"source_path": ...})` (cheap) or a
-higher-tier regenerate (expensive) → place_generated. What's genuinely still open is *encoding* that
-policy somewhere an agent reliably follows it (an MCP tool description, a skill/system-prompt), not a
-missing capability. (Contact sheets reuse the same media-understanding
-capability as P4 semantic search, but their primary purpose here is quality control, not indexing.)
+policy over existing tools. **That policy is now encoded** as `opmiere.director_policy` + the
+`get_director_policy` MCP tool (and the server `instructions` string points agents at it on cold start):
+quality_check fails → regenerate; passes but composition/fidelity is off on the contact sheet →
+regenerate (optionally higher-tier `model`, same `seed`) or adjust params; looks right →
+`generate(kind="upscale", …)` or place_generated. Version field lets sessions pin which policy they
+followed. (Contact sheets reuse the same media-understanding capability as P4 semantic search, but
+their primary purpose here is quality control, not indexing.)
 
 **Model-agnostic orchestration.** The director is whatever frontier agent is strongest — Claude
 (Opus 4.8), GPT-5.5, future models — reached through **MCP**, never hard-wired. Opmiere supplies the
@@ -474,6 +474,15 @@ corners correctly filled). Deliberately narrower than the full "transform" idea 
 scaling/positioning a clip smaller than the canvas (for PiP) needs the overlay compositing step itself to
 take a configurable position instead of always `x=0:y=0` full-frame — a real architecture change, not
 just another filter fragment — so that's its own not-yet-built item (see §10/roadmap), not folded in here.
+
+**`lut3d` and `ken_burns` are built too.** `lut3d` wraps ffmpeg's own `lut3d` filter over an
+external `.cube`/`.3dl` path (existence checked at `apply_effect` time); verified by crushing blue
+on a solid-blue source through a tiny test cube. `ken_burns` is *not* animated `crop` — ffmpeg
+evaluates crop `w`/`h` only once at config time (verified: animated crop sizes are a silent no-op) —
+so it uses `zoompan` with `d=1` (one output frame per input frame, duration preserved), focus
+interpolated as fractions of the frame, output size taken from the clip's target box so it cooperates
+with the existing scale/pad step. Real-pixel proof: red|blue hstack, zoom 1→2 panning left→right,
+left-edge red at frame 0 and blue at frame 29.
 
 **PiP position/scale is now built** — the item flagged above. `Clip.position` (`{"x", "y", "scale"}`,
 `None` = full-frame, unchanged default) is a clip-level field like `transition_in`/`speed`, not an
@@ -674,10 +683,10 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 `import_media` path, not just raw ComfyUI.
 
 Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
-hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed, would be the first
-non-8GB data point), further offload-tier video candidates beyond wan2.2-moe if wanted, and the agent
-policy skill that encodes generate→quality_check→contact_sheet→decide (§5.10). SFX, video upscale, and
-glow are done. Cloud provider deliberately not started — JH: local free only for now.
+hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed), further
+offload-tier video candidates beyond wan2.2-moe if wanted, white balance as its own effect, shape masks.
+Director policy (§5.10), SFX, video upscale, glow, lut3d, ken_burns are done. Cloud deferred — JH:
+local free only.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

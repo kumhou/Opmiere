@@ -650,6 +650,156 @@ def test_glow_halos_bright_areas_into_dark_neighbors(tmp_path):
     assert min(glowed[80, 45]) > 200, f"box center should stay bright, got {glowed[80, 45]}"
 
 
+def _write_boost_red_cube(path: Path) -> None:
+    """Minimal 2³ .cube that maps pure blue → near-black and pure red → red.
+
+    Enough structure for lut3d to load and for a solid-blue source to measurably
+    darken (proves the LUT ran, not a no-op path).
+    """
+    # Domain [0,1], size 2. Points ordered R-fastest then G then B (Adobe cube).
+    # Boost red channel: out_r = min(1, in_r + 0.5), out_g=in_g, out_b=in_b*0.2
+    lines = ["TITLE \"opmiere_test_boost_red\"", "LUT_3D_SIZE 2"]
+    for b in (0.0, 1.0):
+        for g in (0.0, 1.0):
+            for r in (0.0, 1.0):
+                lines.append(f"{min(1.0, r + 0.5):.6f} {g:.6f} {b * 0.2:.6f}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_apply_effect_lut3d(editor, sample_video, tmp_path):
+    cube = tmp_path / "grade.cube"
+    _write_boost_red_cube(cube)
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(clip.id, {"type": "lut3d", "path": str(cube)})
+    assert clip.effects[0]["type"] == "lut3d"
+    assert clip.effects[0]["path"] == str(cube)
+
+
+def test_apply_effect_lut3d_rejects_missing_path(editor, sample_video, tmp_path):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(FileNotFoundError):
+        editor.apply_effect(clip.id, {"type": "lut3d", "path": str(tmp_path / "nope.cube")})
+
+
+def test_lut3d_changes_solid_blue_pixels(tmp_path):
+    """Real-pixel: a solid blue clip under a blue-crushing LUT must darken."""
+    from PIL import Image
+
+    cube = tmp_path / "crush_blue.cube"
+    _write_boost_red_cube(cube)
+    src = tmp_path / "blue.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=blue:size=160x90:duration=1:rate={FPS}",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    ed = Editor.create(tmp_path / "lut.opm", fps=FPS, width=160, height=90)
+    media = ed.import_media(src, kind="video")
+    track = ed.add_track("video")
+    clip = ed.add_clip(track.id, media.id, start=0, src_in=0, src_out=15)
+    ed.apply_effect(clip.id, {"type": "lut3d", "path": str(cube)})
+    out = tmp_path / "out.mp4"
+    ed.export(out)
+    frame = tmp_path / "out.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-frames:v", "1", "-update", "1", str(frame)],
+        capture_output=True, text=True, check=True,
+    )
+    px = Image.open(frame).load()[80, 45]
+    # Pure blue ~ (0,0,255); after b*0.2 LUT blue channel should drop hard.
+    assert px[2] < 80, f"blue channel should be crushed by LUT, got {px}"
+
+
+def test_apply_effect_ken_burns(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    editor.apply_effect(
+        clip.id,
+        {"type": "ken_burns", "zoom_start": 1.0, "zoom_end": 1.5, "x_start": 0.0, "x_end": 1.0},
+    )
+    assert clip.effects[0]["type"] == "ken_burns"
+    assert clip.effects[0]["zoom_end"] == 1.5
+
+
+def test_apply_effect_ken_burns_rejects_zoom_below_one(editor, sample_video):
+    media = editor.import_media(sample_video, kind="video")
+    track = editor.add_track("video")
+    clip = editor.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    with pytest.raises(ValueError):
+        editor.apply_effect(clip.id, {"type": "ken_burns", "zoom_start": 0.5})
+
+
+def test_ken_burns_zoom_end_differs_from_start_frame(tmp_path):
+    """Real-pixel: zoom_end>1 on a split-color frame must change edge pixels.
+
+    Source is left-half red / right-half blue. Static full-frame shows red on
+    the left edge. A strong center zoom at end should crop inward so the left
+    edge of the *output* is no longer pure red (scale of crop brings mid
+    content outward). Compare first vs last exported frame under ken_burns
+    that ends zoomed and panned.
+    """
+    from PIL import Image
+
+    src = tmp_path / "split.mp4"
+    # left red, right blue
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi",
+            "-i", f"color=c=red:size=80x90:duration=1:rate={FPS}[l];"
+                  f"color=c=blue:size=80x90:duration=1:rate={FPS}[r];"
+                  f"[l][r]hstack=inputs=2",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    ed = Editor.create(tmp_path / "kb.opm", fps=FPS, width=160, height=90)
+    media = ed.import_media(src, kind="video")
+    track = ed.add_track("video")
+    # 30 frames so start/end interpolation has room
+    clip = ed.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+    ed.apply_effect(
+        clip.id,
+        {
+            "type": "ken_burns",
+            "zoom_start": 1.0,
+            "zoom_end": 2.0,
+            "x_start": 0.0,
+            "y_start": 0.5,
+            "x_end": 1.0,
+            "y_end": 0.5,
+        },
+    )
+    out = tmp_path / "kb.mp4"
+    ed.export(out)
+
+    first = tmp_path / "f0.png"
+    last = tmp_path / "f1.png"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,0)", "-frames:v", "1",
+         "-update", "1", str(first)],
+        capture_output=True, text=True, check=True,
+    )
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,29)", "-frames:v", "1",
+         "-update", "1", str(last)],
+        capture_output=True, text=True, check=True,
+    )
+    p0 = Image.open(first).load()[5, 45]
+    p1 = Image.open(last).load()[5, 45]
+    # First frame ~ full-frame left edge = red-dominant; last frame pans to the
+    # right under 2x zoom so left edge should no longer match first.
+    assert p0[0] > p0[2] + 40, f"first-frame left edge should be red-dominant, got {p0}"
+    assert p0 != p1, f"ken_burns should change left-edge pixels over time: {p0} vs {p1}"
+
+
 def test_apply_effect_compression_and_noise_reduction(editor, sample_video):
     media = editor.import_media(sample_video, kind="video")
     track = editor.add_track("video")

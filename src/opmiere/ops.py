@@ -352,6 +352,31 @@ class Editor:
                 intensity = effect.get("intensity", 0.7)
                 if not isinstance(intensity, (int, float)) or not (0.0 < intensity <= 1.0):
                     raise ValueError("glow effect 'intensity' must be in (0, 1]")
+            elif etype == "lut3d":
+                # External .cube / .3dl file — agent/user supplies the path.
+                # Existence checked here so a missing LUT fails at apply time,
+                # not at export after a long timeline build.
+                path = effect.get("path")
+                if not isinstance(path, str) or not path.strip():
+                    raise ValueError("lut3d effect requires non-empty string 'path' to a .cube/.3dl file")
+                if not Path(path).exists():
+                    raise FileNotFoundError(f"lut3d effect path not found: {path}")
+            elif etype == "ken_burns":
+                # Slow pan/zoom over the clip (ARCHITECTURE.md §5.8 Transform).
+                # zoom_* >= 1; x_*/y_* are focus points as fractions of the
+                # frame [0,1] (0.5,0.5 = center). Render interpolates per frame.
+                for key, lo, hi in (
+                    ("zoom_start", 1.0, 10.0),
+                    ("zoom_end", 1.0, 10.0),
+                    ("x_start", 0.0, 1.0),
+                    ("y_start", 0.0, 1.0),
+                    ("x_end", 0.0, 1.0),
+                    ("y_end", 0.0, 1.0),
+                ):
+                    default = 1.0 if key.startswith("zoom") else 0.5
+                    val = effect.get(key, default)
+                    if not isinstance(val, (int, float)) or not (lo <= float(val) <= hi):
+                        raise ValueError(f"ken_burns effect {key!r} must be in [{lo}, {hi}]")
             elif etype == "compression":
                 ratio = effect.get("ratio", 4.0)
                 if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):

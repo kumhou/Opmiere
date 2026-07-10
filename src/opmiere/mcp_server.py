@@ -16,6 +16,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
+from .director_policy import get_policy as _get_director_policy
 from .generation import ComfyUIProvider
 from .model import MediaKind, TrackKind
 from .ops import Editor
@@ -28,9 +29,12 @@ mcp = FastMCP(
         "open_project first. get_project_state shows the current timeline "
         "(track/clip/media ids) - call it whenever you need to see what "
         "exists before referencing an id. All positions and trims are in "
-        "frames at the project's fps (see get_project_state). To add "
-        "AI-generated media: generate() a job, poll job_status() until "
-        "'done', then place_generated() to add it as a clip."
+        "frames at the project's fps (see get_project_state). "
+        "For AI-generated media follow get_director_policy(): generate → "
+        "poll job_status → quality_check (free) → make_contact_sheet → "
+        "decide → place_generated (or regenerate / upscale). Prefer "
+        "deterministic apply_effect tools over re-generating for grade, "
+        "text, transitions, and timing."
     ),
 )
 
@@ -184,6 +188,19 @@ def delete_clip(clip_id: str) -> dict:
 
 
 @mcp.tool()
+def get_director_policy() -> dict:
+    """Return the agent-director decision policy (ARCHITECTURE.md §5.10).
+
+    Call this once at the start of a directing session (and again if unsure).
+    It is the ordered workflow for generation quality control — free
+    quality_check before any vision tokens, contact_sheet before full-res
+    inspect, upscale vs regenerate tradeoffs, continuity habits. Does not
+    mutate the project. Returns {version, policy} where policy is markdown.
+    """
+    return _get_director_policy()
+
+
+@mcp.tool()
 def apply_effect(clip_id: str, effect: dict) -> dict:
     """Apply a deterministic effect to a clip (rendered by ffmpeg, no AI generation).
 
@@ -212,6 +229,13 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
         "intensity": 0..1 (default 0.7, how hard the halo is screen-blended onto the base)}
         - soft bloom around bright areas: blurs a copy of the frame and screen-blends it back
           (multi-stage filtergraph, not a single ffmpeg filter).
+      {"type": "lut3d", "path": str (required, filesystem path to a .cube or .3dl 3D LUT file),
+        "interp": "nearest"|"trilinear"|"tetrahedral"|"pyramid"|"prism" (default tetrahedral)}
+        - full-frame color grade from an external LUT; path must exist at apply time.
+      {"type": "ken_burns", "zoom_start": 1..10 (default 1.0), "zoom_end": 1..10 (default 1.2),
+        "x_start"/"y_start"/"x_end"/"y_end": 0..1 (default 0.5 = center focus)}
+        - slow pan/zoom over the clip (photo or video). zoom 1 = full frame; higher = tighter crop
+          that the canvas scale then enlarges. Focus points are fractions of the frame.
       {"type": "compression", "threshold_db": float (default -18.0, level where compression kicks in),
         "ratio": 1..20 (default 4.0), "attack_ms": float (default 20.0), "release_ms": float
         (default 250.0), "makeup_db": float (default 0.0, gain added back after compressing)}

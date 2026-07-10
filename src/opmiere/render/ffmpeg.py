@@ -65,6 +65,8 @@ def _effect_filters(
     fps: float,
     stream: Literal["video", "audio"],
     text_dir: Path | None = None,
+    out_w: int | None = None,
+    out_h: int | None = None,
 ) -> list[str]:
     """Translate a clip's ``effects`` list into ffmpeg filter fragments.
 
@@ -80,6 +82,10 @@ def _effect_filters(
     Windows — CJK characters getting mangled when passed through subprocess
     argv (the OS console codepage, not UTF-8, decides that), and having to
     hand-escape arbitrary user text for the filtergraph's own mini-syntax.
+
+    ``out_w``/``out_h`` are the target box size for effects that must emit a
+    fixed pixel size (currently ``ken_burns`` via zoompan). Passed from
+    ``_video_clip_chain``; unused by linear filters.
     """
     parts: list[str] = []
     for effect in effects:
@@ -265,6 +271,64 @@ def _effect_filters(
                 "glow effect is multi-pad and must be expanded by _video_clip_chain, "
                 "not by _effect_filters"
             )
+        elif etype == "lut3d":
+            if stream != "video":
+                continue
+            path = effect.get("path")
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError("lut3d effect has invalid 'path'")
+            if not Path(path).exists():
+                raise FileNotFoundError(f"lut3d effect path not found: {path}")
+            # interp defaults to ffmpeg's own tetrahedral (best quality of the
+            # options in `ffmpeg -h filter=lut3d`); path escaping reuses the
+            # same Windows-verified helper textfile/fontfile already need.
+            interp = effect.get("interp", "tetrahedral")
+            if interp not in ("nearest", "trilinear", "tetrahedral", "pyramid", "prism"):
+                raise ValueError(f"lut3d effect has invalid 'interp' {interp!r}")
+            parts.append(
+                f"lut3d=file='{_escape_filter_path(path)}':interp={interp}"
+            )
+        elif etype == "ken_burns":
+            if stream != "video":
+                continue
+            # Must use zoompan, not crop: ffmpeg evaluates crop's w/h only
+            # once at filter config time (verified: animated crop w/h is a
+            # silent no-op). zoompan animates z/x/y per output frame. d=1
+            # emits one output frame per input frame so timeline duration
+            # stays unchanged. s= must be a fixed pixel size — we take the
+            # clip's target box from _video_clip_chain (out_w/out_h).
+            if out_w is None or out_h is None:
+                raise RuntimeError(
+                    "internal: ken_burns needs out_w/out_h from _video_clip_chain"
+                )
+            z0 = float(effect.get("zoom_start", 1.0))
+            z1 = float(effect.get("zoom_end", 1.2))
+            x0 = float(effect.get("x_start", 0.5))
+            y0 = float(effect.get("y_start", 0.5))
+            x1 = float(effect.get("x_end", 0.5))
+            y1 = float(effect.get("y_end", 0.5))
+            for name, val, lo, hi in (
+                ("zoom_start", z0, 1.0, 10.0),
+                ("zoom_end", z1, 1.0, 10.0),
+                ("x_start", x0, 0.0, 1.0),
+                ("y_start", y0, 0.0, 1.0),
+                ("x_end", x1, 0.0, 1.0),
+                ("y_end", y1, 0.0, 1.0),
+            ):
+                if not (lo <= val <= hi):
+                    raise ValueError(f"ken_burns effect has invalid {name!r}")
+            n_max = max(clip_duration_frames - 1, 1)
+            # zoompan uses `on` (output frame #) not crop's `n`.
+            z_expr = f"({z0})+(({z1})-({z0}))*on/{n_max}"
+            fx_expr = f"({x0})+(({x1})-({x0}))*on/{n_max}"
+            fy_expr = f"({y0})+(({y1})-({y0}))*on/{n_max}"
+            # x/y are top-left of the zoomed window; focus fraction → that corner.
+            x_expr = f"({fx_expr})*(iw-iw/zoom)"
+            y_expr = f"({fy_expr})*(ih-ih/zoom)"
+            parts.append(
+                f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':"
+                f"d=1:s={out_w}x{out_h}:fps={fps}"
+            )
         elif etype == "compression":
             if stream != "audio":
                 continue
@@ -429,7 +493,8 @@ def _video_clip_chain(
     has_glow = any(kind == "glow" for kind, _ in segments)
     if not has_glow:
         fx = _effect_filters(
-            clip.effects, clip.timeline_duration_frames, fps, "video", text_dir
+            clip.effects, clip.timeline_duration_frames, fps, "video", text_dir,
+            out_w=box_w, out_h=box_h,
         )
         chain = f"[{idx}:v]trim=start_frame={clip.src_in}:end_frame={clip.src_out},{speed_pts}"
         for filt in fx:
@@ -473,7 +538,8 @@ def _video_clip_chain(
     for kind, payload in segments:
         if kind == "linear":
             frags = _effect_filters(
-                payload, clip.timeline_duration_frames, fps, "video", text_dir
+                payload, clip.timeline_duration_frames, fps, "video", text_dir,
+                out_w=box_w, out_h=box_h,
             )
             if not frags and current_src is not None:
                 continue
