@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.1")
+app = FastAPI(title="Opmiere", version="0.2.2")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,7 +167,7 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.1",
+        "phase": "0.2.2",
         "product": "video_editor",
         "project_open": _editor is not None,
     }
@@ -734,6 +734,80 @@ def transition_api(body: TransitionBody) -> dict[str, Any]:
         left_clip_id=body.left_clip_id,
     )
     return {**r, "timeline": ed.timeline_view()}
+
+
+class PasteBody(BaseModel):
+    track_id: str | None = None
+    start: int | None = None
+    playhead_frame: int | None = None
+
+
+class InOutBody(BaseModel):
+    frame: int | None = None
+    time_seconds: float | None = None
+
+
+class ExportWorkBody(BaseModel):
+    output_path: str
+    normalize_preset: str | None = "streaming"
+    run_delivery_check: bool = True
+
+
+class ClipIdBody(BaseModel):
+    clip_id: str
+
+
+@app.post("/api/clip/copy")
+def clip_copy(body: ClipIdBody) -> dict[str, Any]:
+    return _ed().copy_clip(body.clip_id)
+
+
+@app.post("/api/clip/paste")
+def clip_paste(body: PasteBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.paste_clip(
+        track_id=body.track_id,
+        start=body.start,
+        at_playhead=body.playhead_frame is not None,
+        playhead_frame=body.playhead_frame,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/duplicate")
+def clip_duplicate(body: ClipIdBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.duplicate_clip(body.clip_id)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/in_out/in")
+def set_in_api(body: InOutBody) -> dict[str, Any]:
+    return _ed().set_in_point(body.frame, time_seconds=body.time_seconds)
+
+
+@app.post("/api/in_out/out")
+def set_out_api(body: InOutBody) -> dict[str, Any]:
+    return _ed().set_out_point(body.frame, time_seconds=body.time_seconds)
+
+
+@app.post("/api/in_out/clear")
+def clear_in_out_api() -> dict[str, Any]:
+    return _ed().clear_in_out()
+
+
+@app.get("/api/in_out")
+def get_in_out_api() -> dict[str, Any]:
+    return _ed().get_in_out()
+
+
+@app.post("/api/export_work")
+def export_work_api(body: ExportWorkBody) -> dict[str, Any]:
+    return _ed().export_work_area(
+        body.output_path,
+        normalize_preset=body.normalize_preset,
+        run_delivery_check=body.run_delivery_check,
+    )
 
 
 @app.get("/api/style_assets")

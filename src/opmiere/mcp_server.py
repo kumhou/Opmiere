@@ -481,6 +481,69 @@ def snap_points(include_markers: bool = True) -> dict:
 
 
 @mcp.tool()
+def copy_clip(clip_id: str) -> dict:
+    """Copy clip to session clipboard."""
+    return _require_editor().copy_clip(clip_id)
+
+
+@mcp.tool()
+def paste_clip(
+    track_id: str | None = None,
+    start: int | None = None,
+    playhead_frame: int | None = None,
+) -> dict:
+    """Paste clipboard clip (start=None → end of track; or playhead_frame)."""
+    return _require_editor().paste_clip(
+        track_id=track_id,
+        start=start,
+        at_playhead=playhead_frame is not None,
+        playhead_frame=playhead_frame,
+    )
+
+
+@mcp.tool()
+def duplicate_clip(clip_id: str, offset_frames: int | None = None) -> dict:
+    """Duplicate clip after itself (or at start+offset)."""
+    return _require_editor().duplicate_clip(clip_id, offset_frames=offset_frames)
+
+
+@mcp.tool()
+def set_in_point(frame: int | None = None, time_seconds: float | None = None) -> dict:
+    """Set work-area In point (session)."""
+    return _require_editor().set_in_point(frame, time_seconds=time_seconds)
+
+
+@mcp.tool()
+def set_out_point(frame: int | None = None, time_seconds: float | None = None) -> dict:
+    """Set work-area Out point (session)."""
+    return _require_editor().set_out_point(frame, time_seconds=time_seconds)
+
+
+@mcp.tool()
+def clear_in_out() -> dict:
+    return _require_editor().clear_in_out()
+
+
+@mcp.tool()
+def get_in_out() -> dict:
+    return _require_editor().get_in_out()
+
+
+@mcp.tool()
+def export_work_area(
+    output_path: str,
+    normalize_preset: str | None = "streaming",
+    run_delivery_check: bool = True,
+) -> dict:
+    """Export [in, out) work area after set_in_point / set_out_point."""
+    return _require_editor().export_work_area(
+        output_path,
+        normalize_preset=normalize_preset,
+        run_delivery_check=run_delivery_check,
+    )
+
+
+@mcp.tool()
 def list_style_assets() -> dict:
     """List LUTs/audio beds found under assets/ or OPMIERE_STYLE_ASSETS."""
     return _require_editor().list_style_assets()

@@ -92,6 +92,12 @@
       background:var(--panel); border:1px solid var(--border); border-radius:10px;
       padding:8px 8px 8px 0; overflow-x:auto;
     }
+    #tracksInner { min-width:100%; position:relative; }
+    .io-band {
+      position:absolute; top:0; bottom:0; background:rgba(124,156,255,0.12);
+      border-left:1px solid var(--acc); border-right:1px solid var(--acc);
+      pointer-events:none; z-index:1;
+    }
     .track-row { display:flex; align-items:stretch; margin-bottom:6px; min-height:36px; }
     .track-name {
       width:72px; flex-shrink:0; font-size:10px; color:var(--muted);
@@ -271,7 +277,15 @@
         <button type="button" class="secondary" id="btnXfade">X-fade selected</button>
       </div>
       <label><input type="checkbox" id="snapOn" checked style="width:auto" /> snap 拖拽吸附</label>
-      <p class="dragHint">键: Space播 · ←/→帧 · M标记 · S分割 · C全轨剃刀 · Del删 · [/]撤销 · F补洞</p>
+      <label>Zoom <span id="zoomLab">1×</span></label>
+      <input id="zoom" type="range" min="1" max="8" step="0.5" value="1" />
+      <div class="row">
+        <button type="button" class="secondary" id="btnIn">In (I)</button>
+        <button type="button" class="secondary" id="btnOut">Out (O)</button>
+        <button type="button" class="secondary" id="btnExportWork">Export I/O</button>
+      </div>
+      <div id="ioLab" class="dragHint">In/Out: —</div>
+      <p class="dragHint">键: Space · ←/→ · M · S · C · I/O · Ctrl+C/V/D · Del · [/] · F</p>
       <label>Gain dB · <span id="gainLabel">0</span></label>
       <div class="row">
         <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
@@ -365,6 +379,8 @@
     let waveCache = {}; // media_id -> peaks[]
     let markers = [];
     let snapFrames = [];
+    let zoom = 1;
+    let workIO = { in_frame: null, out_frame: null, ready: false };
 
     function log(msg) {
       const t = new Date().toLocaleTimeString();
@@ -418,12 +434,16 @@
       if (!playheadEl || !timeline || !timeline.duration_frames) return;
       const lane = document.querySelector('.track-lane');
       if (!lane) return;
-      const dur = Math.max(timeline.duration_seconds || scrubMax, 0.001);
-      const pct = Math.min(1, Math.max(0, tSec / dur));
-      // playhead is inside #tracks; lanes start after track-name 72px + padding
-      const tracks = document.getElementById('tracks');
+      const fps = timeline.fps || 30;
+      const viewDurF = Math.max(
+        timeline.duration_frames,
+        Math.round((scrubMax || 1) * fps),
+        Math.round(fps * 2),
+      );
+      const frame = tSec * fps;
+      const pct = Math.min(1, Math.max(0, frame / viewDurF));
       const nameW = 72;
-      const usable = tracks.clientWidth - nameW - 16;
+      const usable = lane.clientWidth;
       playheadEl.style.left = (nameW + pct * usable) + 'px';
     }
 
@@ -473,9 +493,18 @@
 
       // Use a stable time base so dragging past end still has room
       const fps = tv.fps || 30;
+      workIO = tv.work_in_out || workIO;
+      updateIoLab();
       const durF = Math.max(tv.duration_frames, Math.round(fps * 2), 1);
       const viewDurF = Math.max(durF, Math.round((scrubMax || 1) * fps));
-      let html = '<div id="playhead"></div>';
+      const scalePct = Math.max(100, zoom * 100);
+      let html = `<div id="tracksInner" style="width:${scalePct}%;min-width:100%">`;
+      html += '<div id="playhead"></div>';
+      if (workIO.in_frame != null && workIO.out_frame != null && workIO.out_frame > workIO.in_frame) {
+        const L = (workIO.in_frame / viewDurF) * 100;
+        const W = ((workIO.out_frame - workIO.in_frame) / viewDurF) * 100;
+        html += `<div class="io-band" style="left:${L}%;width:${W}%"></div>`;
+      }
       for (const tr of tv.tracks) {
         let clipsHtml = '';
         for (const c of tr.clips || []) {
@@ -500,12 +529,26 @@
           <div class="track-lane" data-view-frames="${viewDurF}">${clipsHtml}</div>
         </div>`;
       }
+      html += '</div>';
       tracksEl.innerHTML = html;
       playheadEl = document.getElementById('playhead');
       setPlayhead(+scrub.value || 0);
       wireClipInteractions(tracksEl, viewDurF, fps);
       paintWaveforms();
       syncGainUi();
+    }
+
+    function updateIoLab() {
+      const el = document.getElementById('ioLab');
+      if (!el) return;
+      if (workIO.in_frame == null && workIO.out_frame == null) {
+        el.textContent = 'In/Out: —';
+        return;
+      }
+      const fps = (timeline && timeline.fps) || 30;
+      const i = workIO.in_frame != null ? fmtTc(workIO.in_frame / fps) : '—';
+      const o = workIO.out_frame != null ? fmtTc(workIO.out_frame / fps) : '—';
+      el.textContent = `In/Out: ${i} → ${o}` + (workIO.ready ? ' · ready' : '');
     }
 
     function paintWaveforms() {
@@ -1330,6 +1373,29 @@
           });
           if (r.timeline) renderTimeline(r.timeline);
           log('split @ ' + frame);
+        } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'c' || ev.key === 'C')) {
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          await api('/api/clip/copy', { method: 'POST', body: JSON.stringify({ clip_id: selectedClipId }) });
+          log('copied ' + selectedClipId);
+        } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'v' || ev.key === 'V')) {
+          ev.preventDefault();
+          const frame = Math.round((+scrub.value || 0) * fps);
+          const r = await api('/api/clip/paste', { method: 'POST', body: JSON.stringify({ playhead_frame: frame }) });
+          if (r.timeline) renderTimeline(r.timeline);
+          log('paste ' + r.clip_id);
+        } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'd' || ev.key === 'D')) {
+          if (!selectedClipId) return;
+          ev.preventDefault();
+          const r = await api('/api/clip/duplicate', { method: 'POST', body: JSON.stringify({ clip_id: selectedClipId }) });
+          if (r.timeline) renderTimeline(r.timeline);
+          log('dup ' + r.clip_id);
+        } else if (ev.key === 'i' || ev.key === 'I') {
+          ev.preventDefault();
+          document.getElementById('btnIn').click();
+        } else if (ev.key === 'o' || ev.key === 'O') {
+          ev.preventDefault();
+          document.getElementById('btnOut').click();
         } else if (ev.key === 'c' || ev.key === 'C') {
           ev.preventDefault();
           document.getElementById('btnRazor').click();
@@ -1344,11 +1410,53 @@
           ev.preventDefault();
           document.getElementById('btnRedo').click();
         } else if (ev.key === 'f' || ev.key === 'F') {
+          if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
           document.getElementById('btnFillGaps').click();
         }
       } catch (e) { log(String(e.message || e)); }
     });
+
+    (function() {
+      const zoomEl = document.getElementById('zoom');
+      if (zoomEl) zoomEl.oninput = (ev) => {
+        zoom = +ev.target.value || 1;
+        const lab = document.getElementById('zoomLab');
+        if (lab) lab.textContent = zoom + '×';
+        if (timeline) renderTimeline(timeline);
+      };
+      const bindIo = (id, path, name) => {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.onclick = async () => {
+          try {
+            const t = +scrub.value || 0;
+            workIO = await api(path, { method: 'POST', body: JSON.stringify({ time_seconds: t }) });
+            if (typeof updateIoLab === 'function') updateIoLab();
+            if (timeline) { timeline.work_in_out = workIO; renderTimeline(timeline); }
+            log(name + ' @ ' + fmtTc(t));
+          } catch (e) { log(String(e.message || e)); }
+        };
+      };
+      bindIo('btnIn', '/api/in_out/in', 'In');
+      bindIo('btnOut', '/api/in_out/out', 'Out');
+      const btnEw = document.getElementById('btnExportWork');
+      if (btnEw) btnEw.onclick = async () => {
+        try {
+          const base = document.getElementById('export').value.replace(/\.mp4$/i, '') + '_io.mp4';
+          log('export work area…');
+          const r = await api('/api/export_work', {
+            method: 'POST',
+            body: JSON.stringify({
+              output_path: base,
+              normalize_preset: document.getElementById('norm').checked ? 'streaming' : null,
+            }),
+          });
+          log('work export ' + (r.path || JSON.stringify(r).slice(0, 100)));
+        } catch (e) { log(String(e.message || e)); }
+      };
+    })();
+
     document.getElementById('btnWaves').onclick = async () => {
       try {
         if (!timeline || !timeline.tracks) {

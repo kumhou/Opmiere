@@ -117,6 +117,10 @@ class Editor:
         self.generation_provider = generation_provider
         self._undo_stack: list[dict] = []
         self._redo_stack: list[dict] = []
+        # Session clipboard + work in/out (not persisted in project.json)
+        self._clipboard: dict[str, Any] | None = None
+        self._in_point: int | None = None
+        self._out_point: int | None = None
 
     def _timeline_fingerprint(self) -> str:
         """Hash of timeline-relevant project state for proxy freshness."""
@@ -251,6 +255,11 @@ class Editor:
             "mix": self.mix_view(),
             "markers": self.list_markers()["markers"],
             "snap_frames": self.snap_points()["frames"],
+            "work_in_out": self.get_in_out(),
+            "clipboard": (
+                {"has": True, "media_id": self._clipboard.get("media")}
+                if self._clipboard else {"has": False}
+            ),
         }
 
     # --- undo/redo -----------------------------------------------------
@@ -971,6 +980,158 @@ class Editor:
             "count": len(ordered),
             "agent_note": "Snap drag/trim targets within a few frames of these.",
         }
+
+    def copy_clip(self, clip_id: str) -> dict[str, Any]:
+        """Copy clip blueprint into session clipboard (media + source range + effects)."""
+        track, clip = self._find_clip_and_track(clip_id)
+        self._clipboard = {
+            "media": clip.media,
+            "src_in": clip.src_in,
+            "src_out": clip.src_out,
+            "speed": clip.speed,
+            "effects": [dict(e) for e in (clip.effects or [])],
+            "position": dict(clip.position) if clip.position else None,
+            "source_track_kind": track.kind,
+            "source_clip_id": clip.id,
+            "duration_frames": clip.timeline_duration_frames,
+        }
+        return {
+            "copied": True,
+            "clip_id": clip_id,
+            "media_id": clip.media,
+            "duration_frames": clip.timeline_duration_frames,
+            "agent_note": "Session clipboard — paste_clip / duplicate_clip. Not saved in .opm.",
+        }
+
+    def paste_clip(
+        self,
+        *,
+        track_id: str | None = None,
+        start: int | None = None,
+        at_playhead: bool = False,
+        playhead_frame: int | None = None,
+    ) -> dict[str, Any]:
+        """Paste clipboard as a new clip. start=None → end of target track."""
+        if not self._clipboard:
+            raise ValueError("clipboard empty — copy_clip first")
+        bp = self._clipboard
+        media = self.project.media_by_id(bp["media"])
+        kind = bp.get("source_track_kind") or "video"
+        tid = track_id
+        if tid is None:
+            tracks = [t for t in self.project.tracks if t.kind == kind]
+            if not tracks:
+                tid = self.add_track(kind).id  # type: ignore[arg-type]
+            else:
+                tid = tracks[0].id
+        track = self.project.track_by_id(tid)
+        if start is not None:
+            place_at = int(start)
+        elif at_playhead and playhead_frame is not None:
+            place_at = max(0, int(playhead_frame))
+        else:
+            ordered = track.clips_in_order()
+            place_at = ordered[-1].end if ordered else 0
+
+        with self._mutate():
+            track = self.project.track_by_id(tid)
+            media = self.project.media_by_id(bp["media"])
+            clip = self.project.add_clip(
+                track, media, place_at, int(bp["src_in"]), int(bp["src_out"]),
+            )
+            clip.speed = float(bp.get("speed") or 1.0)
+            clip.effects = [dict(e) for e in (bp.get("effects") or [])]
+            if bp.get("position"):
+                clip.position = dict(bp["position"])
+            return {
+                "clip_id": clip.id,
+                "track_id": tid,
+                "start": clip.start,
+                "end": clip.end,
+                "from_clipboard": bp.get("source_clip_id"),
+            }
+
+    def duplicate_clip(
+        self,
+        clip_id: str,
+        *,
+        offset_frames: int | None = None,
+    ) -> dict[str, Any]:
+        """Copy then paste immediately after the original (or +offset)."""
+        self.copy_clip(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        start = clip.end if offset_frames is None else clip.start + int(offset_frames)
+        return self.paste_clip(track_id=track.id, start=start)
+
+    def set_in_point(self, frame: int | None = None, *, time_seconds: float | None = None) -> dict[str, Any]:
+        fps = float(self.project.timebase.fps or 30.0)
+        if frame is None:
+            if time_seconds is None:
+                raise ValueError("provide frame or time_seconds")
+            frame = int(round(float(time_seconds) * fps))
+        if frame < 0:
+            raise ValueError("in point must be >= 0")
+        self._in_point = int(frame)
+        if self._out_point is not None and self._out_point <= self._in_point:
+            self._out_point = None
+        return self.get_in_out()
+
+    def set_out_point(self, frame: int | None = None, *, time_seconds: float | None = None) -> dict[str, Any]:
+        fps = float(self.project.timebase.fps or 30.0)
+        if frame is None:
+            if time_seconds is None:
+                raise ValueError("provide frame or time_seconds")
+            frame = int(round(float(time_seconds) * fps))
+        if frame < 0:
+            raise ValueError("out point must be >= 0")
+        if self._in_point is not None and frame <= self._in_point:
+            raise ValueError("out point must be > in point")
+        self._out_point = int(frame)
+        return self.get_in_out()
+
+    def clear_in_out(self) -> dict[str, Any]:
+        self._in_point = None
+        self._out_point = None
+        return self.get_in_out()
+
+    def get_in_out(self) -> dict[str, Any]:
+        fps = float(self.project.timebase.fps or 30.0)
+        inn = self._in_point
+        out = self._out_point
+        return {
+            "in_frame": inn,
+            "out_frame": out,
+            "in_seconds": None if inn is None else round(inn / fps, 3),
+            "out_seconds": None if out is None else round(out / fps, 3),
+            "duration_frames": (
+                None if inn is None or out is None else max(0, out - inn)
+            ),
+            "ready": inn is not None and out is not None and out > inn,
+        }
+
+    def export_work_area(
+        self,
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = "streaming",
+        run_delivery_check: bool = True,
+        delivery_preset: str = "streaming",
+    ) -> dict[str, Any]:
+        """Export [in, out) work area. Requires set_in_point + set_out_point."""
+        io = self.get_in_out()
+        if not io["ready"]:
+            raise ValueError("set in and out points first (set_in_point / set_out_point)")
+        fps = float(self.project.timebase.fps or 30.0)
+        start_s = io["in_frame"] / fps
+        end_s = io["out_frame"] / fps
+        return self.export_range(
+            output_path,
+            start_s,
+            end_s,
+            normalize_preset=normalize_preset,
+            run_delivery_check=run_delivery_check,
+            delivery_preset=delivery_preset,
+        )
 
     def delete_clip(self, clip_id: str) -> Clip:
         with self._mutate():

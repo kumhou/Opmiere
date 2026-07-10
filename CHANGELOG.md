@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 — 2026-07-10
+
+### Added
+- **Clipboard**: `copy_clip` / `paste_clip` / `duplicate_clip` (session; effects preserved)
+- **Work In/Out**: `set_in_point` / `set_out_point` / `export_work_area`
+- Web: timeline zoom, I/O band, Ctrl+C/V/D, Export I/O
+
 ## 0.2.1 — 2026-07-10
 
 ### Added
