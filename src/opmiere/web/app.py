@@ -945,6 +945,7 @@ class MarkerDeleteBody(BaseModel):
 class SplitBody(BaseModel):
     clip_id: str
     at_frame: int
+    follow_links: bool = True
 
 
 @app.post("/api/markers/delete")
@@ -978,12 +979,72 @@ def markers_update(body: MarkerUpdateBody) -> dict[str, Any]:
 @app.post("/api/split")
 def split_at(body: SplitBody) -> dict[str, Any]:
     ed = _ed()
-    a, b = ed.split_clip(body.clip_id, body.at_frame)
-    return {
-        "first": a.to_dict(),
-        "second": b.to_dict(),
-        "timeline": ed.timeline_view(),
-    }
+    r = ed.split_clip(
+        body.clip_id, body.at_frame, follow_links=body.follow_links,
+    )
+    if isinstance(r, tuple):
+        a, b = r
+        return {
+            "first": a.to_dict(),
+            "second": b.to_dict(),
+            "timeline": ed.timeline_view(),
+        }
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class JLCutBody(BaseModel):
+    clip_id: str
+    frames: int = 15
+
+
+class DupTrackBody(BaseModel):
+    track_id: str
+    copy_clips: bool = True
+    name: str | None = None
+
+
+class PurgeMediaBody(BaseModel):
+    delete_files: bool = False
+
+
+@app.post("/api/clip/j_cut")
+def clip_j_cut(body: JLCutBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.j_cut(body.clip_id, body.frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/l_cut")
+def clip_l_cut(body: JLCutBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.l_cut(body.clip_id, body.frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/track/duplicate")
+def track_duplicate(body: DupTrackBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.duplicate_track(
+        body.track_id, copy_clips=body.copy_clips, name=body.name,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/media/unused")
+def media_unused() -> dict[str, Any]:
+    return _ed().list_unused_media()
+
+
+@app.post("/api/media/purge_unused")
+def media_purge_unused(body: PurgeMediaBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.purge_unused_media(delete_files=body.delete_files)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/project/stats")
+def project_stats_api() -> dict[str, Any]:
+    return _ed().project_stats()
 
 
 class RazorBody(BaseModel):

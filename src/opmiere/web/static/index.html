@@ -361,6 +361,15 @@
         <button type="button" class="secondary" id="btnSelLinked" disabled>Sel linked</button>
       </div>
       <div class="row">
+        <button type="button" class="secondary" id="btnJCut" disabled title="Shift+J">J-cut 15f</button>
+        <button type="button" class="secondary" id="btnLCut" disabled title="Shift+L">L-cut 15f</button>
+        <button type="button" class="secondary" id="btnDupTrack">Dup track</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnStats">Stats</button>
+        <button type="button" class="secondary" id="btnPurgeMedia">Purge unused media</button>
+      </div>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
@@ -823,6 +832,7 @@
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
+        'btnJCut','btnLCut',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2205,6 +2215,66 @@
         log('link group n=' + r.count + (r.link_group ? ' ' + r.link_group : ''));
       } catch (e) { log(String(e.message || e)); }
     };
+    async function doJLCut(kind) {
+      if (!selectedClipId) return;
+      const path = kind === 'j' ? '/api/clip/j_cut' : '/api/clip/l_cut';
+      const r = await api(path, {
+        method: 'POST',
+        body: JSON.stringify({ clip_id: selectedClipId, frames: 15 }),
+      });
+      if (r.timeline) renderTimeline(r.timeline);
+      setDirty(true);
+      log(kind.toUpperCase() + '-cut moved=' + r.count);
+      return r;
+    }
+    document.getElementById('btnJCut').onclick = async () => {
+      try { await doJLCut('j'); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnLCut').onclick = async () => {
+      try { await doJLCut('l'); } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnDupTrack').onclick = async () => {
+      let track_id = null;
+      if (selectedClipId && timeline) {
+        for (const tr of timeline.tracks || []) {
+          for (const c of tr.clips || []) {
+            if (c.id === selectedClipId) { track_id = tr.id; break; }
+          }
+          if (track_id) break;
+        }
+      }
+      if (!track_id && timeline && timeline.tracks && timeline.tracks[0]) {
+        track_id = timeline.tracks[0].id;
+      }
+      if (!track_id) { log('no track'); return; }
+      try {
+        const r = await api('/api/track/duplicate', {
+          method: 'POST',
+          body: JSON.stringify({ track_id, copy_clips: true }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('dup track → ' + r.track_id + ' clips=' + r.clip_count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnStats').onclick = async () => {
+      try {
+        const s = await api('/api/project/stats');
+        log('stats ' + JSON.stringify(s));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnPurgeMedia').onclick = async () => {
+      try {
+        const u = await api('/api/media/unused');
+        if (!u.count) { log('no unused media'); return; }
+        const r = await api('/api/media/purge_unused', {
+          method: 'POST', body: JSON.stringify({ delete_files: false }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('purged media entries: ' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
     document.getElementById('btnZoomFit').onclick = () => {
       const z = document.getElementById('zoom');
       if (z) { z.value = 1; zoom = 1; }
@@ -2352,10 +2422,13 @@
           const frame = Math.round(t * fps);
           const r = await api('/api/split', {
             method: 'POST',
-            body: JSON.stringify({ clip_id: selectedClipId, at_frame: frame }),
+            body: JSON.stringify({
+              clip_id: selectedClipId, at_frame: frame, follow_links: true,
+            }),
           });
           if (r.timeline) renderTimeline(r.timeline);
-          log('split @ ' + frame);
+          setDirty(true);
+          log(r.count ? ('split linked n=' + r.count + ' @ ' + frame) : ('split @ ' + frame));
         } else if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'c' || ev.key === 'C')) {
           if (!selectedClipId) return;
           ev.preventDefault();
@@ -2437,7 +2510,11 @@
         } else if (ev.key === 'j' || ev.key === 'J') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
-          shuttleStep(-1);
+          if (ev.shiftKey) {
+            await doJLCut('j');
+          } else {
+            shuttleStep(-1);
+          }
         } else if (ev.key === 'k' || ev.key === 'K') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
@@ -2445,7 +2522,11 @@
         } else if (ev.key === 'l' || ev.key === 'L') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();
-          shuttleStep(1);
+          if (ev.shiftKey) {
+            await doJLCut('l');
+          } else {
+            shuttleStep(1);
+          }
         } else if (ev.key === 'u' || ev.key === 'U') {
           if (ev.ctrlKey || ev.metaKey) return;
           if (!selectedClipId) return;

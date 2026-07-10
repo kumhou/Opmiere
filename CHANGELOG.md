@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.19 — 2026-07-11
+
+### Added
+- **`split_clip(..., follow_links=)`**: split linked A/V peers; new right-side link group
+- **`j_cut` / `l_cut` / `offset_linked`**: picture-anchored audio lead/lag
+- **`duplicate_track`**: clone track (+ clips)
+- **`list_unused_media` / `purge_unused_media`**: bin hygiene
+- **`project_stats`**: duration/counts/dirty census
+- Web: J/L-cut (Shift+J/L), Dup track, Stats, Purge unused; S splits linked
+
 ## 0.2.18 — 2026-07-11
 
 ### Added

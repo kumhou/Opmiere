@@ -273,8 +273,9 @@ class Editor:
                 {"keys": "← / →", "action": "Step frame (Shift = 1s)"},
                 {"keys": "Alt+← / Alt+→", "action": "Ripple nudge selection"},
                 {"keys": "M", "action": "Add marker at playhead"},
-                {"keys": "S", "action": "Split selected clip"},
+                {"keys": "S", "action": "Split selected (+ linked peers)"},
                 {"keys": "C", "action": "Razor all tracks at playhead"},
+                {"keys": "Shift+J / Shift+L", "action": "J-cut / L-cut linked audio ±15f"},
                 {"keys": "I / O", "action": "Set work In / Out"},
                 {"keys": "Ctrl+C/V/D", "action": "Copy / paste / duplicate"},
                 {"keys": "Ctrl+Shift+V", "action": "Overwrite paste at playhead"},
@@ -1677,9 +1678,67 @@ class Editor:
             "delta_frames": delta_frames,
         }
 
-    def split_clip(self, clip_id: str, at_frame: int) -> tuple[Clip, Clip]:
+    def split_clip(
+        self,
+        clip_id: str,
+        at_frame: int,
+        *,
+        follow_links: bool = False,
+    ) -> tuple[Clip, Clip] | dict[str, Any]:
+        """Split at absolute timeline frame.
+
+        follow_links=True: also split every linked peer that contains the frame;
+        left pieces keep the old link_group, right pieces get a new group.
+        Returns (left, right) when follow_links=False; else a summary dict.
+        """
+        if not follow_links:
+            with self._mutate():
+                return self._split_clip_unlocked(clip_id, at_frame)
+
+        # Collect peers in link group that contain at_frame
+        primary = self._find_clip(clip_id)
+        candidates = [clip_id]
+        if primary.link_group:
+            for track in self.project.tracks:
+                for c in track.clips:
+                    if c.link_group == primary.link_group and c.id not in candidates:
+                        candidates.append(c.id)
+
         with self._mutate():
-            return self._split_clip_unlocked(clip_id, at_frame)
+            splits: list[dict[str, Any]] = []
+            rights: list[Clip] = []
+            left_group = primary.link_group
+            for cid in candidates:
+                track, clip = self._find_clip_and_track(cid)
+                if not (clip.start < at_frame < clip.end):
+                    continue
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                left, right = self._split_clip_unlocked(cid, at_frame)
+                splits.append({
+                    "left_id": left.id,
+                    "right_id": right.id,
+                    "track_id": track.id,
+                })
+                rights.append(right)
+            if not splits:
+                raise ValueError(
+                    f"no linked clip contains frame {at_frame} "
+                    f"(start from {clip_id})"
+                )
+            right_group = None
+            if left_group and len(rights) >= 1:
+                right_group = new_id("lnk")
+                for r in rights:
+                    r.link_group = right_group
+            return {
+                "at_frame": at_frame,
+                "follow_links": True,
+                "splits": splits,
+                "count": len(splits),
+                "left_link_group": left_group,
+                "right_link_group": right_group,
+            }
 
     def _split_clip_unlocked(self, clip_id: str, at_frame: int) -> tuple[Clip, Clip]:
         track, clip = self._find_clip_and_track(clip_id)
@@ -1705,9 +1764,219 @@ class Editor:
             src_out=original_out,
             speed=clip.speed,
             effects=list(clip.effects or []),
+            position=dict(clip.position) if clip.position else None,
+            muted=bool(clip.muted),
+            name=clip.name,
+            color=clip.color,
+            link_group=clip.link_group,
         )
         track.clips.append(second)
         return clip, second
+
+    def offset_linked(
+        self,
+        clip_id: str,
+        delta_frames: int,
+        *,
+        kinds: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Nudge peers in the same link_group by delta (default: audio only).
+
+        Used for J/L cuts: keep picture fixed, slide linked sound.
+        kinds=None → all peers except the primary clip; pass [\"audio\"] etc.
+        """
+        if not isinstance(delta_frames, int) or delta_frames == 0:
+            raise ValueError("delta_frames must be a non-zero int")
+        clip = self._find_clip(clip_id)
+        if not clip.link_group:
+            raise ValueError(f"clip {clip_id} has no link_group — link or detach_audio first")
+        kind_filter = set(kinds) if kinds is not None else None
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            for track in self.project.tracks:
+                if track.locked:
+                    continue
+                if kind_filter is not None and track.kind not in kind_filter:
+                    continue
+                for c in track.clips:
+                    if c.link_group != clip.link_group:
+                        continue
+                    if c.id == clip_id:
+                        continue
+                    old = c.start
+                    c.start = max(0, old + delta_frames)
+                    moved.append({
+                        "clip_id": c.id,
+                        "track_id": track.id,
+                        "track_kind": track.kind,
+                        "from": old,
+                        "to": c.start,
+                    })
+            if not moved:
+                raise ValueError("no linked peers matched kinds filter")
+            return {
+                "anchor_clip_id": clip_id,
+                "link_group": clip.link_group,
+                "delta_frames": delta_frames,
+                "moved": moved,
+                "count": len(moved),
+            }
+
+    def j_cut(self, video_clip_id: str, lead_frames: int) -> dict[str, Any]:
+        """J-cut: linked audio leads picture by lead_frames (audio starts earlier)."""
+        if not isinstance(lead_frames, int) or lead_frames <= 0:
+            raise ValueError("lead_frames must be a positive int")
+        track, clip = self._find_clip_and_track(video_clip_id)
+        if track.kind != "video":
+            raise ValueError("j_cut expects a video clip anchor")
+        r = self.offset_linked(video_clip_id, -lead_frames, kinds=["audio"])
+        return {**r, "cut": "j", "lead_frames": lead_frames}
+
+    def l_cut(self, video_clip_id: str, lag_frames: int) -> dict[str, Any]:
+        """L-cut: linked audio lags picture by lag_frames (audio starts later)."""
+        if not isinstance(lag_frames, int) or lag_frames <= 0:
+            raise ValueError("lag_frames must be a positive int")
+        track, clip = self._find_clip_and_track(video_clip_id)
+        if track.kind != "video":
+            raise ValueError("l_cut expects a video clip anchor")
+        r = self.offset_linked(video_clip_id, lag_frames, kinds=["audio"])
+        return {**r, "cut": "l", "lag_frames": lag_frames}
+
+    def duplicate_track(
+        self,
+        track_id: str,
+        *,
+        copy_clips: bool = True,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Duplicate a track (and optionally all its clips with new ids)."""
+        with self._mutate():
+            src = self.project.track_by_id(track_id)
+            new_tr = self.project.add_track(src.kind)  # type: ignore[arg-type]
+            # insert after source for z-order locality
+            tracks = self.project.tracks
+            tracks.remove(new_tr)
+            idx = next(i for i, t in enumerate(tracks) if t.id == track_id)
+            tracks.insert(idx + 1, new_tr)
+            new_tr.muted = src.muted
+            new_tr.solo = False
+            new_tr.locked = False
+            new_tr.name = name if name is not None else (
+                (src.name + " copy") if src.name else None
+            )
+            # don't copy duck (would double sidechain)
+            mapped: list[dict[str, str]] = []
+            if copy_clips:
+                for c in src.clips_in_order():
+                    nc = self.project.add_clip(
+                        new_tr,
+                        self.project.media_by_id(c.media),
+                        c.start,
+                        c.src_in,
+                        c.src_out,
+                    )
+                    nc.speed = c.speed
+                    nc.effects = [dict(e) for e in (c.effects or [])]
+                    if c.position:
+                        nc.position = dict(c.position)
+                    nc.muted = c.muted
+                    nc.name = c.name
+                    nc.color = c.color
+                    # do not copy link_group (avoid cross-track A/V confusion)
+                    if c.transition_in:
+                        nc.transition_in = dict(c.transition_in)
+                    mapped.append({"from": c.id, "to": nc.id})
+            return {
+                "track_id": new_tr.id,
+                "from_track_id": track_id,
+                "kind": new_tr.kind,
+                "name": new_tr.name,
+                "clips": mapped,
+                "clip_count": len(mapped),
+                "index": idx + 1,
+            }
+
+    def list_unused_media(self) -> dict[str, Any]:
+        """Media assets not referenced by any clip."""
+        used = {
+            c.media
+            for t in self.project.tracks
+            for c in t.clips
+        }
+        unused = [
+            {
+                "media_id": m.id,
+                "path": m.path,
+                "kind": m.kind,
+                "duration_frames": m.duration_frames,
+            }
+            for m in self.project.media
+            if m.id not in used
+        ]
+        return {"count": len(unused), "media": unused}
+
+    def purge_unused_media(self, *, delete_files: bool = False) -> dict[str, Any]:
+        """Remove unused media entries from the project.
+
+        delete_files=True also deletes files under bundle media/ (irreversible).
+        """
+        unused = self.list_unused_media()["media"]
+        if not unused:
+            return {"removed": [], "count": 0, "files_deleted": []}
+        with self._mutate():
+            ids = {u["media_id"] for u in unused}
+            removed: list[str] = []
+            files_deleted: list[str] = []
+            keep: list = []
+            for m in self.project.media:
+                if m.id not in ids:
+                    keep.append(m)
+                    continue
+                removed.append(m.id)
+                if delete_files:
+                    try:
+                        p = self.bundle.media_path(m.path)
+                        if p.exists() and p.is_file():
+                            p.unlink()
+                            files_deleted.append(str(p))
+                    except OSError:
+                        pass
+            self.project.media = keep
+            return {
+                "removed": removed,
+                "count": len(removed),
+                "files_deleted": files_deleted,
+                "delete_files": delete_files,
+            }
+
+    def project_stats(self) -> dict[str, Any]:
+        """Quick project census for agents/UI status bars."""
+        tracks = self.project.tracks
+        clips = [c for t in tracks for c in t.clips]
+        groups = {c.link_group for c in clips if c.link_group}
+        return {
+            "project_id": self.project.id,
+            "fps": self.project.timebase.fps,
+            "resolution": {
+                "w": self.project.resolution.w,
+                "h": self.project.resolution.h,
+            },
+            "duration_frames": self.project.duration_frames(),
+            "duration_seconds": round(
+                self.project.duration_frames()
+                / float(self.project.timebase.fps or 30.0),
+                3,
+            ),
+            "track_count": len(tracks),
+            "clip_count": len(clips),
+            "media_count": len(self.project.media),
+            "unused_media_count": self.list_unused_media()["count"],
+            "marker_count": len(self.project.markers),
+            "link_group_count": len(groups),
+            "dirty": bool(getattr(self, "_dirty", False)),
+            "undo_depth": len(self._undo_stack),
+            "has_clipboard": bool(self._clipboard),
+        }
 
     def split_all_at(
         self,

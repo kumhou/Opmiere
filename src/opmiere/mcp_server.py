@@ -1128,10 +1128,73 @@ def list_style_assets() -> dict:
 
 
 @mcp.tool()
-def split_clip(clip_id: str, at_frame: int) -> dict:
-    """Split a clip at an absolute timeline frame into two clips."""
-    first, second = _require_editor().split_clip(clip_id, at_frame)
-    return {"first": first.to_dict(), "second": second.to_dict()}
+def split_clip(
+    clip_id: str,
+    at_frame: int,
+    follow_links: bool = False,
+) -> dict:
+    """Split at timeline frame. follow_links also splits linked peers."""
+    r = _require_editor().split_clip(
+        clip_id, at_frame, follow_links=follow_links,
+    )
+    if isinstance(r, tuple):
+        first, second = r
+        return {"first": first.to_dict(), "second": second.to_dict()}
+    return r
+
+
+@mcp.tool()
+def j_cut(video_clip_id: str, lead_frames: int) -> dict:
+    """J-cut: linked audio leads picture by lead_frames."""
+    return _require_editor().j_cut(video_clip_id, lead_frames)
+
+
+@mcp.tool()
+def l_cut(video_clip_id: str, lag_frames: int) -> dict:
+    """L-cut: linked audio lags picture by lag_frames."""
+    return _require_editor().l_cut(video_clip_id, lag_frames)
+
+
+@mcp.tool()
+def offset_linked(
+    clip_id: str,
+    delta_frames: int,
+    kinds: list[str] | None = None,
+) -> dict:
+    """Nudge link-group peers by delta (default all peers except anchor)."""
+    return _require_editor().offset_linked(
+        clip_id, delta_frames, kinds=kinds,
+    )
+
+
+@mcp.tool()
+def duplicate_track(
+    track_id: str,
+    copy_clips: bool = True,
+    name: str | None = None,
+) -> dict:
+    """Duplicate a track (optionally with clip copies)."""
+    return _require_editor().duplicate_track(
+        track_id, copy_clips=copy_clips, name=name,
+    )
+
+
+@mcp.tool()
+def list_unused_media() -> dict:
+    """Media not referenced by any clip."""
+    return _require_editor().list_unused_media()
+
+
+@mcp.tool()
+def purge_unused_media(delete_files: bool = False) -> dict:
+    """Remove unused media from project; optionally delete files."""
+    return _require_editor().purge_unused_media(delete_files=delete_files)
+
+
+@mcp.tool()
+def project_stats() -> dict:
+    """Project census: duration, counts, dirty, undo depth."""
+    return _require_editor().project_stats()
 
 
 @mcp.tool()
