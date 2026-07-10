@@ -234,9 +234,9 @@ def apply_effect(clip_id: str, effect: dict) -> dict:
         - full-frame color grade from an external LUT; path must exist at apply time.
       {"type": "ken_burns", "zoom_start": 1..10 (default 1.0), "zoom_end": 1..10 (default 1.2),
         "x_start"/"y_start"/"x_end"/"y_end": 0..1 (default 0.5 = center focus)}
-        - slow pan across a zoomed frame. Zoom level is max(zoom_start, zoom_end) held constant
-          (animated zoom was dropped after zoompan blew up multi-clip exports); pan of the focus
-          point is animated over the clip. zoom 1 = full frame.
+        - animated zoom+pan over the clip (zoompan d=1). zoom 1 = full frame; higher zooms in.
+          Focus points are fractions of the frame. Chain must not scale after this effect
+          (handled internally).
       {"type": "white_balance", "temperature": 1000..40000 Kelvin (default 6500 = daylight neutral;
         lower = warmer/amber, higher = cooler/blue), "mix": 0..1 (default 1.0, blend with source)}
         - full-frame color temperature shift (ffmpeg colortemperature). Use for cold→warm emotion arcs

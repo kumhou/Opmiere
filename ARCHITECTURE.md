@@ -250,8 +250,8 @@ Curated high-impact set (Premiere-like, *not* exhaustive — chosen by impact-pe
 - **Transitions:** cross-dissolve, dip-to-black/white, wipes — **all done** (§9), via ffmpeg xfade's
   own transition vocabulary (`_XFADE_TRANSITION_BY_TYPE`), not a separate implementation per style.
 - **Color:** curves, lut3d, white_balance **done**; saturation/contrast via `color` **done**.
-- **Transform:** crop, scale/position (PiP), rotate, Ken-Burns (constant zoom + animated pan) **done**;
-  (stabilization — later).
+- **Transform:** crop, scale/position (PiP), rotate, Ken-Burns (animated zoom+pan via zoompan d=1,
+  with scale/pad tail skipped — see §9) **done**; (stabilization — later).
 - **Keying/masking:** chroma key, luma key, shape_mask (circle/rect alpha) **done**.
 - **Text:** titles, lower-thirds, captions/subtitles.
 - **Stylize:** blur, sharpen, vignette, film grain, glow **all done**. Glow is the multi-stage
@@ -479,12 +479,12 @@ just another filter fragment — so that's its own not-yet-built item (see §10/
 **`lut3d`, `white_balance`, and `ken_burns` are built.** `lut3d` wraps ffmpeg's `lut3d` over an
 external `.cube`/`.3dl` path (existence checked at apply time). `white_balance` is
 `colortemperature` in Kelvin (lower=warmer, higher=cooler) with a mix knob — real-pixel verified
-on mid-gray (cool grade bluer than warm). `ken_burns` history matters: animated crop w/h is a
-silent no-op; `scale eval=frame` + `n` doesn't advance reliably; `zoompan d=1` pans correctly in
-isolation but inside a multi-clip xfade export produced ~50k frames / 3141s while audio stayed ~8s
-(dogfood v4). Settled implementation: **constant zoom** (`max(zoom_start, zoom_end)`) via fixed
-`scale`, **animated pan** via per-frame crop x/y — duration bounded by input. Real-pixel: red|blue
-hstack panning left→right changes left-edge color over the clip.
+on mid-gray (cool grade bluer than warm). `ken_burns` is true animated zoom+pan via `zoompan d=1`.
+The dogfood v4 "3141s video / 8s audio" bomb was mis-attributed to multi-clip; the real cause is
+**chain tail `scale`/`pad`/`fps` after zoompan** (spike: trim+zoompan alone = N frames; same +
+scale/pad/fps → 15360 frames / 512s). Fix: `_video_clip_chain` skips size/fps tail when any
+`ken_burns` is present (zoompan already emits `s=box` at project fps). Real-pixel: white box on
+black grows under zoom_start=1→zoom_end=2; multi-clip export duration stays ~2s.
 
 **PiP position/scale is now built** — the item flagged above. `Clip.position` (`{"x", "y", "scale"}`,
 `None` = full-frame, unchanged default) is a clip-level field like `transition_in`/`speed`, not an
@@ -686,10 +686,9 @@ eyeballed like a frame), and confirmed it round-trips cleanly through Opmiere's 
 
 Still open within P2 (local-only track; cloud deferred by choice): re-benchmarking the profiles table on
 hardware other than the reference RTX 3070 (the spare GTX 1660 Super, once installed), further
-offload-tier video candidates beyond wan2.2-moe if wanted, true animated-zoom Ken Burns (current is
-constant-zoom + pan). shape_mask, place_after(+transition), analyze_timeline, director policy, SFX,
-upscale, glow, lut3d, white_balance done. Cloud deferred. Dogfood friction fixes: place_after encodes
-hard-cut→transition order; analyze_timeline exports temp mix then meters; shape_mask for geometric alpha.
+offload-tier video candidates beyond wan2.2-moe if wanted. Animated Ken Burns, shape_mask,
+place_after(+transition), analyze_timeline, director policy, SFX, upscale, glow, lut3d, white_balance
+done. Cloud deferred (JH: local free only).
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p

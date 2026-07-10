@@ -858,67 +858,68 @@ def test_apply_effect_ken_burns_rejects_zoom_below_one(editor, sample_video):
         editor.apply_effect(clip.id, {"type": "ken_burns", "zoom_start": 0.5})
 
 
-def test_ken_burns_zoom_end_differs_from_start_frame(tmp_path):
-    """Real-pixel: zoom_end>1 on a split-color frame must change edge pixels.
+def test_ken_burns_animated_zoom_and_duration_safe(tmp_path):
+    """Animated zoom is real (white box grows) and duration stays input-bounded.
 
-    Source is left-half red / right-half blue. Static full-frame shows red on
-    the left edge. A strong center zoom at end should crop inward so the left
-    edge of the *output* is no longer pure red (scale of crop brings mid
-    content outward). Compare first vs last exported frame under ken_burns
-    that ends zoomed and panned.
+    Guards the bomb: zoompan followed by scale/pad produced 512s from 1s.
     """
     from PIL import Image
+    from opmiere.render.probe import probe
 
-    src = tmp_path / "split.mp4"
-    # left red, right blue
+    src = tmp_path / "box.mp4"
     subprocess.run(
         [
             "ffmpeg", "-y", "-f", "lavfi",
-            "-i", f"color=c=red:size=80x90:duration=1:rate={FPS}[l];"
-                  f"color=c=blue:size=80x90:duration=1:rate={FPS}[r];"
-                  f"[l][r]hstack=inputs=2",
+            "-i", f"color=c=black:size=160x90:duration=1:rate={FPS},"
+                  f"drawbox=x=60:y=30:w=40:h=30:color=white:t=fill",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src),
         ],
         capture_output=True, text=True, check=True,
     )
-    ed = Editor.create(tmp_path / "kb.opm", fps=FPS, width=160, height=90)
-    media = ed.import_media(src, kind="video")
-    track = ed.add_track("video")
-    # 30 frames so start/end interpolation has room
-    clip = ed.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
-    ed.apply_effect(
-        clip.id,
-        {
-            "type": "ken_burns",
-            "zoom_start": 1.0,
-            "zoom_end": 2.0,
-            "x_start": 0.0,
-            "y_start": 0.5,
-            "x_end": 1.0,
-            "y_end": 0.5,
-        },
-    )
-    out = tmp_path / "kb.mp4"
-    ed.export(out)
 
-    first = tmp_path / "f0.png"
-    last = tmp_path / "f1.png"
+    def _export(name: str, multi: bool) -> Path:
+        ed = Editor.create(tmp_path / f"{name}.opm", fps=FPS, width=160, height=90)
+        media = ed.import_media(src, kind="video")
+        track = ed.add_track("video")
+        c1 = ed.add_clip(track.id, media.id, start=0, src_in=0, src_out=30)
+        target = c1
+        if multi:
+            target = ed.place_after(c1.id, media.id, src_in=0, src_out=30)
+        ed.apply_effect(
+            target.id,
+            {"type": "ken_burns", "zoom_start": 1.0, "zoom_end": 2.0,
+             "x_start": 0.5, "y_start": 0.5, "x_end": 0.5, "y_end": 0.5},
+        )
+        out = tmp_path / f"{name}.mp4"
+        ed.export(out)
+        return out
+
+    single = _export("kb_single", multi=False)
+    info = probe(single)
+    assert abs(info.duration_seconds - 1.0) < 0.15, info.duration_seconds
+
+    first, last = tmp_path / "k0.png", tmp_path / "k29.png"
     subprocess.run(
-        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,0)", "-frames:v", "1",
+        ["ffmpeg", "-y", "-i", str(single), "-vf", "select=eq(n\\,0)", "-frames:v", "1",
          "-update", "1", str(first)],
         capture_output=True, text=True, check=True,
     )
     subprocess.run(
-        ["ffmpeg", "-y", "-i", str(out), "-vf", "select=eq(n\\,29)", "-frames:v", "1",
+        ["ffmpeg", "-y", "-i", str(single), "-vf", "select=eq(n\\,29)", "-frames:v", "1",
          "-update", "1", str(last)],
         capture_output=True, text=True, check=True,
     )
-    p0 = Image.open(first).load()[5, 45]
-    p1 = Image.open(last).load()[5, 45]
-    # First frame ~ full-frame left edge = red-dominant; last frame pans to the
-    # right under 2x zoom so left edge should no longer match first.
-    assert p0[0] > p0[2] + 40, f"first-frame left edge should be red-dominant, got {p0}"
-    assert p0 != p1, f"ken_burns should change left-edge pixels over time: {p0} vs {p1}"
+
+    def white_count(png: Path) -> int:
+        px = Image.open(png).load()
+        return sum(1 for y in range(90) for x in range(160) if sum(px[x, y]) > 600)
+
+    w0, w1 = white_count(first), white_count(last)
+    assert w1 > w0 + 200, f"zoom should grow white box: frame0={w0} frame29={w1}"
+
+    multi = _export("kb_multi", multi=True)
+    minfo = probe(multi)
+    assert minfo.duration_seconds < 3.0, f"multi-clip ken_burns duration bomb: {minfo.duration_seconds}s"
 
 
 def test_apply_effect_compression_and_noise_reduction(editor, sample_video):

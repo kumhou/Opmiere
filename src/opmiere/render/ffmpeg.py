@@ -353,17 +353,13 @@ def _effect_filters(
         elif etype == "ken_burns":
             if stream != "video":
                 continue
-            # Implementation history (dogfood v4):
-            # - animated crop w/h: silent no-op (config-time only)
-            # - scale eval=frame with n: n does not advance reliably
-            # - zoompan d=1: correct pan/zoom in isolation, but inside a
-            #   multi-clip xfade export emitted ~50k frames / 3141s while
-            #   audio stayed ~8s — hard trim after zoompan still hung the
-            #   export because zoompan never finished feeding frames
-            # Settled approach: constant zoom (max of start/end) via fixed
-            # scale, animate only pan via crop x/y (evaluated per frame).
-            # zoom_start≠zoom_end still zooms (to the larger value); the
-            # *animation* is pan-only. Duration is input-bounded by construction.
+            # True animated zoom+pan via zoompan d=1 (one out frame per in
+            # frame). Root cause of the dogfood v4 / multi-clip "3141s video"
+            # bomb was NOT multi-clip itself: it was chain tail
+            # scale/pad/fps *after* zoompan (verified: trim+zoompan alone =
+            # correct N frames; +scale/pad/fps → 15360 frames / 512s).
+            # _video_clip_chain therefore skips scale/pad/fps when any
+            # ken_burns is present — zoompan already emits s=box at fps.
             if out_w is None or out_h is None:
                 raise RuntimeError(
                     "internal: ken_burns needs out_w/out_h from _video_clip_chain"
@@ -386,17 +382,15 @@ def _effect_filters(
             ):
                 if not (lo <= val <= hi):
                     raise ValueError(f"ken_burns effect has invalid {name!r}")
-            z = max(z0, z1)
-            # Integer scale size (even) so yuv420p crop is happy.
-            scaled_w = max(box_w, int(round(box_w * z)) // 2 * 2)
-            scaled_h = max(box_h, int(round(box_h * z)) // 2 * 2)
             n_max = max(clip_duration_frames - 1, 1)
-            fx_expr = f"({x0})+(({x1})-({x0}))*n/{n_max}"
-            fy_expr = f"({y0})+(({y1})-({y0}))*n/{n_max}"
+            z_expr = f"({z0})+(({z1})-({z0}))*on/{n_max}"
+            fx_expr = f"({x0})+(({x1})-({x0}))*on/{n_max}"
+            fy_expr = f"({y0})+(({y1})-({y0}))*on/{n_max}"
+            x_expr = f"({fx_expr})*(iw-iw/zoom)"
+            y_expr = f"({fy_expr})*(ih-ih/zoom)"
             parts.append(
-                f"scale={scaled_w}:{scaled_h},"
-                f"crop={box_w}:{box_h}:"
-                f"x='({fx_expr})*(iw-ow)':y='({fy_expr})*(ih-oh)'"
+                f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':"
+                f"d=1:s={box_w}x{box_h}:fps={fps}"
             )
         elif etype == "compression":
             if stream != "audio":
@@ -536,15 +530,26 @@ def _video_clip_chain(
     has_alpha = any(
         e.get("type") in ("chroma_key", "luma_key", "shape_mask") for e in clip.effects
     )
+    # ken_burns (zoompan) already emits exactly box_w x box_h at project fps.
+    # Appending the normal scale/pad/fps tail after zoompan multiplies frame
+    # count into the thousands (spike: 30 → 15360). Skip size/fps tail when
+    # present; keep setsar (+ alpha format if needed).
+    has_ken_burns = any(e.get("type") == "ken_burns" for e in clip.effects)
     pad_color = "black@0.0" if has_alpha else "black"
-    tail_filters = [
-        f"scale={box_w}:{box_h}:force_original_aspect_ratio=decrease",
-        f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color={pad_color}",
-    ]
-    if has_alpha:
-        tail_filters.append("format=yuva420p")
-    tail_filters.append(f"setsar=1")
-    tail_filters.append(f"fps={fps}")
+    if has_ken_burns:
+        tail_filters = []
+        if has_alpha:
+            tail_filters.append("format=yuva420p")
+        tail_filters.append("setsar=1")
+    else:
+        tail_filters = [
+            f"scale={box_w}:{box_h}:force_original_aspect_ratio=decrease",
+            f"pad={box_w}:{box_h}:(ow-iw)/2:(oh-ih)/2:color={pad_color}",
+        ]
+        if has_alpha:
+            tail_filters.append("format=yuva420p")
+        tail_filters.append("setsar=1")
+        tail_filters.append(f"fps={fps}")
 
     # Partition effects into linear runs separated by glow barriers.
     # Linear runs still go through _effect_filters; glow expands here.
