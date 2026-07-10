@@ -292,7 +292,12 @@
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnCloseGaps">Close gaps</button>
+        <button type="button" class="secondary" id="btnCloseAllGaps">Close all gaps</button>
         <button type="button" class="secondary" id="btnFillGaps">Fill gaps (black)</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnFindGaps">Find gaps</button>
+        <button type="button" class="secondary" id="btnRmEmptyTracks">Rm empty tracks</button>
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnWaves">Load waveforms</button>
@@ -333,6 +338,15 @@
       <div class="row">
         <input id="opacitySlider" type="range" min="0" max="1" step="0.05" value="1" disabled />
         <button type="button" class="secondary" id="btnOpacity" disabled style="flex:0.4">Set</button>
+      </div>
+      <label>Crop W×H (px)</label>
+      <div class="row">
+        <input id="cropW" type="number" min="2" step="2" value="160" disabled />
+        <input id="cropH" type="number" min="2" step="2" value="90" disabled />
+        <button type="button" class="secondary" id="btnCrop" disabled style="flex:0.4">Crop</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnBatchBlur" disabled>Batch blur sel</button>
       </div>
       <div class="row">
         <button type="button" class="secondary" id="btnSubclip" disabled>Subclip I/O</button>
@@ -775,6 +789,7 @@
         'opacitySlider','btnOpacity','btnSubclip','btnTrimQ','btnTrimW','btnClearFx',
         'btnSlipL','btnSlipR','btnCopyFx','btnPasteFx','btnAlignPh','btnRollL','btnRollR',
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
+        'cropW','cropH','btnCrop','btnBatchBlur',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -1957,6 +1972,64 @@
         log('fill_gaps pads=' + ((r.result && r.result.pad_count) || 0));
       } catch (e) { log(String(e.message || e)); }
     };
+    document.getElementById('btnCloseAllGaps').onclick = async () => {
+      try {
+        const r = await api('/api/gaps/close_all', {
+          method: 'POST', body: JSON.stringify({ from_frame: 0 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('close_all_gaps moved=' + r.moved_total);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnFindGaps').onclick = async () => {
+      try {
+        const r = await api('/api/gaps/find', {
+          method: 'POST', body: JSON.stringify({ from_frame: 0 }),
+        });
+        log('gaps total=' + r.total_gaps + ' ' + JSON.stringify(r.tracks));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRmEmptyTracks').onclick = async () => {
+      try {
+        const r = await api('/api/tracks/remove_empty', {
+          method: 'POST', body: JSON.stringify({ keep_one_per_kind: true }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('removed empty tracks: ' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnCrop').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const width = Math.max(2, Math.round(+document.getElementById('cropW').value || 160));
+        const height = Math.max(2, Math.round(+document.getElementById('cropH').value || 90));
+        const r = await api('/api/clip/crop', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, width, height }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('crop ' + width + 'x' + height);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnBatchBlur').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) { log('no selection'); return; }
+      try {
+        const r = await api('/api/clips/effect', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_ids: ids,
+            effect: { type: 'blur', amount: 5 },
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('batch blur count=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
     document.getElementById('btnMark').onclick = async () => {
       try {
         const t = +scrub.value || 0;
@@ -2099,6 +2172,10 @@
           } else {
             document.getElementById('btnFillGaps').click();
           }
+        } else if (ev.key === 'g' || ev.key === 'G') {
+          if (ev.ctrlKey || ev.metaKey) return;
+          ev.preventDefault();
+          document.getElementById('btnCloseAllGaps').click();
         } else if (ev.key === 'j' || ev.key === 'J') {
           if (ev.ctrlKey || ev.metaKey) return;
           ev.preventDefault();

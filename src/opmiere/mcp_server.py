@@ -812,6 +812,58 @@ def marker_near(
 
 
 @mcp.tool()
+def apply_effect_to_clips(clip_ids: list[str], effect: dict) -> dict:
+    """Append one effect to many clips (one undo)."""
+    return _require_editor().apply_effect_to_clips(clip_ids, effect)
+
+
+@mcp.tool()
+def set_clip_crop(
+    clip_id: str,
+    width: int,
+    height: int,
+    x: int | str | None = None,
+    y: int | str | None = None,
+) -> dict:
+    """Replace crop effect (pixel width/height; optional x/y)."""
+    return _require_editor().set_clip_crop(
+        clip_id, width, height, x=x, y=y,
+    )
+
+
+@mcp.tool()
+def find_gaps(
+    track_id: str | None = None,
+    from_frame: int = 0,
+    min_gap_frames: int = 1,
+) -> dict:
+    """Report holes between clips on one or all tracks."""
+    return _require_editor().find_gaps(
+        track_id, from_frame=from_frame, min_gap_frames=min_gap_frames,
+    )
+
+
+@mcp.tool()
+def close_all_gaps(from_frame: int = 0) -> dict:
+    """Pack every unlocked track leftward from from_frame."""
+    return _require_editor().close_all_gaps(from_frame=from_frame)
+
+
+@mcp.tool()
+def remove_empty_tracks(keep_one_per_kind: bool = True) -> dict:
+    """Delete empty tracks (optionally keep one empty video/audio)."""
+    return _require_editor().remove_empty_tracks(
+        keep_one_per_kind=keep_one_per_kind,
+    )
+
+
+@mcp.tool()
+def list_tracks() -> dict:
+    """Summarize tracks (id, kind, clip_count, M/S/L)."""
+    return _require_editor().list_tracks()
+
+
+@mcp.tool()
 def clips_at(
     timeline_frame: int,
     track_id: str | None = None,

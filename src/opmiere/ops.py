@@ -284,6 +284,7 @@ class Editor:
                 {"keys": ", / .", "action": "Slip selected −/+ 5 source frames"},
                 {"keys": "; / '", "action": "Slide selected −/+ 5 frames"},
                 {"keys": "Shift+M", "action": "Jump to next marker"},
+                {"keys": "G", "action": "Close all track gaps"},
                 {"keys": "Del", "action": "Ripple delete selection"},
                 {"keys": "[ / ]", "action": "Undo / redo"},
                 {"keys": "F", "action": "Fill base gaps (black)"},
@@ -402,10 +403,14 @@ class Editor:
         }
 
     # --- undo/redo -----------------------------------------------------
+    def _snapshot(self) -> dict:
+        """Deep snapshot of project JSON (effects/lists must not share refs)."""
+        return json.loads(json.dumps(self.project.to_dict(), ensure_ascii=False))
+
     @contextmanager
     def _mutate(self) -> Iterator[None]:
         """Snapshot before a mutation; roll the snapshot back if it fails."""
-        self._undo_stack.append(self.project.to_dict())
+        self._undo_stack.append(self._snapshot())
         try:
             yield
         except Exception:
@@ -425,7 +430,7 @@ class Editor:
     def undo(self) -> bool:
         if not self._undo_stack:
             return False
-        self._redo_stack.append(self.project.to_dict())
+        self._redo_stack.append(self._snapshot())
         self.project = Project.from_dict(self._undo_stack.pop())
         self.invalidate_preview_proxy()
         return True
@@ -433,7 +438,7 @@ class Editor:
     def redo(self) -> bool:
         if not self._redo_stack:
             return False
-        self._undo_stack.append(self.project.to_dict())
+        self._undo_stack.append(self._snapshot())
         self.project = Project.from_dict(self._redo_stack.pop())
         self.invalidate_preview_proxy()
         return True
@@ -2748,6 +2753,174 @@ class Editor:
             "time_seconds": time_seconds,
         }
 
+    def _apply_effect_unlocked(self, clip_id: str, effect: dict) -> Clip:
+        """Validate + append effect. Caller must hold ``_mutate`` when mutating."""
+        clip = self._find_clip(clip_id)
+        etype = effect.get("type")
+        if etype not in KNOWN_EFFECT_TYPES:
+            raise ValueError(
+                f"unknown effect type {etype!r}; supported: {sorted(KNOWN_EFFECT_TYPES)}"
+            )
+        if etype == "fade":
+            direction = effect.get("direction")
+            if direction not in ("in", "out"):
+                raise ValueError("fade effect requires direction 'in' or 'out'")
+            duration_frames = effect.get("duration_frames")
+            if not isinstance(duration_frames, int) or duration_frames <= 0:
+                raise ValueError(
+                    "fade effect requires a positive integer duration_frames"
+                )
+            if duration_frames > clip.duration_frames:
+                raise ValueError(
+                    f"fade duration_frames ({duration_frames}) exceeds clip "
+                    f"duration ({clip.duration_frames})"
+                )
+        elif etype == "opacity":
+            amount = effect.get("amount")
+            if not isinstance(amount, (int, float)) or not (0.0 <= float(amount) <= 1.0):
+                raise ValueError("opacity effect requires amount in [0, 1]")
+        elif etype == "gain":
+            db = effect.get("db")
+            if not isinstance(db, (int, float)):
+                raise ValueError("gain effect requires a numeric 'db' field")
+        elif etype == "text":
+            content = effect.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("text effect requires non-empty string 'content'")
+            position = effect.get("position", "bottom")
+            if position not in TEXT_POSITIONS:
+                raise ValueError(
+                    f"text effect position must be one of {sorted(TEXT_POSITIONS)}, "
+                    f"got {position!r}"
+                )
+            size = effect.get("size", 48)
+            if not isinstance(size, int) or size <= 0:
+                raise ValueError("text effect 'size' must be a positive integer")
+            border_width = effect.get("border_width", 2)
+            if not isinstance(border_width, int) or border_width < 0:
+                raise ValueError("text effect 'border_width' must be a non-negative integer")
+        elif etype == "subtitles":
+            path = effect.get("path")
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError("subtitles effect requires non-empty string 'path' to an .srt/.ass file")
+            if not Path(path).exists():
+                raise FileNotFoundError(f"subtitles effect path not found: {path}")
+        elif etype == "blur":
+            amount = effect.get("amount", 5.0)
+            if not isinstance(amount, (int, float)) or amount <= 0:
+                raise ValueError("blur effect 'amount' must be a positive number")
+        elif etype == "vignette":
+            strength = effect.get("strength", 1.0)
+            if not isinstance(strength, (int, float)) or strength <= 0:
+                raise ValueError("vignette effect 'strength' must be a positive number")
+        elif etype == "chroma_key":
+            similarity = effect.get("similarity", 0.15)
+            if not isinstance(similarity, (int, float)) or not (0.0 < similarity <= 1.0):
+                raise ValueError("chroma_key effect 'similarity' must be in (0, 1]")
+            blend = effect.get("blend", 0.05)
+            if not isinstance(blend, (int, float)) or not (0.0 <= blend <= 1.0):
+                raise ValueError("chroma_key effect 'blend' must be in [0, 1]")
+        elif etype == "luma_key":
+            threshold = effect.get("threshold", 0.1)
+            if not isinstance(threshold, (int, float)) or not (0.0 <= threshold <= 1.0):
+                raise ValueError("luma_key effect 'threshold' must be in [0, 1]")
+            tolerance = effect.get("tolerance", 0.1)
+            if not isinstance(tolerance, (int, float)) or not (0.0 <= tolerance <= 1.0):
+                raise ValueError("luma_key effect 'tolerance' must be in [0, 1]")
+        elif etype == "curves":
+            preset = effect.get("preset")
+            if preset not in CURVES_PRESETS:
+                raise ValueError(f"curves effect 'preset' must be one of {sorted(CURVES_PRESETS)}")
+        elif etype == "sharpen":
+            amount = effect.get("amount", 1.0)
+            if not isinstance(amount, (int, float)) or not (0.0 < amount <= 5.0):
+                raise ValueError("sharpen effect 'amount' must be in (0, 5]")
+        elif etype == "film_grain":
+            amount = effect.get("amount", 20.0)
+            if not isinstance(amount, (int, float)) or not (0.0 < amount <= 100.0):
+                raise ValueError("film_grain effect 'amount' must be in (0, 100]")
+        elif etype == "glow":
+            amount = effect.get("amount", 12.0)
+            if not isinstance(amount, (int, float)) or not (0.0 < amount <= 50.0):
+                raise ValueError("glow effect 'amount' must be in (0, 50]")
+            intensity = effect.get("intensity", 0.7)
+            if not isinstance(intensity, (int, float)) or not (0.0 < intensity <= 1.0):
+                raise ValueError("glow effect 'intensity' must be in (0, 1]")
+        elif etype == "lut3d":
+            path = effect.get("path")
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError("lut3d effect requires non-empty string 'path' to a .cube/.3dl file")
+            if not Path(path).exists():
+                raise FileNotFoundError(f"lut3d effect path not found: {path}")
+        elif etype == "ken_burns":
+            for key, lo, hi in (
+                ("zoom_start", 1.0, 10.0),
+                ("zoom_end", 1.0, 10.0),
+                ("x_start", 0.0, 1.0),
+                ("y_start", 0.0, 1.0),
+                ("x_end", 0.0, 1.0),
+                ("y_end", 0.0, 1.0),
+            ):
+                default = 1.0 if key.startswith("zoom") else 0.5
+                val = effect.get(key, default)
+                if not isinstance(val, (int, float)) or not (lo <= float(val) <= hi):
+                    raise ValueError(f"ken_burns effect {key!r} must be in [{lo}, {hi}]")
+        elif etype == "white_balance":
+            temperature = effect.get("temperature", 6500)
+            if not isinstance(temperature, (int, float)) or not (1000 <= temperature <= 40000):
+                raise ValueError("white_balance effect 'temperature' must be in [1000, 40000] Kelvin")
+            mix = effect.get("mix", 1.0)
+            if not isinstance(mix, (int, float)) or not (0.0 <= mix <= 1.0):
+                raise ValueError("white_balance effect 'mix' must be in [0, 1]")
+        elif etype == "shape_mask":
+            shape = effect.get("shape", "circle")
+            if shape not in SHAPE_MASK_SHAPES:
+                raise ValueError(
+                    f"shape_mask 'shape' must be one of {sorted(SHAPE_MASK_SHAPES)}, got {shape!r}"
+                )
+            for key, default in (("cx", 0.5), ("cy", 0.5), ("size", 0.5), ("feather", 0.05)):
+                val = effect.get(key, default)
+                if not isinstance(val, (int, float)) or not (0.0 <= float(val) <= 1.0):
+                    raise ValueError(f"shape_mask {key!r} must be in [0, 1]")
+            if shape == "rect":
+                for key, default in (("width", 0.5), ("height", 0.5)):
+                    val = effect.get(key, default)
+                    if not isinstance(val, (int, float)) or not (0.0 < float(val) <= 1.0):
+                        raise ValueError(f"shape_mask {key!r} must be in (0, 1]")
+        elif etype == "compression":
+            ratio = effect.get("ratio", 4.0)
+            if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
+                raise ValueError("compression effect 'ratio' must be in [1, 20]")
+            for field_name in ("threshold_db", "attack_ms", "release_ms", "makeup_db"):
+                if field_name in effect and not isinstance(effect[field_name], (int, float)):
+                    raise ValueError(f"compression effect {field_name!r} must be numeric")
+        elif etype == "noise_reduction":
+            amount = effect.get("amount", 12.0)
+            if not isinstance(amount, (int, float)) or not (0.01 <= amount <= 97.0):
+                raise ValueError("noise_reduction effect 'amount' must be in [0.01, 97]")
+        elif etype == "audio_eq":
+            frequency_hz = effect.get("frequency_hz")
+            if not isinstance(frequency_hz, (int, float)) or not (20.0 <= frequency_hz <= 20000.0):
+                raise ValueError("audio_eq effect requires 'frequency_hz' in [20, 20000]")
+            gain_db = effect.get("gain_db", 0.0)
+            if not isinstance(gain_db, (int, float)) or not (-24.0 <= gain_db <= 24.0):
+                raise ValueError("audio_eq effect 'gain_db' must be in [-24, 24]")
+            q = effect.get("q", 1.0)
+            if not isinstance(q, (int, float)) or not (0.0 < q <= 10.0):
+                raise ValueError("audio_eq effect 'q' must be in (0, 10]")
+        elif etype == "crop":
+            width, height = effect.get("width"), effect.get("height")
+            if not isinstance(width, int) or width <= 0:
+                raise ValueError("crop effect requires a positive integer 'width'")
+            if not isinstance(height, int) or height <= 0:
+                raise ValueError("crop effect requires a positive integer 'height'")
+        elif etype == "rotate":
+            degrees = effect.get("degrees")
+            if not isinstance(degrees, (int, float)):
+                raise ValueError("rotate effect requires a numeric 'degrees'")
+        clip.effects.append(dict(effect))
+        return clip
+
     def apply_effect(self, clip_id: str, effect: dict) -> Clip:
         """Append a deterministic effect (ARCHITECTURE.md section 5.8) to a clip.
 
@@ -2755,189 +2928,209 @@ class Editor:
         a cryptic ffmpeg failure at export time. See KNOWN_EFFECT_TYPES for the
         supported vocabulary; each type documents its own required fields.
         """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            return self._apply_effect_unlocked(clip_id, effect)
+
+    def apply_effect_to_clips(
+        self,
+        clip_ids: list[str],
+        effect: dict,
+    ) -> dict[str, Any]:
+        """Append the same effect to many clips (one undo step)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        with self._mutate():
+            applied: list[str] = []
+            for cid in ids:
+                track, _ = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                self._apply_effect_unlocked(cid, effect)
+                applied.append(cid)
+            return {
+                "effect_type": effect.get("type"),
+                "applied": applied,
+                "count": len(applied),
+            }
+
+    def set_clip_crop(
+        self,
+        clip_id: str,
+        width: int,
+        height: int,
+        *,
+        x: str | int | None = None,
+        y: str | int | None = None,
+    ) -> dict[str, Any]:
+        """Set crop effect (replaces existing crop). width/height in pixels.
+
+        x/y optional; when omitted ffmpeg centers the crop.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        if not isinstance(width, int) or width <= 0:
+            raise ValueError("width must be a positive int")
+        if not isinstance(height, int) or height <= 0:
+            raise ValueError("height must be a positive int")
+        fx: dict[str, Any] = {"type": "crop", "width": width, "height": height}
+        if x is not None:
+            fx["x"] = x
+        if y is not None:
+            fx["y"] = y
         with self._mutate():
             clip = self._find_clip(clip_id)
-            etype = effect.get("type")
-            if etype not in KNOWN_EFFECT_TYPES:
-                raise ValueError(
-                    f"unknown effect type {etype!r}; supported: {sorted(KNOWN_EFFECT_TYPES)}"
-                )
-            if etype == "fade":
-                direction = effect.get("direction")
-                if direction not in ("in", "out"):
-                    raise ValueError("fade effect requires direction 'in' or 'out'")
-                duration_frames = effect.get("duration_frames")
-                if not isinstance(duration_frames, int) or duration_frames <= 0:
-                    raise ValueError(
-                        "fade effect requires a positive integer duration_frames"
-                    )
-                if duration_frames > clip.duration_frames:
-                    raise ValueError(
-                        f"fade duration_frames ({duration_frames}) exceeds clip "
-                        f"duration ({clip.duration_frames})"
-                    )
-            elif etype == "opacity":
-                amount = effect.get("amount")
-                if not isinstance(amount, (int, float)) or not (0.0 <= float(amount) <= 1.0):
-                    raise ValueError("opacity effect requires amount in [0, 1]")
-            elif etype == "gain":
-                db = effect.get("db")
-                if not isinstance(db, (int, float)):
-                    raise ValueError("gain effect requires a numeric 'db' field")
-            elif etype == "text":
-                content = effect.get("content")
-                if not isinstance(content, str) or not content.strip():
-                    raise ValueError("text effect requires non-empty string 'content'")
-                position = effect.get("position", "bottom")
-                if position not in TEXT_POSITIONS:
-                    raise ValueError(
-                        f"text effect position must be one of {sorted(TEXT_POSITIONS)}, "
-                        f"got {position!r}"
-                    )
-                size = effect.get("size", 48)
-                if not isinstance(size, int) or size <= 0:
-                    raise ValueError("text effect 'size' must be a positive integer")
-                border_width = effect.get("border_width", 2)
-                if not isinstance(border_width, int) or border_width < 0:
-                    raise ValueError("text effect 'border_width' must be a non-negative integer")
-            elif etype == "subtitles":
-                path = effect.get("path")
-                if not isinstance(path, str) or not path.strip():
-                    raise ValueError("subtitles effect requires non-empty string 'path' to an .srt/.ass file")
-                if not Path(path).exists():
-                    raise FileNotFoundError(f"subtitles effect path not found: {path}")
-            elif etype == "blur":
-                amount = effect.get("amount", 5.0)
-                if not isinstance(amount, (int, float)) or amount <= 0:
-                    raise ValueError("blur effect 'amount' must be a positive number")
-            elif etype == "vignette":
-                strength = effect.get("strength", 1.0)
-                if not isinstance(strength, (int, float)) or strength <= 0:
-                    raise ValueError("vignette effect 'strength' must be a positive number")
-            elif etype == "chroma_key":
-                similarity = effect.get("similarity", 0.15)
-                if not isinstance(similarity, (int, float)) or not (0.0 < similarity <= 1.0):
-                    raise ValueError("chroma_key effect 'similarity' must be in (0, 1]")
-                blend = effect.get("blend", 0.05)
-                if not isinstance(blend, (int, float)) or not (0.0 <= blend <= 1.0):
-                    raise ValueError("chroma_key effect 'blend' must be in [0, 1]")
-            elif etype == "luma_key":
-                threshold = effect.get("threshold", 0.1)
-                if not isinstance(threshold, (int, float)) or not (0.0 <= threshold <= 1.0):
-                    raise ValueError("luma_key effect 'threshold' must be in [0, 1]")
-                tolerance = effect.get("tolerance", 0.1)
-                if not isinstance(tolerance, (int, float)) or not (0.0 <= tolerance <= 1.0):
-                    raise ValueError("luma_key effect 'tolerance' must be in [0, 1]")
-            elif etype == "curves":
-                preset = effect.get("preset")
-                if preset not in CURVES_PRESETS:
-                    raise ValueError(f"curves effect 'preset' must be one of {sorted(CURVES_PRESETS)}")
-            elif etype == "sharpen":
-                amount = effect.get("amount", 1.0)
-                if not isinstance(amount, (int, float)) or not (0.0 < amount <= 5.0):
-                    raise ValueError("sharpen effect 'amount' must be in (0, 5]")
-            elif etype == "film_grain":
-                amount = effect.get("amount", 20.0)
-                if not isinstance(amount, (int, float)) or not (0.0 < amount <= 100.0):
-                    raise ValueError("film_grain effect 'amount' must be in (0, 100]")
-            elif etype == "glow":
-                # Multi-stage: blur a copy + screen-blend it back (not a
-                # single ffmpeg filter). amount = blur radius of the halo;
-                # intensity = how hard the halo is blended onto the base.
-                amount = effect.get("amount", 12.0)
-                if not isinstance(amount, (int, float)) or not (0.0 < amount <= 50.0):
-                    raise ValueError("glow effect 'amount' must be in (0, 50]")
-                intensity = effect.get("intensity", 0.7)
-                if not isinstance(intensity, (int, float)) or not (0.0 < intensity <= 1.0):
-                    raise ValueError("glow effect 'intensity' must be in (0, 1]")
-            elif etype == "lut3d":
-                # External .cube / .3dl file — agent/user supplies the path.
-                # Existence checked here so a missing LUT fails at apply time,
-                # not at export after a long timeline build.
-                path = effect.get("path")
-                if not isinstance(path, str) or not path.strip():
-                    raise ValueError("lut3d effect requires non-empty string 'path' to a .cube/.3dl file")
-                if not Path(path).exists():
-                    raise FileNotFoundError(f"lut3d effect path not found: {path}")
-            elif etype == "ken_burns":
-                # Slow pan/zoom over the clip (ARCHITECTURE.md §5.8 Transform).
-                # zoom_* >= 1; x_*/y_* are focus points as fractions of the
-                # frame [0,1] (0.5,0.5 = center). Render interpolates per frame.
-                for key, lo, hi in (
-                    ("zoom_start", 1.0, 10.0),
-                    ("zoom_end", 1.0, 10.0),
-                    ("x_start", 0.0, 1.0),
-                    ("y_start", 0.0, 1.0),
-                    ("x_end", 0.0, 1.0),
-                    ("y_end", 0.0, 1.0),
-                ):
-                    default = 1.0 if key.startswith("zoom") else 0.5
-                    val = effect.get(key, default)
-                    if not isinstance(val, (int, float)) or not (lo <= float(val) <= hi):
-                        raise ValueError(f"ken_burns effect {key!r} must be in [{lo}, {hi}]")
-            elif etype == "white_balance":
-                # Kelvin target via ffmpeg colortemperature. 6500 ≈ daylight
-                # neutral; lower = warmer (tungsten), higher = cooler (blue sky).
-                temperature = effect.get("temperature", 6500)
-                if not isinstance(temperature, (int, float)) or not (1000 <= temperature <= 40000):
-                    raise ValueError("white_balance effect 'temperature' must be in [1000, 40000] Kelvin")
-                mix = effect.get("mix", 1.0)
-                if not isinstance(mix, (int, float)) or not (0.0 <= mix <= 1.0):
-                    raise ValueError("white_balance effect 'mix' must be in [0, 1]")
-            elif etype == "shape_mask":
-                # Soft geometric alpha mask (circle/rect). Like chroma_key, the
-                # clip needs alpha survival through pad for overlay compositing.
-                shape = effect.get("shape", "circle")
-                if shape not in SHAPE_MASK_SHAPES:
-                    raise ValueError(
-                        f"shape_mask 'shape' must be one of {sorted(SHAPE_MASK_SHAPES)}, got {shape!r}"
-                    )
-                for key, default in (("cx", 0.5), ("cy", 0.5), ("size", 0.5), ("feather", 0.05)):
-                    val = effect.get(key, default)
-                    if not isinstance(val, (int, float)) or not (0.0 <= float(val) <= 1.0):
-                        raise ValueError(f"shape_mask {key!r} must be in [0, 1]")
-                if shape == "rect":
-                    for key, default in (("width", 0.5), ("height", 0.5)):
-                        val = effect.get(key, default)
-                        if not isinstance(val, (int, float)) or not (0.0 < float(val) <= 1.0):
-                            raise ValueError(f"shape_mask {key!r} must be in (0, 1]")
-            elif etype == "compression":
-                ratio = effect.get("ratio", 4.0)
-                if not isinstance(ratio, (int, float)) or not (1.0 <= ratio <= 20.0):
-                    raise ValueError("compression effect 'ratio' must be in [1, 20]")
-                for field_name in ("threshold_db", "attack_ms", "release_ms", "makeup_db"):
-                    if field_name in effect and not isinstance(effect[field_name], (int, float)):
-                        raise ValueError(f"compression effect {field_name!r} must be numeric")
-            elif etype == "noise_reduction":
-                amount = effect.get("amount", 12.0)
-                if not isinstance(amount, (int, float)) or not (0.01 <= amount <= 97.0):
-                    raise ValueError("noise_reduction effect 'amount' must be in [0.01, 97]")
-            elif etype == "audio_eq":
-                # Named audio_eq, not eq: the "color" effect above already
-                # uses ffmpeg's own (unrelated, video) `eq` filter - a same-
-                # named Opmiere effect here would be genuinely confusing on
-                # an agent-facing surface, not just an internal detail.
-                frequency_hz = effect.get("frequency_hz")
-                if not isinstance(frequency_hz, (int, float)) or not (20.0 <= frequency_hz <= 20000.0):
-                    raise ValueError("audio_eq effect requires 'frequency_hz' in [20, 20000]")
-                gain_db = effect.get("gain_db", 0.0)
-                if not isinstance(gain_db, (int, float)) or not (-24.0 <= gain_db <= 24.0):
-                    raise ValueError("audio_eq effect 'gain_db' must be in [-24, 24]")
-                q = effect.get("q", 1.0)
-                if not isinstance(q, (int, float)) or not (0.0 < q <= 10.0):
-                    raise ValueError("audio_eq effect 'q' must be in (0, 10]")
-            elif etype == "crop":
-                width, height = effect.get("width"), effect.get("height")
-                if not isinstance(width, int) or width <= 0:
-                    raise ValueError("crop effect requires a positive integer 'width'")
-                if not isinstance(height, int) or height <= 0:
-                    raise ValueError("crop effect requires a positive integer 'height'")
-            elif etype == "rotate":
-                degrees = effect.get("degrees")
-                if not isinstance(degrees, (int, float)):
-                    raise ValueError("rotate effect requires a numeric 'degrees'")
-            clip.effects.append(dict(effect))
-            return clip
+            clip.effects = [e for e in (clip.effects or []) if e.get("type") != "crop"]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "crop": {"width": width, "height": height, "x": x, "y": y},
+            }
+
+    def find_gaps(
+        self,
+        track_id: str | None = None,
+        *,
+        from_frame: int = 0,
+        min_gap_frames: int = 1,
+    ) -> dict[str, Any]:
+        """Report holes between clips (and leading gap after from_frame)."""
+        if min_gap_frames < 1:
+            raise ValueError("min_gap_frames must be >= 1")
+        tracks = (
+            [self.project.track_by_id(track_id)]
+            if track_id is not None
+            else list(self.project.tracks)
+        )
+        out: list[dict[str, Any]] = []
+        for track in tracks:
+            ordered = [
+                c for c in track.clips_in_order()
+                if c.end > from_frame
+            ]
+            cursor = int(from_frame)
+            gaps: list[dict[str, Any]] = []
+            for c in ordered:
+                if c.start > cursor and (c.start - cursor) >= min_gap_frames:
+                    gaps.append({
+                        "start": cursor,
+                        "end": c.start,
+                        "frames": c.start - cursor,
+                    })
+                cursor = max(cursor, c.end)
+            out.append({
+                "track_id": track.id,
+                "kind": track.kind,
+                "gaps": gaps,
+                "gap_count": len(gaps),
+                "gap_frames_total": sum(g["frames"] for g in gaps),
+            })
+        return {
+            "from_frame": from_frame,
+            "tracks": out,
+            "total_gaps": sum(t["gap_count"] for t in out),
+        }
+
+    def close_all_gaps(self, *, from_frame: int = 0) -> dict[str, Any]:
+        """close_gaps on every track (one undo)."""
+        with self._mutate():
+            results: list[dict[str, Any]] = []
+            for track in list(self.project.tracks):
+                if track.locked:
+                    results.append({
+                        "track_id": track.id, "skipped": True, "reason": "locked",
+                    })
+                    continue
+                # inline pack without nested mutate
+                ordered = track.clips_in_order()
+                if not ordered:
+                    results.append({
+                        "track_id": track.id, "moved": [], "cursor": from_frame,
+                    })
+                    continue
+                cursor = int(from_frame)
+                moved: list[dict[str, Any]] = []
+                for c in ordered:
+                    if c.start < from_frame:
+                        continue
+                    old = c.start
+                    if c.transition_in is not None:
+                        c.transition_in = None
+                    c.start = cursor
+                    if old != cursor:
+                        moved.append({"clip_id": c.id, "from": old, "to": cursor})
+                    cursor = c.end
+                results.append({
+                    "track_id": track.id, "moved": moved, "cursor": cursor,
+                })
+            return {
+                "from_frame": from_frame,
+                "tracks": results,
+                "moved_total": sum(len(r.get("moved") or []) for r in results),
+            }
+
+    def remove_empty_tracks(self, *, keep_one_per_kind: bool = True) -> dict[str, Any]:
+        """Delete tracks with no clips.
+
+        keep_one_per_kind=True: leave one empty video and one empty audio if
+        that would otherwise wipe the last track of that kind (agents can still
+        place media). Locked empty tracks are skipped.
+        """
+        with self._mutate():
+            removed: list[str] = []
+            skipped: list[dict[str, Any]] = []
+            # Count empties we might keep
+            by_kind_empty: dict[str, list] = {"video": [], "audio": []}
+            nonempty_kinds: set[str] = set()
+            for t in self.project.tracks:
+                if t.clips:
+                    nonempty_kinds.add(t.kind)
+                else:
+                    by_kind_empty.setdefault(t.kind, []).append(t)
+
+            to_remove: list = []
+            for kind, empties in by_kind_empty.items():
+                keep_n = 0
+                if keep_one_per_kind and kind not in nonempty_kinds and empties:
+                    keep_n = 1
+                # prefer keeping first empty of kind
+                for i, t in enumerate(empties):
+                    if t.locked:
+                        skipped.append({"track_id": t.id, "reason": "locked"})
+                        continue
+                    if i < keep_n:
+                        skipped.append({"track_id": t.id, "reason": "keep_one_per_kind"})
+                        continue
+                    to_remove.append(t)
+
+            for t in to_remove:
+                tid = t.id
+                self.project.tracks.remove(t)
+                for other in self.project.tracks:
+                    if other.duck is not None and other.duck.get("against") == tid:
+                        other.duck = None
+                removed.append(tid)
+            return {
+                "removed": removed,
+                "count": len(removed),
+                "skipped": skipped,
+                "remaining_tracks": len(self.project.tracks),
+            }
+
+    def list_tracks(self) -> dict[str, Any]:
+        """Summarize tracks for agents/UI."""
+        items = []
+        for t in self.project.tracks:
+            items.append({
+                "track_id": t.id,
+                "kind": t.kind,
+                "clip_count": len(t.clips),
+                "muted": bool(t.muted),
+                "solo": bool(t.solo),
+                "locked": bool(t.locked),
+                "has_duck": t.duck is not None,
+            })
+        return {"count": len(items), "tracks": items}
 
     def add_transition(self, clip_id: str, transition_type: str, duration_frames: int) -> Clip:
         """Dissolve ``clip_id`` in from whatever clip precedes it on its track.

@@ -541,6 +541,77 @@ def markers_near(body: MarkerNearBody) -> dict[str, Any]:
     )
 
 
+class BatchEffectBody(BaseModel):
+    clip_ids: list[str]
+    effect: dict[str, Any]
+
+
+class CropBody(BaseModel):
+    clip_id: str
+    width: int
+    height: int
+    x: int | str | None = None
+    y: int | str | None = None
+
+
+class FindGapsBody(BaseModel):
+    track_id: str | None = None
+    from_frame: int = 0
+    min_gap_frames: int = 1
+
+
+class CloseAllGapsBody(BaseModel):
+    from_frame: int = 0
+
+
+class RemoveEmptyTracksBody(BaseModel):
+    keep_one_per_kind: bool = True
+
+
+@app.post("/api/clips/effect")
+def clips_effect(body: BatchEffectBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.apply_effect_to_clips(body.clip_ids, body.effect)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/crop")
+def clip_crop(body: CropBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clip_crop(
+        body.clip_id, body.width, body.height, x=body.x, y=body.y,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/gaps/find")
+def gaps_find(body: FindGapsBody) -> dict[str, Any]:
+    return _ed().find_gaps(
+        body.track_id,
+        from_frame=body.from_frame,
+        min_gap_frames=body.min_gap_frames,
+    )
+
+
+@app.post("/api/gaps/close_all")
+def gaps_close_all(body: CloseAllGapsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.close_all_gaps(from_frame=body.from_frame)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/tracks/remove_empty")
+def tracks_remove_empty(body: RemoveEmptyTracksBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.remove_empty_tracks(keep_one_per_kind=body.keep_one_per_kind)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/tracks")
+def tracks_list() -> dict[str, Any]:
+    return _ed().list_tracks()
+
+
 @app.post("/api/preview/refresh")
 def preview_refresh(body: PreviewRefreshBody) -> dict[str, Any]:
     """Rebuild scrub proxy if stale (quick=true for post-drag snappiness)."""

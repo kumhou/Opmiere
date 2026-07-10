@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.2.14)
+# Opmiere tool surface (0.2.15)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -82,6 +82,10 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `marker_near` | next / prev / nearest marker |
 | `clips_on_track` | list clips on a track |
 | `set_track_solo(..., exclusive=)` | exclusive solo on same kind |
+| `apply_effect_to_clips` | one effect on many clips (one undo) |
+| `set_clip_crop` | replace crop W×H (optional x/y) |
+| `find_gaps` / `close_all_gaps` | gap report + pack all tracks |
+| `remove_empty_tracks` / `list_tracks` | track hygiene |
 | `relink_clip` | retarget clip to other project media |
 | `set_ducking` / `gain` / `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain` | mix |
 | `detect_beats` | music onset anchors |

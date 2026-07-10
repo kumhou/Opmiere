@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.15 — 2026-07-11
+
+### Added
+- **`apply_effect_to_clips`**: one effect → many clips (one undo)
+- **`set_clip_crop`**: replace crop effect (W×H px)
+- **`find_gaps` / `close_all_gaps`**: gap report + pack all tracks
+- **`remove_empty_tracks` / `list_tracks`**: track hygiene
+- Web: Close all gaps (G), Find gaps, Rm empty, Crop, Batch blur
+
+### Fixed
+- **Undo/redo snapshots** deep-copy project JSON so in-place effect list edits roll back correctly
+
 ## 0.2.14 — 2026-07-11
 
 ### Added
