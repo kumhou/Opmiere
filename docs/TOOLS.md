@@ -40,6 +40,7 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `export_range` | full render then cut a time range deliverable |
 | `apply_effect` / `add_transition` / `set_speed` / `set_position` | craft |
 | `apply_project_look` / `color_match_to_clip` / `list_look_presets` | session look |
+| `list_style_presets` / `apply_style_preset` | film aesthetics as params (blend ang_lee+horror) |
 | `set_ducking` / `gain` / `suggest_mix` / `apply_mix_plan` / `suggest_dialogue_chain` | mix |
 | `detect_beats` | music onset anchors |
 | `analyze_audio` / `analyze_timeline` | ears |

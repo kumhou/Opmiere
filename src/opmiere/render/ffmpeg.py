@@ -37,6 +37,7 @@ from ..model import (
     Track,
 )
 from .backend import RenderBackend
+from .hwencode import hwaccel_input_args, video_encode_args
 from .probe import ProbeResult, probe, require_ffmpeg_tools
 
 __all__ = ["FFmpegBackend", "import_media", "conform_to_project_timebase"]
@@ -778,6 +779,9 @@ def _fold_segments(
 
 
 class FFmpegBackend(RenderBackend):
+    def __init__(self, *, prefer_nvenc: bool = True):
+        self.prefer_nvenc = prefer_nvenc
+
     def export(self, project: Project, bundle: Bundle, output_path: Path) -> Path:
         require_ffmpeg_tools()
         output_path = Path(output_path)
@@ -1007,9 +1011,13 @@ class FFmpegBackend(RenderBackend):
 
             filter_complex = ";".join(filter_parts)
 
-            cmd = ["ffmpeg", "-y", *input_args, "-filter_complex", filter_complex]
+            hw_in = hwaccel_input_args(prefer_cuda=self.prefer_nvenc)
+            # hwaccel before each -i is invalid; global before first -i
+            cmd = ["ffmpeg", "-y", *hw_in, *input_args, "-filter_complex", filter_complex]
             if video_final_label:
-                cmd += ["-map", f"[{video_final_label}]", "-pix_fmt", "yuv420p", "-c:v", "libx264"]
+                venc = video_encode_args(prefer_nvenc=self.prefer_nvenc)
+                # video_encode_args already includes -pix_fmt
+                cmd += ["-map", f"[{video_final_label}]", *venc]
             if audio_final_label:
                 cmd += ["-map", f"[{audio_final_label}]", "-c:a", "aac"]
             else:
@@ -1017,6 +1025,24 @@ class FFmpegBackend(RenderBackend):
             cmd += [str(output_path)]
 
             proc = subprocess.run(cmd, capture_output=True, text=True)
+            # If NVENC path failed, one retry with pure software
+            if proc.returncode != 0 and self.prefer_nvenc and video_final_label:
+                cmd_sw = [
+                    "ffmpeg", "-y", *input_args,
+                    "-filter_complex", filter_complex,
+                    "-map", f"[{video_final_label}]",
+                    *video_encode_args(prefer_nvenc=False),
+                ]
+                if audio_final_label:
+                    cmd_sw += ["-map", f"[{audio_final_label}]", "-c:a", "aac"]
+                else:
+                    cmd_sw += ["-an"]
+                cmd_sw += [str(output_path)]
+                proc2 = subprocess.run(cmd_sw, capture_output=True, text=True)
+                if proc2.returncode == 0:
+                    proc = proc2
+                else:
+                    proc = proc  # keep first error context
             if proc.returncode != 0:
                 raise RuntimeError(
                     "ffmpeg export failed (exit "

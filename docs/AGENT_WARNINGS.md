@@ -32,7 +32,7 @@ Opmiere will often *technically* succeed while the result is not honest professi
 2. `suggest_project_fps` / `suggest_project_resolution` / `check_delivery_limits`  
 3. Place **user** assets before generation  
 4. `quality_check` before `place_generated`  
-5. `apply_project_look` / `color_match_to_clip` after structure  
+5. `apply_style_preset` (or `apply_project_look`) / `color_match_to_clip` after structure 
 6. `review_cut` + sequence sheet (+ optional preview)  
 7. `export(..., normalize_preset="streaming")` → **`delivery_check` required**
 

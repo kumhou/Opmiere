@@ -1082,6 +1082,31 @@ def list_look_presets() -> dict:
 
 
 @mcp.tool()
+def list_style_presets() -> dict:
+    """Film aesthetic styles (ang_lee, horror, wes_anderson, cyberpunk, …).
+
+    Parameter library for agent blend — not generative invent-a-look.
+    """
+    return _require_editor().list_style_presets()
+
+
+@mcp.tool()
+def apply_style_preset(
+    styles: str,
+    clip_ids: list[str] | None = None,
+    video_only: bool = True,
+) -> dict:
+    """Apply blended film style(s) as deterministic effects.
+
+    styles: comma or + separated names, e.g. \"ang_lee,horror\" or \"ang_lee+horror\".
+    Returns resolved pacing/transition hints + effects applied.
+    """
+    return _require_editor().apply_style_preset(
+        styles, clip_ids=clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def apply_project_look(
     look: str = "cinematic",
     clip_ids: list[str] | None = None,
@@ -1091,6 +1116,7 @@ def apply_project_look(
 
     look: neutral|cool_setup|warm_resolve|cinematic|vintage|documentary.
     Prefer this over regenerating for continuity. Then sequence contact sheet.
+    For film aesthetics (李安/恐怖), prefer apply_style_preset.
     """
     return _require_editor().apply_project_look(
         look, clip_ids=clip_ids, video_only=video_only,

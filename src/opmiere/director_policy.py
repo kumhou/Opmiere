@@ -56,8 +56,10 @@ tools + selective generation*, not "generate everything and hope."
      duration_frames for video/audio to use real probed length).
 
 ## After placing
-- Session look first: `apply_project_look` (cinematic / warm_resolve / …),
-  then `color_match_to_clip(hero)` for residual drift — not full re-generate.
+- Session look first: `apply_style_preset` (film aesthetics as params;
+  blend e.g. `ang_lee+horror`, or single `documentary` / `cinematic`),
+  or `apply_project_look` for simpler grade packs; then
+  `color_match_to_clip(hero)` for residual drift — not full re-generate.
 - Fine grade: `color`, `curves`, `lut3d`, `white_balance` per clip if needed.
 - Audio: multi-track mix; `set_ducking` so music yields to voice; `analyze_timeline`
   (or `analyze_audio` on a file) as ears before export.

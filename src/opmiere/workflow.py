@@ -406,10 +406,15 @@ def plan_session(brief: dict[str, Any]) -> dict[str, Any]:
 
     add(
         "project_look",
-        "apply_project_look",
-        "One session look language across video clips (cinematic/warm_resolve/…)",
-        params={"look": "cinematic" if brief.get("no_opinion") else "documentary"},
-        optional_tools=["list_look_presets", "color_match_to_clip", "apply_effect"],
+        "apply_style_preset",
+        "Film aesthetics as params (list_style_presets; blend e.g. ang_lee+horror)",
+        params={
+            "styles": "documentary" if brief.get("no_opinion") else "cinematic",
+        },
+        optional_tools=[
+            "list_style_presets", "apply_project_look",
+            "color_match_to_clip", "apply_effect",
+        ],
     )
     add(
         "color_match",

@@ -186,6 +186,26 @@ def run_doctor(
                 "local generate() will fail until it is running"
             )
 
+    # NVENC encode path
+    try:
+        from .render.hwencode import encode_status
+        enc = encode_status()
+        checks.append({
+            "id": "nvenc",
+            "ok": bool(enc.get("nvenc")),
+            "required": False,
+            "detail": "h264_nvenc ready" if enc.get("nvenc") else "libx264 software encode",
+            "video_encode": enc.get("video_encode"),
+        })
+        if not enc.get("nvenc"):
+            warnings.append(
+                "NVENC not available — delivery uses libx264 (slower on large exports)"
+            )
+    except Exception as e:
+        checks.append({
+            "id": "nvenc", "ok": False, "required": False, "detail": str(e),
+        })
+
     # Torch / CUDA (informational)
     torch_info: dict[str, Any] = {"ok": _module_ok("torch")}
     if torch_info["ok"]:

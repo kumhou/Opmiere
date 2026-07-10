@@ -43,10 +43,14 @@ from .render.delivery import normalize_loudness as _normalize_loudness
 from .render.ffmpeg import FFmpegBackend
 from .render.ffmpeg import import_media as _ffmpeg_import_media
 from .render.beats import detect_beats as _detect_beats
+from .render.hwencode import encode_status as _encode_status
 from .render.look import LOOK_PRESETS as _LOOK_PRESETS
 from .render.look import measure_frame_stats as _measure_frame_stats
 from .render.look import resolve_look as _resolve_look
 from .render.look import suggest_color_match_effects as _suggest_color_match_effects
+from .render.style_presets import blend_styles as _blend_styles
+from .render.style_presets import list_styles as _list_styles
+from .render.style_presets import resolve_style_effects as _resolve_style_effects
 from .render.mix_suggest import suggest_dialogue_chain as _suggest_dialogue_chain
 from .render.mix_suggest import suggest_mix as _suggest_mix
 from .render.quality_check import quality_check as _quality_check
@@ -1852,6 +1856,131 @@ class Editor:
             "presets": {k: list(v) for k, v in _LOOK_PRESETS.items()},
             "names": sorted(_LOOK_PRESETS),
         }
+
+    def list_style_presets(self) -> dict[str, Any]:
+        """Film aesthetic styles (pacing + grade params) for agent blend."""
+        return _list_styles()
+
+    def apply_style_preset(
+        self,
+        styles: str | list[str],
+        *,
+        clip_ids: list[str] | None = None,
+        video_only: bool = True,
+        apply_motion: bool = True,
+        place_audio_assets: bool = True,
+    ) -> dict[str, Any]:
+        """Apply one or more blended film styles as deterministic effects.
+
+        Example: styles=\"ang_lee,horror\" merges pacing hints + effect stacks.
+        Maps aesthetics → FFmpeg-backed params (not generative invent-a-look):
+        grade, vignette, optional slow ken_burns, optional local LUT/drone paths.
+        """
+        if isinstance(styles, str):
+            names = [s.strip() for s in styles.replace("+", ",").split(",") if s.strip()]
+        else:
+            names = [str(s).strip() for s in styles if str(s).strip()]
+        style = _blend_styles(names)
+        effects = _resolve_style_effects(style)
+
+        # Optional LUT if file exists (style may name a .cube under assets/)
+        lut = style.get("color_lut") or (style.get("audio") or {}).get("color_lut")
+        if isinstance(lut, str) and lut.strip():
+            lut_path = Path(lut)
+            if not lut_path.is_absolute():
+                # try package assets, then CWD, then bundle
+                candidates = [
+                    Path(__file__).resolve().parent / "assets" / "luts" / lut,
+                    Path(__file__).resolve().parent.parent.parent / "assets" / "luts" / lut,
+                    Path.cwd() / lut,
+                    self.bundle.root / lut,
+                ]
+                for c in candidates:
+                    if c.exists():
+                        lut_path = c
+                        break
+            if lut_path.exists():
+                effects.append({"type": "lut3d", "path": str(lut_path)})
+
+        # Motion: slow push for ang_lee-like camera_movement
+        motion_applied = 0
+        if apply_motion and style.get("camera_movement") in (
+            "slow_zoom", "slow_push", "push_in",
+        ):
+            targets = clip_ids
+            if targets is None:
+                targets = [
+                    c.id
+                    for t in self.project.tracks if t.kind == "video"
+                    for c in t.clips
+                ]
+            for cid in targets or []:
+                try:
+                    self.apply_effect(cid, {
+                        "type": "ken_burns",
+                        "zoom_start": 1.0,
+                        "zoom_end": 1.08,
+                        "x_start": 0.5,
+                        "y_start": 0.5,
+                        "x_end": 0.5,
+                        "y_end": 0.48,
+                    })
+                    motion_applied += 1
+                except Exception:
+                    pass
+
+        applied = self.apply_project_look(effects, clip_ids=clip_ids, video_only=video_only)
+
+        audio_placed = None
+        drone = style.get("audio_track_layer") or (style.get("audio") or {}).get(
+            "audio_track_layer"
+        )
+        if place_audio_assets and isinstance(drone, str) and drone.strip():
+            drone_path = Path(drone)
+            if not drone_path.is_absolute():
+                for c in (
+                    Path(__file__).resolve().parent / "assets" / "audio" / drone,
+                    Path.cwd() / drone,
+                    self.bundle.root / drone,
+                ):
+                    if c.exists():
+                        drone_path = c
+                        break
+            if drone_path.exists():
+                try:
+                    tr = self.add_track("audio")
+                    clip = self.place_from_file(drone_path, "audio", tr.id, 0)
+                    g = (style.get("audio") or {}).get("music_gain_db", -12)
+                    if abs(float(g)) >= 0.1:
+                        self.apply_effect(clip.id, {"type": "gain", "db": float(g)})
+                    audio_placed = {"track_id": tr.id, "clip_id": clip.id, "path": str(drone_path)}
+                except Exception as e:
+                    audio_placed = {"error": str(e)}
+
+        return {
+            "styles": names,
+            "resolved": {
+                k: style[k]
+                for k in (
+                    "label", "pace", "min_clip_seconds", "transition_preference",
+                    "transition_frames", "framing_rule", "camera_movement",
+                    "notes", "audio", "blend",
+                )
+                if k in style
+            },
+            "effects_applied": applied,
+            "motion_clips": motion_applied,
+            "audio_placed": audio_placed,
+            "agent_note": (
+                "Aesthetics applied as params (grade/motion/optional assets). "
+                "Honor min_clip_seconds + transition_preference on plan_edit; "
+                "explain blend to user in director voice; they can tweak effects on timeline."
+            ),
+        }
+
+    def encode_status(self) -> dict[str, Any]:
+        """Whether NVENC is usable for delivery encode."""
+        return _encode_status()
 
     def apply_project_look(
         self,

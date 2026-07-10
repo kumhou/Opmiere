@@ -118,10 +118,14 @@ def test_workflow_has_look_steps(tmp_path: Path):
         assets=[{"path": str(p), "role": "a_roll"}],
         deliverable={"bundle_path": "a.opm", "export_path": "a.mp4"},
     )
-    tools = [s["tool"] for s in plan_session(brief)["steps"]]
-    assert "apply_project_look" in tools
+    steps = plan_session(brief)["steps"]
+    tools = [s["tool"] for s in steps]
+    assert "apply_style_preset" in tools
     assert "color_match_to_clip" in tools
-    assert tools.index("apply_project_look") < tools.index("export")
+    assert tools.index("apply_style_preset") < tools.index("export")
+    # apply_project_look remains available as optional/fine-grade path
+    look_step = next(s for s in steps if s["tool"] == "apply_style_preset")
+    assert "apply_project_look" in look_step.get("optional_tools", [])
 
 
 def test_measure_frame_stats(tmp_path: Path):
