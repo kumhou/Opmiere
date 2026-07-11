@@ -701,9 +701,12 @@ pace target, VO/music under picture. **Mix + beats:** `suggest_mix` / `apply_mix
 **Import:** fps auto-conform + optional `fit=contain|cover` to project canvas
 (`origin.conformed` records from/to fps/size). **Dogfood:** `scripts/dogfood_pro_pipeline.py`.
 **Preview (lightweight):** `export_preview` / `ensure_preview_proxy` / `frame_at` /
-`review_keyframes` / `preview_range`; web scrub. **NLE trim:** slip / roll / slide /
+`review_keyframes` / `preview_range`; web scrub; **durable proxy meta**
+(`review/preview_proxy.meta.json` fingerprint survives reopen). **Agent finish path:**
+`agent_preflight` → `agent_finish_session` (prepare → proxy → finish_delivery → save);
+dogfood `scripts/dogfood_agent_pipeline.py`. **NLE trim:** slip / roll / slide /
 ripple_delete / ripple_trim / close_gaps / detach_audio. **Room tone** fill. Still open:
-realtime interactive scrub (libopenshot/MLT decision), dirty-region re-encode (still full
+realtime interactive scrub (libopenshot/MLT decision — 0.4.x), dirty-region re-encode (still full
 graph), non-3070 VRAM re-benchmark, cloud providers.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a

@@ -1462,8 +1462,41 @@ def export_otio_json(path: str | None = None, title: str | None = None) -> dict:
 
 @mcp.tool()
 def agent_preflight() -> dict:
-    """Read-only: media + validate + duration + history + stats."""
+    """Read-only gate: media + validate + proxy + duration + next_steps.
+
+    Call before a batch of edits and before agent_finish_session.
+    ready=true means structure ok; still ensure_preview_proxy for scrub.
+    """
     return _require_editor().agent_preflight()
+
+
+@mcp.tool()
+def agent_finish_session(
+    export_path: str,
+    prepare: bool = True,
+    ensure_proxy: bool = True,
+    proxy_height: int = 360,
+    proxy_fps: float = 12.0,
+    run_review: bool = True,
+    normalize_preset: str | None = "streaming",
+    delivery_preset: str = "streaming",
+) -> dict:
+    """Canonical agent end-of-cut pipeline.
+
+    Order: agent_preflight → ensure_preview_proxy → prepare_for_export →
+    finish_delivery (review + export + delivery_check). Prefer this over
+    calling export alone so gates are not skipped.
+    """
+    return _require_editor().agent_finish_session(
+        export_path,
+        prepare=prepare,
+        ensure_proxy=ensure_proxy,
+        proxy_height=proxy_height,
+        proxy_fps=proxy_fps,
+        run_review=run_review,
+        normalize_preset=normalize_preset,
+        delivery_preset=delivery_preset,
+    )
 
 
 @mcp.tool()

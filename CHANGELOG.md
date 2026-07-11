@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 — 2026-07-11
+
+### Milestone
+- **0.3.x complete**: preview durability + agent default finish path + dogfood/CI
+
+### Added
+- **Preview proxy meta** (`review/preview_proxy.meta.json`): fingerprint survives reopen
+- **`agent_finish_session`**: preflight → prepare → proxy → finish_delivery → save
+- **`agent_preflight`**: includes proxy status + `next_steps` + `ready`
+- **Dogfood**: `scripts/dogfood_agent_pipeline.py` + CI step
+
 ## 0.3.0 — 2026-07-11
 
 ### Milestone

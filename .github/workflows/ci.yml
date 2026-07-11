@@ -41,3 +41,6 @@ jobs:
 
       - name: Dogfood cut template → finish_delivery
         run: python scripts/dogfood_template_pipeline.py --seconds 1.2 --template talking_head
+
+      - name: Dogfood agent session (preflight → finish)
+        run: python scripts/dogfood_agent_pipeline.py --seconds 1.2 --template talking_head

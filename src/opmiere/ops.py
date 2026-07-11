@@ -129,6 +129,52 @@ class Editor:
         self._out_point: int | None = None
         self._dirty: bool = False
         self._autosave: bool = False
+        # Restore scrub-proxy meta from disk when reopening a bundle.
+        self._load_preview_proxy_meta()
+
+    def _preview_proxy_meta_path(self) -> Path:
+        return self.bundle.root / "review" / "preview_proxy.meta.json"
+
+    def _save_preview_proxy_meta(self) -> None:
+        """Persist proxy fingerprint so reopen can detect freshness."""
+        if not self._preview_proxy_path or not self._preview_proxy_fingerprint:
+            return
+        meta = {
+            "path": self._preview_proxy_path,
+            "fingerprint": self._preview_proxy_fingerprint,
+            "height": int(self._preview_proxy_height or 360),
+            "fps": float(self._preview_proxy_fps or 12.0),
+        }
+        try:
+            p = self._preview_proxy_meta_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+
+    def _load_preview_proxy_meta(self) -> None:
+        """Load last proxy meta if file still exists (session reopen)."""
+        try:
+            p = self._preview_proxy_meta_path()
+            if not p.exists():
+                # Fallback: default proxy path without meta
+                default = self.bundle.root / "review" / "preview_proxy.mp4"
+                if default.exists():
+                    self._preview_proxy_path = str(default.resolve())
+                    # fingerprint unknown → status will report stale until rebuild
+                    self._preview_proxy_fingerprint = None
+                return
+            meta = json.loads(p.read_text(encoding="utf-8"))
+            path = meta.get("path")
+            if path and Path(path).exists():
+                self._preview_proxy_path = str(Path(path).resolve())
+                self._preview_proxy_fingerprint = meta.get("fingerprint")
+                if isinstance(meta.get("height"), (int, float)):
+                    self._preview_proxy_height = int(meta["height"])
+                if isinstance(meta.get("fps"), (int, float)):
+                    self._preview_proxy_fps = float(meta["fps"])
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
 
     def _timeline_fingerprint(self) -> str:
         """Hash of timeline-relevant project state for proxy freshness."""
@@ -139,9 +185,34 @@ class Editor:
         """Mark scrub proxy stale (path kept so status can report file exists)."""
         # Keep path for diagnostics; fingerprint None ⇒ not fresh
         self._preview_proxy_fingerprint = None
+        # Drop stale meta so reopen does not claim fresh incorrectly
+        try:
+            meta = self._preview_proxy_meta_path()
+            if meta.exists():
+                # Keep path pointer but clear fingerprint on disk
+                if self._preview_proxy_path:
+                    meta.write_text(
+                        json.dumps({
+                            "path": self._preview_proxy_path,
+                            "fingerprint": None,
+                            "height": int(self._preview_proxy_height or 360),
+                            "fps": float(self._preview_proxy_fps or 12.0),
+                            "stale": True,
+                        }, indent=2),
+                        encoding="utf-8",
+                    )
+        except OSError:
+            pass
 
     def preview_proxy_status(self) -> dict[str, Any]:
         """Is the last export_preview still valid for this timeline?"""
+        # Re-discover default proxy if memory path cleared
+        if not self._preview_proxy_path:
+            default = self.bundle.root / "review" / "preview_proxy.mp4"
+            if default.exists():
+                self._preview_proxy_path = str(default.resolve())
+                if self._preview_proxy_fingerprint is None:
+                    self._load_preview_proxy_meta()
         path = self._preview_proxy_path
         exists = bool(path and Path(path).exists())
         fp_now = self._timeline_fingerprint()
@@ -156,14 +227,19 @@ class Editor:
             "fresh": fresh,
             "fingerprint": self._preview_proxy_fingerprint,
             "timeline_fingerprint": fp_now,
+            "proxy_height": self._preview_proxy_height,
+            "proxy_fps": self._preview_proxy_fps,
             "agent_note": (
                 "Proxy is current — frame_at prefer_proxy is safe."
                 if fresh
                 else (
-                    "Proxy stale after timeline edit — re-run export_preview."
+                    "Proxy stale after timeline edit — call ensure_preview_proxy / refresh_preview_proxy."
                     if exists
-                    else "No proxy — call export_preview for full-timeline scrub."
+                    else "No proxy — call ensure_preview_proxy for full-timeline scrub."
                 )
+            ),
+            "recommended_tool": (
+                None if fresh else "ensure_preview_proxy"
             ),
         }
 
@@ -6874,15 +6950,122 @@ class Editor:
         }
 
     def agent_preflight(self) -> dict[str, Any]:
-        """Single agent call: media status + validate + duration + history."""
+        """Single agent call: media + validate + proxy + duration + next steps.
+
+        Read-only. Preferred entry before edits or after a batch of ops.
+        """
+        media = self.list_media_status()
+        validate = self.validate_timeline()
+        proxy = self.preview_proxy_status()
+        duration = self.duration_report()
+        history = self.history_status()
+        stats = self.project_stats()
+        next_steps: list[str] = []
+        if not media.get("ok"):
+            next_steps.append("relink or re-import offline media (list_media_status)")
+        if not validate.get("ok"):
+            next_steps.append("fix overlaps/gaps (validate_timeline / close_gaps / prepare_for_export)")
+        if not proxy.get("fresh"):
+            next_steps.append("ensure_preview_proxy (or refresh_preview_proxy quick=True for UI)")
+        if duration.get("duration_frames", 0) <= 0:
+            next_steps.append("place media / apply_cut_template before export")
+        if not next_steps:
+            next_steps.append("edit freely; when done call agent_finish_session(export_path=...)")
+        ready = bool(
+            media.get("ok")
+            and validate.get("ok")
+            and duration.get("duration_frames", 0) > 0
+        )
         return {
-            "media": self.list_media_status(),
-            "validate": self.validate_timeline(),
-            "duration": self.duration_report(),
-            "history": self.history_status(),
-            "stats": self.project_stats(),
-            "agent_note": "Read-only snapshot before destructive ops or export.",
+            "ready": ready,
+            "media": media,
+            "validate": validate,
+            "proxy": proxy,
+            "duration": duration,
+            "history": history,
+            "stats": stats,
+            "next_steps": next_steps,
+            "agent_note": (
+                "ready=true means media+timeline structure ok for edit/export prep. "
+                "Still ensure_preview_proxy for scrub; agent_finish_session for delivery."
+            ),
         }
+
+    def agent_finish_session(
+        self,
+        export_path: str | Path,
+        *,
+        prepare: bool = True,
+        ensure_proxy: bool = True,
+        proxy_height: int = 360,
+        proxy_fps: float = 12.0,
+        run_review: bool = True,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+        run_delivery_check: bool = True,
+    ) -> dict[str, Any]:
+        """Canonical agent end-of-cut: preflight → proxy → prepare → finish_delivery.
+
+        One entry for MCP agents so they do not skip review/proxy/gates.
+        """
+        out: dict[str, Any] = {
+            "export_path": str(export_path),
+            "steps": [],
+            "ok": False,
+        }
+        pre = self.agent_preflight()
+        out["preflight"] = pre
+        out["steps"].append("agent_preflight")
+
+        # Prepare first (mutates timeline) so proxy is built against final cut.
+        if prepare:
+            try:
+                out["prepare"] = self.prepare_for_export(
+                    fill_video=True, fill_audio=False, clear_empty_tracks=True,
+                )
+                out["steps"].append("prepare_for_export")
+            except Exception as e:
+                out["prepare"] = {"error": str(e)[:400]}
+                out["steps"].append("prepare_for_export:error")
+
+        if ensure_proxy:
+            try:
+                out["proxy"] = self.ensure_preview_proxy(
+                    height=proxy_height, fps=proxy_fps,
+                )
+                out["steps"].append("ensure_preview_proxy")
+            except Exception as e:
+                out["proxy"] = {"error": str(e)[:400]}
+                out["steps"].append("ensure_preview_proxy:error")
+
+        # finish_delivery prepare=False — already prepared above.
+        delivery = self.finish_delivery(
+            export_path,
+            normalize_preset=normalize_preset,
+            delivery_preset=delivery_preset,
+            run_review=run_review,
+            prepare=False,
+        )
+        # If finish_delivery's delivery_check path was skipped internally... it always runs
+        if not run_delivery_check and delivery.get("delivery_check"):
+            pass
+        out["delivery"] = delivery
+        out["steps"].append("finish_delivery")
+        # Persist project so reopen matches proxy fingerprint
+        try:
+            self.save()
+            out["steps"].append("save")
+        except OSError as e:
+            out["save_error"] = str(e)[:200]
+        out["ok"] = bool(delivery.get("ok"))
+        out["delivery_ok"] = bool(delivery.get("delivery_ok"))
+        out["proxy_final"] = self.preview_proxy_status()
+        out["agent_note"] = (
+            "Canonical finish path. ok=geometry+file; delivery_ok=full loudness/geometry check. "
+            "Do not claim pro delivery if delivery_ok=false without user waiver. "
+            "Proxy built after prepare; project saved for reopen freshness."
+        )
+        return out
 
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.
@@ -9504,6 +9687,7 @@ class Editor:
         self._preview_proxy_fingerprint = self._timeline_fingerprint()
         self._preview_proxy_height = new_h
         self._preview_proxy_fps = float(fps)
+        self._save_preview_proxy_meta()
         from .render.probe import probe as _probe
         info = _probe(proxy)
         return {
@@ -9520,9 +9704,11 @@ class Editor:
             "fresh": True,
             "cache_hit": False,
             "quick": new_h <= 240,
+            "meta_path": str(self._preview_proxy_meta_path()),
             "agent_note": (
                 "Scrub proxy only — not for delivery. Auto-invalidated on "
-                "timeline mutate/undo/redo; re-run export_preview after edits."
+                "timeline mutate/undo/redo; re-run ensure_preview_proxy after edits. "
+                "Fingerprint persisted to review/preview_proxy.meta.json."
             ),
         }
 

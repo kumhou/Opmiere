@@ -39,6 +39,7 @@ models/         # local model weights — never commit
 examples/
 scripts/_dogfood_pro_out/
 scripts/_dogfood_template_out/
+scripts/_dogfood_agent_out/
 
 # JH's personal test footage/photos — large binaries, never commit
 /test_materials/

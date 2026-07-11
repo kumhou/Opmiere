@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.3.0)
+# Opmiere tool surface (0.3.1)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -148,7 +148,9 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `set_marker_color_batch` | batch marker colors |
 | `export_fcpxml` | minimal FCPXML 1.9 skeleton |
 | `export_otio_json` | simplified OTIO-like JSON |
-| `agent_preflight` | media+validate+duration+history+stats |
+| `agent_preflight` | media+validate+proxy+duration+next_steps+ready |
+| `agent_finish_session` | preflight→prepare→proxy→finish_delivery→save |
+| `ensure_preview_proxy` / `refresh_preview_proxy` | scrub proxy (meta on disk) |
 | `trim_to_playhead(..., follow_links=)` | Q/W trim linked A/V peers |
 | `nudge_clips` / `delete_clips` `follow_links` | move/delete expand link groups |
 | `frames_to_tc` / `tc_to_frames` | HH:MM:SS:FF helpers |
