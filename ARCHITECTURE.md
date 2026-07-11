@@ -144,13 +144,20 @@ ordinary users never have to hand-assemble ComfyUI graphs.
   Flux, ElevenLabs) through one billing + one adapter; add direct providers later.
 - All behind `GenerationProvider`; the user picks local vs cloud per generation.
 
-### 5.4 GUI: **web frontend, deferred to Phase 3** — DECIDED (direction), details open
-- A web (TypeScript) frontend talking to the Python core over WebSocket is the pragmatic choice:
-  timelines, drag-drop, waveforms, thumbnails are well-trodden in web tech, and it makes the GUI *just
-  another client of the core API* — which is exactly the agent-native architecture we already need.
-- Desktop packaging (Tauri / pywebview / Electron) is a Phase-3 decision, deliberately unmade now.
-- **Build order note:** the GUI is essential to the *mission* (ordinary users) but low *risk*, so it
-  comes after the novel/risky parts (agent control + local generation) are proven headlessly.
+### 5.4 GUI: **Tauri product shell + HTML probe** — DECIDED (2026-07-12)
+
+See **[docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md)** for full ADR.
+
+- **Product shell (end-state):** Windows-first **Tauri** host; chrome + timeline may use **WebView
+  web tech**; program monitor is driven by **interactive preview engine frames** (bridge), not by
+  HTML5 `<video>` as sole truth. v1 GUI has **no agent chat panel** — agents use MCP externally.
+- **HTML FastAPI shell (`opmiere-web`):** **maintenance / dogfood probe only.** Proved dual-surface
+  and design tokens (0.3.0 checklist). Do not expand timeline UX there by default; do not treat it as
+  the shipping editor.
+- **Durable UI assets:** Operation API + timeline/PreviewSession protocol + `design-system/opmiere`.
+  Shells are replaceable clients of the same `Editor` as MCP.
+- **Build order:** core + openshot spike + PreviewSession before Tauri feature work; no parallel
+  “perfect the HTML shell” track.
 
 ### 5.5 MCP server: **official Python MCP SDK** — DECIDED
 - Thin adapter that exposes core operations as MCP tools. Long operations return a job ID; a companion
@@ -700,14 +707,16 @@ pace target, VO/music under picture. **Mix + beats:** `suggest_mix` / `apply_mix
 **P3 web:** doctor, review_cut, sequence sheet, project look, export+normalize+delivery_check.
 **Import:** fps auto-conform + optional `fit=contain|cover` to project canvas
 (`origin.conformed` records from/to fps/size). **Dogfood:** `scripts/dogfood_pro_pipeline.py`.
-**Preview (lightweight):** `export_preview` / `ensure_preview_proxy` / `frame_at` /
+**Preview (lightweight / interim):** `export_preview` / `ensure_preview_proxy` / `frame_at` /
 `review_keyframes` / `preview_range`; web scrub; **durable proxy meta**
 (`review/preview_proxy.meta.json` fingerprint survives reopen). **Agent finish path:**
 `agent_preflight` → `agent_finish_session` (prepare → proxy → finish_delivery → save);
 dogfood `scripts/dogfood_agent_pipeline.py`. **NLE trim:** slip / roll / slide /
-ripple_delete / ripple_trim / close_gaps / detach_audio. **Room tone** fill. Still open:
-realtime interactive scrub (libopenshot/MLT decision — 0.4.x), dirty-region re-encode (still full
-graph), non-3070 VRAM re-benchmark, cloud providers.
+ripple_delete / ripple_trim / close_gaps / detach_audio. **Room tone** fill.
+**Interactive preview (path C, in progress):** prefer **libopenshot** after Windows spike;
+MLT fallback; FFmpeg hybrid composite-as-product-scrub **rejected**. **GUI:** Tauri product
+shell planned; HTML shell is probe-only — see ADR. Still open: engine adapter, dirty-region
+re-encode for *delivery*, non-3070 VRAM re-benchmark, cloud providers.
 
 The P0→P2 headless demo — *"Claude, cut the dead air, generate a 5-second sunrise B-roll, add a
 voiceover in my own cloned voice, cross-dissolve between shots, color-grade warm, and export a 1080p
@@ -716,9 +725,17 @@ pixel of GUI exists.
 
 ---
 
-## 10. Open decisions (deliberately unmade)
+## 10. Open decisions
 
-- Interactive render backend: **libopenshot vs MLT** — decide when P3 starts, against real preview needs.
-- Cloud aggregator: **Replicate vs fal.ai** — decide when P2 starts, against model coverage + pricing.
-- Desktop shell: **Tauri vs pywebview vs Electron** — decide when P3 starts, against packaging weight.
-- These are recorded as open on purpose; committing early would be guessing.
+**Closed (2026-07-12)** — see [docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md):
+
+- Interactive preview product path: **C (engine)**, not hybrid FFmpeg dual-mode.
+- Engine **preference:** libopenshot; **lock** only after Windows spike (MLT is the documented fallback).
+- Desktop shell: **Tauri** product UI; timeline chrome may stay web-tech; HTML FastAPI shell = probe only.
+- GUI v1: **no** in-app agent chat (MCP external).
+
+**Still open:**
+
+- Cloud aggregator: **Replicate vs fal.ai** — when cloud generation is prioritized.
+- Exact Tauri ↔ Python bridge (stdio / local HTTP / sidecar layout) — decide at scaffold time.
+- libopenshot vs MLT **final** pick — spike data only.

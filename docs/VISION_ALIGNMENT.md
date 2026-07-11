@@ -48,8 +48,8 @@ product depth in the **editor**, not a wrong core.
 | **Proxy media bin** for scrub | **0.1.3** `ensure_media_proxy` / `list_media_bin` |
 | **Transcript search** “找到我说但是” | **0.1.3** keyword cache search (not embeddings) |
 | **One-click filler 粗剪** | **0.1.3** `suggest_filler_cuts` + `apply_filler_cuts` |
-| **Dual UI surface** | **0.1.4** FastAPI web shell (timeline + proxy video scrub); Tauri packaging later |
-| Realtime filter scrub | Still FFmpeg proxy path; libopenshot/MLT open for true realtime effects |
+| **Dual UI surface** | Probe: FastAPI HTML shell (dogfood). Product: **Tauri** + WebView chrome; MCP external |
+| Realtime filter scrub | Path **C**: prefer libopenshot (spike first); MLT fallback; FFmpeg proxy interim only |
 
 ## Disagreements / nuances
 
@@ -61,8 +61,9 @@ product depth in the **editor**, not a wrong core.
    **NVENC encode + optional hw decode**, not rewriting every filter in CUDA.
 4. **Style fusion** — retrieve and blend local presets; human-tuned 5–10 styles
    beat freeform “李安滤镜” guesses. Still one tool among many on the timeline.
-5. **Stack** — Python Editor/MCP is the engine; Tauri/web is a viewport. Rewriting
-   core in Node for MCP is unnecessary churn.
+5. **Stack** — Python Editor/MCP is the engine; Tauri is the human viewport (web tech for
+   chrome/timeline OK). HTML `opmiere-web` is probe-only. Rewriting core in Node is churn.
+   Full ADR: [ADR_UI_AND_PREVIEW.md](ADR_UI_AND_PREVIEW.md).
 6. **Do not invert the pyramid** — NLE craft (import, cut, slip/roll, mix, export)
    is the base; “agent as director” is the hero path that uses that base.
 
@@ -72,5 +73,5 @@ product depth in the **editor**, not a wrong core.
 2. Hand-tuned style files → **hero feature (0.1.2)**  
 3. Squeeze 3070 → **NVENC export + doctor**  
 
-0.1.4 dual-surface web shell; **0.1.5** timeline drag move/trim + quick proxy refresh.
-True realtime effects (libopenshot/MLT) and Tauri packaging remain later.
+0.1.4+ HTML dual-surface shell = probe. Product GUI = Tauri (ADR 2026-07-12).
+Interactive preview = libopenshot preference + spike; no hybrid throwaway path.

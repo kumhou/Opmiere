@@ -193,7 +193,8 @@ Keep shadows **subtle** on dark UI (skill: consistent elevation scale).
 - **Now:** FastAPI + static `index.html` / vanilla JS (no React yet)
 - **Tokens:** CSS variables in `:root` first; no hard-coded pink/AI purple
 - **Icons:** SVG sprite or Lucide CDN; never emoji for structure
-- **Future P3 shell:** may move to React + Tailwind; keep the same tokens
+- **Product shell:** Tauri + WebView (web tech OK for chrome/timeline); keep these tokens.
+- **HTML `opmiere-web`:** design probe / dogfood only — not the shipping surface (see `docs/ADR_UI_AND_PREVIEW.md`).
 
 ---
 
