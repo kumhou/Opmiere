@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.34 — 2026-07-11
+
+### Changed
+- **UI shell v6**:
+  - **Marquee select** clips by drag on empty lane area
+  - Track header redesign with active **M/S/L** states
+  - Auto-load audio **waveforms** for clips with audio
+  - Zoom **+/−** buttons; stronger wave opacity
+  - Fix broken track-lane class template escapes
+
 ## 0.2.33 — 2026-07-11
 
 ### Changed
