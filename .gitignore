@@ -46,3 +46,6 @@ scripts/_dogfood_agent_out/
 
 # ComfyUIProvider's default local output dir (generated images/video)
 .opmiere_generated/
+
+# Local spikes (embed Python, experimental binaries)
+.spike/

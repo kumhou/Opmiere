@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased (0.4.x)
+
+### Decisions / docs
+- **ADR** `docs/ADR_UI_AND_PREVIEW.md`: Tauri product shell; HTML probe-only; path C preview
+- **Spike** `docs/SPIKE_LIBOPENSHOT_WINDOWS.md`: OpenShot 3.5.1 / libopenshot 0.7.0 on Windows — in-process import blocked (MinGW py3.8 vs CPython 3.10); packaging tracks S1 wheel / S2 sidecar / S3 MLT
+
+### Added
+- **`PreviewSession`** contract + `UnavailablePreviewSession` stub; MCP/Editor `preview_engine_status`
+
 ## 0.3.1 — 2026-07-11
 
 ### Milestone

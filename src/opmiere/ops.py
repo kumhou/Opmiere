@@ -204,6 +204,11 @@ class Editor:
         except OSError:
             pass
 
+    def preview_engine_status(self) -> dict[str, Any]:
+        """Interactive path-C engine status (may be unavailable until packaged)."""
+        from .render.preview_session import preview_engine_status
+        return preview_engine_status()
+
     def preview_proxy_status(self) -> dict[str, Any]:
         """Is the last export_preview still valid for this timeline?"""
         # Re-discover default proxy if memory path cleared

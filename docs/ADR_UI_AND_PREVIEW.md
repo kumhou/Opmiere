@@ -55,8 +55,10 @@ Shell and agents share semantics (implementation later):
 
 ## Priority order (owner: engineering, JH-aligned)
 
-1. **ADR + ARCHITECTURE alignment** (this doc)  
-2. **libopenshot Windows spike** — import/bindings, minimal timeline, seek → JPEG/PNG; record fail conditions for MLT fallback  
+1. **ADR + ARCHITECTURE alignment** (this doc) — done  
+2. **libopenshot Windows spike** — done; report: [SPIKE_LIBOPENSHOT_WINDOWS.md](SPIKE_LIBOPENSHOT_WINDOWS.md)  
+   - In-process import on CPython 3.10: **no**; OpenShot ships MinGW 3.8 `_openshot.pyd`  
+   - Next packaging: **S2 sidecar** then **S1 wheel**; **S3 MLT** if blocked  
 3. **PreviewSession interface** in core (stub OK) + MCP/docs; no fake realtime claims  
 4. **Core NLE gaps** that block craft (only if spike blocked / between spikes) — Editor/MCP/tests first  
 5. **Tauri product shell scaffold** — empty window, talk to core API, design tokens, **no** agent chat  

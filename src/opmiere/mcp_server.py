@@ -3153,6 +3153,16 @@ def preview_proxy_status() -> dict:
 
 
 @mcp.tool()
+def preview_engine_status() -> dict:
+    """Interactive path-C engine status (libopenshot/MLT). May be unavailable.
+
+    Until packaging ships, use ensure_preview_proxy / frame_at for interim scrub.
+    See docs/SPIKE_LIBOPENSHOT_WINDOWS.md and docs/ADR_UI_AND_PREVIEW.md.
+    """
+    return _require_editor().preview_engine_status()
+
+
+@mcp.tool()
 def frame_at(
     time_seconds: float,
     output_path: str,
