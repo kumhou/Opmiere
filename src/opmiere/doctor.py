@@ -206,6 +206,38 @@ def run_doctor(
             "id": "nvenc", "ok": False, "required": False, "detail": str(e),
         })
 
+    # Interactive preview / libopenshot (0.4 path C — optional OpenShot install)
+    try:
+        from .render.openshot_runtime import default_openshot_home, openshot_runtime_available
+        from .render.preview_session import preview_engine_status
+        home = default_openshot_home()
+        avail = openshot_runtime_available()
+        st = preview_engine_status()
+        checks.append({
+            "id": "interactive_preview",
+            "ok": True,
+            "required": False,
+            "active": st.get("active_backend"),
+            "openshot_app": avail,
+            "openshot_home": str(home) if home else None,
+            "detail": (
+                f"backend={st.get('active_backend')}; "
+                + ("OpenShot embed ready" if avail else "install OpenShot or set OPMIERE_OPENSHOT_HOME for path C")
+            ),
+        })
+        if not avail:
+            warnings.append(
+                "OpenShot not found — path-C libopenshot frames unavailable; "
+                "interim scrub uses FFmpeg proxy"
+            )
+    except Exception as e:
+        checks.append({
+            "id": "interactive_preview",
+            "ok": False,
+            "required": False,
+            "detail": str(e),
+        })
+
     # Torch / CUDA (informational)
     torch_info: dict[str, Any] = {"ok": _module_ok("torch")}
     if torch_info["ok"]:

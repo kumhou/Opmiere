@@ -209,6 +209,54 @@ class Editor:
         from .render.preview_session import preview_engine_status
         return preview_engine_status()
 
+    def openshot_frame_at(
+        self,
+        time_seconds: float,
+        output_path: str | Path,
+        *,
+        height: int = 360,
+        use_timeline: bool = True,
+    ) -> dict[str, Any]:
+        """Path-C frame via OpenShot embed (requires local OpenShot install).
+
+        use_timeline=True: single-clip Timeline surface. False: FFmpegReader only.
+        """
+        from .render.openshot_runtime import get_openshot_runtime
+
+        rt = get_openshot_runtime()
+        if rt is None:
+            return {
+                "ok": False,
+                "error": "OpenShot runtime unavailable — install OpenShot or set OPMIERE_OPENSHOT_HOME",
+            }
+        output_path = Path(output_path)
+        if use_timeline:
+            video_tracks = [tr for tr in self.project.tracks if tr.kind == "video"]
+            if not video_tracks or not video_tracks[0].clips:
+                return {"ok": False, "error": "no base video clips"}
+            clip = video_tracks[0].clips_in_order()[0]
+            media = self.project.media_by_id(clip.media)
+            media_path = self.bundle.media_path(media.path)
+            fps = float(self.project.timebase.fps or 30.0)
+            aspect = self.project.resolution.w / max(self.project.resolution.h, 1)
+            h = max(72, int(height) // 2 * 2)
+            w = max(2, int(round(h * aspect)) // 2 * 2)
+            return rt.frame_from_timeline_clip(
+                media_path, float(time_seconds), output_path,
+                width=w, height=h, fps=fps,
+            )
+        # reader path: first video media
+        video_tracks = [tr for tr in self.project.tracks if tr.kind == "video"]
+        if not video_tracks or not video_tracks[0].clips:
+            return {"ok": False, "error": "no base video clips"}
+        clip = video_tracks[0].clips_in_order()[0]
+        media = self.project.media_by_id(clip.media)
+        media_path = self.bundle.media_path(media.path)
+        fps = float(self.project.timebase.fps or 30.0)
+        return rt.frame_from_media(
+            media_path, float(time_seconds), output_path, fps=fps,
+        )
+
     def preview_proxy_status(self) -> dict[str, Any]:
         """Is the last export_preview still valid for this timeline?"""
         # Re-discover default proxy if memory path cleared

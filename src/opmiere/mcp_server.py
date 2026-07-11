@@ -3163,6 +3163,18 @@ def preview_engine_status() -> dict:
 
 
 @mcp.tool()
+def openshot_frame_at(
+    time_seconds: float,
+    output_path: str,
+    height: int = 360,
+    use_timeline: bool = True,
+) -> dict:
+    """Path-C frame via OpenShot embed (needs OpenShot install / OPMIERE_OPENSHOT_HOME)."""
+    return _require_editor().openshot_frame_at(
+        time_seconds, output_path, height=height, use_timeline=use_timeline,
+    )
+
+@mcp.tool()
 def frame_at(
     time_seconds: float,
     output_path: str,

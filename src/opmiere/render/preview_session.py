@@ -170,31 +170,168 @@ class UnavailablePreviewSession(PreviewSession):
         }
 
 
+class OpenShotPreviewSession(PreviewSession):
+    """Path-C session backed by OpenShot embed runtime (S2)."""
+
+    def __init__(self) -> None:
+        from .openshot_runtime import get_openshot_runtime
+
+        self._rt = get_openshot_runtime()
+        if self._rt is None:
+            raise RuntimeError("OpenShot runtime unavailable")
+        self._state = PreviewState.IDLE
+        self._project: Project | None = None
+        self._bundle: Bundle | None = None
+        self._error: str | None = None
+
+    @property
+    def backend_name(self) -> str:
+        return "libopenshot"
+
+    @property
+    def state(self) -> PreviewState:
+        return self._state
+
+    def capabilities(self) -> dict[str, Any]:
+        ver = {}
+        try:
+            ver = self._rt.version() if self._rt else {}
+        except Exception as e:
+            ver = {"error": str(e)}
+        return {
+            "composite_frame": True,
+            "realtime_playback": False,
+            "seek": True,
+            "backend": self.backend_name,
+            "preferred": "libopenshot",
+            "fallback": "mlt",
+            "interim_scrub": "ffmpeg_proxy",
+            "openshot": ver,
+            "note": (
+                "S2 embed: MinGW libpython from OpenShot install. "
+                "Timeline multi-clip mapping still incremental."
+            ),
+        }
+
+    def open(self, project: Project, bundle: Bundle) -> dict[str, Any]:
+        self._project = project
+        self._bundle = bundle
+        self._state = PreviewState.IDLE
+        self._error = None
+        return {
+            "ok": True,
+            "state": self.state.value,
+            "backend": self.backend_name,
+            "agent_note": "OpenShot session open; use frame_at for engine frames.",
+        }
+
+    def close(self) -> None:
+        self._project = None
+        self._bundle = None
+        self._state = PreviewState.IDLE
+
+    def seek(self, time_seconds: float) -> dict[str, Any]:
+        self._state = PreviewState.SEEKING
+        self._state = PreviewState.IDLE
+        return {"ok": True, "state": self.state.value, "time_seconds": float(time_seconds)}
+
+    def play(self) -> dict[str, Any]:
+        # Realtime play loop not wired yet — transport still proxy/UI side
+        self._state = PreviewState.PLAYING
+        return {
+            "ok": False,
+            "state": self.state.value,
+            "error": "realtime play not implemented; use frame_at / proxy play",
+        }
+
+    def pause(self) -> dict[str, Any]:
+        self._state = PreviewState.IDLE
+        return {"ok": True, "state": self.state.value}
+
+    def frame_at(
+        self,
+        time_seconds: float,
+        output_path: Path,
+        *,
+        height: int = 360,
+    ) -> dict[str, Any]:
+        """Engine frame: base-track media via Timeline+Clip when project open."""
+        self._state = PreviewState.SEEKING
+        try:
+            if self._project is None or self._bundle is None:
+                return {
+                    "ok": False,
+                    "error": "session not open — call open(project, bundle) first",
+                    "state": self.state.value,
+                }
+            media_path, fps, w, h = _base_video_media(self._project, self._bundle)
+            aspect = w / max(h, 1)
+            out_h = max(72, int(height) // 2 * 2)
+            out_w = max(2, int(round(out_h * aspect)) // 2 * 2)
+            r = self._rt.frame_from_timeline_clip(
+                media_path,
+                float(time_seconds),
+                Path(output_path),
+                width=out_w,
+                height=out_h,
+                fps=float(fps),
+            )
+            self._state = PreviewState.IDLE if r.get("ok") else PreviewState.ERROR
+            r["state"] = self.state.value
+            return r
+        except Exception as e:
+            self._state = PreviewState.ERROR
+            self._error = str(e)
+            return {"ok": False, "error": str(e), "state": self.state.value}
+
+
+def _base_video_media(project: Project, bundle: Bundle) -> tuple[Path, float, int, int]:
+    video_tracks = [tr for tr in project.tracks if tr.kind == "video"]
+    if not video_tracks or not video_tracks[0].clips:
+        raise ValueError("no base video clips for OpenShot frame")
+    clip = video_tracks[0].clips_in_order()[0]
+    media = project.media_by_id(clip.media)
+    path = bundle.media_path(media.path)
+    if not Path(path).exists():
+        raise FileNotFoundError(path)
+    fps = float(project.timebase.fps or 30.0)
+    w = int(project.resolution.w or 640)
+    h = int(project.resolution.h or 360)
+    return Path(path), fps, w, h
+
+
 def preview_engine_status() -> dict[str, Any]:
     """Doctor / MCP: what interactive engine is available right now."""
     import importlib.util
 
+    from .openshot_runtime import openshot_runtime_available, default_openshot_home
+
     openshot_mod = importlib.util.find_spec("openshot") is not None
-    # Optional: detect OpenShot app install (dev machine only)
-    openshot_app = Path(r"C:\Program Files\OpenShot Video Editor\lib\libopenshot.dll")
-    app_dll = openshot_app.exists()
+    home = default_openshot_home()
     session = get_preview_session()
     return {
         "active_backend": session.backend_name,
         "state": session.state.value,
         "capabilities": session.capabilities(),
-        "import_openshot": openshot_mod,
-        "openshot_app_dll_present": app_dll,
+        "import_openshot_host": openshot_mod,
+        "openshot_app_present": home is not None,
+        "openshot_home": str(home) if home else None,
         "spike": "docs/SPIKE_LIBOPENSHOT_WINDOWS.md",
         "adr": "docs/ADR_UI_AND_PREVIEW.md",
         "agent_note": (
-            "path C packaging not ready on stock CPython — "
-            "interim scrub remains FFmpeg proxy; product GUI is Tauri later."
+            "path C: libopenshot via OpenShot install embed when available; "
+            "else unavailable. Interim scrub remains FFmpeg proxy."
         ),
     }
 
 
 def get_preview_session() -> PreviewSession:
-    """Factory: returns real engine when registered; else unavailable stub."""
-    # Future: try OpenShotPreviewSession / MltPreviewSession registration.
+    """Factory: OpenShot embed when install present; else unavailable stub."""
+    from .openshot_runtime import openshot_runtime_available
+
+    if openshot_runtime_available():
+        try:
+            return OpenShotPreviewSession()
+        except Exception:
+            return UnavailablePreviewSession()
     return UnavailablePreviewSession()

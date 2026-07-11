@@ -87,13 +87,28 @@ Process-level `melt` + XML playlist (Shotcut on winget: `Meltytech.Shotcut`).
 - Dual-mode FFmpeg “composite frame when proxy stale” as the **product** interactive path (path B).  
 - Treating HTML5 proxy `<video>` as final look model.
 
+## S2 result (same day, follow-up)
+
+**Working:** subprocess sidecar embeds OpenShot’s MinGW `libpython3.8` via ctypes and runs libopenshot:
+
+| Piece | Location |
+|-------|----------|
+| Embed runtime | `src/opmiere/render/openshot_runtime.py` (`OpenShotRuntime`) |
+| Worker process | `python -m opmiere.render.openshot_worker` |
+| Host client | `OpenShotClient` (JSON-lines; default via `get_openshot_runtime()`) |
+| Editor/MCP | `openshot_frame_at`, `preview_engine_status` → `libopenshot` when install present |
+| Proven | `FFmpegReader.GetFrame` + `Timeline`+`Clip` → PNG; version **0.7.0** |
+
+**Requires:** OpenShot Video Editor install or `OPMIERE_OPENSHOT_HOME`.  
+**Not yet:** multi-clip Editor→Timeline mapping, realtime play loop, vendored DLL tree for end users.
+
 ## Recommended next steps (aligned with ADR priority)
 
-1. **Freeze PreviewSession interface** in Opmiere (stub + `unavailable` backend) — no fake realtime.  
-2. **Choose packaging track:** default **S2 sidecar spike next** (faster proof of seek→JPEG using OpenShot’s DLL tree without hijacking 3.10), design so S1 can replace the process with in-process later.  
-3. Do **not** expand HTML shell.  
-4. Defer Tauri scaffold until PreviewSession + one working frame path (stub or sidecar) exists.  
-5. Keep OpenShot 3.5.1 installed on the dev machine as reference binary/DLL tree (optional; not a runtime dep for users until we vendor).
+1. ~~Freeze PreviewSession~~ + ~~S2 seek→JPEG~~ done when OpenShot installed.  
+2. Map full Opmiere timeline → openshot Timeline (multi-clip, effects subset).  
+3. Vendor / CI package (S1) so users need not install OpenShot.app.  
+4. Do **not** expand HTML shell.  
+5. Tauri scaffold after multi-clip frame path is trustworthy.
 
 ## Spike success criteria (original) vs result
 
