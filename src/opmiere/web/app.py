@@ -1846,6 +1846,98 @@ def set_clips_meta_api(body: SetClipsMetaBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class StaggerBody(BaseModel):
+    clip_ids: list[str]
+    offset_frames: int
+
+
+class ReverseTrackBody(BaseModel):
+    track_id: str
+    pack_from: int = 0
+
+
+class ClearTransitionsBody(BaseModel):
+    track_id: str | None = None
+    clip_ids: list[str] | None = None
+
+
+class SetClipsFadesBody(BaseModel):
+    clip_ids: list[str]
+    fade_in_frames: int | None = None
+    fade_out_frames: int | None = None
+
+
+class AppendMediaBody(BaseModel):
+    media_id: str
+    track_id: str
+    src_in: int | None = None
+    src_out: int | None = None
+    name: str | None = None
+
+
+class DuplicateRangeBody(BaseModel):
+    start_frame: int
+    end_frame: int
+    track_id: str
+    dest_start: int | None = None
+    dest_track_id: str | None = None
+
+
+@app.post("/api/clips/stagger")
+def stagger_api(body: StaggerBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.stagger_clips(body.clip_ids, body.offset_frames)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/track/reverse_order")
+def reverse_track_api(body: ReverseTrackBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.reverse_track_order(body.track_id, pack_from=body.pack_from)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/transitions/clear")
+def clear_transitions_api(body: ClearTransitionsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.clear_transitions(track_id=body.track_id, clip_ids=body.clip_ids)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/fades")
+def set_clips_fades_api(body: SetClipsFadesBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_fades(
+        body.clip_ids,
+        fade_in_frames=body.fade_in_frames,
+        fade_out_frames=body.fade_out_frames,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/append_media")
+def append_media_api(body: AppendMediaBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.append_media(
+        body.media_id, body.track_id,
+        src_in=body.src_in, src_out=body.src_out, name=body.name,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/duplicate_range")
+def duplicate_range_api(body: DuplicateRangeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.duplicate_range(
+        body.start_frame,
+        body.end_frame,
+        track_id=body.track_id,
+        dest_start=body.dest_start,
+        dest_track_id=body.dest_track_id,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/clip/copy_attributes")
 def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
     return _ed().copy_attributes(body.clip_id)

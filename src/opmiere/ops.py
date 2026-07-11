@@ -5465,6 +5465,257 @@ class Editor:
                 })
             return {"count": len(out), "clips": out}
 
+    def stagger_clips(
+        self,
+        clip_ids: list[str],
+        offset_frames: int,
+    ) -> dict[str, Any]:
+        """Offset each clip by index * offset_frames (0, +d, +2d, …). One undo.
+
+        Order = sorted by current start. Preserves relative selection order.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(offset_frames, int):
+            raise ValueError("offset_frames must be an int")
+        with self._mutate():
+            clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+            for cid in clip_ids:
+                self._assert_clip_track_unlocked(cid)
+            clips.sort(key=lambda c: (c.start, c.id))
+            moved: list[dict[str, Any]] = []
+            for i, clip in enumerate(clips):
+                delta = i * offset_frames
+                if delta == 0:
+                    moved.append({"clip_id": clip.id, "start": clip.start, "delta": 0})
+                    continue
+                old = clip.start
+                clip.start = max(0, old + delta)
+                if clip.transition_in is not None:
+                    clip.transition_in = None
+                moved.append({
+                    "clip_id": clip.id,
+                    "start": {"from": old, "to": clip.start},
+                    "delta": delta,
+                })
+            return {
+                "offset_frames": offset_frames,
+                "count": len(moved),
+                "clips": moved,
+                "agent_note": "Does not auto-resolve overlaps; check track packing.",
+            }
+
+    def reverse_track_order(
+        self,
+        track_id: str,
+        *,
+        pack_from: int = 0,
+    ) -> dict[str, Any]:
+        """Reverse clip order on a track and repack hard-cut from pack_from.
+
+        Clears transition_in (order change invalidates them). One undo.
+        """
+        if not isinstance(pack_from, int) or pack_from < 0:
+            raise ValueError("pack_from must be >= 0")
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            ordered = track.clips_in_order()
+            if len(ordered) < 2:
+                return {
+                    "track_id": track_id,
+                    "count": len(ordered),
+                    "order": [c.id for c in ordered],
+                    "agent_note": "Need ≥2 clips to reverse.",
+                }
+            rev = list(reversed(ordered))
+            cursor = pack_from
+            new_order: list[str] = []
+            for c in rev:
+                c.transition_in = None
+                c.start = cursor
+                cursor = c.end
+                new_order.append(c.id)
+            return {
+                "track_id": track_id,
+                "count": len(new_order),
+                "order": new_order,
+                "pack_from": pack_from,
+                "duration_frames": cursor - pack_from,
+            }
+
+    def clear_transitions(
+        self,
+        *,
+        track_id: str | None = None,
+        clip_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Remove transition_in and restore hard-cut starts (push start to prev.end).
+
+        If a transition had pulled start left, start is set to previous clip end.
+        clip_ids / track_id filter; default all clips with transitions.
+        """
+        with self._mutate():
+            cleared: list[dict[str, Any]] = []
+            tracks = self.project.tracks
+            if track_id is not None:
+                tracks = [self.project.track_by_id(track_id)]
+            wanted = set(clip_ids) if clip_ids is not None else None
+            for track in tracks:
+                if track.locked:
+                    continue
+                ordered = track.clips_in_order()
+                for i, clip in enumerate(ordered):
+                    if wanted is not None and clip.id not in wanted:
+                        continue
+                    if clip.transition_in is None:
+                        continue
+                    old_start = clip.start
+                    dur = clip.transition_in.get("duration_frames", 0)
+                    clip.transition_in = None
+                    if i > 0:
+                        prev = ordered[i - 1]
+                        clip.start = prev.end
+                    cleared.append({
+                        "clip_id": clip.id,
+                        "start": {"from": old_start, "to": clip.start},
+                        "removed_duration_frames": dur,
+                    })
+            return {"count": len(cleared), "cleared": cleared}
+
+    def set_clips_fades(
+        self,
+        clip_ids: list[str],
+        *,
+        fade_in_frames: int | None = None,
+        fade_out_frames: int | None = None,
+    ) -> dict[str, Any]:
+        """Batch set_clip_fades (one undo). None = leave that edge unchanged."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if fade_in_frames is None and fade_out_frames is None:
+            raise ValueError("provide fade_in_frames and/or fade_out_frames")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                cur = self.get_clip_fades(cid)
+                fin = cur["fade_in_frames"] if fade_in_frames is None else int(fade_in_frames)
+                fout = cur["fade_out_frames"] if fade_out_frames is None else int(fade_out_frames)
+                # set_clip_fades mutates — call unlocked path via public API would nest _mutate
+                # Replicate set_clip_fades body for one clip
+                clip = self._find_clip(cid)
+                # remove existing fade effects
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if not (e.get("type") == "fade")
+                ]
+                if fin > 0:
+                    self._apply_effect_unlocked(
+                        cid, {"type": "fade", "direction": "in", "duration_frames": fin},
+                    )
+                if fout > 0:
+                    self._apply_effect_unlocked(
+                        cid, {"type": "fade", "direction": "out", "duration_frames": fout},
+                    )
+                out.append({
+                    "clip_id": cid,
+                    "fade_in_frames": fin,
+                    "fade_out_frames": fout,
+                })
+            return {"count": len(out), "clips": out}
+
+    def append_media(
+        self,
+        media_id: str,
+        track_id: str,
+        *,
+        src_in: int | None = None,
+        src_out: int | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Place media after the last clip on the track (or at 0 if empty)."""
+        track = self.project.track_by_id(track_id)
+        ordered = track.clips_in_order()
+        start = 0 if not ordered else ordered[-1].end
+        return self.place_media(
+            media_id, track_id, start,
+            src_in=src_in, src_out=src_out, mode="insert", name=name,
+        )
+
+    def duplicate_range(
+        self,
+        start_frame: int,
+        end_frame: int,
+        *,
+        track_id: str,
+        dest_start: int | None = None,
+        dest_track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Copy clips overlapping [start, end) onto dest track at dest_start.
+
+        Overlapping clips are source-trimmed to the range (not split on source
+        track). dest_start defaults to end_frame (paste after selection).
+        dest_track_id defaults to track_id.
+        """
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        dest_tid = dest_track_id or track_id
+        place_at = end_frame if dest_start is None else int(dest_start)
+        with self._mutate():
+            src_track = self.project.track_by_id(track_id)
+            dest = self.project.track_by_id(dest_tid)
+            if dest.locked:
+                raise ValueError(f"track {dest.id} is locked")
+            if dest.kind != src_track.kind:
+                raise ValueError("dest track kind must match source")
+            created: list[dict[str, Any]] = []
+            for clip in src_track.clips_in_order():
+                if clip.end <= start_frame or clip.start >= end_frame:
+                    continue
+                # Intersection on timeline
+                t0 = max(clip.start, start_frame)
+                t1 = min(clip.end, end_frame)
+                if t1 <= t0:
+                    continue
+
+                def _src_at(tl: int, cl: Any = clip) -> int:
+                    local = tl - cl.start
+                    if cl.speed != 1.0:
+                        return cl.src_in + int(round(local * cl.speed))
+                    return cl.src_in + local
+
+                sin = max(clip.src_in, min(_src_at(t0), clip.src_out - 1))
+                sout = max(sin + 1, min(_src_at(t1), clip.src_out))
+                media = self.project.media_by_id(clip.media)
+                offset = t0 - start_frame
+                nc = self.project.add_clip(
+                    dest, media, place_at + offset, sin, sout,
+                )
+                nc.speed = clip.speed
+                nc.effects = [dict(e) for e in (clip.effects or [])]
+                if clip.position:
+                    nc.position = dict(clip.position)
+                nc.muted = bool(clip.muted)
+                nc.name = clip.name
+                nc.color = clip.color
+                created.append({
+                    "clip_id": nc.id,
+                    "from_clip_id": clip.id,
+                    "start": nc.start,
+                    "end": nc.end,
+                })
+            return {
+                "track_id": track_id,
+                "dest_track_id": dest_tid,
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "dest_start": place_at,
+                "created": created,
+                "count": len(created),
+            }
+
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.
 

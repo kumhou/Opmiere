@@ -404,6 +404,15 @@
         <button type="button" class="secondary" id="btnSpeed2x" disabled>Sel 2×</button>
       </div>
       <div class="row">
+        <button type="button" class="secondary" id="btnStagger" disabled>Stagger 15f</button>
+        <button type="button" class="secondary" id="btnRevTrack">Rev track</button>
+        <button type="button" class="secondary" id="btnDupRange" title="Dup work I/O">Dup I/O</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnFadeSel" disabled>Fade 6f sel</button>
+        <button type="button" class="secondary" id="btnClrXfade">Clr xfade</button>
+      </div>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
@@ -867,7 +876,7 @@
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
         'btnJCut','btnLCut','btnClipInfo','btnFitFill','btnCopyTrack','btnRenameShots',
-        'btnColorSel','btnMatchDur','btnJoin','btnSpeed2x',
+        'btnColorSel','btnMatchDur','btnJoin','btnSpeed2x','btnStagger','btnFadeSel',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2524,6 +2533,94 @@
         if (r.timeline) renderTimeline(r.timeline);
         setDirty(true);
         log('speed 2x n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnStagger').onclick = async () => {
+      const ids = selectionList();
+      if (ids.length < 2) { log('select ≥2 clips'); return; }
+      try {
+        const r = await api('/api/clips/stagger', {
+          method: 'POST',
+          body: JSON.stringify({ clip_ids: ids, offset_frames: 15 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('stagger n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRevTrack').onclick = async () => {
+      try {
+        let track_id = null;
+        if (selectedClipId && timeline) {
+          for (const tr of timeline.tracks || []) {
+            for (const c of tr.clips || []) {
+              if (c.id === selectedClipId) { track_id = tr.id; break; }
+            }
+            if (track_id) break;
+          }
+        }
+        if (!track_id && timeline && timeline.tracks && timeline.tracks[0]) {
+          track_id = timeline.tracks[0].id;
+        }
+        if (!track_id) { log('no track'); return; }
+        const r = await api('/api/track/reverse_order', {
+          method: 'POST', body: JSON.stringify({ track_id, pack_from: 0 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('reverse_order ' + JSON.stringify(r.order));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnDupRange').onclick = async () => {
+      try {
+        const io = await api('/api/in_out');
+        const a = io.in_frame, b = io.out_frame;
+        if (a == null || b == null || b <= a) { log('set work In/Out first'); return; }
+        let track_id = null;
+        if (selectedClipId && timeline) {
+          for (const tr of timeline.tracks || []) {
+            for (const c of tr.clips || []) {
+              if (c.id === selectedClipId) { track_id = tr.id; break; }
+            }
+            if (track_id) break;
+          }
+        }
+        if (!track_id && timeline && timeline.tracks && timeline.tracks[0]) {
+          track_id = timeline.tracks[0].id;
+        }
+        if (!track_id) { log('no track'); return; }
+        const r = await api('/api/duplicate_range', {
+          method: 'POST',
+          body: JSON.stringify({ start_frame: a, end_frame: b, track_id }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('dup range n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnFadeSel').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) return;
+      try {
+        const r = await api('/api/clips/fades', {
+          method: 'POST',
+          body: JSON.stringify({
+            clip_ids: ids, fade_in_frames: 6, fade_out_frames: 6,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('fades n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnClrXfade').onclick = async () => {
+      try {
+        const r = await api('/api/transitions/clear', {
+          method: 'POST', body: JSON.stringify({}),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('clear transitions n=' + r.count);
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnZoomFit').onclick = () => {

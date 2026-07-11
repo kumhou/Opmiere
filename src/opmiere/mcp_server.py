@@ -1093,6 +1093,75 @@ def set_clips_meta(
 
 
 @mcp.tool()
+def stagger_clips(clip_ids: list[str], offset_frames: int) -> dict:
+    """Offset clips by index * offset_frames."""
+    return _require_editor().stagger_clips(clip_ids, offset_frames)
+
+
+@mcp.tool()
+def reverse_track_order(track_id: str, pack_from: int = 0) -> dict:
+    """Reverse clip order on a track and repack."""
+    return _require_editor().reverse_track_order(track_id, pack_from=pack_from)
+
+
+@mcp.tool()
+def clear_transitions(
+    track_id: str | None = None,
+    clip_ids: list[str] | None = None,
+) -> dict:
+    """Remove transition_in and restore hard-cut starts."""
+    return _require_editor().clear_transitions(
+        track_id=track_id, clip_ids=clip_ids,
+    )
+
+
+@mcp.tool()
+def set_clips_fades(
+    clip_ids: list[str],
+    fade_in_frames: int | None = None,
+    fade_out_frames: int | None = None,
+) -> dict:
+    """Batch fade in/out frames."""
+    return _require_editor().set_clips_fades(
+        clip_ids,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+    )
+
+
+@mcp.tool()
+def append_media(
+    media_id: str,
+    track_id: str,
+    src_in: int | None = None,
+    src_out: int | None = None,
+    name: str | None = None,
+) -> dict:
+    """Place media after last clip on track."""
+    return _require_editor().append_media(
+        media_id, track_id, src_in=src_in, src_out=src_out, name=name,
+    )
+
+
+@mcp.tool()
+def duplicate_range(
+    start_frame: int,
+    end_frame: int,
+    track_id: str,
+    dest_start: int | None = None,
+    dest_track_id: str | None = None,
+) -> dict:
+    """Copy overlapping clips in range to dest start."""
+    return _require_editor().duplicate_range(
+        start_frame,
+        end_frame,
+        track_id=track_id,
+        dest_start=dest_start,
+        dest_track_id=dest_track_id,
+    )
+
+
+@mcp.tool()
 def clear_clip_effects(
     clip_id: str,
     types: list[str] | None = None,

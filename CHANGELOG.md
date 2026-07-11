@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.24 — 2026-07-11
+
+### Added
+- **`stagger_clips`**: offset selection by index × step frames
+- **`reverse_track_order`**: reverse clips on a track and repack
+- **`clear_transitions`**: strip transition_in, restore hard-cut starts
+- **`set_clips_fades`**: batch fade-in/out
+- **`append_media`**: place media after last clip on track
+- **`duplicate_range`**: copy overlapping clips in a time range
+- Web: Stagger, Rev track, Dup I/O, Fade 6f, Clr xfade
+
 ## 0.2.23 — 2026-07-11
 
 ### Added
