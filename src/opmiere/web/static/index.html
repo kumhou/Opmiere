@@ -401,6 +401,34 @@ details.tool-group .group-body { padding: 6px 8px 8px; }
   #app.hide-inspector { grid-template-columns: 220px minmax(0,1fr); }
   #app.hide-media { grid-template-columns: minmax(0,1fr) 0; }
 }
+
+/* —— shell v3 —— */
+#keyHint {
+  display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+  padding: 3px 10px; font-size: 10px; color: var(--color-muted);
+  border-top: 1px solid var(--color-border); background: var(--color-surface);
+  font-family: var(--font-mono); flex-shrink: 0;
+}
+#keyHint kbd {
+  display: inline-block; padding: 0 4px; border-radius: 3px;
+  border: 1px solid var(--color-border); background: var(--color-background);
+  color: var(--color-foreground); font-size: 9px; margin-right: 2px;
+}
+#tracks > p {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100px; color: var(--color-muted); font-size: 12px;
+}
+.panel-body::-webkit-scrollbar { width: 8px; height: 8px; }
+.panel-body::-webkit-scrollbar-thumb {
+  background: var(--color-surface-raised); border-radius: 4px;
+}
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+#topbar .brand > span:first-child {
+  background: linear-gradient(135deg, var(--color-primary), #a8b8ff);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.bin-item:hover { border-color: rgba(124, 156, 255, 0.45); }
+
 </style>
 </head>
 <body><header id="topbar"><div class="brand"><span class="">Opmiere</span><span class="sub">NLE shell · agent = MCP</span></div>
@@ -660,7 +688,8 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
 <button class="secondary" id="btnSelMute" type="button">Mute</button>
 <button class="danger" id="btnSelRipple" type="button">Ripple del</button>
 <button class="secondary" id="btnSelClear" type="button">Clear</button>
-</div><p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p></div></div></div></section></div><div id="statusBar"><span>UI shell v2</span><span class="mono" id="shellHint">drag split · Media/Insp toggles · localStorage</span></div><script>
+</div><p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p></div></div></div></section></div><div id="statusBar"><span>UI shell v2</span><span class="mono" id="shellHint">drag split · Media/Insp toggles · localStorage</span></div>
+<div id="keyHint"><span><kbd>Space</kbd>play</span><span><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd>shuttle</span><span><kbd>I</kbd><kbd>O</kbd>work</span><span><kbd>Q</kbd><kbd>W</kbd>trim</span><span><kbd>S</kbd>split</span><span><kbd>C</kbd>razor</span><span><kbd>[</kbd><kbd>]</kbd>undo/redo</span><span><kbd>?</kbd>help</span></div><script>
 
     const logEl = document.getElementById('log');
     const statusEl = document.getElementById('status');
@@ -3564,6 +3593,27 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
     })();
 
 
+
+    // —— UI shell v3: inspector group memory ——
+    (function shellV3() {
+      const KEY = 'opmiere.shell.details.v1';
+      function load() {
+        try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+      }
+      function save(m) {
+        try { localStorage.setItem(KEY, JSON.stringify(m)); } catch (_) {}
+      }
+      const map = load();
+      document.querySelectorAll('details.tool-group').forEach((d, i) => {
+        const title = (d.querySelector('summary') || {}).textContent || ('g' + i);
+        const k = String(title).trim();
+        if (k in map) d.open = !!map[k];
+        d.addEventListener('toggle', () => {
+          map[k] = d.open;
+          save(map);
+        });
+      });
+    })();
 </script>
 </body>
 </html>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.31 — 2026-07-11
+
+### Changed
+- **UI shell v3**:
+  - Bottom **key hint** strip (Space / JKL / I O / Q W / …)
+  - Inspector `<details>` open/closed state persisted
+  - Scrollbar / bin hover / brand gradient polish
+
 ## 0.2.30 — 2026-07-11
 
 ### Changed
