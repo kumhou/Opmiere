@@ -7,6 +7,8 @@ Design source of truth for the **UI shell** and any human-facing chrome.
 | `opmiere/MASTER.md` | Global tokens, layout, a11y, component rules |
 | `opmiere/pages/*.md` | Page overrides (e.g. `editor-shell`) |
 
+**Shell status:** **0.3.0 complete** — see `opmiere/pages/editor-shell.md` checklist.
+
 ## Tooling: UI/UX Pro Max
 
 Installed via:

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — 2026-07-11
+
+### Milestone
+- **UI shell complete** against `design-system/opmiere` checklist
+
+### Added / Changed
+- **Selection card** in Inspector (name, TC, speed, track, link, multi-count)
+- **Toast** feedback host; **Ctrl+S** save shortcut
+- **Link badge** on linked clips (`data-link` / `link_group`)
+- Dirty pill tooltip; status bar marks shell 0.3.0 complete
+- Docs: editor-shell.md checklist marked COMPLETE
+
 ## 0.2.34 — 2026-07-11
 
 ### Changed
