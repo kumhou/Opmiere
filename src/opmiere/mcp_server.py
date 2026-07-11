@@ -855,6 +855,94 @@ def search_clips(
 
 
 @mcp.tool()
+def clips_in_range(
+    start_frame: int,
+    end_frame: int,
+    track_id: str | None = None,
+    kind: str | None = None,
+    partial: bool = True,
+) -> dict:
+    """List clips overlapping [start_frame, end_frame)."""
+    return _require_editor().clips_in_range(
+        start_frame,
+        end_frame,
+        track_id=track_id,
+        kind=kind,
+        partial=partial,
+    )
+
+
+@mcp.tool()
+def fit_to_fill(
+    clip_id: str,
+    end_frame: int | None = None,
+    clamp: bool = True,
+) -> dict:
+    """Rate-stretch clip to end_frame (or next clip start)."""
+    return _require_editor().fit_to_fill(
+        clip_id, end_frame=end_frame, clamp=clamp,
+    )
+
+
+@mcp.tool()
+def replace_edit(
+    clip_id: str,
+    media_id: str,
+    mode: str = "stretch",
+) -> dict:
+    """Replace clip media; stretch|trim_end|trim_start|full."""
+    return _require_editor().replace_edit(clip_id, media_id, mode=mode)
+
+
+@mcp.tool()
+def copy_to_track(
+    clip_id: str,
+    track_id: str,
+    start: int | None = None,
+    copy_effects: bool = True,
+    copy_link: bool = False,
+) -> dict:
+    """Clone clip onto another same-kind track."""
+    return _require_editor().copy_to_track(
+        clip_id,
+        track_id,
+        start=start,
+        copy_effects=copy_effects,
+        copy_link=copy_link,
+    )
+
+
+@mcp.tool()
+def rename_clips(
+    pattern: str,
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+) -> dict:
+    """Batch rename. Tokens: {n} {nn} {name} {media} {id} {track}."""
+    return _require_editor().rename_clips(
+        pattern, clip_ids=clip_ids, track_id=track_id,
+    )
+
+
+@mcp.tool()
+def import_edl(
+    text: str | None = None,
+    path: str | None = None,
+    track_id: str | None = None,
+    replace_track: bool = False,
+    media_map: dict[str, str] | None = None,
+) -> dict:
+    """Import simple CMX EDL; media must already be in the project bin."""
+    return _require_editor().import_edl(
+        text,
+        path=path,
+        track_id=track_id,
+        replace_track=replace_track,
+        media_map=media_map,
+    )
+
+
+@mcp.tool()
 def clear_clip_effects(
     clip_id: str,
     types: list[str] | None = None,

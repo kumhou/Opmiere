@@ -283,6 +283,7 @@ class Editor:
                 {"keys": "U", "action": "Subclip from work In/Out (selected clip)"},
                 {"keys": "Q", "action": "Ripple trim head to playhead (+ linked)"},
                 {"keys": "W", "action": "Ripple trim tail to playhead (+ linked)"},
+                {"keys": "Shift+T", "action": "Fit-to-fill selected (stretch to next / Out)"},
                 {"keys": ", / .", "action": "Slip selected −/+ 5 source frames"},
                 {"keys": "; / '", "action": "Slide selected −/+ 5 frames"},
                 {"keys": "Shift+M", "action": "Jump to next marker"},
@@ -4498,6 +4499,451 @@ class Editor:
                         "link_group": clip.link_group,
                     })
         return {"query": query, "count": len(hits), "hits": hits}
+
+    def clips_in_range(
+        self,
+        start_frame: int,
+        end_frame: int,
+        *,
+        track_id: str | None = None,
+        kind: str | None = None,
+        partial: bool = True,
+    ) -> dict[str, Any]:
+        """List clips overlapping [start_frame, end_frame).
+
+        partial=True: any overlap. partial=False: fully contained.
+        """
+        if not isinstance(start_frame, int) or not isinstance(end_frame, int):
+            raise ValueError("start_frame and end_frame must be ints")
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        hits: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            if track_id is not None and track.id != track_id:
+                continue
+            if kind is not None and track.kind != kind:
+                continue
+            for clip in track.clips_in_order():
+                if partial:
+                    if clip.end <= start_frame or clip.start >= end_frame:
+                        continue
+                else:
+                    if clip.start < start_frame or clip.end > end_frame:
+                        continue
+                hits.append({
+                    "clip_id": clip.id,
+                    "track_id": track.id,
+                    "track_kind": track.kind,
+                    "start": clip.start,
+                    "end": clip.end,
+                    "name": clip.name,
+                    "media_id": clip.media,
+                })
+        return {
+            "start_frame": start_frame,
+            "end_frame": end_frame,
+            "partial": partial,
+            "count": len(hits),
+            "clips": hits,
+        }
+
+    def fit_to_fill(
+        self,
+        clip_id: str,
+        end_frame: int | None = None,
+        *,
+        clamp: bool = True,
+    ) -> dict[str, Any]:
+        """Rate-stretch a clip so its end meets end_frame (or the next clip's start).
+
+        Does not move neighbors. end_frame=None uses the start of the next clip
+        on the same track; if this is the last clip, raises ValueError.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            if end_frame is None:
+                ordered = track.clips_in_order()
+                nxt = None
+                for c in ordered:
+                    if c.start > clip.start:
+                        nxt = c
+                        break
+                if nxt is None:
+                    raise ValueError(
+                        "fit_to_fill needs end_frame when clip is last on track"
+                    )
+                end_frame = nxt.start
+            if not isinstance(end_frame, int):
+                raise ValueError("end_frame must be an int")
+            target = end_frame - clip.start
+            if target <= 0:
+                raise ValueError(
+                    f"end_frame {end_frame} must be after clip.start {clip.start}"
+                )
+            # Reuse stretch_to math without nested _mutate
+            src_len = clip.duration_frames
+            if src_len <= 0:
+                raise ValueError("clip has empty source range")
+            raw_speed = src_len / float(target)
+            speed = raw_speed
+            clamped = False
+            if clamp:
+                if speed < 0.25:
+                    speed = 0.25
+                    clamped = True
+                elif speed > 4.0:
+                    speed = 4.0
+                    clamped = True
+            else:
+                if speed < 0.25 or speed > 4.0:
+                    raise ValueError(
+                        f"required speed {raw_speed:.4f} outside [0.25, 4.0]"
+                    )
+            old_speed = clip.speed
+            old_end = clip.end
+            clip.speed = float(speed)
+            return {
+                "clip_id": clip_id,
+                "end_frame": end_frame,
+                "speed": {"from": old_speed, "to": clip.speed},
+                "end": {"from": old_end, "to": clip.end},
+                "duration_frames": clip.timeline_duration_frames,
+                "raw_speed": round(raw_speed, 6),
+                "clamped": clamped,
+                "agent_note": "Neighbors not moved. Overlap with next clip is rejected on export.",
+            }
+
+    def replace_edit(
+        self,
+        clip_id: str,
+        media_id: str,
+        *,
+        mode: str = "stretch",
+    ) -> dict[str, Any]:
+        """Replace a clip's media while keeping timeline start (and duration when possible).
+
+        mode:
+          - stretch: full new media, rate-stretch to previous timeline duration
+          - trim_end: use new media from 0 for previous duration (at 1×; clamp)
+          - trim_start: use tail of new media for previous duration
+          - full: full new media at 1× (timeline footprint may change)
+        """
+        if mode not in ("stretch", "trim_end", "trim_start", "full"):
+            raise ValueError(
+                "mode must be stretch|trim_end|trim_start|full"
+            )
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            new_media = self.project.media_by_id(media_id)
+            if track.kind == "video" and new_media.kind == "audio":
+                raise ValueError("cannot replace video-track clip with audio media")
+            if track.kind == "audio" and new_media.kind == "image":
+                raise ValueError("cannot replace audio-track clip with image media")
+            old = {
+                "media": clip.media,
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+                "speed": clip.speed,
+                "end": clip.end,
+            }
+            target_dur = clip.timeline_duration_frames
+            max_out = max(1, new_media.duration_frames)
+            clip.media = new_media.id
+            if mode == "full":
+                clip.src_in = 0
+                clip.src_out = max_out
+                clip.speed = 1.0
+            elif mode == "trim_end":
+                clip.speed = 1.0
+                clip.src_in = 0
+                clip.src_out = min(max_out, max(1, target_dur))
+            elif mode == "trim_start":
+                clip.speed = 1.0
+                take = min(max_out, max(1, target_dur))
+                clip.src_out = max_out
+                clip.src_in = max(0, max_out - take)
+            else:  # stretch
+                clip.src_in = 0
+                clip.src_out = max_out
+                if target_dur <= 0:
+                    clip.speed = 1.0
+                else:
+                    speed = max_out / float(target_dur)
+                    if speed < 0.25:
+                        speed = 0.25
+                    elif speed > 4.0:
+                        speed = 4.0
+                    clip.speed = float(speed)
+            return {
+                "clip_id": clip_id,
+                "mode": mode,
+                "media_id": new_media.id,
+                "from": old,
+                "to": {
+                    "media": clip.media,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "speed": clip.speed,
+                    "end": clip.end,
+                },
+                "track_id": track.id,
+                "agent_note": "Timeline start unchanged. stretch keeps prior duration when possible.",
+            }
+
+    def copy_to_track(
+        self,
+        clip_id: str,
+        track_id: str,
+        *,
+        start: int | None = None,
+        copy_effects: bool = True,
+        copy_link: bool = False,
+    ) -> dict[str, Any]:
+        """Clone a clip onto another same-kind track (new clip id).
+
+        start=None keeps the same timeline start. Does not remove the source.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            src_track, clip = self._find_clip_and_track(clip_id)
+            dest = self.project.track_by_id(track_id)
+            if dest.locked:
+                raise ValueError(f"track {dest.id} is locked")
+            if dest.kind != src_track.kind:
+                raise ValueError(
+                    f"track kind mismatch: source {src_track.kind} vs dest {dest.kind}"
+                )
+            place_at = clip.start if start is None else int(start)
+            if place_at < 0:
+                raise ValueError("start must be >= 0")
+            media = self.project.media_by_id(clip.media)
+            nc = self.project.add_clip(
+                dest, media, place_at, clip.src_in, clip.src_out,
+            )
+            nc.speed = clip.speed
+            if copy_effects:
+                nc.effects = [dict(e) for e in (clip.effects or [])]
+            if clip.position:
+                nc.position = dict(clip.position)
+            nc.muted = bool(clip.muted)
+            nc.name = clip.name
+            nc.color = clip.color
+            if copy_link and clip.link_group:
+                nc.link_group = clip.link_group
+            if clip.transition_in:
+                nc.transition_in = dict(clip.transition_in)
+            return {
+                "from_clip_id": clip_id,
+                "clip_id": nc.id,
+                "track_id": dest.id,
+                "start": nc.start,
+                "end": nc.end,
+                "agent_note": "Source clip unchanged. Check overlaps on dest track.",
+            }
+
+    def rename_clips(
+        self,
+        pattern: str,
+        clip_ids: list[str] | None = None,
+        *,
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Batch-rename clips. Tokens: {n} {nn} {name} {media} {id} {track}.
+
+        clip_ids=None renames all (optionally filtered by track_id), ordered
+        by track order then start. {n}=1-based index, {nn}=zero-padded 2-digit.
+        """
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise ValueError("pattern must be non-empty")
+        with self._mutate():
+            targets: list[tuple[Any, Any]] = []  # (track, clip)
+            if clip_ids is not None:
+                for cid in dict.fromkeys(clip_ids):
+                    tr, cl = self._find_clip_and_track(cid)
+                    if track_id is not None and tr.id != track_id:
+                        continue
+                    if tr.locked:
+                        raise ValueError(f"track {tr.id} is locked")
+                    targets.append((tr, cl))
+            else:
+                for tr in self.project.tracks:
+                    if track_id is not None and tr.id != track_id:
+                        continue
+                    if tr.locked:
+                        continue
+                    for cl in tr.clips_in_order():
+                        targets.append((tr, cl))
+            renamed: list[dict[str, Any]] = []
+            for i, (tr, cl) in enumerate(targets, start=1):
+                media = self.project.media_by_id(cl.media)
+                base = Path(media.path).stem if media.path else media.id
+                old = cl.name
+                name = (
+                    pattern
+                    .replace("{nn}", f"{i:02d}")
+                    .replace("{n}", str(i))
+                    .replace("{name}", old or base)
+                    .replace("{media}", base)
+                    .replace("{id}", cl.id)
+                    .replace("{track}", tr.name or tr.id)
+                )
+                cl.name = name
+                renamed.append({
+                    "clip_id": cl.id,
+                    "from": old,
+                    "to": name,
+                })
+            return {
+                "pattern": pattern,
+                "count": len(renamed),
+                "renamed": renamed,
+            }
+
+    def import_edl(
+        self,
+        text: str | None = None,
+        *,
+        path: str | Path | None = None,
+        track_id: str | None = None,
+        replace_track: bool = False,
+        media_map: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Import a simple CMX-style EDL (pair of export_edl).
+
+        Matches reel names to project media by basename stem (or media_map
+        reel→media_id). Places events on the first video track (or track_id).
+        replace_track=True clears that track first.
+        """
+        if text is None and path is None:
+            raise ValueError("pass text= or path=")
+        if text is None:
+            text = Path(path).read_text(encoding="utf-8")
+        assert text is not None
+        # Event line: 001  REELNAME V     C        src_in src_out rec_in rec_out
+        import re
+        event_re = re.compile(
+            r"^\s*(\d+)\s+(\S+)\s+V\s+C\s+"
+            r"(\d{1,2}:\d{2}:\d{2}:\d{2})\s+"
+            r"(\d{1,2}:\d{2}:\d{2}:\d{2})\s+"
+            r"(\d{1,2}:\d{2}:\d{2}:\d{2})\s+"
+            r"(\d{1,2}:\d{2}:\d{2}:\d{2})\s*$",
+            re.IGNORECASE,
+        )
+        name_re = re.compile(r"^\s*\*\s*FROM CLIP NAME:\s*(.+)\s*$", re.IGNORECASE)
+        events: list[dict[str, Any]] = []
+        pending_name: str | None = None
+        # Collect in reverse association: name lines follow event
+        raw_events: list[dict[str, Any]] = []
+        for line in text.splitlines():
+            m = event_re.match(line)
+            if m:
+                raw_events.append({
+                    "event": int(m.group(1)),
+                    "reel": m.group(2),
+                    "src_in_tc": m.group(3),
+                    "src_out_tc": m.group(4),
+                    "rec_in_tc": m.group(5),
+                    "rec_out_tc": m.group(6),
+                    "clip_name": None,
+                })
+                continue
+            nm = name_re.match(line)
+            if nm and raw_events:
+                raw_events[-1]["clip_name"] = nm.group(1).strip()
+
+        # Same reel recipe as export_edl (basename[:8] alnum/underscore).
+        def _reel_key(s: str) -> str:
+            base = (s or "").split("/")[-1].split("\\")[-1]
+            key = "".join(ch if ch.isalnum() else "_" for ch in base[:8]).upper()
+            return key or "AX"
+
+        media_by_reel: dict[str, Any] = {}
+        for media in self.project.media:
+            base = (media.path or "").split("/")[-1].split("\\")[-1]
+            media_by_reel.setdefault(_reel_key(base), media)
+            # stem-only fallback for human reels
+            stem = Path(base).stem.upper()
+            media_by_reel.setdefault(
+                "".join(ch if ch.isalnum() else "_" for ch in stem)[:8] or "AX",
+                media,
+            )
+        if media_map:
+            for reel, mid in media_map.items():
+                media_by_reel[_reel_key(reel)] = self.project.media_by_id(mid)
+                media_by_reel[str(reel).upper()[:8]] = self.project.media_by_id(mid)
+
+        with self._mutate():
+            if track_id is None:
+                vtracks = [t for t in self.project.tracks if t.kind == "video"]
+                if not vtracks:
+                    track = self.project.add_track("video")
+                else:
+                    track = vtracks[0]
+            else:
+                track = self.project.track_by_id(track_id)
+                if track.kind != "video":
+                    raise ValueError("import_edl places on a video track")
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            if replace_track:
+                track.clips.clear()
+
+            placed: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            for ev in raw_events:
+                reel_k = _reel_key(ev["reel"])
+                media = media_by_reel.get(reel_k)
+                if media is None:
+                    # try clip name path stem
+                    cn = ev.get("clip_name") or ""
+                    media = media_by_reel.get(_reel_key(cn))
+                if media is None:
+                    skipped.append({**ev, "reason": "no media match for reel"})
+                    continue
+                src_in = int(self.tc_to_frames(ev["src_in_tc"])["frame"])
+                src_out = int(self.tc_to_frames(ev["src_out_tc"])["frame"])
+                rec_in = int(self.tc_to_frames(ev["rec_in_tc"])["frame"])
+                rec_out = int(self.tc_to_frames(ev["rec_out_tc"])["frame"])
+                if src_out <= src_in:
+                    skipped.append({**ev, "reason": "empty source range"})
+                    continue
+                max_out = max(1, media.duration_frames)
+                src_in = max(0, min(src_in, max_out - 1))
+                src_out = max(src_in + 1, min(src_out, max_out))
+                # Prefer record duration when source was rate-stretched on export
+                rec_dur = max(1, rec_out - rec_in)
+                clip = self.project.add_clip(
+                    track, media, rec_in, src_in, src_out,
+                )
+                src_len = clip.duration_frames
+                if src_len > 0 and rec_dur != src_len:
+                    speed = src_len / float(rec_dur)
+                    if 0.25 <= speed <= 4.0:
+                        clip.speed = float(speed)
+                if ev.get("clip_name"):
+                    # Prefer basename if path-like
+                    cn = ev["clip_name"]
+                    clip.name = Path(cn).name if ("/" in cn or "\\" in cn) else cn
+                placed.append({
+                    "event": ev["event"],
+                    "clip_id": clip.id,
+                    "media_id": media.id,
+                    "start": clip.start,
+                    "end": clip.end,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                })
+            return {
+                "track_id": track.id,
+                "placed": placed,
+                "count": len(placed),
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+                "replace_track": replace_track,
+                "agent_note": "Simple CMX import; media must already be in the project bin.",
+            }
 
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.

@@ -372,6 +372,11 @@
       <div class="row">
         <button type="button" class="secondary" id="btnClipInfo" disabled>Clip info</button>
         <button type="button" class="secondary" id="btnExportEdl">Export EDL</button>
+        <button type="button" class="secondary" id="btnFitFill" disabled title="Stretch to next clip / Out">Fit fill</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnCopyTrack" disabled>Copy→V2</button>
+        <button type="button" class="secondary" id="btnRenameShots" disabled>Rename Shot{nn}</button>
       </div>
       <label>Search clips</label>
       <div class="row">
@@ -381,6 +386,9 @@
       <label>Import markers (YouTube)</label>
       <textarea id="markerImport" placeholder="0:00 Intro&#10;1:23 Chapter" style="min-height:40px"></textarea>
       <button type="button" class="secondary" id="btnImportMarks">Import marks</button>
+      <label>Import EDL (CMX text)</label>
+      <textarea id="edlImport" placeholder="paste EDL…" style="min-height:40px"></textarea>
+      <button type="button" class="secondary" id="btnImportEdl">Import EDL</button>
       <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
@@ -844,7 +852,7 @@
         'btnSlideL','btnSlideR','btnStretchIO','moveTrackId','btnMoveTrack',
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
-        'btnJCut','btnLCut','btnClipInfo',
+        'btnJCut','btnLCut','btnClipInfo','btnFitFill','btnCopyTrack','btnRenameShots',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2335,6 +2343,71 @@
         renderTimeline(tv);
         setDirty(true);
         log('imported markers n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnFitFill').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const outEl = document.getElementById('outPoint');
+        let end_frame = null;
+        if (outEl && outEl.value !== '' && !isNaN(+outEl.value)) end_frame = +outEl.value;
+        const r = await api('/api/clip/fit_to_fill', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, end_frame, clamp: true }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('fit_to_fill speed=' + (r.speed && r.speed.to) + ' end=' + (r.end && r.end.to));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnCopyTrack').onclick = async () => {
+      if (!selectedClipId || !timeline) return;
+      try {
+        const vtracks = (timeline.tracks || []).filter(t => t.kind === 'video');
+        let dest = null;
+        if (vtracks.length >= 2) dest = vtracks[1].id;
+        else {
+          const tr = await api('/api/track?kind=video', { method: 'POST' });
+          dest = tr.id;
+          const tv = await api('/api/project/timeline');
+          renderTimeline(tv);
+        }
+        if (!dest) { log('no dest video track'); return; }
+        const r = await api('/api/clip/copy_to_track', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, track_id: dest }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('copy_to_track → ' + r.clip_id + ' on ' + dest);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnRenameShots').onclick = async () => {
+      const ids = selectedIds && selectedIds.size
+        ? Array.from(selectedIds)
+        : (selectedClipId ? [selectedClipId] : null);
+      if (!ids || !ids.length) { log('select clips first'); return; }
+      try {
+        const r = await api('/api/clips/rename', {
+          method: 'POST',
+          body: JSON.stringify({ pattern: 'Shot {nn}', clip_ids: ids }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('renamed n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnImportEdl').onclick = async () => {
+      const text = document.getElementById('edlImport').value || '';
+      if (!text.trim()) { log('paste EDL first'); return; }
+      try {
+        const r = await api('/api/import/edl', {
+          method: 'POST',
+          body: JSON.stringify({ text, replace_track: false }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('import EDL placed=' + r.count + ' skipped=' + (r.skipped_count || 0));
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnZoomFit').onclick = () => {

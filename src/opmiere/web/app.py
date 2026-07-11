@@ -1553,6 +1553,108 @@ def clips_search(body: SearchClipsBody) -> dict[str, Any]:
     )
 
 
+class ClipsInRangeBody(BaseModel):
+    start_frame: int
+    end_frame: int
+    track_id: str | None = None
+    kind: str | None = None
+    partial: bool = True
+
+
+class FitToFillBody(BaseModel):
+    clip_id: str
+    end_frame: int | None = None
+    clamp: bool = True
+
+
+class ReplaceEditBody(BaseModel):
+    clip_id: str
+    media_id: str
+    mode: str = "stretch"
+
+
+class CopyToTrackBody(BaseModel):
+    clip_id: str
+    track_id: str
+    start: int | None = None
+    copy_effects: bool = True
+    copy_link: bool = False
+
+
+class RenameClipsBody(BaseModel):
+    pattern: str
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+
+
+class ImportEdlBody(BaseModel):
+    text: str | None = None
+    path: str | None = None
+    track_id: str | None = None
+    replace_track: bool = False
+    media_map: dict[str, str] | None = None
+
+
+@app.post("/api/clips/in_range")
+def clips_in_range_api(body: ClipsInRangeBody) -> dict[str, Any]:
+    return _ed().clips_in_range(
+        body.start_frame,
+        body.end_frame,
+        track_id=body.track_id,
+        kind=body.kind,
+        partial=body.partial,
+    )
+
+
+@app.post("/api/clip/fit_to_fill")
+def clip_fit_to_fill(body: FitToFillBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.fit_to_fill(body.clip_id, end_frame=body.end_frame, clamp=body.clamp)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/replace_edit")
+def clip_replace_edit(body: ReplaceEditBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.replace_edit(body.clip_id, body.media_id, mode=body.mode)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/copy_to_track")
+def clip_copy_to_track(body: CopyToTrackBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.copy_to_track(
+        body.clip_id,
+        body.track_id,
+        start=body.start,
+        copy_effects=body.copy_effects,
+        copy_link=body.copy_link,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/rename")
+def clips_rename(body: RenameClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.rename_clips(
+        body.pattern, clip_ids=body.clip_ids, track_id=body.track_id,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/import/edl")
+def import_edl_api(body: ImportEdlBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.import_edl(
+        body.text,
+        path=body.path,
+        track_id=body.track_id,
+        replace_track=body.replace_track,
+        media_map=body.media_map,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/clip/copy_attributes")
 def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
     return _ed().copy_attributes(body.clip_id)

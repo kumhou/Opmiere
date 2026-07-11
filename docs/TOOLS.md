@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.2.20)
+# Opmiere tool surface (0.2.21)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -100,6 +100,12 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `describe_clip` / `search_clips` | clip card + search by name/path |
 | `import_markers` | YouTube chapters / CSV → markers |
 | `export_edl` | simple CMX EDL (base video track) |
+| `import_edl` | CMX EDL → timeline (media already in bin) |
+| `fit_to_fill` | rate-stretch to next clip or end_frame |
+| `replace_edit` | swap media; stretch/trim/full modes |
+| `copy_to_track` | clone clip onto another same-kind track |
+| `rename_clips` | batch rename tokens `{n}` `{nn}` `{media}`… |
+| `clips_in_range` | clips overlapping [start, end) |
 | `trim_to_playhead(..., follow_links=)` | Q/W trim linked A/V peers |
 | `nudge_clips` / `delete_clips` `follow_links` | move/delete expand link groups |
 | `frames_to_tc` / `tc_to_frames` | HH:MM:SS:FF helpers |

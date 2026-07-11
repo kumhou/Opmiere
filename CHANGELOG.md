@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.21 — 2026-07-11
+
+### Added
+- **`fit_to_fill`**: rate-stretch clip to next clip start or explicit end_frame
+- **`replace_edit`**: swap media keeping timeline start (`stretch|trim_end|trim_start|full`)
+- **`copy_to_track`**: clone clip onto another same-kind track
+- **`rename_clips`**: batch rename with `{n}` `{nn}` `{name}` `{media}` `{id}` `{track}`
+- **`clips_in_range`**: list clips overlapping a timeline range
+- **`import_edl`**: CMX-style EDL import (round-trip with `export_edl`)
+- Web: Fit fill, Copy→V2, Rename Shot{nn}, Import EDL
+
 ## 0.2.20 — 2026-07-11
 
 ### Added
