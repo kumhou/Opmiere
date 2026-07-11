@@ -2,7 +2,8 @@
 
 > **PROJECT:** Opmiere  
 > **Page:** editor-shell (main NLE window)  
-> **Overrides** `design-system/opmiere/MASTER.md`
+> **Overrides** `design-system/opmiere/MASTER.md`  
+> **Implemented:** 0.2.29 UI shell v1 in `src/opmiere/web/static/index.html`
 
 ---
 

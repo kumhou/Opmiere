@@ -1,602 +1,584 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
+
+<!DOCTYPE html>
+
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Opmiere</title>
-  <style>
-    :root {
-      --bg:#0f1115; --panel:#1a1d24; --border:#2a2f3a; --text:#e8eaed;
-      --muted:#9aa0a6; --acc:#7c9cff; --ok:#3dd68c; --bad:#ff7b72;
-      --vclip:#3d5a80; --aclip:#2d6a4f; --play:#ff6b6b;
-    }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
-    header {
-      padding:10px 16px; border-bottom:1px solid var(--border);
-      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-    }
-    header h1 { font-size:17px; margin:0; font-weight:600; }
-    header .sub { color:var(--muted); font-size:12px; }
-    main {
-      display:grid;
-      grid-template-columns: 280px minmax(0,1fr) 300px;
-      height: calc(100vh - 48px);
-    }
-    section { border-right:1px solid var(--border); padding:12px 14px; overflow:auto; }
-    section:last-child { border-right:none; }
-    h2 {
-      font-size:11px; text-transform:uppercase; letter-spacing:0.08em;
-      color:var(--muted); margin:14px 0 8px;
-    }
-    h2:first-child { margin-top:0; }
-    label { display:block; font-size:11px; color:var(--muted); margin:6px 0 3px; }
-    input, textarea, select, button {
-      width:100%; padding:7px 9px; border-radius:7px; border:1px solid var(--border);
-      background:#12151b; color:var(--text); font-size:12px;
-    }
-    textarea { min-height:52px; resize:vertical; }
-    button {
-      cursor:pointer; background:var(--acc); color:#0b0d12; border:none;
-      font-weight:600; margin-top:6px;
-    }
-    button.secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
-    button.danger { background:transparent; color:var(--bad); border:1px solid var(--bad); }
-    button:disabled { opacity:0.45; cursor:not-allowed; }
-    .row { display:flex; gap:6px; }
-    .row > * { flex:1; }
-    .pill {
-      display:inline-block; padding:2px 8px; border-radius:999px;
-      background:#232833; font-size:11px; color:var(--ok);
-    }
-    .pill.bad { color:var(--bad); }
-    #log {
-      font-family: ui-monospace, Consolas, monospace; font-size:10px; white-space:pre-wrap;
-      background:#0c0e12; border:1px solid var(--border); border-radius:7px;
-      padding:8px; min-height:72px; max-height:120px; overflow:auto; color:var(--muted);
-    }
-    #doctor {
-      font-size:10px; font-family:ui-monospace,Consolas,monospace; color:var(--muted);
-      white-space:pre-wrap; background:#0c0e12; border:1px solid var(--border);
-      border-radius:7px; padding:8px; max-height:100px; overflow:auto;
-    }
-    #playerWrap {
-      background:#000; border:1px solid var(--border); border-radius:10px;
-      overflow:hidden; position:relative;
-    }
-    #player {
-      display:block; width:100%; max-height:42vh; background:#000; outline:none;
-    }
-    #playerPlaceholder {
-      color:var(--muted); font-size:12px; padding:48px 16px; text-align:center;
-    }
-    .tc {
-      font-family: ui-monospace, Consolas, monospace; font-size:12px; color:var(--acc);
-    }
-    #ruler {
-      position:relative; height:22px; margin-top:10px;
-      background:#12151b; border:1px solid var(--border); border-radius:4px;
-      font-size:9px; color:var(--muted); user-select:none; cursor:pointer;
-    }
-    #ruler .tick { position:absolute; top:2px; transform:translateX(-50%); white-space:nowrap; }
-    #ruler .marker {
-      position:absolute; top:0; bottom:0; width:2px; background:#ffb347;
-      transform:translateX(-50%); cursor:pointer; z-index:2;
-    }
-    #ruler .marker::after {
-      content:attr(data-label); position:absolute; top:0; left:3px;
-      font-size:8px; color:#ffb347; white-space:nowrap; max-width:60px; overflow:hidden;
-    }
-    #tracks {
-      position:relative; margin-top:6px; min-height:120px;
-      background:var(--panel); border:1px solid var(--border); border-radius:10px;
-      padding:8px 8px 8px 0; overflow-x:auto;
-    }
-    #tracksInner { min-width:100%; position:relative; }
-    .io-band {
-      position:absolute; top:0; bottom:0; background:rgba(124,156,255,0.12);
-      border-left:1px solid var(--acc); border-right:1px solid var(--acc);
-      pointer-events:none; z-index:1;
-    }
-    .track-row { display:flex; align-items:stretch; margin-bottom:6px; min-height:36px; }
-    .track-name {
-      width:72px; flex-shrink:0; font-size:10px; color:var(--muted);
-      padding:4px 6px; display:flex; align-items:center;
-    }
-    .track-lane {
-      position:relative; flex:1; height:44px; background:#12151b;
-      border-radius:4px; border:1px solid var(--border); min-width:200px;
-    }
-    .tclip canvas.wave {
-      position:absolute; left:0; top:0; width:100%; height:100%;
-      pointer-events:none; opacity:0.55;
-    }
-    .bin-item img.thumb {
-      width:64px; height:36px; object-fit:cover; border-radius:4px;
-      background:#000; float:left; margin-right:8px;
-    }
-    .tclip {
-      position:absolute; top:3px; bottom:3px; border-radius:4px;
-      border:1px solid rgba(255,255,255,0.12); font-size:10px;
-      padding:2px 10px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-      cursor:grab; color:#e8eaed; user-select:none; touch-action:none;
-    }
-    .tclip.video { background:var(--vclip); }
-    .tclip.audio { background:var(--aclip); }
-    .tclip.selected { outline:2px solid var(--acc); z-index:2; }
-    .tclip.multisel { outline:2px solid #3dd68c; z-index:2; box-shadow:0 0 0 1px #3dd68c; }
-    #selBar {
-      font-size:11px; color:var(--muted); margin:6px 0;
-      display:flex; flex-wrap:wrap; gap:6px; align-items:center;
-    }
-    #selBar button { margin-top:0; width:auto; min-width:auto; padding:4px 8px; }
-    .tclip.dragging { opacity:0.85; cursor:grabbing; z-index:4; }
-    .tclip .hL, .tclip .hR {
-      position:absolute; top:0; bottom:0; width:7px; cursor:ew-resize;
-      background:transparent; z-index:3;
-    }
-    .tclip .hL { left:0; border-radius:4px 0 0 4px; }
-    .tclip .hR { right:0; border-radius:0 4px 4px 0; }
-    .tclip:hover .hL, .tclip:hover .hR,
-    .tclip.selected .hL, .tclip.selected .hR {
-      background:rgba(255,255,255,0.22);
-    }
-    .dragHint { font-size:10px; color:var(--muted); margin:4px 0 0; }
-    #playhead {
-      position:absolute; top:0; bottom:0; width:2px; background:var(--play);
-      z-index:5; pointer-events:none; left:0;
-    }
-    #playhead::before {
-      content:""; position:absolute; top:-4px; left:-4px;
-      border-left:5px solid transparent; border-right:5px solid transparent;
-      border-top:6px solid var(--play);
-    }
-    #binList { font-size:11px; }
-    .bin-item {
-      padding:6px 8px; border:1px solid var(--border); border-radius:6px;
-      margin-bottom:6px; background:#12151b; cursor:default;
-    }
-    .bin-item .meta { color:var(--muted); font-size:10px; margin-top:2px; }
-    #searchHits, #fillerBox, #reviewBox { font-size:11px; color:var(--muted); }
-    #searchHits .hit {
-      border-left:2px solid var(--acc); padding:4px 8px; margin:4px 0;
-      background:#12151b; cursor:pointer; border-radius:0 4px 4px 0;
-    }
-    .steps { font-size:11px; line-height:1.45; }
-    .steps li { margin-bottom:4px; }
-    #sheetWrap img { max-width:100%; border-radius:8px; border:1px solid var(--border); }
-    .transport { display:flex; gap:6px; align-items:center; margin-top:8px; }
-    .transport button { margin-top:0; flex:0 0 auto; width:auto; min-width:64px; }
-    .transport input[type=range] { flex:1; }
-  </style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Opmiere</title>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  --color-primary: #7C9CFF;
+  --color-on-primary: #0B0F14;
+  --color-secondary: #5B6B8C;
+  --color-accent: #F0B429;
+  --color-background: #0F1419;
+  --color-surface: #1A222C;
+  --color-surface-raised: #243040;
+  --color-foreground: #E8EEF4;
+  --color-muted: #8B98A8;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-destructive: #F07178;
+  --color-success: #3DD68C;
+  --color-warning: #E6A23C;
+  --color-ring: #7C9CFF;
+  --color-clip: #3D5A80;
+  --color-track-audio: #2D6A4F;
+  --font-ui: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --duration-fast: 120ms;
+  --duration: 180ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --topbar-h: 40px;
+  --bg: var(--color-background);
+  --panel: var(--color-surface);
+  --border: var(--color-border);
+  --text: var(--color-foreground);
+  --muted: var(--color-muted);
+  --acc: var(--color-primary);
+  --ok: var(--color-success);
+  --bad: var(--color-destructive);
+  --vclip: var(--color-clip);
+  --aclip: var(--color-track-audio);
+  --play: var(--color-accent);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  overflow: hidden;
+}
+button, input, select, textarea { font-family: inherit; }
+#topbar {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+#topbar .brand {
+  font-size: 13px; font-weight: 600;
+  display: flex; align-items: baseline; gap: 8px; flex-shrink: 0;
+}
+#topbar .brand .sub { color: var(--color-muted); font-weight: 400; font-size: 11px; }
+#topbar .spacer { flex: 1; min-width: 8px; }
+#topbar .top-actions { display: flex; gap: 4px; align-items: center; }
+.pill {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--color-surface-raised);
+  font-size: 10px; color: var(--color-success);
+  border: 1px solid var(--color-border);
+  white-space: nowrap; flex-shrink: 0;
+}
+.pill.bad { color: var(--color-destructive); }
+.tc {
+  font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums;
+  color: var(--color-primary); min-width: 118px; flex-shrink: 0;
+}
+#app {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(160px, 36vh) minmax(220px, 1fr);
+  grid-template-areas:
+    "media preview inspector"
+    "media timeline inspector";
+  height: calc(100vh - var(--topbar-h));
+  overflow: hidden;
+}
+#panel-media { grid-area: media; }
+#panel-preview { grid-area: preview; }
+#panel-inspector { grid-area: inspector; }
+#panel-timeline { grid-area: timeline; }
+.panel {
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#panel-timeline { border-top: 1px solid var(--color-border); background: var(--color-background); }
+#panel-inspector { border-right: none; border-left: 1px solid var(--color-border); }
+.panel-body { padding: 8px 10px 12px; overflow: auto; flex: 1; min-height: 0; }
+.panel-head {
+  height: 28px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.panel-head h2 {
+  margin: 0; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+h2 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--color-muted); margin: 12px 0 6px; font-weight: 600;
+}
+h2:first-child { margin-top: 0; }
+label { display: block; font-size: 10px; color: var(--color-muted); margin: 6px 0 2px; }
+input, textarea, select, button {
+  width: 100%; padding: 5px 8px; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-background); color: var(--color-foreground);
+  font-size: 11px;
+}
+textarea { min-height: 44px; resize: vertical; }
+button {
+  cursor: pointer; background: var(--color-primary); color: var(--color-on-primary);
+  border: none; font-weight: 600; margin-top: 4px;
+}
+button:hover:not(:disabled) { filter: brightness(1.06); }
+button.secondary {
+  background: transparent; color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+}
+button.secondary:hover:not(:disabled) { background: var(--color-surface-raised); }
+button.danger {
+  background: transparent; color: var(--color-destructive);
+  border: 1px solid var(--color-destructive);
+}
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--color-ring); outline-offset: 1px;
+}
+.row { display: flex; gap: 4px; flex-wrap: wrap; }
+.row > * { flex: 1; min-width: 0; }
+.row > button { margin-top: 4px; }
+#topbar button, .transport button, #selBar button {
+  width: auto; min-width: auto; margin-top: 0; padding: 4px 8px; font-size: 11px;
+}
+#log {
+  font-family: var(--font-mono); font-size: 10px; white-space: pre-wrap;
+  background: var(--color-background); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); padding: 6px; min-height: 48px; max-height: 88px;
+  overflow: auto; color: var(--color-muted);
+}
+#doctor {
+  font-size: 10px; font-family: var(--font-mono); color: var(--color-muted);
+  white-space: pre-wrap; background: var(--color-background);
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  padding: 6px; max-height: 90px; overflow: auto;
+}
+#previewStack {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  padding: 8px 10px;
+}
+#playerWrap {
+  background: #000; border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); overflow: hidden; position: relative;
+  flex: 1; min-height: 100px; display: flex; align-items: center; justify-content: center;
+}
+#player { display: block; width: 100%; max-height: 100%; background: #000; outline: none; }
+#playerPlaceholder { color: var(--color-muted); font-size: 12px; padding: 32px 16px; text-align: center; }
+.transport { display: flex; gap: 4px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.transport input[type=range] { flex: 1; min-width: 80px; }
+#timelineChrome {
+  display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 6px 10px 8px;
+}
+#timelineChrome .tl-main { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+#ruler {
+  position: relative; height: 22px; margin-top: 2px;
+  background: var(--color-background); border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); font-size: 9px; color: var(--color-muted);
+  user-select: none; cursor: pointer; flex-shrink: 0;
+}
+#ruler .tick { position: absolute; top: 2px; transform: translateX(-50%); white-space: nowrap; }
+#ruler .marker {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: var(--color-accent);
+  transform: translateX(-50%); cursor: pointer; z-index: 2;
+  box-shadow: 0 0 4px rgba(240, 180, 41, 0.55);
+}
+#ruler .marker::after {
+  content: attr(data-label); position: absolute; top: 0; left: 3px;
+  font-size: 8px; color: var(--color-accent); white-space: nowrap;
+  max-width: 60px; overflow: hidden;
+}
+#tracks {
+  position: relative; margin-top: 4px; flex: 1; min-height: 120px;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: 6px 6px 6px 0; overflow: auto;
+}
+#tracksInner { min-width: 100%; position: relative; }
+.io-band {
+  position: absolute; top: 0; bottom: 0; background: rgba(124, 156, 255, 0.12);
+  border-left: 1px solid var(--color-primary); border-right: 1px solid var(--color-primary);
+  pointer-events: none; z-index: 1;
+}
+.track-row { display: flex; align-items: stretch; margin-bottom: 4px; min-height: 36px; }
+.track-name {
+  width: 72px; flex-shrink: 0; font-size: 10px; color: var(--color-muted);
+  padding: 4px 6px; display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+}
+.track-lane {
+  position: relative; flex: 1; height: 40px; background: var(--color-background);
+  border-radius: var(--radius-sm); border: 1px solid var(--color-border); min-width: 200px;
+}
+.tclip canvas.wave {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  pointer-events: none; opacity: 0.55;
+}
+.bin-item img.thumb {
+  width: 64px; height: 36px; object-fit: cover; border-radius: var(--radius-sm);
+  background: #000; float: left; margin-right: 8px;
+}
+.tclip {
+  position: absolute; top: 3px; bottom: 3px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(255,255,255,0.12); font-size: 10px;
+  padding: 2px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  cursor: grab; color: var(--color-foreground); user-select: none; touch-action: none;
+}
+.tclip.video { background: var(--color-clip); }
+.tclip.audio { background: var(--color-track-audio); }
+.tclip.selected { outline: 2px solid var(--color-primary); z-index: 2; }
+.tclip.multisel { outline: 2px solid var(--color-success); z-index: 2; box-shadow: 0 0 0 1px var(--color-success); }
+#selBar {
+  font-size: 11px; color: var(--color-muted); margin: 6px 0;
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+#selBar button { margin-top: 0; width: auto; min-width: auto; padding: 3px 7px; }
+.tclip.dragging { opacity: 0.85; cursor: grabbing; z-index: 4; }
+.tclip .hL, .tclip .hR {
+  position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize;
+  background: transparent; z-index: 3;
+}
+.tclip .hL { left: 0; border-radius: 4px 0 0 4px; }
+.tclip .hR { right: 0; border-radius: 0 4px 4px 0; }
+.tclip:hover .hL, .tclip:hover .hR,
+.tclip.selected .hL, .tclip.selected .hR { background: rgba(255,255,255,0.22); }
+.dragHint { font-size: 10px; color: var(--color-muted); margin: 4px 0 0; }
+#playhead {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: var(--color-accent);
+  z-index: 5; pointer-events: none; left: 0;
+  box-shadow: 0 0 6px rgba(240, 180, 41, 0.65);
+}
+#playhead::before {
+  content: ""; position: absolute; top: -4px; left: -4px;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--color-accent);
+}
+#binList { font-size: 11px; }
+.bin-item {
+  padding: 6px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  margin-bottom: 6px; background: var(--color-background); cursor: default;
+}
+.bin-item .meta { color: var(--color-muted); font-size: 10px; margin-top: 2px; }
+#searchHits, #fillerBox, #reviewBox { font-size: 11px; color: var(--color-muted); }
+#searchHits .hit {
+  border-left: 2px solid var(--color-primary); padding: 4px 8px; margin: 4px 0;
+  background: var(--color-background); cursor: pointer; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.steps { font-size: 11px; line-height: 1.45; }
+.steps li { margin-bottom: 4px; }
+#sheetWrap img { max-width: 100%; border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+details.tool-group {
+  border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  margin: 6px 0; background: var(--color-background);
+}
+details.tool-group > summary {
+  cursor: pointer; padding: 5px 8px; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted);
+  list-style: none; user-select: none;
+}
+details.tool-group > summary::-webkit-details-marker { display: none; }
+details.tool-group[open] > summary {
+  border-bottom: 1px solid var(--color-border); color: var(--color-foreground);
+}
+details.tool-group .group-body { padding: 6px 8px 8px; }
+#helpModal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  z-index: 50; align-items: center; justify-content: center;
+}
+#helpModal .help-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: 16px 20px; max-width: 440px;
+  max-height: 80vh; overflow: auto; box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+}
+@media (max-width: 1100px) {
+  #app {
+    grid-template-columns: 220px minmax(0,1fr);
+    grid-template-areas:
+      "media preview"
+      "media timeline";
+  }
+  #panel-inspector { display: none; }
+}
+</style>
 </head>
-<body>
-  <header>
-    <h1>Opmiere</h1>
-    <span class="sub">NLE shell · agent = MCP</span>
-    <span class="pill" id="status">no project</span>
-    <span class="pill" id="dirtyPill">saved</span>
-    <span class="pill" id="docPill">doctor ?</span>
-    <span class="pill" id="proxyPill">proxy ?</span>
-    <span class="tc" id="tcLabel">00:00.0 / 00:00.0</span>
-    <button type="button" class="secondary" id="btnHelp" style="width:auto;margin:0;padding:4px 10px">? 帮助</button>
-  </header>
-  <div id="helpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;align-items:center;justify-content:center">
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 20px;max-width:420px;max-height:80vh;overflow:auto">
-      <h2 style="margin-top:0">键盘</h2>
-      <div id="helpBody" style="font-size:12px;line-height:1.6"></div>
-      <button type="button" class="secondary" id="btnHelpClose">关闭</button>
-    </div>
-  </div>
-  <main>
-    <!-- LEFT: project + media bin -->
-    <section>
-      <h2>Project</h2>
-      <label>Bundle path (.opm)</label>
-      <input id="bundle" value="G:/Development/Opmiere/.opmiere_web_demo.opm" />
-      <div class="row">
-        <button type="button" id="btnCreate">Create</button>
-        <button type="button" class="secondary" id="btnOpen">Open</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnSave">Save</button>
-        <button type="button" class="secondary" id="btnUndo">Undo</button>
-        <button type="button" class="secondary" id="btnRedo">Redo</button>
-      </div>
-      <label><input type="checkbox" id="autosave" style="width:auto" /> autosave</label>
-      <label>Recent</label>
-      <select id="recent"><option value="">— recent projects —</option></select>
-      <button type="button" class="secondary" id="btnOpenRecent">Open recent</button>
-      <label>FPS / W / H</label>
-      <div class="row">
-        <input id="fps" type="number" value="30" />
-        <input id="w" type="number" value="1280" />
-        <input id="h" type="number" value="720" />
-      </div>
-      <label>Place media (single)</label>
-      <input id="media" placeholder="C:/path/to/clip.mp4" />
-      <div class="row">
-        <select id="kind"><option>video</option><option>audio</option><option>image</option></select>
-        <label style="display:flex;align-items:center;gap:4px;margin:0;font-size:11px">
-          <input type="checkbox" id="buildProxy" style="width:auto" /> asset proxy
+<body><header id="topbar"><div class="brand"><span class="">Opmiere</span><span class="sub">NLE shell · agent = MCP</span></div>
+<span class="pill" id="status">no project</span>
+<span class="pill" id="dirtyPill">saved</span>
+<span class="pill" id="docPill">doctor ?</span>
+<span class="pill" id="proxyPill">proxy ?</span>
+<span class="tc" id="tcLabel">00:00.0 / 00:00.0</span>
+<div class="spacer"></div>
+<div class="top-actions"><button class="secondary" id="btnHelp" style="width:auto;margin:0;padding:4px 10px" type="button">? 帮助</button></div></header><div id="helpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;align-items:center;justify-content:center">
+<div class="help-card" style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 20px;max-width:420px;max-height:80vh;overflow:auto">
+<h2 style="margin-top:0">键盘</h2>
+<div id="helpBody" style="font-size:12px;line-height:1.6"></div>
+<button class="secondary" id="btnHelpClose" type="button">关闭</button>
+</div>
+</div><div id="app"><section class="panel" id="panel-media"><div class="panel-head"><h2>Media / Project</h2></div><div class="panel-body"><h2>Project</h2><label>Bundle path (.opm)</label><input id="bundle" value="G:/Development/Opmiere/.opmiere_web_demo.opm"/><div class="row">
+<button id="btnCreate" type="button">Create</button>
+<button class="secondary" id="btnOpen" type="button">Open</button>
+</div><div class="row">
+<button class="secondary" id="btnSave" type="button">Save</button>
+<button class="secondary" id="btnUndo" type="button">Undo</button>
+<button class="secondary" id="btnRedo" type="button">Redo</button>
+</div><label><input id="autosave" style="width:auto" type="checkbox"/> autosave</label><label>Recent</label><select id="recent"><option value="">— recent projects —</option></select><button class="secondary" id="btnOpenRecent" type="button">Open recent</button><label>FPS / W / H</label><div class="row">
+<input id="fps" type="number" value="30"/>
+<input id="w" type="number" value="1280"/>
+<input id="h" type="number" value="720"/>
+</div><label>Place media (single)</label><input id="media" placeholder="C:/path/to/clip.mp4"/><div class="row">
+<select id="kind"><option>video</option><option>audio</option><option>image</option></select>
+<label style="display:flex;align-items:center;gap:4px;margin:0;font-size:11px">
+<input id="buildProxy" style="width:auto" type="checkbox"/> asset proxy
         </label>
-      </div>
-      <button type="button" id="btnPlace">Place file</button>
-      <label>Batch paths (one per line, kind=auto)</label>
-      <textarea id="batchPaths" placeholder="C:/a.mp4&#10;C:/vo.wav&#10;C:/b.mp4"></textarea>
-      <button type="button" class="secondary" id="btnBatch">Place batch</button>
-      <h2>Cut template</h2>
-      <select id="cutTpl">
-        <option value="talking_head">talking_head 口播</option>
-        <option value="short_form">short_form 短视频</option>
-        <option value="interview">interview 访谈</option>
-        <option value="vlog">vlog</option>
-      </select>
-      <div class="row">
-        <button type="button" class="secondary" id="btnTplDry">Plan only</button>
-        <button type="button" id="btnTplApply">Apply template</button>
-      </div>
-      <div id="tplBox" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
-      <label>Export path</label>
-      <input id="export" value="G:/Development/Opmiere/.opmiere_web_demo_out.mp4" />
-      <label><input type="checkbox" id="norm" checked style="width:auto" /> normalize streaming</label>
-      <button type="button" id="btnExport">Export + delivery_check</button>
-      <button type="button" class="secondary" id="btnFinish">Finish delivery</button>
-      <button type="button" class="secondary" id="btnRefresh">Refresh</button>
+</div><button id="btnPlace" type="button">Place file</button><label>Batch paths (one per line, kind=auto)</label><textarea id="batchPaths" placeholder="C:/a.mp4
+C:/vo.wav
+C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place batch</button><h2>Cut template</h2><select id="cutTpl">
+<option value="talking_head">talking_head 口播</option>
+<option value="short_form">short_form 短视频</option>
+<option value="interview">interview 访谈</option>
+<option value="vlog">vlog</option>
+</select><div class="row">
+<button class="secondary" id="btnTplDry" type="button">Plan only</button>
+<button id="btnTplApply" type="button">Apply template</button>
+</div><div id="tplBox" style="font-size:11px;color:var(--muted);margin-top:6px"></div><label>Export path</label><input id="export" value="G:/Development/Opmiere/.opmiere_web_demo_out.mp4"/><label><input checked="" id="norm" style="width:auto" type="checkbox"/> normalize streaming</label><button id="btnExport" type="button">Export + delivery_check</button><button class="secondary" id="btnFinish" type="button">Finish delivery</button><button class="secondary" id="btnRefresh" type="button">Refresh</button><h2>Media bin</h2><div class="row">
+<button class="secondary" id="btnBin" type="button">Refresh bin</button>
+<button class="secondary" id="btnAllProxies" type="button">All proxies</button>
+</div><div id="binList"><p style="color:var(--muted);font-size:11px">Open a project.</p></div><h2>Log</h2><div id="log"></div></div></section><section class="panel" id="panel-preview"><div class="panel-head"><h2>Program</h2></div><div class="panel-body" style="padding:0;display:flex;flex-direction:column;min-height:0"><div id="previewStack"><div id="playerWrap">
+<div id="playerPlaceholder">Ensure timeline proxy, then play / scrub.</div>
+<video controls="" id="player" playsinline="" style="display:none"></video>
+</div><div class="transport">
+<button class="secondary" id="btnProxy" type="button">Ensure proxy</button>
+<button class="secondary" id="btnProxyForce" type="button">Rebuild</button>
+<button class="secondary" id="btnPlay" type="button">Play</button>
+<button class="secondary" id="btnJ" title="J reverse" type="button">J</button>
+<button class="secondary" id="btnK" title="K stop" type="button">K</button>
+<button class="secondary" id="btnL" title="L play/faster" type="button">L</button>
+<span class="dragHint" id="shuttleLab" style="margin:0">1×</span>
+<input id="scrub" max="10" min="0" step="0.01" type="range" value="0"/>
+</div><div class="row" style="margin-top:4px">
+<button class="secondary" id="btnPasteOw" type="button">Overwrite paste (Ctrl+Shift+V)</button>
+</div><div class="row" style="margin-top:6px">
+<button class="secondary" id="btnKeys" type="button">Keyframes</button>
+<button class="secondary" id="btnFrameStill" type="button">Still frame</button>
+</div><img alt="" id="previewImg" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;border:1px solid var(--border)"/></div></div></section><section class="panel" id="panel-inspector"><div class="panel-head"><h2>Inspector</h2></div><div class="panel-body"><details class="tool-group" open=""><summary>Clip / edit tools</summary><div class="group-body"><label>Gain dB · <span id="gainLabel">0</span></label><div class="row">
+<input disabled="" id="gainSlider" max="12" min="-24" step="0.5" type="range" value="0"/>
+<button class="secondary" disabled="" id="btnGain" style="flex:0.4" type="button">Set</button>
+</div><label>Opacity · <span id="opacityLab">1.00</span></label><div class="row">
+<input disabled="" id="opacitySlider" max="1" min="0" step="0.05" type="range" value="1"/>
+<button class="secondary" disabled="" id="btnOpacity" style="flex:0.4" type="button">Set</button>
+</div><label>Crop W×H (px)</label><div class="row">
+<input disabled="" id="cropW" min="2" step="2" type="number" value="160"/>
+<input disabled="" id="cropH" min="2" step="2" type="number" value="90"/>
+<button class="secondary" disabled="" id="btnCrop" style="flex:0.4" type="button">Crop</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnBatchBlur" type="button">Batch blur sel</button>
+<button class="secondary" disabled="" id="btnResetXform" title="R" type="button">Reset xform</button>
+</div><label>Rotate °</label><div class="row">
+<input disabled="" id="rotDeg" step="1" type="number" value="0"/>
+<button class="secondary" disabled="" id="btnRotate" style="flex:0.4" type="button">Set</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnSwap" type="button">Swap 2 sel</button>
+<button class="secondary" disabled="" id="btnLink" type="button">Link sel</button>
+<button class="secondary" disabled="" id="btnUnlink" type="button">Unlink</button>
+<button class="secondary" disabled="" id="btnSelLinked" type="button">Sel linked</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnJCut" title="Shift+J" type="button">J-cut 15f</button>
+<button class="secondary" disabled="" id="btnLCut" title="Shift+L" type="button">L-cut 15f</button>
+<button class="secondary" id="btnDupTrack" type="button">Dup track</button>
+</div><div class="row">
+<button class="secondary" id="btnStats" type="button">Stats</button>
+<button class="secondary" id="btnPurgeMedia" type="button">Purge unused media</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnClipInfo" type="button">Clip info</button>
+<button class="secondary" id="btnExportEdl" type="button">Export EDL</button>
+<button class="secondary" disabled="" id="btnFitFill" title="Stretch to next clip / Out" type="button">Fit fill</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnCopyTrack" type="button">Copy→V2</button>
+<button class="secondary" disabled="" id="btnRenameShots" type="button">Rename Shot{nn}</button>
+</div><label>Search clips</label><div class="row">
+<input id="clipSearch" placeholder="name / path / id…"/>
+<button class="secondary" id="btnClipSearch" style="flex:0.4" type="button">Find</button>
+</div><label>Import markers (YouTube)</label><textarea id="markerImport" placeholder="0:00 Intro
+1:23 Chapter" style="min-height:40px"></textarea><button class="secondary" id="btnImportMarks" type="button">Import marks</button><label>Import EDL (CMX text)</label><textarea id="edlImport" placeholder="paste EDL…" style="min-height:40px"></textarea><button class="secondary" id="btnImportEdl" type="button">Import EDL</button><div class="row">
+<button class="secondary" id="btnLiftIO" title="Lift work I/O" type="button">Lift I/O</button>
+<button class="secondary" id="btnSplitMarks" type="button">Split@marks</button>
+<button class="secondary" id="btnCutlist" type="button">Cutlist</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnColorSel" type="button">Color sel</button>
+<button class="secondary" disabled="" id="btnMatchDur" title="Match duration to 2nd selected" type="button">Match dur</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnJoin" title="Join 2 adjacent same-media" type="button">Join 2</button>
+<button class="secondary" id="btnAutoLink" type="button">Auto-link A/V</button>
+<button class="secondary" disabled="" id="btnSpeed2x" type="button">Sel 2×</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnStagger" type="button">Stagger 15f</button>
+<button class="secondary" id="btnRevTrack" type="button">Rev track</button>
+<button class="secondary" id="btnDupRange" title="Dup work I/O" type="button">Dup I/O</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnFadeSel" type="button">Fade 6f sel</button>
+<button class="secondary" id="btnClrXfade" type="button">Clr xfade</button>
+</div><div class="row">
+<button class="secondary" id="btnValidate" type="button">Validate</button>
+<button class="secondary" id="btnXfadeAll" type="button">Xfade cuts</button>
+<button class="secondary" disabled="" id="btnNameMedia" type="button">Name←media</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnSnapPrev" type="button">Snap←prev</button>
+<button class="secondary" disabled="" id="btnMoveBlock0" type="button">Block→0</button>
+<button class="secondary" id="btnExtractIO" title="Ripple extract I/O" type="button">Extract I/O</button>
+</div><div class="row">
+<button class="secondary" id="btnTrackUp" type="button">Track ↑</button>
+<button class="secondary" id="btnTrackDown" type="button">Track ↓</button>
+<button class="secondary" id="btnZoomFit" title="\\" type="button">Zoom fit</button>
+<button class="secondary" disabled="" id="btnSelTrack" title="A" type="button">Sel track</button>
+</div><label>Track rename</label><div class="row">
+<input id="trackNameIn" placeholder="V1 / Music…"/>
+<button class="secondary" id="btnTrackName" style="flex:0.4" type="button">Name</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnSubclip" type="button">Subclip I/O</button>
+<button class="secondary" id="btnHistory" type="button">History</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnTrimQ" title="Q" type="button">Trim head (Q)</button>
+<button class="secondary" disabled="" id="btnTrimW" title="W" type="button">Trim tail (W)</button>
+<button class="secondary" disabled="" id="btnClearFx" type="button">Clear FX</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnSlipL" title="," type="button">Slip −5</button>
+<button class="secondary" disabled="" id="btnSlipR" title="." type="button">Slip +5</button>
+<button class="secondary" disabled="" id="btnCopyFx" type="button">Copy FX</button>
+<button class="secondary" disabled="" id="btnPasteFx" type="button">Paste FX</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnAlignPh" type="button">Align → playhead</button>
+<button class="secondary" disabled="" id="btnRollL" type="button">Roll cut −5</button>
+<button class="secondary" disabled="" id="btnRollR" type="button">Roll cut +5</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnSlideL" title=";" type="button">Slide −5</button>
+<button class="secondary" disabled="" id="btnSlideR" title="'" type="button">Slide +5</button>
+<button class="secondary" disabled="" id="btnStretchIO" type="button">Stretch → I/O</button>
+<button class="secondary" id="btnNextMark" type="button">Next mark</button>
+</div><label>Move to track_id</label><div class="row">
+<input disabled="" id="moveTrackId" placeholder="trk_…"/>
+<button class="secondary" disabled="" id="btnMoveTrack" style="flex:0.4" type="button">Move</button>
+</div><label>Export preset</label><div class="row">
+<select id="exportPreset">
+<option value="draft">draft</option>
+<option selected="" value="streaming">streaming</option>
+<option value="youtube">youtube</option>
+<option value="broadcast">broadcast</option>
+<option value="review">review</option>
+</select>
+<button class="secondary" id="btnExportPreset" type="button">Export…</button>
+</div><div class="dragHint" id="histLab">History: —</div><button class="secondary" disabled="" id="btnClipMute" type="button">Toggle clip mute</button><label>Clip name</label><div class="row">
+<input disabled="" id="clipName" placeholder="label"/>
+<button class="secondary" disabled="" id="btnClipName" style="flex:0.4" type="button">Set</button>
+</div><div id="colorRow" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div><label>Speed · <span id="speedLab">1.00</span></label><div class="row">
+<input disabled="" id="speedSlider" max="4" min="0.25" step="0.05" type="range" value="1"/>
+<button class="secondary" disabled="" id="btnSpeed" style="flex:0.4" type="button">Set</button>
+</div><label>PiP x / y / scale (overlay)</label><div class="row">
+<input disabled="" id="pipX" max="1" min="0" step="0.05" type="number" value="0.05"/>
+<input disabled="" id="pipY" max="1" min="0" step="0.05" type="number" value="0.05"/>
+<input disabled="" id="pipS" max="1" min="0.05" step="0.05" type="number" value="0.35"/>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnPip" type="button">Set PiP</button>
+<button class="secondary" disabled="" id="btnPipClear" type="button">Full</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnFreeze" type="button">Freeze frame</button>
+<button class="secondary" disabled="" id="btnReverse" type="button">Reverse</button>
+<button class="secondary" disabled="" id="btnStabilize" type="button">Stabilize</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnCopyAttr" type="button">Copy attrs</button>
+<button class="secondary" disabled="" id="btnPasteAttr" type="button">Paste attrs</button>
+<button class="secondary" id="btnExportMarks" type="button">Export marks</button>
+</div><div class="row">
+<button class="secondary" disabled="" id="btnDetach" type="button">Detach audio</button>
+<button class="secondary" disabled="" id="btnMatch" type="button">Match frame</button>
+</div><label>Fade in / out (frames)</label><div class="row">
+<input disabled="" id="fadeIn" min="0" step="1" type="number" value="0"/>
+<input disabled="" id="fadeOut" min="0" step="1" type="number" value="0"/>
+<button class="secondary" disabled="" id="btnFades" style="flex:0.4" type="button">Set</button>
+</div><div class="dragHint" id="matchLab">Match: —</div><label>Relink media_id</label><div class="row">
+<input disabled="" id="relinkMedia" placeholder="med_…"/>
+<button class="secondary" disabled="" id="btnRelink" style="flex:0.4" type="button">Relink</button>
+</div><label>Project notes</label><textarea id="notes" placeholder="备注…" style="min-height:48px"></textarea><button class="secondary" id="btnNotes" type="button">Save notes</button><div id="fillerBox"></div><div id="reviewBox"></div><div id="sheetWrap"></div></div></details><details class="tool-group" open=""><summary>Craft</summary><div class="group-body"><div class="row">
+<button class="secondary" id="btnReview" type="button">review_cut</button>
+<button class="secondary" id="btnSheet" type="button">seq sheet</button>
+</div><label>Project look</label><div class="row">
+<select id="look">
+<option value="cinematic">cinematic</option>
+<option value="warm_resolve">warm_resolve</option>
+<option value="cool_setup">cool_setup</option>
+<option value="documentary">documentary</option>
+<option value="vintage">vintage</option>
+<option value="neutral">neutral</option>
+</select>
+<button class="secondary" id="btnLook" type="button">Apply</button>
+</div><label>Style preset (blend with +)</label><div class="row">
+<select id="style">
+<option value="documentary">documentary</option>
+<option value="ang_lee">ang_lee</option>
+<option value="horror">horror</option>
+<option value="ang_lee+horror">ang_lee+horror</option>
+<option value="wes_anderson">wes_anderson</option>
+<option value="cyberpunk">cyberpunk</option>
+<option value="thriller">thriller</option>
+</select>
+<button class="secondary" id="btnStyle" type="button">Apply</button>
+</div></div></details><details class="tool-group" open=""><summary>Mix</summary><div class="group-body"><button class="secondary" id="btnMix" type="button">Refresh mix</button><div id="mixBox" style="font-size:11px;color:var(--muted)"></div><label>Duck: music track under VO</label><div class="row">
+<select id="duckMusic"><option value="">music…</option></select>
+<select id="duckVo"><option value="">VO…</option></select>
+</div><div class="row">
+<button class="secondary" id="btnDuck" type="button">Set duck</button>
+<button class="secondary" id="btnDuckClear" type="button">Clear duck</button>
+</div></div></details><details class="tool-group"><summary>Transcript search</summary><div class="group-body"><input id="searchQ" placeholder="找到我说但是…"/><button class="secondary" id="btnSearch" type="button">Search cache</button><div id="searchHits"></div></div></details><details class="tool-group"><summary>Doctor</summary><div class="group-body"><button class="secondary" id="btnDoctor" type="button">Run doctor</button><div id="doctor">not run</div></div></details><details class="tool-group"><summary>Director brief (hero)</summary><div class="group-body"><label>Intent</label><textarea id="intent" placeholder="可选；空 = defaults"></textarea><label>Asset paths</label><textarea id="assets" placeholder="C:/footage/clip1.mp4"></textarea><button id="btnPlan" type="button">Plan session</button><div class="steps" id="plan"><p style="color:var(--muted)">Plan steps appear here.</p></div></div></details></div></section><section class="panel" id="panel-timeline"><div class="panel-head"><h2>Timeline</h2></div><div class="panel-body" style="padding:0;display:flex;flex-direction:column;min-height:0;overflow:hidden"><div id="timelineChrome"><div class="tl-main"><p class="dragHint">拖中间 = 移动 · 拖两端 = 裁剪 · 松手后 quick proxy 刷新</p><div id="ruler"></div><div id="tracks"><p style="color:var(--muted);padding:12px;font-size:12px">Empty — place media.</p></div><div class="row" style="margin-top:8px">
+<button class="danger" disabled="" id="btnRippleDel" type="button">Ripple delete</button>
+<button class="secondary" disabled="" id="btnFillerDry" type="button">Filler plan</button>
+<button class="danger" disabled="" id="btnFillerApply" type="button">Filler apply</button>
+</div><div class="row">
+<button class="secondary" id="btnCloseGaps" type="button">Close gaps</button>
+<button class="secondary" id="btnCloseAllGaps" type="button">Close all gaps</button>
+<button class="secondary" id="btnFillGaps" type="button">Fill gaps (black)</button>
+</div><div class="row">
+<button class="secondary" id="btnFindGaps" type="button">Find gaps</button>
+<button class="secondary" id="btnRmEmptyTracks" type="button">Rm empty tracks</button>
+</div><div class="row">
+<button class="secondary" id="btnWaves" type="button">Load waveforms</button>
+<button class="secondary" id="btnMark" type="button">Mark here (M)</button>
+</div><div class="row">
+<button class="secondary" id="btnRazor" type="button">Razor all (C)</button>
+<button class="secondary" id="btnXfade" type="button">X-fade selected</button>
+</div><label><input checked="" id="snapOn" style="width:auto" type="checkbox"/> snap 拖拽吸附</label><label>Zoom <span id="zoomLab">1×</span></label><input id="zoom" max="8" min="1" step="0.5" type="range" value="1"/><div class="row">
+<button class="secondary" id="btnIn" type="button">In (I)</button>
+<button class="secondary" id="btnOut" type="button">Out (O)</button>
+<button class="secondary" id="btnExportWork" type="button">Export I/O</button>
+</div><div class="dragHint" id="ioLab">In/Out: —</div><div id="selBar">
+<span id="selCount">选中 0</span>
+<button class="secondary" id="btnSelLeft" type="button">←1f</button>
+<button class="secondary" id="btnSelRight" type="button">1f→</button>
+<button class="secondary" id="btnRipNudgeL" title="Alt ripple" type="button">⇐ ripple</button>
+<button class="secondary" id="btnRipNudgeR" title="Alt ripple" type="button">ripple ⇒</button>
+<button class="secondary" id="btnInsertTime" type="button">Insert 15f</button>
 
-      <h2>Media bin</h2>
-      <div class="row">
-        <button type="button" class="secondary" id="btnBin">Refresh bin</button>
-        <button type="button" class="secondary" id="btnAllProxies">All proxies</button>
-      </div>
-      <div id="binList"><p style="color:var(--muted);font-size:11px">Open a project.</p></div>
-
-      <h2>Log</h2>
-      <div id="log"></div>
-    </section>
-
-    <!-- CENTER: player + timeline -->
-    <section>
-      <h2>Preview</h2>
-      <div id="playerWrap">
-        <div id="playerPlaceholder">Ensure timeline proxy, then play / scrub.</div>
-        <video id="player" style="display:none" controls playsinline></video>
-      </div>
-      <div class="transport">
-        <button type="button" class="secondary" id="btnProxy">Ensure proxy</button>
-        <button type="button" class="secondary" id="btnProxyForce">Rebuild</button>
-        <button type="button" class="secondary" id="btnPlay">Play</button>
-        <button type="button" class="secondary" id="btnJ" title="J reverse">J</button>
-        <button type="button" class="secondary" id="btnK" title="K stop">K</button>
-        <button type="button" class="secondary" id="btnL" title="L play/faster">L</button>
-        <span id="shuttleLab" class="dragHint" style="margin:0">1×</span>
-        <input id="scrub" type="range" min="0" max="10" step="0.01" value="0" />
-      </div>
-      <div class="row" style="margin-top:4px">
-        <button type="button" class="secondary" id="btnPasteOw">Overwrite paste (Ctrl+Shift+V)</button>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button type="button" class="secondary" id="btnKeys">Keyframes</button>
-        <button type="button" class="secondary" id="btnFrameStill">Still frame</button>
-      </div>
-      <img id="previewImg" alt="" style="display:none;max-width:100%;margin-top:8px;border-radius:8px;border:1px solid var(--border)" />
-
-      <h2>Timeline</h2>
-      <p class="dragHint">拖中间 = 移动 · 拖两端 = 裁剪 · 松手后 quick proxy 刷新</p>
-      <div id="ruler"></div>
-      <div id="tracks"><p style="color:var(--muted);padding:12px;font-size:12px">Empty — place media.</p></div>
-      <div class="row" style="margin-top:8px">
-        <button type="button" class="danger" id="btnRippleDel" disabled>Ripple delete</button>
-        <button type="button" class="secondary" id="btnFillerDry" disabled>Filler plan</button>
-        <button type="button" class="danger" id="btnFillerApply" disabled>Filler apply</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnCloseGaps">Close gaps</button>
-        <button type="button" class="secondary" id="btnCloseAllGaps">Close all gaps</button>
-        <button type="button" class="secondary" id="btnFillGaps">Fill gaps (black)</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnFindGaps">Find gaps</button>
-        <button type="button" class="secondary" id="btnRmEmptyTracks">Rm empty tracks</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnWaves">Load waveforms</button>
-        <button type="button" class="secondary" id="btnMark">Mark here (M)</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnRazor">Razor all (C)</button>
-        <button type="button" class="secondary" id="btnXfade">X-fade selected</button>
-      </div>
-      <label><input type="checkbox" id="snapOn" checked style="width:auto" /> snap 拖拽吸附</label>
-      <label>Zoom <span id="zoomLab">1×</span></label>
-      <input id="zoom" type="range" min="1" max="8" step="0.5" value="1" />
-      <div class="row">
-        <button type="button" class="secondary" id="btnIn">In (I)</button>
-        <button type="button" class="secondary" id="btnOut">Out (O)</button>
-        <button type="button" class="secondary" id="btnExportWork">Export I/O</button>
-      </div>
-      <div id="ioLab" class="dragHint">In/Out: —</div>
-      <div id="selBar">
-        <span id="selCount">选中 0</span>
-        <button type="button" class="secondary" id="btnSelLeft">←1f</button>
-        <button type="button" class="secondary" id="btnSelRight">1f→</button>
-        <button type="button" class="secondary" id="btnRipNudgeL" title="Alt ripple">⇐ ripple</button>
-        <button type="button" class="secondary" id="btnRipNudgeR" title="Alt ripple">ripple ⇒</button>
-        <button type="button" class="secondary" id="btnInsertTime">Insert 15f</button>
-        <button type="button" class="secondary" id="btnExtractIO">Extract I/O</button>
-        <button type="button" class="secondary" id="btnSelMute">Mute</button>
-        <button type="button" class="danger" id="btnSelRipple">Ripple del</button>
-        <button type="button" class="secondary" id="btnSelClear">Clear</button>
-      </div>
-      <p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p>
-      <label>Gain dB · <span id="gainLabel">0</span></label>
-      <div class="row">
-        <input id="gainSlider" type="range" min="-24" max="12" step="0.5" value="0" disabled />
-        <button type="button" class="secondary" id="btnGain" disabled style="flex:0.4">Set</button>
-      </div>
-      <label>Opacity · <span id="opacityLab">1.00</span></label>
-      <div class="row">
-        <input id="opacitySlider" type="range" min="0" max="1" step="0.05" value="1" disabled />
-        <button type="button" class="secondary" id="btnOpacity" disabled style="flex:0.4">Set</button>
-      </div>
-      <label>Crop W×H (px)</label>
-      <div class="row">
-        <input id="cropW" type="number" min="2" step="2" value="160" disabled />
-        <input id="cropH" type="number" min="2" step="2" value="90" disabled />
-        <button type="button" class="secondary" id="btnCrop" disabled style="flex:0.4">Crop</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnBatchBlur" disabled>Batch blur sel</button>
-        <button type="button" class="secondary" id="btnResetXform" disabled title="R">Reset xform</button>
-      </div>
-      <label>Rotate °</label>
-      <div class="row">
-        <input id="rotDeg" type="number" step="1" value="0" disabled />
-        <button type="button" class="secondary" id="btnRotate" disabled style="flex:0.4">Set</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnSwap" disabled>Swap 2 sel</button>
-        <button type="button" class="secondary" id="btnLink" disabled>Link sel</button>
-        <button type="button" class="secondary" id="btnUnlink" disabled>Unlink</button>
-        <button type="button" class="secondary" id="btnSelLinked" disabled>Sel linked</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnJCut" disabled title="Shift+J">J-cut 15f</button>
-        <button type="button" class="secondary" id="btnLCut" disabled title="Shift+L">L-cut 15f</button>
-        <button type="button" class="secondary" id="btnDupTrack">Dup track</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnStats">Stats</button>
-        <button type="button" class="secondary" id="btnPurgeMedia">Purge unused media</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnClipInfo" disabled>Clip info</button>
-        <button type="button" class="secondary" id="btnExportEdl">Export EDL</button>
-        <button type="button" class="secondary" id="btnFitFill" disabled title="Stretch to next clip / Out">Fit fill</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnCopyTrack" disabled>Copy→V2</button>
-        <button type="button" class="secondary" id="btnRenameShots" disabled>Rename Shot{nn}</button>
-      </div>
-      <label>Search clips</label>
-      <div class="row">
-        <input id="clipSearch" placeholder="name / path / id…" />
-        <button type="button" class="secondary" id="btnClipSearch" style="flex:0.4">Find</button>
-      </div>
-      <label>Import markers (YouTube)</label>
-      <textarea id="markerImport" placeholder="0:00 Intro&#10;1:23 Chapter" style="min-height:40px"></textarea>
-      <button type="button" class="secondary" id="btnImportMarks">Import marks</button>
-      <label>Import EDL (CMX text)</label>
-      <textarea id="edlImport" placeholder="paste EDL…" style="min-height:40px"></textarea>
-      <button type="button" class="secondary" id="btnImportEdl">Import EDL</button>
-      <div class="row">
-        <button type="button" class="secondary" id="btnLiftIO" title="Lift work I/O">Lift I/O</button>
-        <button type="button" class="secondary" id="btnSplitMarks">Split@marks</button>
-        <button type="button" class="secondary" id="btnCutlist">Cutlist</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnColorSel" disabled>Color sel</button>
-        <button type="button" class="secondary" id="btnMatchDur" disabled title="Match duration to 2nd selected">Match dur</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnJoin" disabled title="Join 2 adjacent same-media">Join 2</button>
-        <button type="button" class="secondary" id="btnAutoLink">Auto-link A/V</button>
-        <button type="button" class="secondary" id="btnSpeed2x" disabled>Sel 2×</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnStagger" disabled>Stagger 15f</button>
-        <button type="button" class="secondary" id="btnRevTrack">Rev track</button>
-        <button type="button" class="secondary" id="btnDupRange" title="Dup work I/O">Dup I/O</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnFadeSel" disabled>Fade 6f sel</button>
-        <button type="button" class="secondary" id="btnClrXfade">Clr xfade</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnValidate">Validate</button>
-        <button type="button" class="secondary" id="btnXfadeAll">Xfade cuts</button>
-        <button type="button" class="secondary" id="btnNameMedia" disabled>Name←media</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnSnapPrev" disabled>Snap←prev</button>
-        <button type="button" class="secondary" id="btnMoveBlock0" disabled>Block→0</button>
-        <button type="button" class="secondary" id="btnExtractIO" title="Ripple extract I/O">Extract I/O</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
-        <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
-        <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
-        <button type="button" class="secondary" id="btnSelTrack" disabled title="A">Sel track</button>
-      </div>
-      <label>Track rename</label>
-      <div class="row">
-        <input id="trackNameIn" placeholder="V1 / Music…" />
-        <button type="button" class="secondary" id="btnTrackName" style="flex:0.4">Name</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnSubclip" disabled>Subclip I/O</button>
-        <button type="button" class="secondary" id="btnHistory">History</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnTrimQ" disabled title="Q">Trim head (Q)</button>
-        <button type="button" class="secondary" id="btnTrimW" disabled title="W">Trim tail (W)</button>
-        <button type="button" class="secondary" id="btnClearFx" disabled>Clear FX</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnSlipL" disabled title=",">Slip −5</button>
-        <button type="button" class="secondary" id="btnSlipR" disabled title=".">Slip +5</button>
-        <button type="button" class="secondary" id="btnCopyFx" disabled>Copy FX</button>
-        <button type="button" class="secondary" id="btnPasteFx" disabled>Paste FX</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnAlignPh" disabled>Align → playhead</button>
-        <button type="button" class="secondary" id="btnRollL" disabled>Roll cut −5</button>
-        <button type="button" class="secondary" id="btnRollR" disabled>Roll cut +5</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnSlideL" disabled title=";">Slide −5</button>
-        <button type="button" class="secondary" id="btnSlideR" disabled title="'">Slide +5</button>
-        <button type="button" class="secondary" id="btnStretchIO" disabled>Stretch → I/O</button>
-        <button type="button" class="secondary" id="btnNextMark">Next mark</button>
-      </div>
-      <label>Move to track_id</label>
-      <div class="row">
-        <input id="moveTrackId" placeholder="trk_…" disabled />
-        <button type="button" class="secondary" id="btnMoveTrack" disabled style="flex:0.4">Move</button>
-      </div>
-      <label>Export preset</label>
-      <div class="row">
-        <select id="exportPreset">
-          <option value="draft">draft</option>
-          <option value="streaming" selected>streaming</option>
-          <option value="youtube">youtube</option>
-          <option value="broadcast">broadcast</option>
-          <option value="review">review</option>
-        </select>
-        <button type="button" class="secondary" id="btnExportPreset">Export…</button>
-      </div>
-      <div id="histLab" class="dragHint">History: —</div>
-      <button type="button" class="secondary" id="btnClipMute" disabled>Toggle clip mute</button>
-      <label>Clip name</label>
-      <div class="row">
-        <input id="clipName" placeholder="label" disabled />
-        <button type="button" class="secondary" id="btnClipName" disabled style="flex:0.4">Set</button>
-      </div>
-      <div id="colorRow" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
-      <label>Speed · <span id="speedLab">1.00</span></label>
-      <div class="row">
-        <input id="speedSlider" type="range" min="0.25" max="4" step="0.05" value="1" disabled />
-        <button type="button" class="secondary" id="btnSpeed" disabled style="flex:0.4">Set</button>
-      </div>
-      <label>PiP x / y / scale (overlay)</label>
-      <div class="row">
-        <input id="pipX" type="number" min="0" max="1" step="0.05" value="0.05" disabled />
-        <input id="pipY" type="number" min="0" max="1" step="0.05" value="0.05" disabled />
-        <input id="pipS" type="number" min="0.05" max="1" step="0.05" value="0.35" disabled />
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnPip" disabled>Set PiP</button>
-        <button type="button" class="secondary" id="btnPipClear" disabled>Full</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnFreeze" disabled>Freeze frame</button>
-        <button type="button" class="secondary" id="btnReverse" disabled>Reverse</button>
-        <button type="button" class="secondary" id="btnStabilize" disabled>Stabilize</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnCopyAttr" disabled>Copy attrs</button>
-        <button type="button" class="secondary" id="btnPasteAttr" disabled>Paste attrs</button>
-        <button type="button" class="secondary" id="btnExportMarks">Export marks</button>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnDetach" disabled>Detach audio</button>
-        <button type="button" class="secondary" id="btnMatch" disabled>Match frame</button>
-      </div>
-      <label>Fade in / out (frames)</label>
-      <div class="row">
-        <input id="fadeIn" type="number" min="0" step="1" value="0" disabled />
-        <input id="fadeOut" type="number" min="0" step="1" value="0" disabled />
-        <button type="button" class="secondary" id="btnFades" disabled style="flex:0.4">Set</button>
-      </div>
-      <div id="matchLab" class="dragHint">Match: —</div>
-      <label>Relink media_id</label>
-      <div class="row">
-        <input id="relinkMedia" placeholder="med_…" disabled />
-        <button type="button" class="secondary" id="btnRelink" disabled style="flex:0.4">Relink</button>
-      </div>
-      <label>Project notes</label>
-      <textarea id="notes" placeholder="备注…" style="min-height:48px"></textarea>
-      <button type="button" class="secondary" id="btnNotes">Save notes</button>
-      <div id="fillerBox"></div>
-      <div id="reviewBox"></div>
-      <div id="sheetWrap"></div>
-    </section>
-
-    <!-- RIGHT: craft + search + agent plan -->
-    <section>
-      <h2>Craft</h2>
-      <div class="row">
-        <button type="button" class="secondary" id="btnReview">review_cut</button>
-        <button type="button" class="secondary" id="btnSheet">seq sheet</button>
-      </div>
-      <label>Project look</label>
-      <div class="row">
-        <select id="look">
-          <option value="cinematic">cinematic</option>
-          <option value="warm_resolve">warm_resolve</option>
-          <option value="cool_setup">cool_setup</option>
-          <option value="documentary">documentary</option>
-          <option value="vintage">vintage</option>
-          <option value="neutral">neutral</option>
-        </select>
-        <button type="button" class="secondary" id="btnLook">Apply</button>
-      </div>
-      <label>Style preset (blend with +)</label>
-      <div class="row">
-        <select id="style">
-          <option value="documentary">documentary</option>
-          <option value="ang_lee">ang_lee</option>
-          <option value="horror">horror</option>
-          <option value="ang_lee+horror">ang_lee+horror</option>
-          <option value="wes_anderson">wes_anderson</option>
-          <option value="cyberpunk">cyberpunk</option>
-          <option value="thriller">thriller</option>
-        </select>
-        <button type="button" class="secondary" id="btnStyle">Apply</button>
-      </div>
-
-      <h2>Mix</h2>
-      <button type="button" class="secondary" id="btnMix">Refresh mix</button>
-      <div id="mixBox" style="font-size:11px;color:var(--muted)"></div>
-      <label>Duck: music track under VO</label>
-      <div class="row">
-        <select id="duckMusic"><option value="">music…</option></select>
-        <select id="duckVo"><option value="">VO…</option></select>
-      </div>
-      <div class="row">
-        <button type="button" class="secondary" id="btnDuck">Set duck</button>
-        <button type="button" class="secondary" id="btnDuckClear">Clear duck</button>
-      </div>
-
-      <h2>Transcript search</h2>
-      <input id="searchQ" placeholder="找到我说但是…" />
-      <button type="button" class="secondary" id="btnSearch">Search cache</button>
-      <div id="searchHits"></div>
-
-      <h2>Doctor</h2>
-      <button type="button" class="secondary" id="btnDoctor">Run doctor</button>
-      <div id="doctor">not run</div>
-
-      <h2>Director brief (hero)</h2>
-      <label>Intent</label>
-      <textarea id="intent" placeholder="可选；空 = defaults"></textarea>
-      <label>Asset paths</label>
-      <textarea id="assets" placeholder="C:/footage/clip1.mp4"></textarea>
-      <button type="button" id="btnPlan">Plan session</button>
-      <div class="steps" id="plan"><p style="color:var(--muted)">Plan steps appear here.</p></div>
-    </section>
-  </main>
-  <script>
+<button class="secondary" id="btnSelMute" type="button">Mute</button>
+<button class="danger" id="btnSelRipple" type="button">Ripple del</button>
+<button class="secondary" id="btnSelClear" type="button">Clear</button>
+</div><p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p></div></div></div></section></div><script>
     const logEl = document.getElementById('log');
     const statusEl = document.getElementById('status');
     const docPill = document.getElementById('docPill');
@@ -3416,3 +3398,6 @@
   </script>
 </body>
 </html>
+
+</body></html>
+</body></html>

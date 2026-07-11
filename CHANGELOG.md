@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.29 — 2026-07-11
+
+### Changed
+- **UI shell v1**: full-viewport editor chrome from `design-system/opmiere`
+  - Regions: topbar · media/project · program preview · inspector · timeline
+  - Design tokens (slate/blue/amber, Inter + mono TC, dense spacing)
+  - Craft tools grouped in collapsible inspector details
+  - Amber playhead, primary selection, focus-visible rings
+  - All prior control ids + JS behavior preserved
+
 ## 0.2.28 — 2026-07-11
 
 ### Added
