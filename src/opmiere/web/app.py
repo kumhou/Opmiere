@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.2.8")
+app = FastAPI(title="Opmiere", version="0.2.32")
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -239,6 +239,75 @@ def place_file(body: PlaceBody) -> dict[str, Any]:
         Path(body.path), body.kind, track_id, start=body.start,  # type: ignore[arg-type]
     )
     return clip.to_dict()
+
+
+@app.post("/api/upload_place")
+async def upload_place(
+    files: list[UploadFile] = File(...),
+    build_proxy: bool = False,
+) -> dict[str, Any]:
+    """Browser drag-drop / file picker: save uploads then place_from_file.
+
+    Writes into the open project bundle under media/_uploads/ then places
+    each file (kind guessed by suffix). Returns placed clips + timeline.
+    """
+    import shutil
+
+    ed = _ed()
+    if not files:
+        raise HTTPException(400, "no files")
+    upload_dir = ed.bundle.root / "media" / "_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    placed: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    for uf in files:
+        name = Path(uf.filename or "upload.bin").name
+        # avoid collisions
+        dest = upload_dir / name
+        n = 1
+        while dest.exists():
+            dest = upload_dir / f"{dest.stem}_{n}{dest.suffix}"
+            n += 1
+        try:
+            with dest.open("wb") as out:
+                shutil.copyfileobj(uf.file, out)
+            kind = ed.guess_media_kind(dest)
+            track_kind = "audio" if kind == "audio" else "video"
+            existing = [t for t in ed.project.tracks if t.kind == track_kind]
+            if existing:
+                track_id = existing[0].id
+            else:
+                track_id = ed.add_track(track_kind).id  # type: ignore[arg-type]
+            track = ed.project.track_by_id(track_id)
+            ordered = track.clips_in_order()
+            start = 0 if not ordered else ordered[-1].end
+            if build_proxy and kind == "video":
+                media = ed.import_media(dest, kind, build_proxy=True)
+                clip = ed.add_clip(
+                    track_id, media.id, start, 0, media.duration_frames,
+                )
+            else:
+                kwargs: dict[str, Any] = {}
+                if kind == "image":
+                    kwargs["duration_frames"] = max(1, int(ed.project.timebase.fps or 30) * 3)
+                clip = ed.place_from_file(
+                    dest, kind, track_id, start=start, **kwargs,  # type: ignore[arg-type]
+                )
+            placed.append(clip.to_dict() if hasattr(clip, "to_dict") else {"id": clip.id})
+        except Exception as e:
+            errors.append({"file": name, "error": str(e)[:300]})
+        finally:
+            try:
+                uf.file.close()
+            except Exception:
+                pass
+    return {
+        "placed": placed,
+        "count": len(placed),
+        "errors": errors,
+        "timeline": ed.timeline_view(),
+        "state": ed.describe(),
+    }
 
 
 @app.post("/api/export")

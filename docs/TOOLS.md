@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.2.31)
+# Opmiere tool surface (0.2.32)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.32 — 2026-07-11
+
+### Added
+- **`POST /api/upload_place`**: multipart upload → place on timeline (browser drag-drop / file picker)
+- **UI shell v4**:
+  - Drop zone on media panel (+ click to browse)
+  - Drag to resize media / inspector column widths (`localStorage`)
+  - Program **FS** fullscreen preview (Esc to exit)
+
 ## 0.2.31 — 2026-07-11
 
 ### Changed
