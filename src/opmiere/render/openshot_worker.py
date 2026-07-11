@@ -3,7 +3,7 @@
 Run: ``python -m opmiere.render.openshot_worker``
 
 Host sends one JSON object per line; worker replies with one JSON line.
-Commands: ping | version | frame_media | frame_timeline | quit
+Commands: ping | version | frame_media | frame_timeline | frame_project | quit
 """
 
 from __future__ import annotations
@@ -69,6 +69,14 @@ def main() -> int:
                     fps=float(msg.get("fps", 30)),
                     clip_start=float(msg.get("clip_start", 0)),
                     clip_end=msg.get("clip_end"),
+                )
+                print(json.dumps(r), flush=True)
+                continue
+            if cmd == "frame_project":
+                r = rt.frame_from_project(
+                    msg["plan"],
+                    float(msg.get("time_seconds", 0)),
+                    msg["output_path"],
                 )
                 print(json.dumps(r), flush=True)
                 continue

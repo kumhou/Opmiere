@@ -100,15 +100,20 @@ Process-level `melt` + XML playlist (Shotcut on winget: `Meltytech.Shotcut`).
 | Proven | `FFmpegReader.GetFrame` + `Timeline`+`Clip` → PNG; version **0.7.0** |
 
 **Requires:** OpenShot Video Editor install or `OPMIERE_OPENSHOT_HOME`.  
-**Not yet:** multi-clip Editor→Timeline mapping, realtime play loop, vendored DLL tree for end users.
+**Multi-clip (follow-up):** `openshot_map.build_openshot_plan` maps all video tracks →
+Position/Start/End/Layer. `frame_from_project` builds Timeline with one
+`FFmpegReader` per clip (Clip(path)×2 AV-crashes). One-shot worker + reader
+fallback if multi Timeline AVs. Effects/speed/transform still unsupported.
+
+**Not yet:** effect/transition mapping, realtime play, vendored DLL tree for end users.
 
 ## Recommended next steps (aligned with ADR priority)
 
-1. ~~Freeze PreviewSession~~ + ~~S2 seek→JPEG~~ done when OpenShot installed.  
-2. Map full Opmiere timeline → openshot Timeline (multi-clip, effects subset).  
+1. ~~PreviewSession + S2 + multi-clip plan~~ done when OpenShot installed.  
+2. Map effects / speed / overlay transform when stable.  
 3. Vendor / CI package (S1) so users need not install OpenShot.app.  
 4. Do **not** expand HTML shell.  
-5. Tauri scaffold after multi-clip frame path is trustworthy.
+5. Tauri scaffold after preview path is trustworthy enough for program monitor.
 
 ## Spike success criteria (original) vs result
 

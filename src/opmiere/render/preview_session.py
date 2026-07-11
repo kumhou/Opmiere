@@ -264,40 +264,29 @@ class OpenShotPreviewSession(PreviewSession):
                     "error": "session not open — call open(project, bundle) first",
                     "state": self.state.value,
                 }
-            media_path, fps, w, h = _base_video_media(self._project, self._bundle)
-            aspect = w / max(h, 1)
-            out_h = max(72, int(height) // 2 * 2)
-            out_w = max(2, int(round(out_h * aspect)) // 2 * 2)
-            r = self._rt.frame_from_timeline_clip(
-                media_path,
-                float(time_seconds),
-                Path(output_path),
-                width=out_w,
-                height=out_h,
-                fps=float(fps),
+            from .openshot_map import build_openshot_plan
+
+            plan = build_openshot_plan(
+                self._project, self._bundle, height=height,
+            )
+            if plan.get("clip_count", 0) <= 0:
+                self._state = PreviewState.ERROR
+                return {
+                    "ok": False,
+                    "error": "no video clips in plan",
+                    "state": self.state.value,
+                }
+            r = self._rt.frame_from_project(
+                plan, float(time_seconds), Path(output_path),
             )
             self._state = PreviewState.IDLE if r.get("ok") else PreviewState.ERROR
             r["state"] = self.state.value
+            r["plan_clip_count"] = plan.get("clip_count")
             return r
         except Exception as e:
             self._state = PreviewState.ERROR
             self._error = str(e)
             return {"ok": False, "error": str(e), "state": self.state.value}
-
-
-def _base_video_media(project: Project, bundle: Bundle) -> tuple[Path, float, int, int]:
-    video_tracks = [tr for tr in project.tracks if tr.kind == "video"]
-    if not video_tracks or not video_tracks[0].clips:
-        raise ValueError("no base video clips for OpenShot frame")
-    clip = video_tracks[0].clips_in_order()[0]
-    media = project.media_by_id(clip.media)
-    path = bundle.media_path(media.path)
-    if not Path(path).exists():
-        raise FileNotFoundError(path)
-    fps = float(project.timebase.fps or 30.0)
-    w = int(project.resolution.w or 640)
-    h = int(project.resolution.h or 360)
-    return Path(path), fps, w, h
 
 
 def preview_engine_status() -> dict[str, Any]:

@@ -209,6 +209,11 @@ class Editor:
         from .render.preview_session import preview_engine_status
         return preview_engine_status()
 
+    def openshot_plan(self, *, height: int = 360) -> dict[str, Any]:
+        """Build OpenShot multi-clip plan for current project (no render)."""
+        from .render.openshot_map import build_openshot_plan
+        return build_openshot_plan(self.project, self.bundle, height=height)
+
     def openshot_frame_at(
         self,
         time_seconds: float,
@@ -219,8 +224,10 @@ class Editor:
     ) -> dict[str, Any]:
         """Path-C frame via OpenShot embed (requires local OpenShot install).
 
-        use_timeline=True: single-clip Timeline surface. False: FFmpegReader only.
+        use_timeline=True: multi-clip project plan → Timeline composite.
+        False: FFmpegReader on first base-track media only.
         """
+        from .render.openshot_map import build_openshot_plan
         from .render.openshot_runtime import get_openshot_runtime
 
         rt = get_openshot_runtime()
@@ -231,20 +238,13 @@ class Editor:
             }
         output_path = Path(output_path)
         if use_timeline:
-            video_tracks = [tr for tr in self.project.tracks if tr.kind == "video"]
-            if not video_tracks or not video_tracks[0].clips:
-                return {"ok": False, "error": "no base video clips"}
-            clip = video_tracks[0].clips_in_order()[0]
-            media = self.project.media_by_id(clip.media)
-            media_path = self.bundle.media_path(media.path)
-            fps = float(self.project.timebase.fps or 30.0)
-            aspect = self.project.resolution.w / max(self.project.resolution.h, 1)
-            h = max(72, int(height) // 2 * 2)
-            w = max(2, int(round(h * aspect)) // 2 * 2)
-            return rt.frame_from_timeline_clip(
-                media_path, float(time_seconds), output_path,
-                width=w, height=h, fps=fps,
-            )
+            plan = build_openshot_plan(self.project, self.bundle, height=height)
+            if plan.get("clip_count", 0) <= 0:
+                return {"ok": False, "error": "no base video clips", "plan": plan}
+            result = rt.frame_from_project(plan, float(time_seconds), output_path)
+            result["plan_clip_count"] = plan.get("clip_count")
+            result["plan_unsupported"] = plan.get("unsupported")
+            return result
         # reader path: first video media
         video_tracks = [tr for tr in self.project.tracks if tr.kind == "video"]
         if not video_tracks or not video_tracks[0].clips:

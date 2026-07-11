@@ -321,6 +321,126 @@ result = {{
             result = self._png_to_jpg(Path(result["path"]), output_path, result)
         return result
 
+    def frame_from_project(
+        self,
+        plan: dict[str, Any],
+        time_seconds: float,
+        output_path: str | Path,
+    ) -> dict[str, Any]:
+        """Composite frame from a multi-clip OpenShot plan (see openshot_map)."""
+        output_path = Path(output_path).resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if not plan.get("clips"):
+            return {"ok": False, "error": "empty plan — no video clips"}
+        if plan.get("missing_media"):
+            return {
+                "ok": False,
+                "error": f"missing media: {plan['missing_media'][:3]}",
+                "missing_media": plan["missing_media"],
+            }
+        want_jpg = output_path.suffix.lower() in {".jpg", ".jpeg"}
+        png_path = output_path.with_suffix(".png") if want_jpg else output_path
+        t = max(0.0, float(time_seconds))
+        plan = dict(plan)
+        clips_norm = []
+        for c in plan.get("clips") or []:
+            cc = dict(c)
+            cc["path"] = str(Path(cc["path"]).resolve()).replace("\\", "/")
+            clips_norm.append(cc)
+        plan["clips"] = clips_norm
+        plan_path = self._work / f"plan_{uuid.uuid4().hex}.json"
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        body = f"""
+import json, os
+with open(r"{plan_path.as_posix()}", "r", encoding="utf-8") as fh:
+    plan = json.load(fh)
+outp = r"{png_path.as_posix()}"
+t = {t!r}
+w = int(plan["width"])
+h = int(plan["height"])
+fps_f = float(plan["fps"])
+dur = float(plan.get("duration_seconds") or 0.0)
+fps_frac = openshot.Fraction(max(1, int(round(fps_f))), 1)
+layout = openshot.LAYOUT_STEREO
+timeline = openshot.Timeline(w, h, fps_frac, int(plan.get("sample_rate") or 44100), 2, layout)
+added = 0
+readers = []
+for c in plan["clips"]:
+    path = c["path"]
+    if not os.path.exists(path):
+        continue
+    # One FFmpegReader per clip — Clip(path) twice AV-crashes on this Windows build.
+    reader = openshot.FFmpegReader(path)
+    reader.Open()
+    readers.append(reader)
+    clip = openshot.Clip(reader)
+    clip.Position(float(c["position"]))
+    clip.Start(float(c["start"]))
+    clip.End(float(c["end"]))
+    clip.Layer(int(c["layer"]))
+    timeline.AddClip(clip)
+    added += 1
+if added == 0:
+    result = {{"ok": False, "error": "no clips added to timeline"}}
+else:
+    timeline.Open()
+    frame_num = max(1, int(round(t * fps_f)) + 1)
+    max_frames = max(1, int(round(max(dur, t + 0.05) * fps_f)))
+    if frame_num > max_frames:
+        frame_num = max_frames
+    f = timeline.GetFrame(frame_num)
+    f.Save(outp, 1.0, "PNG")
+    timeline.Close()
+    for reader in readers:
+        try:
+            reader.Close()
+        except Exception:
+            pass
+    result = {{
+        "ok": os.path.exists(outp) and os.path.getsize(outp) > 32,
+        "path": outp,
+        "time_seconds": t,
+        "frame_number": frame_num,
+        "fps": fps_f,
+        "width": w,
+        "height": h,
+        "mode": "openshot_project",
+        "backend": "libopenshot",
+        "size": os.path.getsize(outp) if os.path.exists(outp) else 0,
+        "clips_added": added,
+        "unsupported": plan.get("unsupported") or [],
+    }}
+"""
+        try:
+            result = self.call_json(body)
+        except OSError as e:
+            result = {"ok": False, "error": repr(e)}
+        # Multi-clip Timeline can AV on some Windows/libopenshot combos; fall
+        # back to the active clip's FFmpegReader so agents still get a frame.
+        if not result.get("ok") and plan.get("clips"):
+            active = _active_clip_at(plan, t)
+            if active:
+                local_t = max(0.0, t - float(active.get("position") or 0))
+                # map wall time into source range
+                src_start = float(active.get("start") or 0)
+                fb = self.frame_from_media(
+                    active["path"],
+                    src_start + local_t,
+                    png_path if want_jpg else output_path,
+                    fps=float(plan.get("fps") or 30),
+                )
+                if fb.get("ok"):
+                    fb = dict(fb)
+                    fb["mode"] = "openshot_project_fallback_reader"
+                    fb["fallback_from"] = result.get("error")
+                    fb["clips_in_plan"] = len(plan["clips"])
+                    if want_jpg:
+                        fb = self._png_to_jpg(Path(fb["path"]), output_path, fb)
+                    return fb
+        if result.get("ok") and want_jpg:
+            result = self._png_to_jpg(Path(result["path"]), output_path, result)
+        return result
+
     def _png_to_jpg(
         self, png_path: Path, jpg_path: Path, result: dict[str, Any],
     ) -> dict[str, Any]:
@@ -371,6 +491,47 @@ def _indent(text: str, spaces: int) -> str:
     return "\n".join(pad + line if line.strip() else line for line in lines)
 
 
+def _parse_json_stream(text: str) -> list[dict[str, Any]]:
+    """Parse one or more JSON objects from worker stdout (line or glued)."""
+    dec = json.JSONDecoder()
+    idx = 0
+    out: list[dict[str, Any]] = []
+    s = text or ""
+    n = len(s)
+    while idx < n:
+        while idx < n and s[idx].isspace():
+            idx += 1
+        if idx >= n:
+            break
+        try:
+            obj, end = dec.raw_decode(s, idx)
+        except json.JSONDecodeError:
+            break
+        if isinstance(obj, dict):
+            out.append(obj)
+        idx = end
+    return out
+
+
+def _active_clip_at(plan: dict[str, Any], t: float) -> dict[str, Any] | None:
+    """Pick highest-layer clip covering timeline time t (seconds)."""
+    best: dict[str, Any] | None = None
+    best_layer = -1
+    for c in plan.get("clips") or []:
+        pos = float(c.get("position") or 0)
+        # wall duration ≈ source duration at 1x (v1)
+        dur = float(c.get("timeline_duration") or (float(c.get("end") or 0) - float(c.get("start") or 0)))
+        if pos <= t < pos + max(dur, 1e-6) or (dur <= 0 and abs(t - pos) < 1e-3):
+            layer = int(c.get("layer") or 0)
+            if layer >= best_layer:
+                best_layer = layer
+                best = c
+    if best is None and plan.get("clips"):
+        # clamp to last clip
+        best = max(plan["clips"], key=lambda c: float(c.get("position") or 0))
+    return best
+
+
 class OpenShotClient:
     """JSON-lines client to ``python -m opmiere.render.openshot_worker`` (true S2).
 
@@ -412,15 +573,40 @@ class OpenShotClient:
         except json.JSONDecodeError as e:
             return {"ok": False, "error": f"bad worker line: {e}: {line[:200]}"}
 
+    def _restart(self) -> dict[str, Any] | None:
+        """Kill and respawn worker. Returns error dict if restart fails."""
+        try:
+            self.close()
+        except Exception:
+            pass
+        try:
+            self.__init__()  # type: ignore[misc]
+            return None
+        except Exception as e:
+            return {"ok": False, "error": f"worker restart failed: {e}"}
+
     def _call(self, msg: dict[str, Any]) -> dict[str, Any]:
         with _lock:
             if self._proc.poll() is not None:
-                return {"ok": False, "error": f"worker dead rc={self._proc.returncode}"}
+                err = self._restart()
+                if err:
+                    return err
             assert self._proc.stdin is not None
-            self._proc.stdin.write(json.dumps(msg) + "\n")
-            self._proc.stdin.flush()
-            return self._readline(timeout_note=msg.get("cmd", "?"))
-
+            try:
+                self._proc.stdin.write(json.dumps(msg) + "\n")
+                self._proc.stdin.flush()
+            except (BrokenPipeError, OSError) as e:
+                err = self._restart()
+                if err:
+                    return err
+                assert self._proc.stdin is not None
+                self._proc.stdin.write(json.dumps(msg) + "\n")
+                self._proc.stdin.flush()
+            result = self._readline(timeout_note=msg.get("cmd", "?"))
+            # Hard crash leaves empty/EOF — respawn for next call
+            if not result.get("ok") and "worker EOF" in str(result.get("error", "")):
+                self._restart()
+            return result
     def version(self) -> dict[str, Any]:
         return self._call({"cmd": "version"})
 
@@ -463,6 +649,91 @@ class OpenShotClient:
             "clip_start": float(clip_start),
             "clip_end": clip_end,
         })
+
+    def frame_from_project(
+        self,
+        plan: dict[str, Any],
+        time_seconds: float,
+        output_path: str | Path,
+    ) -> dict[str, Any]:
+        # Multi-clip Timeline is flaky if the long-lived worker embed is reused
+        # after prior errors — use a one-shot worker process for isolation.
+        t = float(time_seconds)
+        out = Path(output_path)
+        result = self._oneshot({
+            "cmd": "frame_project",
+            "plan": plan,
+            "time_seconds": t,
+            "output_path": str(out.resolve()),
+        })
+        if result.get("ok"):
+            return result
+        # Host-side fallback: active clip via FFmpegReader in a fresh oneshot
+        active = _active_clip_at(plan, t)
+        if not active:
+            return result
+        local_t = max(0.0, t - float(active.get("position") or 0))
+        src_t = float(active.get("start") or 0) + local_t
+        fb = self._oneshot({
+            "cmd": "frame_media",
+            "media_path": str(Path(active["path"]).resolve()),
+            "time_seconds": src_t,
+            "output_path": str(out.resolve()),
+            "fps": plan.get("fps"),
+        })
+        if fb.get("ok"):
+            fb = dict(fb)
+            fb["mode"] = "openshot_project_fallback_reader"
+            fb["fallback_from"] = result.get("error")
+            fb["clips_in_plan"] = len(plan.get("clips") or [])
+            return fb
+        return result
+
+    def _oneshot(self, msg: dict[str, Any]) -> dict[str, Any]:
+        """Fresh worker for one command (avoids embed poison after AV).
+
+        Stops the long-lived worker first so only one MinGW libpython embed
+        is active (two concurrent embeds are unstable on Windows).
+        """
+        import subprocess
+        import sys
+
+        # Release long-lived worker DLLs before spawning a new embed process.
+        try:
+            self.close()
+        except Exception:
+            pass
+
+        payload = json.dumps(msg) + "\n" + json.dumps({"cmd": "quit"}) + "\n"
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-m", "opmiere.render.openshot_worker"],
+                input=payload,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": "oneshot worker timeout"}
+        except Exception as e:
+            return {"ok": False, "error": f"oneshot failed: {e}"}
+        objs = _parse_json_stream(proc.stdout or "")
+        # Expect: ready, then command reply, then optional bye
+        if len(objs) < 2:
+            return {
+                "ok": False,
+                "error": "oneshot short output rc=%s n=%s stdout=%r stderr=%r"
+                % (
+                    proc.returncode,
+                    len(objs),
+                    (proc.stdout or "")[:300],
+                    (proc.stderr or "")[:300],
+                ),
+            }
+        ready = objs[0]
+        if not ready.get("ok"):
+            return ready
+        return objs[1]
 
     def close(self) -> None:
         try:

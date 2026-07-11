@@ -167,7 +167,8 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `review_cut` / `make_sequence_contact_sheet` | whole-cut craft |
 | `ensure_preview_proxy` / `export_preview` / `frame_at` / `review_keyframes` / `preview_range` / `preview_proxy_status` | scrub eyes (proxy auto-stales) |
 | `preview_engine_status` | path-C engine (`libopenshot` if OpenShot installed, else unavailable) |
-| `openshot_frame_at` | engine frame via S2 sidecar (needs OpenShot / `OPMIERE_OPENSHOT_HOME`) |
+| `openshot_frame_at` | multi-clip path-C frame via S2 sidecar (OpenShot install) |
+| `openshot_plan` | inspect multi-clip OpenShot plan (no render) |
 | `suggest_room_tone` / `extract_room_tone` / `place_room_tone` | fill digital silence after dialogue cuts |
 | `export` | optional `normalize_preset`, default `delivery_check` in MCP |
 | `normalize_loudness` / `delivery_check` | finish |

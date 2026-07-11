@@ -9,7 +9,8 @@
 ### Added
 - **`PreviewSession`** + OpenShot embed when install present
 - **S2 OpenShot sidecar**: `openshot_runtime` / `openshot_worker` / `OpenShotClient` — seek→PNG via FFmpegReader + Timeline+Clip
-- MCP/Editor: `preview_engine_status`, `openshot_frame_at`
+- **Multi-clip plan**: `openshot_map.build_openshot_plan` + `frame_from_project` (Timeline multi-clip; reader fallback if Timeline AVs)
+- MCP/Editor: `preview_engine_status`, `openshot_frame_at`, `openshot_plan`
 
 ## 0.3.1 — 2026-07-11
 
