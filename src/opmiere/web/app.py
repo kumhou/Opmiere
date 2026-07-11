@@ -1768,6 +1768,84 @@ def place_media_api(body: PlaceMediaBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class JoinClipsBody(BaseModel):
+    clip_id_a: str
+    clip_id_b: str
+
+
+class SetClipsSpeedBody(BaseModel):
+    clip_ids: list[str]
+    speed: float
+
+
+class TrimRangeBody(BaseModel):
+    clip_id: str
+    start_frame: int
+    end_frame: int
+    mode: str = "normal"
+
+
+class AutoLinkBody(BaseModel):
+    tolerance_frames: int = 0
+    track_id_video: str | None = None
+    track_id_audio: str | None = None
+
+
+class SetClipsMetaBody(BaseModel):
+    clip_ids: list[str]
+    name: str | None = None
+    color: str | None = None
+    clear_name: bool = False
+    clear_color: bool = False
+
+
+@app.post("/api/clips/join")
+def join_clips_api(body: JoinClipsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.join_clips(body.clip_id_a, body.clip_id_b)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/speed")
+def set_clips_speed_api(body: SetClipsSpeedBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_speed(body.clip_ids, body.speed)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/trim_range")
+def trim_range_api(body: TrimRangeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.trim_to_range(
+        body.clip_id, body.start_frame, body.end_frame, mode=body.mode,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/auto_link_av")
+def auto_link_av_api(body: AutoLinkBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.auto_link_av(
+        tolerance_frames=body.tolerance_frames,
+        track_id_video=body.track_id_video,
+        track_id_audio=body.track_id_audio,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/meta")
+def set_clips_meta_api(body: SetClipsMetaBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_meta(
+        body.clip_ids,
+        name=body.name,
+        color=body.color,
+        clear_name=body.clear_name,
+        clear_color=body.clear_color,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/clip/copy_attributes")
 def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
     return _ed().copy_attributes(body.clip_id)

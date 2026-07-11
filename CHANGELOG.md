@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.23 — 2026-07-11
+
+### Added
+- **`join_clips`**: merge two adjacent same-media clips (contiguous source)
+- **`set_clips_speed`**: batch playback speed [0.25, 4]
+- **`trim_to_range`**: source-trim to timeline [start, end); `normal|ripple`
+- **`auto_link_av`**: link unlinked V/A pairs sharing start (±tolerance)
+- **`set_clips_meta`**: batch name/color
+- Web: Join 2, Auto-link A/V, Sel 2×
+
 ## 0.2.22 — 2026-07-11
 
 ### Added

@@ -1036,6 +1036,63 @@ def place_media(
 
 
 @mcp.tool()
+def join_clips(clip_id_a: str, clip_id_b: str) -> dict:
+    """Merge two adjacent same-media clips on one track."""
+    return _require_editor().join_clips(clip_id_a, clip_id_b)
+
+
+@mcp.tool()
+def set_clips_speed(clip_ids: list[str], speed: float) -> dict:
+    """Batch set speed in [0.25, 4]."""
+    return _require_editor().set_clips_speed(clip_ids, speed)
+
+
+@mcp.tool()
+def trim_to_range(
+    clip_id: str,
+    start_frame: int,
+    end_frame: int,
+    mode: str = "normal",
+) -> dict:
+    """Trim clip to timeline range [start, end). mode normal|ripple."""
+    return _require_editor().trim_to_range(
+        clip_id, start_frame, end_frame, mode=mode,
+    )
+
+
+@mcp.tool()
+def auto_link_av(
+    tolerance_frames: int = 0,
+    track_id_video: str | None = None,
+    track_id_audio: str | None = None,
+) -> dict:
+    """Link unlinked V/A pairs that share the same start."""
+    return _require_editor().auto_link_av(
+        tolerance_frames=tolerance_frames,
+        track_id_video=track_id_video,
+        track_id_audio=track_id_audio,
+    )
+
+
+@mcp.tool()
+def set_clips_meta(
+    clip_ids: list[str],
+    name: str | None = None,
+    color: str | None = None,
+    clear_name: bool = False,
+    clear_color: bool = False,
+) -> dict:
+    """Batch name/color meta."""
+    return _require_editor().set_clips_meta(
+        clip_ids,
+        name=name,
+        color=color,
+        clear_name=clear_name,
+        clear_color=clear_color,
+    )
+
+
+@mcp.tool()
 def clear_clip_effects(
     clip_id: str,
     types: list[str] | None = None,

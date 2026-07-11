@@ -5225,6 +5225,246 @@ class Editor:
                 "mode": mode,
             }
 
+    def join_clips(
+        self,
+        clip_id_a: str,
+        clip_id_b: str,
+    ) -> dict[str, Any]:
+        """Merge two adjacent clips on the same track into one.
+
+        Requirements: same track, same media, same speed, hard-cut adjacent
+        (b.start == a.end), and contiguous source (b.src_in == a.src_out) when
+        speed==1; for speed!=1 source must still abut. Keeps a's effects/meta.
+        """
+        with self._mutate():
+            ta, a = self._find_clip_and_track(clip_id_a)
+            tb, b = self._find_clip_and_track(clip_id_b)
+            if ta.id != tb.id:
+                raise ValueError("clips must be on the same track")
+            if ta.locked:
+                raise ValueError(f"track {ta.id} is locked")
+            # Order left→right
+            if a.start > b.start:
+                a, b = b, a
+                clip_id_a, clip_id_b = clip_id_b, clip_id_a
+            if b.start != a.end:
+                raise ValueError(
+                    f"clips not adjacent: {a.id} ends {a.end}, {b.id} starts {b.start}"
+                )
+            if a.media != b.media:
+                raise ValueError("join requires same media id")
+            if abs(float(a.speed) - float(b.speed)) > 1e-9:
+                raise ValueError("join requires same speed")
+            if b.src_in != a.src_out:
+                raise ValueError(
+                    f"source not contiguous: a.src_out={a.src_out} b.src_in={b.src_in}"
+                )
+            if b.transition_in is not None:
+                raise ValueError("cannot join across a transition_in; remove it first")
+            old_b = b.id
+            a.src_out = b.src_out
+            # Prefer name from a; if empty take b
+            if not a.name and b.name:
+                a.name = b.name
+            ta.clips.remove(b)
+            return {
+                "clip_id": a.id,
+                "removed_clip_id": old_b,
+                "track_id": ta.id,
+                "src_in": a.src_in,
+                "src_out": a.src_out,
+                "start": a.start,
+                "end": a.end,
+                "agent_note": "Effects/meta from left clip kept.",
+            }
+
+    def set_clips_speed(
+        self,
+        clip_ids: list[str],
+        speed: float,
+    ) -> dict[str, Any]:
+        """Set playback speed on many clips (one undo). Range [0.25, 4]."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(speed, (int, float)) or float(speed) < 0.25 or float(speed) > 4.0:
+            raise ValueError("speed must be in [0.25, 4.0]")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                old = clip.speed
+                clip.speed = float(speed)
+                out.append({
+                    "clip_id": cid,
+                    "speed": {"from": old, "to": clip.speed},
+                    "end": clip.end,
+                })
+            return {"speed": float(speed), "count": len(out), "clips": out}
+
+    def trim_to_range(
+        self,
+        clip_id: str,
+        start_frame: int,
+        end_frame: int,
+        *,
+        mode: str = "normal",
+    ) -> dict[str, Any]:
+        """Trim clip so it occupies [start_frame, end_frame) on the timeline.
+
+        Adjusts src_in/src_out (and start) using speed. mode=ripple closes the
+        hole left of the new start / pulls right after new end on that track.
+        Does not rate-stretch — pure source trim.
+        """
+        if mode not in ("normal", "ripple"):
+            raise ValueError("mode must be normal|ripple")
+        if not isinstance(start_frame, int) or not isinstance(end_frame, int):
+            raise ValueError("start_frame and end_frame must be ints")
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            if not (clip.start <= start_frame < end_frame <= clip.end):
+                raise ValueError(
+                    f"range [{start_frame},{end_frame}) must lie inside clip "
+                    f"[{clip.start},{clip.end})"
+                )
+            old = {
+                "start": clip.start,
+                "end": clip.end,
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+            }
+            old_start, old_end = clip.start, clip.end
+
+            def _src_at(tl: int) -> int:
+                local = tl - old_start
+                if clip.speed != 1.0:
+                    return clip.src_in + int(round(local * clip.speed))
+                return clip.src_in + local
+
+            new_in = max(clip.src_in, min(_src_at(start_frame), clip.src_out - 1))
+            new_out = max(new_in + 1, min(_src_at(end_frame), clip.src_out))
+            clip.src_in = new_in
+            clip.src_out = new_out
+            if mode == "normal":
+                clip.start = start_frame
+            else:
+                # Keep left edge at old_start; pull later clips by net shrink
+                clip.start = old_start
+                new_dur = clip.timeline_duration_frames
+                pull = (old_end - old_start) - new_dur
+                if pull > 0:
+                    for c in track.clips_in_order():
+                        if c.id != clip.id and c.start >= old_end:
+                            c.start = max(0, c.start - pull)
+                            if c.transition_in is not None:
+                                c.transition_in = None
+            return {
+                "clip_id": clip_id,
+                "mode": mode,
+                "from": old,
+                "to": {
+                    "start": clip.start,
+                    "end": clip.end,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                },
+                "agent_note": "Source trim only (no speed change). Use stretch_to to rate-fit.",
+            }
+
+    def auto_link_av(
+        self,
+        *,
+        tolerance_frames: int = 0,
+        track_id_video: str | None = None,
+        track_id_audio: str | None = None,
+    ) -> dict[str, Any]:
+        """Link video+audio clips that share the same start (within tolerance).
+
+        Pairs each unlinked video clip with an unlinked audio clip at the same
+        start. Creates new link_groups. One undo.
+        """
+        if not isinstance(tolerance_frames, int) or tolerance_frames < 0:
+            raise ValueError("tolerance_frames must be >= 0")
+        with self._mutate():
+            vtracks = [t for t in self.project.tracks if t.kind == "video"]
+            atracks = [t for t in self.project.tracks if t.kind == "audio"]
+            if track_id_video:
+                vtracks = [self.project.track_by_id(track_id_video)]
+            if track_id_audio:
+                atracks = [self.project.track_by_id(track_id_audio)]
+            videos = [
+                c for t in vtracks for c in t.clips_in_order()
+                if not c.link_group
+            ]
+            audios = [
+                c for t in atracks for c in t.clips_in_order()
+                if not c.link_group
+            ]
+            used_a: set[str] = set()
+            pairs: list[dict[str, Any]] = []
+            for vc in videos:
+                match = None
+                for ac in audios:
+                    if ac.id in used_a:
+                        continue
+                    if abs(ac.start - vc.start) <= tolerance_frames:
+                        match = ac
+                        break
+                if match is None:
+                    continue
+                gid = new_id("lnk")
+                vc.link_group = gid
+                match.link_group = gid
+                used_a.add(match.id)
+                pairs.append({
+                    "link_group": gid,
+                    "video_clip_id": vc.id,
+                    "audio_clip_id": match.id,
+                    "start_video": vc.start,
+                    "start_audio": match.start,
+                })
+            return {
+                "pairs": pairs,
+                "count": len(pairs),
+                "tolerance_frames": tolerance_frames,
+                "agent_note": "Only unlinked clips; first audio match wins per video.",
+            }
+
+    def set_clips_meta(
+        self,
+        clip_ids: list[str],
+        *,
+        name: str | None = None,
+        color: str | None = None,
+        clear_name: bool = False,
+        clear_color: bool = False,
+    ) -> dict[str, Any]:
+        """Batch set_clip_meta (one undo)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                if clear_name:
+                    clip.name = None
+                elif name is not None:
+                    clip.name = str(name).strip() or None
+                if clear_color:
+                    clip.color = None
+                elif color is not None:
+                    clip.color = str(color).strip() or None
+                out.append({
+                    "clip_id": cid,
+                    "name": clip.name,
+                    "color": clip.color,
+                })
+            return {"count": len(out), "clips": out}
+
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.
 

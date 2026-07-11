@@ -399,6 +399,11 @@
         <button type="button" class="secondary" id="btnMatchDur" disabled title="Match duration to 2nd selected">Match dur</button>
       </div>
       <div class="row">
+        <button type="button" class="secondary" id="btnJoin" disabled title="Join 2 adjacent same-media">Join 2</button>
+        <button type="button" class="secondary" id="btnAutoLink">Auto-link A/V</button>
+        <button type="button" class="secondary" id="btnSpeed2x" disabled>Sel 2×</button>
+      </div>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
@@ -862,7 +867,7 @@
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
         'btnJCut','btnLCut','btnClipInfo','btnFitFill','btnCopyTrack','btnRenameShots',
-        'btnColorSel','btnMatchDur',
+        'btnColorSel','btnMatchDur','btnJoin','btnSpeed2x',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2481,6 +2486,44 @@
         if (r.timeline) renderTimeline(r.timeline);
         setDirty(true);
         log('match_duration → ' + JSON.stringify(r.duration_frames || r.speed));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnJoin').onclick = async () => {
+      const ids = selectionList();
+      if (ids.length < 2) { log('select 2 adjacent clips'); return; }
+      try {
+        const r = await api('/api/clips/join', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id_a: ids[0], clip_id_b: ids[1] }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        selectedClipId = r.clip_id;
+        selectedIds = new Set([r.clip_id]);
+        updateSelBar();
+        log('joined → ' + r.clip_id);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnAutoLink').onclick = async () => {
+      try {
+        const r = await api('/api/auto_link_av', {
+          method: 'POST', body: JSON.stringify({ tolerance_frames: 0 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('auto_link pairs=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSpeed2x').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) return;
+      try {
+        const r = await api('/api/clips/speed', {
+          method: 'POST', body: JSON.stringify({ clip_ids: ids, speed: 2.0 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('speed 2x n=' + r.count);
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnZoomFit').onclick = () => {
