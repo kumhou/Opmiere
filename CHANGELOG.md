@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.22 — 2026-07-11
+
+### Added
+- **`lift`**: extract range without ripple (multi-track); leaves gap
+- **`split_at_markers`**: razor all tracks at each marker (one undo)
+- **`match_duration`**: stretch clip to match another clip's duration
+- **`set_clips_color` / `clips_by_color`**: batch color chips + query
+- **`export_cutlist`**: CSV/JSON cut list for agents
+- **`place_media`**: three-point place from bin (`insert|overwrite`)
+- Web: Lift I/O, Split@marks, Cutlist, Color sel, Match dur
+
 ## 0.2.21 — 2026-07-11
 
 ### Added

@@ -4945,6 +4945,286 @@ class Editor:
                 "agent_note": "Simple CMX import; media must already be in the project bin.",
             }
 
+    def lift(
+        self,
+        start_frame: int,
+        end_frame: int,
+        *,
+        track_id: str | None = None,
+        track_ids: list[str] | None = None,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """Lift [start, end) leaving a gap (extract_time with ripple=False).
+
+        track_id / track_ids / kind filter which tracks; default = all tracks.
+        One undo for multi-track.
+        """
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        with self._mutate():
+            if track_ids is not None:
+                targets = [self.project.track_by_id(t) for t in track_ids]
+            elif track_id is not None:
+                targets = [self.project.track_by_id(track_id)]
+            else:
+                targets = list(self.project.tracks)
+                if kind is not None:
+                    targets = [t for t in targets if t.kind == kind]
+            results: list[dict[str, Any]] = []
+            for tr in targets:
+                if tr.locked:
+                    continue
+                results.append(
+                    self._extract_time_unlocked(
+                        tr.id, start_frame, end_frame, ripple=False,
+                    )
+                )
+            return {
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "ripple": False,
+                "tracks": results,
+                "count": len(results),
+                "agent_note": "Gap left open; fill_track_gaps or insert later.",
+            }
+
+    def split_at_markers(
+        self,
+        *,
+        track_ids: list[str] | None = None,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Razor all (or selected) tracks at each marker frame. One undo."""
+        markers = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            markers = [m for m in markers if m.id in wanted]
+        frames = sorted({int(m.frame) for m in markers})
+        if not frames:
+            return {
+                "frames": [],
+                "splits": [],
+                "count": 0,
+                "agent_note": "No markers — nothing to split.",
+            }
+        with self._mutate():
+            all_splits: list[dict[str, Any]] = []
+            for fr in frames:
+                tracks = self.project.tracks
+                if track_ids is not None:
+                    wanted_t = set(track_ids)
+                    tracks = [t for t in tracks if t.id in wanted_t]
+                for track in tracks:
+                    if track.locked:
+                        continue
+                    for clip in list(track.clips_in_order()):
+                        if clip.start < fr < clip.end:
+                            left, right = self._split_clip_unlocked(clip.id, fr)
+                            all_splits.append({
+                                "frame": fr,
+                                "track_id": track.id,
+                                "left_id": left.id,
+                                "right_id": right.id,
+                            })
+            return {
+                "frames": frames,
+                "splits": all_splits,
+                "count": len(all_splits),
+                "agent_note": "One undo undoes all marker razors.",
+            }
+
+    def match_duration(
+        self,
+        clip_id: str,
+        reference_clip_id: str,
+        *,
+        clamp: bool = True,
+    ) -> dict[str, Any]:
+        """Rate-stretch clip_id so its timeline duration matches reference."""
+        ref = self._find_clip(reference_clip_id)
+        return self.stretch_to(
+            clip_id, ref.timeline_duration_frames, clamp=clamp,
+        )
+
+    def set_clips_color(
+        self,
+        clip_ids: list[str],
+        color: str | None,
+    ) -> dict[str, Any]:
+        """Set or clear color chip on many clips (one undo). color=None clears."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                if color is None or (isinstance(color, str) and not color.strip()):
+                    clip.color = None
+                else:
+                    clip.color = str(color).strip()
+                out.append({"clip_id": cid, "color": clip.color})
+            return {"count": len(out), "clips": out}
+
+    def clips_by_color(
+        self,
+        color: str,
+        *,
+        track_id: str | None = None,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """Find clips whose color chip matches (case-insensitive)."""
+        if not isinstance(color, str) or not color.strip():
+            raise ValueError("color must be non-empty")
+        q = color.strip().lower()
+        hits: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            if track_id is not None and track.id != track_id:
+                continue
+            if kind is not None and track.kind != kind:
+                continue
+            for clip in track.clips_in_order():
+                if (clip.color or "").strip().lower() == q:
+                    hits.append({
+                        "clip_id": clip.id,
+                        "track_id": track.id,
+                        "start": clip.start,
+                        "end": clip.end,
+                        "name": clip.name,
+                        "color": clip.color,
+                    })
+        return {"color": color, "count": len(hits), "clips": hits}
+
+    def export_cutlist(
+        self,
+        path: str | Path | None = None,
+        *,
+        format: str = "csv",
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a simple cut list (csv or json) of clips in timeline order.
+
+        Columns: event, track, kind, name, start_tc, end_tc, start_f, end_f,
+        src_in, src_out, speed, media, color.
+        """
+        if format not in ("csv", "json"):
+            raise ValueError("format must be csv|json")
+        rows: list[dict[str, Any]] = []
+        event = 1
+        tracks = self.project.tracks
+        if track_id is not None:
+            tracks = [self.project.track_by_id(track_id)]
+        for track in tracks:
+            for clip in track.clips_in_order():
+                media = self.project.media_by_id(clip.media)
+                rows.append({
+                    "event": event,
+                    "track_id": track.id,
+                    "track_name": track.name or "",
+                    "kind": track.kind,
+                    "clip_id": clip.id,
+                    "name": clip.name or "",
+                    "start_tc": self.frames_to_tc(clip.start)["tc"],
+                    "end_tc": self.frames_to_tc(clip.end)["tc"],
+                    "start_f": clip.start,
+                    "end_f": clip.end,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                    "speed": clip.speed,
+                    "media": media.path,
+                    "media_id": media.id,
+                    "color": clip.color or "",
+                    "muted": bool(clip.muted),
+                })
+                event += 1
+        if format == "json":
+            body = json.dumps(rows, indent=2, ensure_ascii=False)
+        else:
+            headers = [
+                "event", "track_id", "track_name", "kind", "clip_id", "name",
+                "start_tc", "end_tc", "start_f", "end_f", "src_in", "src_out",
+                "speed", "media", "media_id", "color", "muted",
+            ]
+            lines = [",".join(headers)]
+            for r in rows:
+                cells = []
+                for h in headers:
+                    v = r.get(h, "")
+                    s = str(v)
+                    if any(c in s for c in ",\"\n"):
+                        s = '"' + s.replace('"', '""') + '"'
+                    cells.append(s)
+                lines.append(",".join(cells))
+            body = "\n".join(lines) + ("\n" if lines else "")
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "format": format,
+            "count": len(rows),
+            "path": written,
+            "body": body,
+            "rows": rows if format == "json" else None,
+            "agent_note": "Cut list is read-only report; not an interchange graph.",
+        }
+
+    def place_media(
+        self,
+        media_id: str,
+        track_id: str,
+        start: int,
+        *,
+        src_in: int | None = None,
+        src_out: int | None = None,
+        mode: str = "insert",
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Place project media on a track (three-point style).
+
+        mode=insert: place only. mode=overwrite: lift range first (no ripple).
+        """
+        if mode not in ("insert", "overwrite"):
+            raise ValueError("mode must be insert|overwrite")
+        if not isinstance(start, int) or start < 0:
+            raise ValueError("start must be >= 0")
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            media = self.project.media_by_id(media_id)
+            if track.kind == "video" and media.kind == "audio":
+                raise ValueError("cannot place audio media on video track")
+            if track.kind == "audio" and media.kind == "image":
+                raise ValueError("cannot place image media on audio track")
+            sin = 0 if src_in is None else int(src_in)
+            sout = media.duration_frames if src_out is None else int(src_out)
+            if sin < 0 or sout <= sin:
+                raise ValueError("invalid src_in/src_out")
+            if sout > media.duration_frames:
+                raise ValueError("src_out exceeds media duration")
+            # temporary clip math for duration
+            dur = sout - sin  # at 1x
+            if mode == "overwrite":
+                self._extract_time_unlocked(
+                    track_id, start, start + dur, ripple=False,
+                )
+            clip = self.project.add_clip(track, media, start, sin, sout)
+            if name:
+                clip.name = str(name).strip() or None
+            return {
+                "clip_id": clip.id,
+                "track_id": track.id,
+                "media_id": media.id,
+                "start": clip.start,
+                "end": clip.end,
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+                "mode": mode,
+            }
+
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.
 

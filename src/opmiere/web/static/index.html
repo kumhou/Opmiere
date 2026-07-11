@@ -390,6 +390,15 @@
       <textarea id="edlImport" placeholder="paste EDL…" style="min-height:40px"></textarea>
       <button type="button" class="secondary" id="btnImportEdl">Import EDL</button>
       <div class="row">
+        <button type="button" class="secondary" id="btnLiftIO" title="Lift work I/O">Lift I/O</button>
+        <button type="button" class="secondary" id="btnSplitMarks">Split@marks</button>
+        <button type="button" class="secondary" id="btnCutlist">Cutlist</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnColorSel" disabled>Color sel</button>
+        <button type="button" class="secondary" id="btnMatchDur" disabled title="Match duration to 2nd selected">Match dur</button>
+      </div>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
@@ -853,6 +862,7 @@
         'cropW','cropH','btnCrop','btnBatchBlur','btnResetXform','rotDeg','btnRotate','btnSwap',
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
         'btnJCut','btnLCut','btnClipInfo','btnFitFill','btnCopyTrack','btnRenameShots',
+        'btnColorSel','btnMatchDur',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2408,6 +2418,69 @@
         if (r.timeline) renderTimeline(r.timeline);
         setDirty(true);
         log('import EDL placed=' + r.count + ' skipped=' + (r.skipped_count || 0));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnLiftIO').onclick = async () => {
+      try {
+        const io = await api('/api/in_out');
+        const a = io.in_point ?? io.in_frame;
+        const b = io.out_point ?? io.out_frame;
+        if (a == null || b == null || b <= a) { log('set work In/Out first'); return; }
+        const r = await api('/api/lift', {
+          method: 'POST',
+          body: JSON.stringify({ start_frame: a, end_frame: b }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('lift tracks=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSplitMarks').onclick = async () => {
+      try {
+        const r = await api('/api/split_at_markers', {
+          method: 'POST', body: JSON.stringify({}),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('split@marks n=' + r.count + ' frames=' + JSON.stringify(r.frames));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnCutlist').onclick = async () => {
+      try {
+        const r = await api('/api/export/cutlist', {
+          method: 'POST', body: JSON.stringify({ format: 'csv' }),
+        });
+        log('cutlist n=' + r.count + '\n' + (r.body || '').slice(0, 900));
+        if (r.body) {
+          try { await navigator.clipboard.writeText(r.body); log('(csv copied)'); }
+          catch (_) {}
+        }
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnColorSel').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) return;
+      try {
+        const r = await api('/api/clips/color', {
+          method: 'POST',
+          body: JSON.stringify({ clip_ids: ids, color: '#ffb703' }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('colored n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnMatchDur').onclick = async () => {
+      const ids = selectionList();
+      if (ids.length < 2) { log('select 2 clips (target then ref)'); return; }
+      try {
+        const r = await api('/api/clip/match_duration', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: ids[0], reference_clip_id: ids[1] }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('match_duration → ' + JSON.stringify(r.duration_frames || r.speed));
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnZoomFit').onclick = () => {

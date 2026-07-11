@@ -1655,6 +1655,119 @@ def import_edl_api(body: ImportEdlBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class LiftBody(BaseModel):
+    start_frame: int
+    end_frame: int
+    track_id: str | None = None
+    track_ids: list[str] | None = None
+    kind: str | None = None
+
+
+class SplitMarkersBody(BaseModel):
+    track_ids: list[str] | None = None
+    marker_ids: list[str] | None = None
+
+
+class MatchDurBody(BaseModel):
+    clip_id: str
+    reference_clip_id: str
+    clamp: bool = True
+
+
+class SetClipsColorBody(BaseModel):
+    clip_ids: list[str]
+    color: str | None = None
+
+
+class ClipsByColorBody(BaseModel):
+    color: str
+    track_id: str | None = None
+    kind: str | None = None
+
+
+class ExportCutlistBody(BaseModel):
+    path: str | None = None
+    format: str = "csv"
+    track_id: str | None = None
+
+
+class PlaceMediaBody(BaseModel):
+    media_id: str
+    track_id: str
+    start: int
+    src_in: int | None = None
+    src_out: int | None = None
+    mode: str = "insert"
+    name: str | None = None
+
+
+@app.post("/api/lift")
+def lift_api(body: LiftBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.lift(
+        body.start_frame,
+        body.end_frame,
+        track_id=body.track_id,
+        track_ids=body.track_ids,
+        kind=body.kind,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/split_at_markers")
+def split_at_markers_api(body: SplitMarkersBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.split_at_markers(
+        track_ids=body.track_ids, marker_ids=body.marker_ids,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/match_duration")
+def match_duration_api(body: MatchDurBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.match_duration(
+        body.clip_id, body.reference_clip_id, clamp=body.clamp,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/color")
+def set_clips_color_api(body: SetClipsColorBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_color(body.clip_ids, body.color)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/by_color")
+def clips_by_color_api(body: ClipsByColorBody) -> dict[str, Any]:
+    return _ed().clips_by_color(
+        body.color, track_id=body.track_id, kind=body.kind,
+    )
+
+
+@app.post("/api/export/cutlist")
+def export_cutlist_api(body: ExportCutlistBody) -> dict[str, Any]:
+    return _ed().export_cutlist(
+        body.path, format=body.format, track_id=body.track_id,
+    )
+
+
+@app.post("/api/place_media")
+def place_media_api(body: PlaceMediaBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.place_media(
+        body.media_id,
+        body.track_id,
+        body.start,
+        src_in=body.src_in,
+        src_out=body.src_out,
+        mode=body.mode,
+        name=body.name,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/clip/copy_attributes")
 def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
     return _ed().copy_attributes(body.clip_id)

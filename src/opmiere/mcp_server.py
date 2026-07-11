@@ -943,6 +943,99 @@ def import_edl(
 
 
 @mcp.tool()
+def lift(
+    start_frame: int,
+    end_frame: int,
+    track_id: str | None = None,
+    track_ids: list[str] | None = None,
+    kind: str | None = None,
+) -> dict:
+    """Lift range leaving gap (no ripple). Optional track filters."""
+    return _require_editor().lift(
+        start_frame,
+        end_frame,
+        track_id=track_id,
+        track_ids=track_ids,
+        kind=kind,
+    )
+
+
+@mcp.tool()
+def split_at_markers(
+    track_ids: list[str] | None = None,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Razor tracks at each marker frame (one undo)."""
+    return _require_editor().split_at_markers(
+        track_ids=track_ids, marker_ids=marker_ids,
+    )
+
+
+@mcp.tool()
+def match_duration(
+    clip_id: str,
+    reference_clip_id: str,
+    clamp: bool = True,
+) -> dict:
+    """Stretch clip_id to match reference_clip_id timeline duration."""
+    return _require_editor().match_duration(
+        clip_id, reference_clip_id, clamp=clamp,
+    )
+
+
+@mcp.tool()
+def set_clips_color(clip_ids: list[str], color: str | None = None) -> dict:
+    """Batch set/clear color chips. color=None clears."""
+    return _require_editor().set_clips_color(clip_ids, color)
+
+
+@mcp.tool()
+def clips_by_color(
+    color: str,
+    track_id: str | None = None,
+    kind: str | None = None,
+) -> dict:
+    """Find clips with matching color chip."""
+    return _require_editor().clips_by_color(
+        color, track_id=track_id, kind=kind,
+    )
+
+
+@mcp.tool()
+def export_cutlist(
+    path: str | None = None,
+    format: str = "csv",
+    track_id: str | None = None,
+) -> dict:
+    """Export cut list as csv or json."""
+    return _require_editor().export_cutlist(
+        path, format=format, track_id=track_id,
+    )
+
+
+@mcp.tool()
+def place_media(
+    media_id: str,
+    track_id: str,
+    start: int,
+    src_in: int | None = None,
+    src_out: int | None = None,
+    mode: str = "insert",
+    name: str | None = None,
+) -> dict:
+    """Place bin media on track; mode insert|overwrite."""
+    return _require_editor().place_media(
+        media_id,
+        track_id,
+        start,
+        src_in=src_in,
+        src_out=src_out,
+        mode=mode,
+        name=name,
+    )
+
+
+@mcp.tool()
 def clear_clip_effects(
     clip_id: str,
     types: list[str] | None = None,
