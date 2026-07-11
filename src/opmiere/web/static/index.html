@@ -1,8 +1,4 @@
 <!DOCTYPE html>
-<!DOCTYPE html>
-
-<!DOCTYPE html>
-
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"/>
@@ -318,6 +314,93 @@ details.tool-group .group-body { padding: 6px 8px 8px; }
   }
   #panel-inspector { display: none; }
 }
+
+
+/* —— shell v2 —— */
+#app {
+  grid-template-rows: minmax(120px, var(--preview-row, 1fr)) 6px minmax(160px, var(--timeline-row, 1.1fr));
+  grid-template-areas:
+    "media preview inspector"
+    "media split inspector"
+    "media timeline inspector";
+}
+#splitHandle {
+  grid-area: split;
+  cursor: row-resize;
+  background: var(--color-border);
+  position: relative;
+  z-index: 6;
+  transition: background var(--duration-fast) var(--ease);
+}
+#splitHandle:hover, #splitHandle.active {
+  background: var(--color-primary);
+}
+#splitHandle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 36px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+  background: rgba(255,255,255,0.25);
+  border-radius: 1px;
+}
+#app.hide-media {
+  grid-template-columns: 0px minmax(0, 1fr) 300px;
+}
+#app.hide-media #panel-media {
+  display: none;
+}
+#app.hide-inspector {
+  grid-template-columns: 260px minmax(0, 1fr) 0px;
+}
+#app.hide-media.hide-inspector {
+  grid-template-columns: 0px minmax(0, 1fr) 0px;
+}
+#app.hide-inspector #panel-inspector {
+  display: none;
+}
+.panel-head .tools { display: flex; gap: 4px; align-items: center; }
+.panel-head button.icon-btn {
+  width: 26px; height: 22px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; line-height: 1;
+  border-radius: var(--radius-sm);
+}
+.panel-head button.icon-btn[aria-pressed="false"] {
+  opacity: 0.7;
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+#topbar .top-actions button.icon-btn {
+  width: auto; min-width: 28px; height: 26px; padding: 0 8px;
+}
+.transport #btnPlay {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  font-weight: 700;
+  min-width: 64px;
+}
+.transport #btnJ, .transport #btnK, .transport #btnL {
+  min-width: 32px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+#statusBar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 4px 10px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 10px; color: var(--color-muted);
+  flex-shrink: 0;
+}
+#statusBar .mono { font-family: var(--font-mono); color: var(--color-primary); }
+@media (max-width: 1100px) {
+  #app.hide-inspector { grid-template-columns: 220px minmax(0,1fr); }
+  #app.hide-media { grid-template-columns: minmax(0,1fr) 0; }
+}
 </style>
 </head>
 <body><header id="topbar"><div class="brand"><span class="">Opmiere</span><span class="sub">NLE shell · agent = MCP</span></div>
@@ -327,7 +410,7 @@ details.tool-group .group-body { padding: 6px 8px 8px; }
 <span class="pill" id="proxyPill">proxy ?</span>
 <span class="tc" id="tcLabel">00:00.0 / 00:00.0</span>
 <div class="spacer"></div>
-<div class="top-actions"><button class="secondary" id="btnHelp" style="width:auto;margin:0;padding:4px 10px" type="button">? 帮助</button></div></header><div id="helpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;align-items:center;justify-content:center">
+<div class="top-actions"><button aria-pressed="true" class="secondary icon-btn" id="btnToggleInspector" title="Toggle inspector" type="button">Insp</button><button aria-pressed="true" class="secondary icon-btn" id="btnToggleMedia" title="Toggle media panel" type="button">Media</button><button class="secondary" id="btnHelp" style="width:auto;margin:0;padding:4px 10px" type="button">? 帮助</button></div></header><div id="helpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:50;align-items:center;justify-content:center">
 <div class="help-card" style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 20px;max-width:420px;max-height:80vh;overflow:auto">
 <h2 style="margin-top:0">键盘</h2>
 <div id="helpBody" style="font-size:12px;line-height:1.6"></div>
@@ -546,7 +629,7 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
 </div><div class="row">
 <button class="secondary" id="btnDuck" type="button">Set duck</button>
 <button class="secondary" id="btnDuckClear" type="button">Clear duck</button>
-</div></div></details><details class="tool-group"><summary>Transcript search</summary><div class="group-body"><input id="searchQ" placeholder="找到我说但是…"/><button class="secondary" id="btnSearch" type="button">Search cache</button><div id="searchHits"></div></div></details><details class="tool-group"><summary>Doctor</summary><div class="group-body"><button class="secondary" id="btnDoctor" type="button">Run doctor</button><div id="doctor">not run</div></div></details><details class="tool-group"><summary>Director brief (hero)</summary><div class="group-body"><label>Intent</label><textarea id="intent" placeholder="可选；空 = defaults"></textarea><label>Asset paths</label><textarea id="assets" placeholder="C:/footage/clip1.mp4"></textarea><button id="btnPlan" type="button">Plan session</button><div class="steps" id="plan"><p style="color:var(--muted)">Plan steps appear here.</p></div></div></details></div></section><section class="panel" id="panel-timeline"><div class="panel-head"><h2>Timeline</h2></div><div class="panel-body" style="padding:0;display:flex;flex-direction:column;min-height:0;overflow:hidden"><div id="timelineChrome"><div class="tl-main"><p class="dragHint">拖中间 = 移动 · 拖两端 = 裁剪 · 松手后 quick proxy 刷新</p><div id="ruler"></div><div id="tracks"><p style="color:var(--muted);padding:12px;font-size:12px">Empty — place media.</p></div><div class="row" style="margin-top:8px">
+</div></div></details><details class="tool-group"><summary>Transcript search</summary><div class="group-body"><input id="searchQ" placeholder="找到我说但是…"/><button class="secondary" id="btnSearch" type="button">Search cache</button><div id="searchHits"></div></div></details><details class="tool-group"><summary>Doctor</summary><div class="group-body"><button class="secondary" id="btnDoctor" type="button">Run doctor</button><div id="doctor">not run</div></div></details><details class="tool-group"><summary>Director brief (hero)</summary><div class="group-body"><label>Intent</label><textarea id="intent" placeholder="可选；空 = defaults"></textarea><label>Asset paths</label><textarea id="assets" placeholder="C:/footage/clip1.mp4"></textarea><button id="btnPlan" type="button">Plan session</button><div class="steps" id="plan"><p style="color:var(--muted)">Plan steps appear here.</p></div></div></details></div></section><div aria-orientation="horizontal" id="splitHandle" role="separator" title="Drag to resize timeline"></div><section class="panel" id="panel-timeline"><div class="panel-head"><h2>Timeline</h2></div><div class="panel-body" style="padding:0;display:flex;flex-direction:column;min-height:0;overflow:hidden"><div id="timelineChrome"><div class="tl-main"><p class="dragHint">拖中间 = 移动 · 拖两端 = 裁剪 · 松手后 quick proxy 刷新</p><div id="ruler"></div><div id="tracks"><p style="color:var(--muted);padding:12px;font-size:12px">Empty — place media.</p></div><div class="row" style="margin-top:8px">
 <button class="danger" disabled="" id="btnRippleDel" type="button">Ripple delete</button>
 <button class="secondary" disabled="" id="btnFillerDry" type="button">Filler plan</button>
 <button class="danger" disabled="" id="btnFillerApply" type="button">Filler apply</button>
@@ -574,11 +657,11 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
 <button class="secondary" id="btnRipNudgeL" title="Alt ripple" type="button">⇐ ripple</button>
 <button class="secondary" id="btnRipNudgeR" title="Alt ripple" type="button">ripple ⇒</button>
 <button class="secondary" id="btnInsertTime" type="button">Insert 15f</button>
-
 <button class="secondary" id="btnSelMute" type="button">Mute</button>
 <button class="danger" id="btnSelRipple" type="button">Ripple del</button>
 <button class="secondary" id="btnSelClear" type="button">Clear</button>
-</div><p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p></div></div></div></section></div><script>
+</div><p class="dragHint">Ctrl多选 · Alt+←/→ ripple 后片联动 · Insert/Extract · Del · F</p></div></div></div></section></div><div id="statusBar"><span>UI shell v2</span><span class="mono" id="shellHint">drag split · Media/Insp toggles · localStorage</span></div><script>
+
     const logEl = document.getElementById('log');
     const statusEl = document.getElementById('status');
     const docPill = document.getElementById('docPill');
@@ -3395,9 +3478,92 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
     document.getElementById('btnDoctor').click();
     loadRecent();
     loadColors();
-  </script>
+
+    // —— UI shell v2 chrome (layout persistence) ——
+    (function shellChrome() {
+      const KEY = 'opmiere.shell.v2';
+      const defaults = { media: true, inspector: true, timelineFrac: 0.38 };
+      function load() {
+        try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
+        catch { return { ...defaults }; }
+      }
+      function save(s) {
+        try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) {}
+      }
+      let state = load();
+      const app = document.getElementById('app');
+      if (!app) return;
+
+      function apply() {
+        app.classList.toggle('hide-media', !state.media);
+        app.classList.toggle('hide-inspector', !state.inspector);
+        const tf = Math.min(0.7, Math.max(0.22, state.timelineFrac));
+        const pf = 1 - tf;
+        app.style.setProperty('--preview-row', pf.toFixed(3) + 'fr');
+        app.style.setProperty('--timeline-row', tf.toFixed(3) + 'fr');
+        const bm = document.getElementById('btnToggleMedia');
+        const bi = document.getElementById('btnToggleInspector');
+        if (bm) {
+          bm.setAttribute('aria-pressed', state.media ? 'true' : 'false');
+          bm.textContent = state.media ? 'Media' : 'Media+';
+        }
+        if (bi) {
+          bi.setAttribute('aria-pressed', state.inspector ? 'true' : 'false');
+          bi.textContent = state.inspector ? 'Insp' : 'Insp+';
+        }
+      }
+      apply();
+
+      const bm = document.getElementById('btnToggleMedia');
+      const bi = document.getElementById('btnToggleInspector');
+      if (bm) bm.onclick = () => { state.media = !state.media; save(state); apply(); };
+      if (bi) bi.onclick = () => { state.inspector = !state.inspector; save(state); apply(); };
+
+      // Timeline row resize via drag handle
+      const handle = document.getElementById('splitHandle');
+      if (handle) {
+        let dragging = false;
+        handle.addEventListener('pointerdown', (e) => {
+          dragging = true;
+          handle.setPointerCapture(e.pointerId);
+          handle.classList.add('active');
+          e.preventDefault();
+        });
+        handle.addEventListener('pointermove', (e) => {
+          if (!dragging) return;
+          const rect = app.getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const frac = 1 - (y / rect.height);
+          state.timelineFrac = Math.min(0.7, Math.max(0.22, frac));
+          apply();
+        });
+        const end = (e) => {
+          if (!dragging) return;
+          dragging = false;
+          handle.classList.remove('active');
+          try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+          save(state);
+        };
+        handle.addEventListener('pointerup', end);
+        handle.addEventListener('pointercancel', end);
+      }
+
+      // Transport label sync: Play/Pause
+      const btnPlay = document.getElementById('btnPlay');
+      const player = document.getElementById('player');
+      if (btnPlay && player) {
+        const syncPlayLabel = () => {
+          btnPlay.textContent = player.paused ? 'Play' : 'Pause';
+        };
+        player.addEventListener('play', syncPlayLabel);
+        player.addEventListener('pause', syncPlayLabel);
+        const orig = btnPlay.onclick;
+        // keep existing handler; just refresh label after click
+        btnPlay.addEventListener('click', () => setTimeout(syncPlayLabel, 0));
+      }
+    })();
+
+
+</script>
 </body>
 </html>
-
-</body></html>
-</body></html>

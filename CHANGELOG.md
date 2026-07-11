@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.30 — 2026-07-11
+
+### Changed
+- **UI shell v2**:
+  - Toggle **Media** / **Inspector** panels (persisted in `localStorage`)
+  - Drag **split handle** between Program and Timeline to resize rows
+  - Status bar + Play/Pause label sync
+  - Clean single DOCTYPE/body document markup
+
 ## 0.2.29 — 2026-07-11
 
 ### Changed
