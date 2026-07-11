@@ -5716,6 +5716,1174 @@ class Editor:
                 "count": len(created),
             }
 
+    def move_block(
+        self,
+        clip_ids: list[str],
+        to_frame: int,
+        *,
+        follow_links: bool = False,
+    ) -> dict[str, Any]:
+        """Move a selection as a rigid block so the leftmost start becomes to_frame.
+
+        Relative offsets between selected clips are preserved. One undo.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(to_frame, int) or to_frame < 0:
+            raise ValueError("to_frame must be >= 0")
+        ids = list(dict.fromkeys(clip_ids))
+        if follow_links:
+            ids = self._expand_link_ids(ids)
+        with self._mutate():
+            clips = [self._find_clip(cid) for cid in ids]
+            for cid in ids:
+                self._assert_clip_track_unlocked(cid)
+            min_start = min(c.start for c in clips)
+            delta = to_frame - min_start
+            moved: list[dict[str, Any]] = []
+            for clip in clips:
+                old = clip.start
+                clip.start = max(0, old + delta)
+                if clip.transition_in is not None and delta != 0:
+                    clip.transition_in = None
+                moved.append({
+                    "clip_id": clip.id,
+                    "start": {"from": old, "to": clip.start},
+                })
+            return {
+                "to_frame": to_frame,
+                "delta": delta,
+                "count": len(moved),
+                "clips": moved,
+            }
+
+    def set_clips_gain(
+        self,
+        clip_ids: list[str],
+        db: float,
+    ) -> dict[str, Any]:
+        """Batch set clip gain dB (replaces prior gain effect). One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(db, (int, float)):
+            raise ValueError("db must be numeric")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "gain"
+                ]
+                if abs(float(db)) > 1e-9:
+                    self._apply_effect_unlocked(
+                        cid, {"type": "gain", "db": float(db)},
+                    )
+                out.append({"clip_id": cid, "gain_db": float(db)})
+            return {"gain_db": float(db), "count": len(out), "clips": out}
+
+    def set_clips_opacity(
+        self,
+        clip_ids: list[str],
+        amount: float,
+    ) -> dict[str, Any]:
+        """Batch set opacity 0..1 (one undo)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(amount, (int, float)) or not (0.0 <= float(amount) <= 1.0):
+            raise ValueError("amount must be in [0, 1]")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "opacity"
+                ]
+                if float(amount) < 1.0 - 1e-9:
+                    self._apply_effect_unlocked(
+                        cid, {"type": "opacity", "amount": float(amount)},
+                    )
+                out.append({"clip_id": cid, "opacity": float(amount)})
+            return {"opacity": float(amount), "count": len(out), "clips": out}
+
+    def validate_timeline(
+        self,
+        *,
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Report gaps, overlaps, and transition consistency (read-only).
+
+        Does not mutate. Agents use this before export.
+        """
+        issues: list[dict[str, Any]] = []
+        tracks = self.project.tracks
+        if track_id is not None:
+            tracks = [self.project.track_by_id(track_id)]
+        for track in tracks:
+            ordered = track.clips_in_order()
+            if not ordered:
+                issues.append({
+                    "severity": "info",
+                    "code": "empty_track",
+                    "track_id": track.id,
+                    "message": "track has no clips",
+                })
+                continue
+            if ordered[0].start != 0 and track.kind in ("video", "audio"):
+                # base tracks often need start-at-0 for contiguous export
+                issues.append({
+                    "severity": "warn",
+                    "code": "leading_gap",
+                    "track_id": track.id,
+                    "start": 0,
+                    "end": ordered[0].start,
+                    "message": f"first clip starts at {ordered[0].start}",
+                })
+            for prev, nxt in zip(ordered, ordered[1:]):
+                if nxt.start > prev.end:
+                    issues.append({
+                        "severity": "warn",
+                        "code": "gap",
+                        "track_id": track.id,
+                        "start": prev.end,
+                        "end": nxt.start,
+                        "before": prev.id,
+                        "after": nxt.id,
+                        "frames": nxt.start - prev.end,
+                    })
+                elif nxt.start < prev.end:
+                    # overlap: OK only if transition explains it
+                    tr = nxt.transition_in
+                    if tr and nxt.start == prev.end - int(tr.get("duration_frames") or 0):
+                        continue
+                    issues.append({
+                        "severity": "error",
+                        "code": "overlap",
+                        "track_id": track.id,
+                        "before": prev.id,
+                        "after": nxt.id,
+                        "prev_end": prev.end,
+                        "next_start": nxt.start,
+                        "message": "undeclared overlap (no matching transition_in)",
+                    })
+                elif nxt.transition_in is not None:
+                    issues.append({
+                        "severity": "error",
+                        "code": "transition_without_overlap",
+                        "track_id": track.id,
+                        "clip_id": nxt.id,
+                        "message": "transition_in set but hard-cut (no overlap)",
+                    })
+        errors = sum(1 for i in issues if i["severity"] == "error")
+        warns = sum(1 for i in issues if i["severity"] == "warn")
+        return {
+            "ok": errors == 0,
+            "error_count": errors,
+            "warn_count": warns,
+            "issue_count": len(issues),
+            "issues": issues,
+            "agent_note": "ok=True means no hard errors; warnings may still block base-track export.",
+        }
+
+    def extract_range(
+        self,
+        start_frame: int,
+        end_frame: int,
+        *,
+        track_id: str | None = None,
+        track_ids: list[str] | None = None,
+        kind: str | None = None,
+        ripple: bool = True,
+    ) -> dict[str, Any]:
+        """Extract [start, end) on one or many tracks (default all). One undo."""
+        if end_frame <= start_frame:
+            raise ValueError("end_frame must be > start_frame")
+        with self._mutate():
+            if track_ids is not None:
+                targets = [self.project.track_by_id(t) for t in track_ids]
+            elif track_id is not None:
+                targets = [self.project.track_by_id(track_id)]
+            else:
+                targets = list(self.project.tracks)
+                if kind is not None:
+                    targets = [t for t in targets if t.kind == kind]
+            results: list[dict[str, Any]] = []
+            for tr in targets:
+                if tr.locked:
+                    continue
+                results.append(
+                    self._extract_time_unlocked(
+                        tr.id, start_frame, end_frame, ripple=ripple,
+                    )
+                )
+            return {
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "ripple": ripple,
+                "tracks": results,
+                "count": len(results),
+            }
+
+    def apply_transitions_on_cuts(
+        self,
+        track_id: str,
+        transition_type: str = "cross_dissolve",
+        duration_frames: int = 15,
+        *,
+        max_count: int | None = None,
+    ) -> dict[str, Any]:
+        """Add the same transition on every hard cut on a track (one undo)."""
+        if transition_type not in KNOWN_TRANSITION_TYPES:
+            raise ValueError(
+                f"unknown transition type {transition_type!r}; "
+                f"supported: {sorted(KNOWN_TRANSITION_TYPES)}"
+            )
+        if not isinstance(duration_frames, int) or duration_frames <= 0:
+            raise ValueError("duration_frames must be positive int")
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            ordered = track.clips_in_order()
+            applied: list[dict[str, Any]] = []
+            for prev, nxt in zip(ordered, ordered[1:]):
+                if max_count is not None and len(applied) >= max_count:
+                    break
+                if nxt.transition_in is not None:
+                    continue
+                if nxt.start != prev.end:
+                    continue  # gap or already overlapping
+                # Need enough material on both sides
+                if (
+                    prev.timeline_duration_frames <= duration_frames
+                    or nxt.timeline_duration_frames <= duration_frames
+                ):
+                    continue
+                # Inline add_transition math
+                nxt.transition_in = {
+                    "type": transition_type,
+                    "duration_frames": duration_frames,
+                }
+                nxt.start = prev.end - duration_frames
+                applied.append({
+                    "clip_id": nxt.id,
+                    "prev_id": prev.id,
+                    "duration_frames": duration_frames,
+                    "type": transition_type,
+                })
+            return {
+                "track_id": track_id,
+                "type": transition_type,
+                "duration_frames": duration_frames,
+                "count": len(applied),
+                "applied": applied,
+            }
+
+    def list_media_status(self) -> dict[str, Any]:
+        """Report which media files are online (exist on disk) vs offline."""
+        online: list[dict[str, Any]] = []
+        offline: list[dict[str, Any]] = []
+        for media in self.project.media:
+            path = self.bundle.media_path(media.path)
+            row = {
+                "media_id": media.id,
+                "path": media.path,
+                "abs_path": str(path),
+                "kind": media.kind,
+                "duration_frames": media.duration_frames,
+            }
+            if path.exists():
+                online.append(row)
+            else:
+                offline.append(row)
+        return {
+            "online_count": len(online),
+            "offline_count": len(offline),
+            "online": online,
+            "offline": offline,
+            "ok": len(offline) == 0,
+        }
+
+    def name_clips_from_media(
+        self,
+        clip_ids: list[str] | None = None,
+        *,
+        track_id: str | None = None,
+        strip_ext: bool = True,
+    ) -> dict[str, Any]:
+        """Set clip.name from media basename (stem). One undo."""
+        with self._mutate():
+            targets: list[Any] = []
+            if clip_ids is not None:
+                for cid in dict.fromkeys(clip_ids):
+                    self._assert_clip_track_unlocked(cid)
+                    targets.append(self._find_clip(cid))
+            else:
+                for tr in self.project.tracks:
+                    if track_id is not None and tr.id != track_id:
+                        continue
+                    if tr.locked:
+                        continue
+                    targets.extend(tr.clips_in_order())
+            renamed: list[dict[str, Any]] = []
+            for clip in targets:
+                media = self.project.media_by_id(clip.media)
+                base = Path(media.path).name
+                name = Path(base).stem if strip_ext else base
+                old = clip.name
+                clip.name = name
+                renamed.append({"clip_id": clip.id, "from": old, "to": name})
+            return {"count": len(renamed), "renamed": renamed}
+
+    def snap_clip(
+        self,
+        clip_id: str,
+        *,
+        to: str = "prev_end",
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Snap clip start to a target: prev_end|next_start|zero|playhead needs frame.
+
+        to:
+          - prev_end: end of previous clip on same track
+          - next_start: start of next clip minus this duration (abut before next)
+          - zero: frame 0
+        """
+        if to not in ("prev_end", "next_start", "zero"):
+            raise ValueError("to must be prev_end|next_start|zero")
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            ordered = track.clips_in_order()
+            idx = next(i for i, c in enumerate(ordered) if c.id == clip.id)
+            old = clip.start
+            if to == "zero":
+                clip.start = 0
+            elif to == "prev_end":
+                if idx == 0:
+                    clip.start = 0
+                else:
+                    clip.start = ordered[idx - 1].end
+            else:  # next_start
+                if idx >= len(ordered) - 1:
+                    raise ValueError("no next clip to snap before")
+                nxt = ordered[idx + 1]
+                clip.start = max(0, nxt.start - clip.timeline_duration_frames)
+            if clip.transition_in is not None:
+                clip.transition_in = None
+            return {
+                "clip_id": clip_id,
+                "to": to,
+                "start": {"from": old, "to": clip.start},
+            }
+
+    def split_at_beats(
+        self,
+        track_id: str,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        max_splits: int = 64,
+    ) -> dict[str, Any]:
+        """Detect beats on audio media and razor track at those frames. One undo.
+
+        Provide media_id (project media) or path to an audio/video file.
+        """
+        if media_id is None and path is None:
+            # use first audio media in project
+            audio_media = [m for m in self.project.media if m.kind == "audio"]
+            if not audio_media:
+                raise ValueError("pass media_id or path, or import audio first")
+            media_id = audio_media[0].id
+        if path is not None:
+            src = Path(path)
+        else:
+            media = self.project.media_by_id(media_id)  # type: ignore[arg-type]
+            src = self.bundle.media_path(media.path)
+        if not src.exists():
+            raise FileNotFoundError(str(src))
+        beats = _detect_beats(src)
+        fps = float(self.project.timebase.fps or 30.0)
+        times = list(beats.get("beat_times") or [])
+        frames = sorted({
+            int(round(float(s) * fps)) for s in times if float(s) > 0
+        })[: max(0, int(max_splits))]
+        if not frames:
+            return {
+                "track_id": track_id,
+                "frames": [],
+                "splits": [],
+                "count": 0,
+                "bpm_estimate": beats.get("bpm_estimate"),
+                "agent_note": "No beat frames detected.",
+            }
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            splits: list[dict[str, Any]] = []
+            for fr in frames:
+                for clip in list(track.clips_in_order()):
+                    if clip.start < fr < clip.end:
+                        left, right = self._split_clip_unlocked(clip.id, fr)
+                        splits.append({
+                            "frame": fr,
+                            "left_id": left.id,
+                            "right_id": right.id,
+                        })
+            return {
+                "track_id": track_id,
+                "frames": frames,
+                "splits": splits,
+                "count": len(splits),
+                "source": str(src),
+            }
+
+    def quantize_clips(
+        self,
+        clip_ids: list[str],
+        grid_frames: int,
+        *,
+        edge: str = "start",
+    ) -> dict[str, Any]:
+        """Snap clip starts (or ends via start adjust) to a frame grid. One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(grid_frames, int) or grid_frames <= 0:
+            raise ValueError("grid_frames must be positive int")
+        if edge not in ("start", "end"):
+            raise ValueError("edge must be start|end")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                old = clip.start
+                if edge == "start":
+                    q = int(round(clip.start / grid_frames) * grid_frames)
+                    clip.start = max(0, q)
+                else:
+                    end = clip.end
+                    q_end = int(round(end / grid_frames) * grid_frames)
+                    clip.start = max(0, q_end - clip.timeline_duration_frames)
+                if clip.transition_in is not None and clip.start != old:
+                    clip.transition_in = None
+                out.append({
+                    "clip_id": cid,
+                    "start": {"from": old, "to": clip.start},
+                })
+            return {
+                "grid_frames": grid_frames,
+                "edge": edge,
+                "count": len(out),
+                "clips": out,
+            }
+
+    def export_audio(
+        self,
+        output_path: str | Path,
+        *,
+        start_frame: int | None = None,
+        end_frame: int | None = None,
+        sample_rate: int | None = None,
+    ) -> dict[str, Any]:
+        """Export timeline audio only (wav/m4a/mp3 by suffix) via full render + extract.
+
+        Renders the project (or range) then keeps audio stream. Heavier than
+        ideal but reuses the proven export path.
+        """
+        import subprocess
+        import tempfile
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fps = float(self.project.timebase.fps or 30.0)
+        tmp_dir = Path(tempfile.mkdtemp(prefix="opmiere_aout_"))
+        tmp_vid = tmp_dir / "mix.mp4"
+        try:
+            if start_frame is not None and end_frame is not None:
+                self.export_range(
+                    tmp_vid,
+                    float(start_frame) / fps,
+                    float(end_frame) / fps,
+                    run_delivery_check=False,
+                )
+            else:
+                self.export(tmp_vid)
+            sr = sample_rate or int(self.project.timebase.sample_rate or 48000)
+            suf = out.suffix.lower()
+            cmd = ["ffmpeg", "-y", "-i", str(tmp_vid), "-vn"]
+            if suf == ".wav":
+                cmd += ["-c:a", "pcm_s16le", "-ar", str(sr)]
+            elif suf in (".m4a", ".aac"):
+                cmd += ["-c:a", "aac", "-b:a", "192k", "-ar", str(sr)]
+            elif suf == ".mp3":
+                cmd += ["-c:a", "libmp3lame", "-b:a", "192k", "-ar", str(sr)]
+            else:
+                if not suf:
+                    out = out.with_suffix(".wav")
+                cmd += ["-c:a", "pcm_s16le", "-ar", str(sr)]
+            cmd.append(str(out))
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            if r.returncode != 0:
+                raise RuntimeError(
+                    f"ffmpeg audio extract failed: {r.stderr[-800:]}"
+                )
+            return {
+                "path": str(out.resolve()),
+                "sample_rate": sr,
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "agent_note": "Full mixdown audio; video discarded.",
+            }
+        finally:
+            try:
+                if tmp_vid.exists():
+                    tmp_vid.unlink()
+                tmp_dir.rmdir()
+            except OSError:
+                pass
+
+    def import_cutlist(
+        self,
+        text: str | None = None,
+        *,
+        path: str | Path | None = None,
+        track_id: str | None = None,
+        replace_track: bool = False,
+    ) -> dict[str, Any]:
+        """Import a CSV cutlist from export_cutlist (media must be in bin).
+
+        Matches media by media_id column or media path basename.
+        """
+        if text is None and path is None:
+            raise ValueError("pass text= or path=")
+        if text is None:
+            text = Path(path).read_text(encoding="utf-8")
+        assert text is not None
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        if not lines:
+            return {"count": 0, "placed": [], "skipped": []}
+        # CSV parse simple
+        import csv
+        from io import StringIO
+        reader = csv.DictReader(StringIO("\n".join(lines)))
+        rows = list(reader)
+        media_by_id = {m.id: m for m in self.project.media}
+        media_by_base: dict[str, Any] = {}
+        for m in self.project.media:
+            media_by_base[Path(m.path).name.lower()] = m
+            media_by_base[Path(m.path).stem.lower()] = m
+
+        with self._mutate():
+            if track_id is None:
+                vtracks = [t for t in self.project.tracks if t.kind == "video"]
+                track = vtracks[0] if vtracks else self.project.add_track("video")
+            else:
+                track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            if replace_track:
+                track.clips.clear()
+            placed: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            for row in rows:
+                mid = (row.get("media_id") or "").strip()
+                mpath = (row.get("media") or "").strip()
+                media = media_by_id.get(mid) if mid else None
+                if media is None and mpath:
+                    media = media_by_base.get(Path(mpath).name.lower()) or media_by_base.get(
+                        Path(mpath).stem.lower()
+                    )
+                if media is None:
+                    skipped.append({"row": row, "reason": "media not in bin"})
+                    continue
+                try:
+                    start = int(row.get("start_f") or 0)
+                    src_in = int(row.get("src_in") or 0)
+                    src_out = int(row.get("src_out") or media.duration_frames)
+                    speed = float(row.get("speed") or 1.0)
+                except ValueError:
+                    skipped.append({"row": row, "reason": "bad numbers"})
+                    continue
+                if src_out <= src_in:
+                    skipped.append({"row": row, "reason": "empty source"})
+                    continue
+                # kind check
+                if track.kind == "video" and media.kind == "audio":
+                    skipped.append({"row": row, "reason": "audio on video track"})
+                    continue
+                clip = self.project.add_clip(track, media, start, src_in, src_out)
+                if 0.25 <= speed <= 4.0:
+                    clip.speed = speed
+                name = (row.get("name") or "").strip()
+                if name:
+                    clip.name = name
+                color = (row.get("color") or "").strip()
+                if color:
+                    clip.color = color
+                placed.append({
+                    "clip_id": clip.id,
+                    "start": clip.start,
+                    "media_id": media.id,
+                })
+            return {
+                "track_id": track.id,
+                "placed": placed,
+                "count": len(placed),
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+                "replace_track": replace_track,
+            }
+
+    def set_work_area_from_clip(self, clip_id: str) -> dict[str, Any]:
+        """Set work In/Out to the clip's timeline [start, end)."""
+        clip = self._find_clip(clip_id)
+        self._in_point = int(clip.start)
+        self._out_point = int(clip.end)
+        return self.get_in_out()
+
+    def set_work_area_from_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Set work In/Out to the union of selected clips' timeline span."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+        self._in_point = min(c.start for c in clips)
+        self._out_point = max(c.end for c in clips)
+        return self.get_in_out()
+
+    def markers_from_cuts(
+        self,
+        track_id: str,
+        *,
+        label_prefix: str = "Cut",
+        color: str = "#ffb703",
+        include_start: bool = False,
+    ) -> dict[str, Any]:
+        """Add a marker at each hard-cut boundary on a track. One undo."""
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            ordered = track.clips_in_order()
+            added: list[dict[str, Any]] = []
+            frames: list[int] = []
+            if include_start and ordered:
+                frames.append(ordered[0].start)
+            for prev, nxt in zip(ordered, ordered[1:]):
+                frames.append(nxt.start)
+            for i, fr in enumerate(frames, start=1):
+                m = self.project.add_marker(
+                    fr, label=f"{label_prefix} {i}", color=color,
+                )
+                added.append(m.to_dict())
+            return {
+                "track_id": track_id,
+                "count": len(added),
+                "markers": added,
+            }
+
+    def shift_markers(
+        self,
+        delta_frames: int,
+        *,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Shift marker frames by delta (clamped ≥0). One undo."""
+        if not isinstance(delta_frames, int) or delta_frames == 0:
+            raise ValueError("delta_frames must be a non-zero int")
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            for m in list(self.project.markers):
+                if marker_ids is not None and m.id not in marker_ids:
+                    continue
+                old = m.frame
+                m.frame = max(0, old + delta_frames)
+                moved.append({
+                    "marker_id": m.id,
+                    "frame": {"from": old, "to": m.frame},
+                })
+            return {"delta_frames": delta_frames, "count": len(moved), "markers": moved}
+
+    def clear_markers(self) -> dict[str, Any]:
+        """Delete all timeline markers. One undo."""
+        with self._mutate():
+            n = len(self.project.markers)
+            self.project.markers.clear()
+            return {"cleared": n}
+
+    def ripple_delete_range(
+        self,
+        start_frame: int,
+        end_frame: int,
+        *,
+        track_id: str | None = None,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """Alias for extract_range(..., ripple=True) — Premiere vocabulary."""
+        return self.extract_range(
+            start_frame,
+            end_frame,
+            track_id=track_id,
+            kind=kind,
+            ripple=True,
+        )
+
+    def solo_clip(
+        self,
+        clip_id: str,
+        *,
+        exclusive: bool = True,
+    ) -> dict[str, Any]:
+        """Mute all other clips on the same track (or all tracks if exclusive).
+
+        exclusive=True: mute every other clip in the project of same kind.
+        exclusive=False: mute others on the same track only.
+        Does not use track solo — clip-level mute only. One undo.
+        """
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            muted: list[str] = []
+            unmuted: list[str] = []
+            for tr in self.project.tracks:
+                if exclusive:
+                    if tr.kind != track.kind:
+                        continue
+                else:
+                    if tr.id != track.id:
+                        continue
+                if tr.locked:
+                    continue
+                for c in tr.clips:
+                    if c.id == clip_id:
+                        c.muted = False
+                        unmuted.append(c.id)
+                    else:
+                        c.muted = True
+                        muted.append(c.id)
+            return {
+                "clip_id": clip_id,
+                "exclusive": exclusive,
+                "muted": muted,
+                "unmuted": unmuted,
+                "agent_note": "Clip mute only; unmute with set_clips_muted.",
+            }
+
+    def unmute_all_clips(
+        self,
+        *,
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Clear muted on all clips (optional track filter). One undo."""
+        with self._mutate():
+            n = 0
+            for tr in self.project.tracks:
+                if track_id is not None and tr.id != track_id:
+                    continue
+                if tr.locked:
+                    continue
+                for c in tr.clips:
+                    if c.muted:
+                        c.muted = False
+                        n += 1
+            return {"unmuted_count": n}
+
+    def set_clips_color_cycle(
+        self,
+        clip_ids: list[str] | None = None,
+        *,
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Assign rotating CLIP_COLORS to clips (bin coloring). One undo."""
+        colors = list(_CLIP_COLORS)
+        with self._mutate():
+            targets: list[Any] = []
+            if clip_ids is not None:
+                for cid in dict.fromkeys(clip_ids):
+                    self._assert_clip_track_unlocked(cid)
+                    targets.append(self._find_clip(cid))
+            else:
+                for tr in self.project.tracks:
+                    if track_id is not None and tr.id != track_id:
+                        continue
+                    if tr.locked:
+                        continue
+                    targets.extend(tr.clips_in_order())
+            out: list[dict[str, Any]] = []
+            for i, clip in enumerate(targets):
+                col = colors[i % len(colors)]
+                clip.color = col
+                out.append({"clip_id": clip.id, "color": col})
+            return {"count": len(out), "clips": out}
+
+    def duration_report(self) -> dict[str, Any]:
+        """Per-track and project duration census (read-only)."""
+        fps = float(self.project.timebase.fps or 30.0)
+        tracks_out: list[dict[str, Any]] = []
+        max_end = 0
+        for tr in self.project.tracks:
+            ordered = tr.clips_in_order()
+            end = ordered[-1].end if ordered else 0
+            max_end = max(max_end, end)
+            tracks_out.append({
+                "track_id": tr.id,
+                "kind": tr.kind,
+                "name": tr.name,
+                "clip_count": len(ordered),
+                "end_frame": end,
+                "duration_seconds": round(end / fps, 3) if fps else 0,
+                "muted": tr.muted,
+                "solo": tr.solo,
+                "locked": tr.locked,
+            })
+        return {
+            "duration_frames": max_end,
+            "duration_seconds": round(max_end / fps, 3) if fps else 0,
+            "fps": fps,
+            "track_count": len(tracks_out),
+            "media_count": len(self.project.media),
+            "marker_count": len(self.project.markers),
+            "tracks": tracks_out,
+        }
+
+    def prepare_for_export(
+        self,
+        *,
+        fill_video: bool = True,
+        fill_audio: bool = False,
+        clear_empty_tracks: bool = True,
+    ) -> dict[str, Any]:
+        """Agent preflight: prepare_export + optional empty-track cleanup + validate.
+
+        Multiple undo steps (each sub-call is undoable). Prefer as last edit
+        before export.
+        """
+        steps: list[Any] = []
+        steps.append(self.prepare_export(fill_video=fill_video, fill_audio=fill_audio))
+        if clear_empty_tracks:
+            steps.append(self.remove_empty_tracks())
+        report = self.validate_timeline()
+        media = self.list_media_status()
+        return {
+            "steps": steps,
+            "validate": report,
+            "media_ok": media["ok"],
+            "offline_count": media["offline_count"],
+            "ready": bool(report.get("ok") and media.get("ok")),
+            "agent_note": "ready=True is a soft green light; still run delivery_check after export.",
+        }
+
+    def export_still(
+        self,
+        output_path: str | Path,
+        frame: int,
+        *,
+        width: int = 1280,
+    ) -> dict[str, Any]:
+        """Export a single timeline frame as an image (png/jpg by suffix)."""
+        fps = float(self.project.timebase.fps or 30.0)
+        t = max(0, int(frame)) / fps
+        result = self.frame_at(t, output_path, width=width, prefer_proxy=True)
+        return {
+            **result,
+            "frame": int(frame),
+            "agent_note": "Uses preview proxy when fresh; else base-track approx.",
+        }
+
+    def set_marker_color_batch(
+        self,
+        color: str,
+        *,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Set color on many markers. One undo."""
+        if not isinstance(color, str) or not color.strip():
+            raise ValueError("color must be non-empty")
+        with self._mutate():
+            n = 0
+            for m in self.project.markers:
+                if marker_ids is not None and m.id not in marker_ids:
+                    continue
+                m.color = color.strip()
+                n += 1
+            return {"color": color.strip(), "count": n}
+
+    def clips_sharing_media(self, media_id: str) -> dict[str, Any]:
+        """List all clips using a media id (for relink impact analysis)."""
+        self.project.media_by_id(media_id)
+        hits: list[dict[str, Any]] = []
+        for tr in self.project.tracks:
+            for c in tr.clips_in_order():
+                if c.media == media_id:
+                    hits.append({
+                        "clip_id": c.id,
+                        "track_id": tr.id,
+                        "start": c.start,
+                        "end": c.end,
+                        "name": c.name,
+                    })
+        return {"media_id": media_id, "count": len(hits), "clips": hits}
+
+    def batch_relink(
+        self,
+        mapping: dict[str, str],
+        *,
+        keep_source_range: bool = True,
+    ) -> dict[str, Any]:
+        """Relink many clips: mapping clip_id → media_id. One undo."""
+        if not mapping:
+            raise ValueError("mapping is empty")
+        with self._mutate():
+            results: list[dict[str, Any]] = []
+            for clip_id, media_id in mapping.items():
+                self._assert_clip_track_unlocked(clip_id)
+                track, clip = self._find_clip_and_track(clip_id)
+                new_media = self.project.media_by_id(media_id)
+                if track.kind == "video" and new_media.kind == "audio":
+                    raise ValueError(f"{clip_id}: cannot relink video clip to audio")
+                if track.kind == "audio" and new_media.kind == "image":
+                    raise ValueError(f"{clip_id}: cannot relink audio clip to image")
+                old = clip.media
+                if not keep_source_range:
+                    clip.media = new_media.id
+                    clip.src_in = 0
+                    clip.src_out = max(1, new_media.duration_frames)
+                else:
+                    clip.media = new_media.id
+                    max_out = max(1, new_media.duration_frames)
+                    if clip.src_out > max_out:
+                        clip.src_out = max_out
+                    if clip.src_in >= clip.src_out:
+                        clip.src_in = 0
+                        clip.src_out = max_out
+                results.append({
+                    "clip_id": clip_id,
+                    "from_media": old,
+                    "to_media": new_media.id,
+                })
+            return {
+                "count": len(results),
+                "relinked": results,
+                "keep_source_range": keep_source_range,
+            }
+
+    def hard_cut_all(
+        self,
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Remove all transitions and repack hard cuts (close overlaps). One undo."""
+        with self._mutate():
+            tracks = (
+                [self.project.track_by_id(track_id)]
+                if track_id is not None
+                else list(self.project.tracks)
+            )
+            n = 0
+            for track in tracks:
+                if track.locked:
+                    continue
+                for c in track.clips:
+                    if c.transition_in is not None:
+                        c.transition_in = None
+                        n += 1
+                # repack
+                cursor = 0
+                for c in track.clips_in_order():
+                    c.start = cursor
+                    cursor = c.end
+            return {
+                "transitions_cleared": n,
+                "track_id": track_id,
+                "agent_note": "All tracks packed from 0 after clearing transitions.",
+            }
+
+    def export_fcpxml(
+        self,
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a minimal FCPXML 1.9 skeleton of the base video track.
+
+        Interchange starter — not a full Final Cut round-trip. Events map clips
+        with resource ids from project media. path=None → body only.
+        """
+        fps = float(self.project.timebase.fps or 30.0)
+        fps_i = max(1, int(round(fps)))
+        w = int(self.project.resolution.w)
+        h = int(self.project.resolution.h)
+        name = (title or self.project.id).replace("<", "").replace(">", "")
+        video_tracks = [t for t in self.project.tracks if t.kind == "video"]
+        # Resources
+        res_lines: list[str] = []
+        media_to_r: dict[str, str] = {}
+        for i, media in enumerate(self.project.media, start=1):
+            rid = f"r{i}"
+            media_to_r[media.id] = rid
+            src = media.path.replace("&", "&amp;").replace('"', "&quot;")
+            # duration in frames as Nd/fps_i s FCP style
+            dur = max(1, media.duration_frames)
+            res_lines.append(
+                f'    <asset id="{rid}" name="{Path(media.path).name}" '
+                f'src="file:///{src}" start="0s" '
+                f'duration="{dur}/{fps_i}s" hasVideo="1" hasAudio="'
+                f'{"1" if media.has_audio or media.kind == "audio" else "0"}"/>'
+            )
+        spine: list[str] = []
+        count = 0
+        if video_tracks:
+            for clip in video_tracks[0].clips_in_order():
+                rid = media_to_r.get(clip.media, "r1")
+                dur = clip.timeline_duration_frames
+                offset = clip.start
+                src_dur = clip.duration_frames
+                spine.append(
+                    f'        <asset-clip ref="{rid}" '
+                    f'offset="{offset}/{fps_i}s" '
+                    f'name="{(clip.name or clip.id)}" '
+                    f'duration="{dur}/{fps_i}s" '
+                    f'start="{clip.src_in}/{fps_i}s" '
+                    f'tcFormat="NDF"/>'
+                )
+                count += 1
+                _ = src_dur
+        body = "\n".join([
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            "<!DOCTYPE fcpxml>",
+            '<fcpxml version="1.9">',
+            "  <resources>",
+            f'    <format id="r0" name="FFVideoFormat{h}p{fps_i}" '
+            f'frameDuration="1/{fps_i}s" width="{w}" height="{h}"/>',
+            *res_lines,
+            "  </resources>",
+            "  <library>",
+            f'    <event name="{name}">',
+            f'      <project name="{name}">',
+            f'        <sequence format="r0" tcStart="0s" tcFormat="NDF" '
+            f'duration="{self.duration_frames()}/{fps_i}s">',
+            "          <spine>",
+            *spine,
+            "          </spine>",
+            "        </sequence>",
+            "      </project>",
+            "    </event>",
+            "  </library>",
+            "</fcpxml>",
+            "",
+        ])
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "count": count,
+            "path": written,
+            "body": body,
+            "fps": fps,
+            "agent_note": "Minimal FCPXML 1.9 skeleton — verify in target NLE.",
+        }
+
+    def export_otio_json(
+        self,
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a simplified OTIO-like JSON timeline (not full OTIO schema).
+
+        Agent/interchange friendly. Tracks → children clips with source_range
+        and available_range in frames. path=None → body only.
+        """
+        fps = float(self.project.timebase.fps or 30.0)
+        tracks_out: list[dict[str, Any]] = []
+        for tr in self.project.tracks:
+            children: list[dict[str, Any]] = []
+            for c in tr.clips_in_order():
+                media = self.project.media_by_id(c.media)
+                children.append({
+                    "OTIO_SCHEMA": "Clip.1",
+                    "name": c.name or c.id,
+                    "source_range": {
+                        "start_time": {"value": c.src_in, "rate": fps},
+                        "duration": {
+                            "value": c.duration_frames,
+                            "rate": fps,
+                        },
+                    },
+                    "media_reference": {
+                        "OTIO_SCHEMA": "ExternalReference.1",
+                        "target_url": media.path,
+                        "available_range": {
+                            "start_time": {"value": 0, "rate": fps},
+                            "duration": {
+                                "value": media.duration_frames,
+                                "rate": fps,
+                            },
+                        },
+                    },
+                    "metadata": {
+                        "opmiere": {
+                            "clip_id": c.id,
+                            "start": c.start,
+                            "speed": c.speed,
+                            "color": c.color,
+                            "link_group": c.link_group,
+                        }
+                    },
+                })
+            tracks_out.append({
+                "OTIO_SCHEMA": "Track.1",
+                "name": tr.name or tr.id,
+                "kind": "Video" if tr.kind == "video" else "Audio",
+                "children": children,
+                "metadata": {"opmiere": {"track_id": tr.id}},
+            })
+        doc = {
+            "OTIO_SCHEMA": "Timeline.1",
+            "name": title or self.project.id,
+            "global_start_time": {"value": 0, "rate": fps},
+            "tracks": {
+                "OTIO_SCHEMA": "Stack.1",
+                "children": tracks_out,
+            },
+            "metadata": {
+                "opmiere": {
+                    "project_id": self.project.id,
+                    "width": self.project.resolution.w,
+                    "height": self.project.resolution.h,
+                    "fps": fps,
+                }
+            },
+        }
+        body = json.dumps(doc, indent=2, ensure_ascii=False)
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "count": sum(len(t["children"]) for t in tracks_out),
+            "path": written,
+            "body": body,
+            "agent_note": "Simplified OTIO-like JSON; not guaranteed OpenTimelineIO load.",
+        }
+
+    def agent_preflight(self) -> dict[str, Any]:
+        """Single agent call: media status + validate + duration + history."""
+        return {
+            "media": self.list_media_status(),
+            "validate": self.validate_timeline(),
+            "duration": self.duration_report(),
+            "history": self.history_status(),
+            "stats": self.project_stats(),
+            "agent_note": "Read-only snapshot before destructive ops or export.",
+        }
+
     def copy_attributes(self, clip_id: str) -> dict[str, Any]:
         """Copy speed/position/gain/fades/opacity into session attributes clipboard.
 

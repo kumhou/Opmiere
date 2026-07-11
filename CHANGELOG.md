@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.2.28 — 2026-07-11
+
+### Added
+- **`export_fcpxml`**: minimal FCPXML 1.9 skeleton (base video track)
+- **`export_otio_json`**: simplified OTIO-like JSON timeline
+- **`agent_preflight`**: one-shot media/validate/duration/history/stats
+
+## 0.2.27 — 2026-07-11
+
+### Added
+- **`prepare_for_export`**: prepare_export + validate + media status preflight
+- **`export_still`**: timeline frame → image
+- **`hard_cut_all`**: strip transitions + repack
+- **`batch_relink` / `clips_sharing_media`**: mass relink + impact list
+- **`set_marker_color_batch`**: batch marker colors
+
+## 0.2.26 — 2026-07-11
+
+### Added
+- **`set_work_area_from_clip` / `set_work_area_from_selection`**
+- **`markers_from_cuts` / `shift_markers` / `clear_markers`**
+- **`solo_clip` / `unmute_all_clips`**: clip-level isolate
+- **`set_clips_color_cycle`**: rotate bin colors
+- **`duration_report`**: per-track duration census
+- **`ripple_delete_range`**: alias for ripple extract_range
+
+## 0.2.25 — 2026-07-11
+
+### Added
+- **`move_block`**: rigid selection move to target frame
+- **`set_clips_gain` / `set_clips_opacity`**: batch audio/alpha
+- **`validate_timeline`**: gaps/overlaps/transition diagnostics
+- **`extract_range`**: multi-track extract (ripple optional)
+- **`apply_transitions_on_cuts`**: batch cross-dissolve (etc.) on hard cuts
+- **`list_media_status`**: online/offline media census
+- **`name_clips_from_media`**: name clips from media basenames
+- **`snap_clip`**: prev_end / next_start / zero
+- **`split_at_beats`**: razor track on detected beat frames
+- **`quantize_clips`**: snap starts/ends to frame grid
+- **`export_audio`**: mixdown audio-only deliverable
+- **`import_cutlist`**: CSV cutlist round-trip with export_cutlist
+- Web: Validate, Xfade cuts, Name←media, Snap, Block→0, Extract I/O
+
 ## 0.2.24 — 2026-07-11
 
 ### Added

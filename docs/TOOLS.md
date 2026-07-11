@@ -1,4 +1,4 @@
-# Opmiere tool surface (0.2.24)
+# Opmiere tool surface (0.2.28)
 
 Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `Editor` methods. CLI: `opmiere doctor|version|web|mcp`.
 
@@ -123,6 +123,32 @@ Agent-facing tools live on **MCP** (`opmiere mcp` / `opmiere-mcp`) and mirror `E
 | `set_clips_fades` | batch fade-in/out |
 | `append_media` | place after last clip on track |
 | `duplicate_range` | copy range of clips to dest start |
+| `move_block` | rigid selection move to frame |
+| `set_clips_gain` / `set_clips_opacity` | batch gain/opacity |
+| `validate_timeline` | gaps/overlaps/transition report |
+| `extract_range` | multi-track extract (±ripple) |
+| `apply_transitions_on_cuts` | batch xfade on hard cuts |
+| `list_media_status` | online/offline media |
+| `name_clips_from_media` | name from media basename |
+| `snap_clip` | prev_end\|next_start\|zero |
+| `split_at_beats` | razor on music beats |
+| `quantize_clips` | snap to frame grid |
+| `export_audio` | mixdown audio-only |
+| `import_cutlist` | CSV cutlist → timeline |
+| `set_work_area_from_clip` / `set_work_area_from_selection` | work I/O helpers |
+| `markers_from_cuts` / `shift_markers` / `clear_markers` | cut markers |
+| `solo_clip` / `unmute_all_clips` | clip isolate |
+| `set_clips_color_cycle` | rotate color chips |
+| `duration_report` | per-track duration census |
+| `ripple_delete_range` | ripple extract alias |
+| `prepare_for_export` | pack/fill + validate + media status |
+| `export_still` | timeline frame → image |
+| `hard_cut_all` | strip transitions + repack |
+| `batch_relink` / `clips_sharing_media` | mass relink |
+| `set_marker_color_batch` | batch marker colors |
+| `export_fcpxml` | minimal FCPXML 1.9 skeleton |
+| `export_otio_json` | simplified OTIO-like JSON |
+| `agent_preflight` | media+validate+duration+history+stats |
 | `trim_to_playhead(..., follow_links=)` | Q/W trim linked A/V peers |
 | `nudge_clips` / `delete_clips` `follow_links` | move/delete expand link groups |
 | `frames_to_tc` / `tc_to_frames` | HH:MM:SS:FF helpers |

@@ -1938,6 +1938,252 @@ def duplicate_range_api(body: DuplicateRangeBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MoveBlockBody(BaseModel):
+    clip_ids: list[str]
+    to_frame: int
+    follow_links: bool = False
+
+
+class SetClipsGainBody(BaseModel):
+    clip_ids: list[str]
+    db: float
+
+
+class SetClipsOpacityBody(BaseModel):
+    clip_ids: list[str]
+    amount: float
+
+
+class ValidateBody(BaseModel):
+    track_id: str | None = None
+
+
+class ExtractRangeBody(BaseModel):
+    start_frame: int
+    end_frame: int
+    track_id: str | None = None
+    track_ids: list[str] | None = None
+    kind: str | None = None
+    ripple: bool = True
+
+
+class ApplyXfadeBody(BaseModel):
+    track_id: str
+    transition_type: str = "cross_dissolve"
+    duration_frames: int = 15
+    max_count: int | None = None
+
+
+class SnapClipBody(BaseModel):
+    clip_id: str
+    to: str = "prev_end"
+
+
+class QuantizeBody(BaseModel):
+    clip_ids: list[str]
+    grid_frames: int
+    edge: str = "start"
+
+
+class ImportCutlistBody(BaseModel):
+    text: str | None = None
+    path: str | None = None
+    track_id: str | None = None
+    replace_track: bool = False
+
+
+class NameFromMediaBody(BaseModel):
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+    strip_ext: bool = True
+
+
+@app.post("/api/clips/move_block")
+def move_block_api(body: MoveBlockBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.move_block(
+        body.clip_ids, body.to_frame, follow_links=body.follow_links,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/gain")
+def set_clips_gain_api(body: SetClipsGainBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_gain(body.clip_ids, body.db)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/opacity")
+def set_clips_opacity_api(body: SetClipsOpacityBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_opacity(body.clip_ids, body.amount)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/validate")
+def validate_api(track_id: str | None = None) -> dict[str, Any]:
+    return _ed().validate_timeline(track_id=track_id)
+
+
+@app.post("/api/extract_range")
+def extract_range_api(body: ExtractRangeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.extract_range(
+        body.start_frame,
+        body.end_frame,
+        track_id=body.track_id,
+        track_ids=body.track_ids,
+        kind=body.kind,
+        ripple=body.ripple,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/transitions/apply_on_cuts")
+def apply_xfade_api(body: ApplyXfadeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.apply_transitions_on_cuts(
+        body.track_id,
+        transition_type=body.transition_type,
+        duration_frames=body.duration_frames,
+        max_count=body.max_count,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/media/status")
+def media_status_api() -> dict[str, Any]:
+    return _ed().list_media_status()
+
+
+@app.post("/api/clips/name_from_media")
+def name_from_media_api(body: NameFromMediaBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.name_clips_from_media(
+        body.clip_ids, track_id=body.track_id, strip_ext=body.strip_ext,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/snap")
+def snap_clip_api(body: SnapClipBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.snap_clip(body.clip_id, to=body.to)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/quantize")
+def quantize_api(body: QuantizeBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.quantize_clips(body.clip_ids, body.grid_frames, edge=body.edge)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/import/cutlist")
+def import_cutlist_api(body: ImportCutlistBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.import_cutlist(
+        body.text,
+        path=body.path,
+        track_id=body.track_id,
+        replace_track=body.replace_track,
+    )
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class WorkAreaClipBody(BaseModel):
+    clip_id: str
+
+
+class WorkAreaSelBody(BaseModel):
+    clip_ids: list[str]
+
+
+class MarkersFromCutsBody(BaseModel):
+    track_id: str
+    label_prefix: str = "Cut"
+    color: str = "#ffb703"
+    include_start: bool = False
+
+
+class ShiftMarkersBody(BaseModel):
+    delta_frames: int
+    marker_ids: list[str] | None = None
+
+
+class SoloClipBody(BaseModel):
+    clip_id: str
+    exclusive: bool = True
+
+
+class ColorCycleBody(BaseModel):
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+
+
+@app.post("/api/work_area/from_clip")
+def work_area_from_clip(body: WorkAreaClipBody) -> dict[str, Any]:
+    return _ed().set_work_area_from_clip(body.clip_id)
+
+
+@app.post("/api/work_area/from_selection")
+def work_area_from_sel(body: WorkAreaSelBody) -> dict[str, Any]:
+    return _ed().set_work_area_from_selection(body.clip_ids)
+
+
+@app.post("/api/markers/from_cuts")
+def markers_from_cuts_api(body: MarkersFromCutsBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.markers_from_cuts(
+        body.track_id,
+        label_prefix=body.label_prefix,
+        color=body.color,
+        include_start=body.include_start,
+    )
+    return {**r, "markers": ed.list_markers()["markers"]}
+
+
+@app.post("/api/markers/shift")
+def shift_markers_api(body: ShiftMarkersBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.shift_markers(body.delta_frames, marker_ids=body.marker_ids)
+    return {**r, "markers": ed.list_markers()["markers"]}
+
+
+@app.post("/api/markers/clear")
+def clear_markers_api() -> dict[str, Any]:
+    ed = _ed()
+    r = ed.clear_markers()
+    return {**r, "markers": []}
+
+
+@app.post("/api/clip/solo")
+def solo_clip_api(body: SoloClipBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.solo_clip(body.clip_id, exclusive=body.exclusive)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/unmute_all")
+def unmute_all_api(track_id: str | None = None) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.unmute_all_clips(track_id=track_id)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clips/color_cycle")
+def color_cycle_api(body: ColorCycleBody) -> dict[str, Any]:
+    ed = _ed()
+    r = ed.set_clips_color_cycle(body.clip_ids, track_id=body.track_id)
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/duration_report")
+def duration_report_api() -> dict[str, Any]:
+    return _ed().duration_report()
+
+
 @app.post("/api/clip/copy_attributes")
 def clip_copy_attributes(body: AttrClipBody) -> dict[str, Any]:
     return _ed().copy_attributes(body.clip_id)

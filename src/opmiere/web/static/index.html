@@ -413,6 +413,16 @@
         <button type="button" class="secondary" id="btnClrXfade">Clr xfade</button>
       </div>
       <div class="row">
+        <button type="button" class="secondary" id="btnValidate">Validate</button>
+        <button type="button" class="secondary" id="btnXfadeAll">Xfade cuts</button>
+        <button type="button" class="secondary" id="btnNameMedia" disabled>Name←media</button>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="btnSnapPrev" disabled>Snap←prev</button>
+        <button type="button" class="secondary" id="btnMoveBlock0" disabled>Block→0</button>
+        <button type="button" class="secondary" id="btnExtractIO" title="Ripple extract I/O">Extract I/O</button>
+      </div>
+      <div class="row">
         <button type="button" class="secondary" id="btnTrackUp">Track ↑</button>
         <button type="button" class="secondary" id="btnTrackDown">Track ↓</button>
         <button type="button" class="secondary" id="btnZoomFit" title="\\">Zoom fit</button>
@@ -877,6 +887,7 @@
         'btnLink','btnUnlink','btnSelLinked','btnCopyAttr','btnPasteAttr','btnSelTrack',
         'btnJCut','btnLCut','btnClipInfo','btnFitFill','btnCopyTrack','btnRenameShots',
         'btnColorSel','btnMatchDur','btnJoin','btnSpeed2x','btnStagger','btnFadeSel',
+        'btnNameMedia','btnSnapPrev','btnMoveBlock0',
       ];
       if (!selectedClipId) {
         slider.disabled = true;
@@ -2621,6 +2632,90 @@
         if (r.timeline) renderTimeline(r.timeline);
         setDirty(true);
         log('clear transitions n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnValidate').onclick = async () => {
+      try {
+        const r = await api('/api/validate');
+        log('validate ok=' + r.ok + ' err=' + r.error_count + ' warn=' + r.warn_count
+          + '\n' + JSON.stringify(r.issues || []).slice(0, 700));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnXfadeAll').onclick = async () => {
+      try {
+        let track_id = null;
+        if (selectedClipId && timeline) {
+          for (const tr of timeline.tracks || []) {
+            for (const c of tr.clips || []) {
+              if (c.id === selectedClipId) { track_id = tr.id; break; }
+            }
+            if (track_id) break;
+          }
+        }
+        if (!track_id && timeline && timeline.tracks && timeline.tracks[0]) {
+          track_id = timeline.tracks[0].id;
+        }
+        if (!track_id) { log('no track'); return; }
+        const r = await api('/api/transitions/apply_on_cuts', {
+          method: 'POST',
+          body: JSON.stringify({
+            track_id, transition_type: 'cross_dissolve', duration_frames: 10,
+          }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('xfade on cuts n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnNameMedia').onclick = async () => {
+      const ids = selectionList();
+      try {
+        const r = await api('/api/clips/name_from_media', {
+          method: 'POST',
+          body: JSON.stringify({ clip_ids: ids.length ? ids : null }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('named n=' + r.count);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnSnapPrev').onclick = async () => {
+      if (!selectedClipId) return;
+      try {
+        const r = await api('/api/clip/snap', {
+          method: 'POST',
+          body: JSON.stringify({ clip_id: selectedClipId, to: 'prev_end' }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('snap ' + JSON.stringify(r.start));
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnMoveBlock0').onclick = async () => {
+      const ids = selectionList();
+      if (!ids.length) return;
+      try {
+        const r = await api('/api/clips/move_block', {
+          method: 'POST',
+          body: JSON.stringify({ clip_ids: ids, to_frame: 0 }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('move_block delta=' + r.delta);
+      } catch (e) { log(String(e.message || e)); }
+    };
+    document.getElementById('btnExtractIO').onclick = async () => {
+      try {
+        const io = await api('/api/in_out');
+        const a = io.in_frame, b = io.out_frame;
+        if (a == null || b == null || b <= a) { log('set work In/Out first'); return; }
+        const r = await api('/api/extract_range', {
+          method: 'POST',
+          body: JSON.stringify({ start_frame: a, end_frame: b, ripple: true }),
+        });
+        if (r.timeline) renderTimeline(r.timeline);
+        setDirty(true);
+        log('extract_range tracks=' + r.count);
       } catch (e) { log(String(e.message || e)); }
     };
     document.getElementById('btnZoomFit').onclick = () => {

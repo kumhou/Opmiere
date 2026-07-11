@@ -1162,6 +1162,311 @@ def duplicate_range(
 
 
 @mcp.tool()
+def move_block(
+    clip_ids: list[str],
+    to_frame: int,
+    follow_links: bool = False,
+) -> dict:
+    """Move selection as rigid block so leftmost starts at to_frame."""
+    return _require_editor().move_block(
+        clip_ids, to_frame, follow_links=follow_links,
+    )
+
+
+@mcp.tool()
+def set_clips_gain(clip_ids: list[str], db: float) -> dict:
+    """Batch set gain dB."""
+    return _require_editor().set_clips_gain(clip_ids, db)
+
+
+@mcp.tool()
+def set_clips_opacity(clip_ids: list[str], amount: float) -> dict:
+    """Batch set opacity 0..1."""
+    return _require_editor().set_clips_opacity(clip_ids, amount)
+
+
+@mcp.tool()
+def validate_timeline(track_id: str | None = None) -> dict:
+    """Report gaps/overlaps/transition issues (read-only)."""
+    return _require_editor().validate_timeline(track_id=track_id)
+
+
+@mcp.tool()
+def extract_range(
+    start_frame: int,
+    end_frame: int,
+    track_id: str | None = None,
+    track_ids: list[str] | None = None,
+    kind: str | None = None,
+    ripple: bool = True,
+) -> dict:
+    """Extract range on one/many tracks; ripple closes gap by default."""
+    return _require_editor().extract_range(
+        start_frame,
+        end_frame,
+        track_id=track_id,
+        track_ids=track_ids,
+        kind=kind,
+        ripple=ripple,
+    )
+
+
+@mcp.tool()
+def apply_transitions_on_cuts(
+    track_id: str,
+    transition_type: str = "cross_dissolve",
+    duration_frames: int = 15,
+    max_count: int | None = None,
+) -> dict:
+    """Add same transition on every hard cut on a track."""
+    return _require_editor().apply_transitions_on_cuts(
+        track_id,
+        transition_type=transition_type,
+        duration_frames=duration_frames,
+        max_count=max_count,
+    )
+
+
+@mcp.tool()
+def list_media_status() -> dict:
+    """Online/offline media census."""
+    return _require_editor().list_media_status()
+
+
+@mcp.tool()
+def name_clips_from_media(
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+    strip_ext: bool = True,
+) -> dict:
+    """Set clip names from media basenames."""
+    return _require_editor().name_clips_from_media(
+        clip_ids, track_id=track_id, strip_ext=strip_ext,
+    )
+
+
+@mcp.tool()
+def snap_clip(clip_id: str, to: str = "prev_end") -> dict:
+    """Snap clip start: prev_end|next_start|zero."""
+    return _require_editor().snap_clip(clip_id, to=to)
+
+
+@mcp.tool()
+def split_at_beats(
+    track_id: str,
+    media_id: str | None = None,
+    path: str | None = None,
+    max_splits: int = 64,
+) -> dict:
+    """Razor track at detected beat frames."""
+    return _require_editor().split_at_beats(
+        track_id, media_id=media_id, path=path, max_splits=max_splits,
+    )
+
+
+@mcp.tool()
+def quantize_clips(
+    clip_ids: list[str],
+    grid_frames: int,
+    edge: str = "start",
+) -> dict:
+    """Snap clip starts/ends to a frame grid."""
+    return _require_editor().quantize_clips(
+        clip_ids, grid_frames, edge=edge,
+    )
+
+
+@mcp.tool()
+def export_audio(
+    output_path: str,
+    start_frame: int | None = None,
+    end_frame: int | None = None,
+    sample_rate: int | None = None,
+) -> dict:
+    """Export mixdown audio only (wav/m4a/mp3)."""
+    return _require_editor().export_audio(
+        output_path,
+        start_frame=start_frame,
+        end_frame=end_frame,
+        sample_rate=sample_rate,
+    )
+
+
+@mcp.tool()
+def import_cutlist(
+    text: str | None = None,
+    path: str | None = None,
+    track_id: str | None = None,
+    replace_track: bool = False,
+) -> dict:
+    """Import CSV cutlist from export_cutlist."""
+    return _require_editor().import_cutlist(
+        text, path=path, track_id=track_id, replace_track=replace_track,
+    )
+
+
+@mcp.tool()
+def set_work_area_from_clip(clip_id: str) -> dict:
+    """Set work In/Out to a clip's span."""
+    return _require_editor().set_work_area_from_clip(clip_id)
+
+
+@mcp.tool()
+def set_work_area_from_selection(clip_ids: list[str]) -> dict:
+    """Set work In/Out to union of clips."""
+    return _require_editor().set_work_area_from_selection(clip_ids)
+
+
+@mcp.tool()
+def markers_from_cuts(
+    track_id: str,
+    label_prefix: str = "Cut",
+    color: str = "#ffb703",
+    include_start: bool = False,
+) -> dict:
+    """Add markers at each cut on a track."""
+    return _require_editor().markers_from_cuts(
+        track_id,
+        label_prefix=label_prefix,
+        color=color,
+        include_start=include_start,
+    )
+
+
+@mcp.tool()
+def shift_markers(
+    delta_frames: int,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Shift markers by delta frames."""
+    return _require_editor().shift_markers(delta_frames, marker_ids=marker_ids)
+
+
+@mcp.tool()
+def clear_markers() -> dict:
+    """Delete all markers."""
+    return _require_editor().clear_markers()
+
+
+@mcp.tool()
+def ripple_delete_range(
+    start_frame: int,
+    end_frame: int,
+    track_id: str | None = None,
+    kind: str | None = None,
+) -> dict:
+    """Ripple-extract range (Premiere-style name)."""
+    return _require_editor().ripple_delete_range(
+        start_frame, end_frame, track_id=track_id, kind=kind,
+    )
+
+
+@mcp.tool()
+def solo_clip(clip_id: str, exclusive: bool = True) -> dict:
+    """Mute other clips; leave this one unmuted."""
+    return _require_editor().solo_clip(clip_id, exclusive=exclusive)
+
+
+@mcp.tool()
+def unmute_all_clips(track_id: str | None = None) -> dict:
+    """Clear clip mutes."""
+    return _require_editor().unmute_all_clips(track_id=track_id)
+
+
+@mcp.tool()
+def set_clips_color_cycle(
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+) -> dict:
+    """Rotate CLIP_COLORS onto clips."""
+    return _require_editor().set_clips_color_cycle(
+        clip_ids, track_id=track_id,
+    )
+
+
+@mcp.tool()
+def duration_report() -> dict:
+    """Per-track duration census."""
+    return _require_editor().duration_report()
+
+
+@mcp.tool()
+def prepare_for_export(
+    fill_video: bool = True,
+    fill_audio: bool = False,
+    clear_empty_tracks: bool = True,
+) -> dict:
+    """Preflight: pack/fill + validate + media status."""
+    return _require_editor().prepare_for_export(
+        fill_video=fill_video,
+        fill_audio=fill_audio,
+        clear_empty_tracks=clear_empty_tracks,
+    )
+
+
+@mcp.tool()
+def export_still(
+    output_path: str,
+    frame: int,
+    width: int = 1280,
+) -> dict:
+    """Export one timeline frame as image."""
+    return _require_editor().export_still(output_path, frame, width=width)
+
+
+@mcp.tool()
+def clips_sharing_media(media_id: str) -> dict:
+    """List clips using a media id."""
+    return _require_editor().clips_sharing_media(media_id)
+
+
+@mcp.tool()
+def batch_relink(
+    mapping: dict[str, str],
+    keep_source_range: bool = True,
+) -> dict:
+    """Relink many clips: clip_id → media_id map."""
+    return _require_editor().batch_relink(
+        mapping, keep_source_range=keep_source_range,
+    )
+
+
+@mcp.tool()
+def hard_cut_all(track_id: str | None = None) -> dict:
+    """Clear transitions and repack hard cuts."""
+    return _require_editor().hard_cut_all(track_id=track_id)
+
+
+@mcp.tool()
+def set_marker_color_batch(
+    color: str,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Batch marker color."""
+    return _require_editor().set_marker_color_batch(
+        color, marker_ids=marker_ids,
+    )
+
+
+@mcp.tool()
+def export_fcpxml(path: str | None = None, title: str | None = None) -> dict:
+    """Minimal FCPXML 1.9 of base video track."""
+    return _require_editor().export_fcpxml(path, title=title)
+
+
+@mcp.tool()
+def export_otio_json(path: str | None = None, title: str | None = None) -> dict:
+    """Simplified OTIO-like JSON timeline."""
+    return _require_editor().export_otio_json(path, title=title)
+
+
+@mcp.tool()
+def agent_preflight() -> dict:
+    """Read-only: media + validate + duration + history + stats."""
+    return _require_editor().agent_preflight()
+
+
+@mcp.tool()
 def clear_clip_effects(
     clip_id: str,
     types: list[str] | None = None,
