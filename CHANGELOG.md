@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.33 — 2026-07-11
+
+### Changed
+- **UI shell v5**:
+  - Right-click **context menu** on clips (mute, detach, split, copy, attrs, info, match, ripple delete)
+  - Double-click clip → focus inspector
+  - Video/audio **track heights**; hide clip labels when too narrow
+  - Empty timeline CTA pointing at media drop
+
 ## 0.2.32 — 2026-07-11
 
 ### Added

@@ -483,6 +483,43 @@ details.tool-group .group-body { padding: 6px 8px 8px; }
   color: var(--color-accent);
 }
 
+
+/* —— shell v5 —— */
+.track-lane.video-lane { height: 44px; }
+.track-lane.audio-lane { height: 32px; }
+.track-row.video-row { min-height: 40px; }
+.track-row.audio-row { min-height: 30px; }
+.tclip .clipLab {
+  font-size: 10px; pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+}
+.tclip[data-narrow="1"] .clipLab { display: none; }
+#ctxMenu {
+  position: fixed; z-index: 60; min-width: 160px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+  padding: 4px 0; display: none;
+  font-size: 11px;
+}
+#ctxMenu.open { display: block; }
+#ctxMenu button {
+  display: block; width: 100%; margin: 0; border: none; border-radius: 0;
+  background: transparent; color: var(--color-foreground);
+  text-align: left; padding: 6px 12px; font-weight: 500;
+}
+#ctxMenu button:hover { background: rgba(124, 156, 255, 0.18); }
+#ctxMenu button.danger { color: var(--color-destructive); }
+#ctxMenu .sep {
+  height: 1px; margin: 4px 0; background: var(--color-border);
+}
+#tracks .empty-cta {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; min-height: 120px; color: var(--color-muted); font-size: 12px;
+}
+#tracks .empty-cta strong { color: var(--color-foreground); font-weight: 600; }
+
 </style>
 </head>
 <body><header id="topbar"><div class="brand"><span class="">Opmiere</span><span class="sub">NLE shell · agent = MCP</span></div>
@@ -921,7 +958,7 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
         const tLab = tr.name
           ? String(tr.name).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
           : tr.kind;
-        html += `<div class="track-row">
+        html += `<div class="track-row ${tr.kind==='audio'?'audio-row':'video-row'}">
           <div class="track-name" data-tid="${tr.id}">
             ${tLab}${flags ? ' ·' + flags : ''}<br/>
             <span style="font-size:9px">${tr.kind} · ${tr.id.slice(0,8)}</span><br/>
@@ -929,7 +966,7 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
             <button type="button" class="secondary trkS" data-tid="${tr.id}" data-v="${tr.solo?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">S</button>
             <button type="button" class="secondary trkL" data-tid="${tr.id}" data-v="${tr.locked?0:1}" style="margin:1px;padding:1px 4px;width:auto;font-size:9px">L</button>
           </div>
-          <div class="track-lane" data-view-frames="${viewDurF}">${clipsHtml}</div>
+          <div class="track-lane ${tr.kind===\'audio\'?\'audio-lane\':\'video-lane\'}" data-view-frames="${viewDurF}">${clipsHtml}</div>
         </div>`;
       }
       html += '</div>';
@@ -3794,6 +3831,157 @@ C:/b.mp4"></textarea><button class="secondary" id="btnBatch" type="button">Place
         });
       }
     })();
+
+    // —— UI shell v5: context menu + empty CTA + narrow labels ——
+    (function shellV5() {
+      const menu = document.getElementById('ctxMenu');
+      if (!menu) return;
+      let ctxId = null;
+
+      function hideMenu() {
+        menu.classList.remove('open');
+        ctxId = null;
+      }
+      document.addEventListener('pointerdown', (e) => {
+        if (!menu.classList.contains('open')) return;
+        if (menu.contains(e.target)) return;
+        hideMenu();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideMenu();
+      });
+      window.addEventListener('blur', hideMenu);
+      window.addEventListener('scroll', hideMenu, true);
+
+      function showMenu(x, y, clipId) {
+        ctxId = clipId;
+        selectedClipId = clipId;
+        if (!selectedIds.has(clipId)) selectedIds = new Set([clipId]);
+        applySelectionStyles();
+        menu.classList.add('open');
+        const pad = 6;
+        const mw = menu.offsetWidth || 160;
+        const mh = menu.offsetHeight || 200;
+        let left = x, top = y;
+        if (left + mw > window.innerWidth - pad) left = window.innerWidth - mw - pad;
+        if (top + mh > window.innerHeight - pad) top = window.innerHeight - mh - pad;
+        menu.style.left = Math.max(pad, left) + 'px';
+        menu.style.top = Math.max(pad, top) + 'px';
+      }
+
+      menu.querySelectorAll('button[data-act]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const act = btn.dataset.act;
+          hideMenu();
+          if (!ctxId && !selectedClipId) return;
+          const id = ctxId || selectedClipId;
+          selectedClipId = id;
+          try {
+            if (act === 'mute') {
+              const b = document.getElementById('btnClipMute');
+              if (b && !b.disabled) b.click();
+            } else if (act === 'detach') {
+              const b = document.getElementById('btnDetach');
+              if (b && !b.disabled) b.click();
+            } else if (act === 'split') {
+              const t0 = +scrub.value || 0;
+              const fps0 = (timeline && timeline.fps) || 30;
+              const frame = Math.round(t0 * fps0);
+              const r = await api('/api/split', {
+                method: 'POST',
+                body: JSON.stringify({ clip_id: id, at_frame: frame, follow_links: true }),
+              });
+              if (r.timeline) renderTimeline(r.timeline);
+              setDirty(true);
+              log('split @ ' + frame);
+            } else if (act === 'copy') {
+              await api('/api/clip/copy', { method: 'POST', body: JSON.stringify({ clip_id: id }) });
+              log('copied ' + id);
+            } else if (act === 'copyAttr') {
+              const b = document.getElementById('btnCopyAttr');
+              if (b && !b.disabled) b.click();
+            } else if (act === 'info') {
+              const b = document.getElementById('btnClipInfo');
+              if (b && !b.disabled) b.click();
+            } else if (act === 'match') {
+              const b = document.getElementById('btnMatch');
+              if (b && !b.disabled) b.click();
+            } else if (act === 'ripple') {
+              const b = document.getElementById('btnRippleDel');
+              if (b && !b.disabled) b.click();
+            }
+          } catch (e) { log(String(e.message || e)); }
+        });
+      });
+
+      // Patch wireClipInteractions to add contextmenu + dblclick
+      const _wire = wireClipInteractions;
+      wireClipInteractions = function(tracksEl, viewDurF, fps) {
+        _wire(tracksEl, viewDurF, fps);
+        tracksEl.querySelectorAll('.tclip').forEach((el) => {
+          // hide label when too narrow
+          const w = el.getBoundingClientRect().width;
+          if (w < 48) el.dataset.narrow = '1';
+          else delete el.dataset.narrow;
+
+          el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showMenu(e.clientX, e.clientY, el.dataset.id);
+          });
+          el.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            selectedClipId = el.dataset.id;
+            selectedIds = new Set([el.dataset.id]);
+            applySelectionStyles();
+            // open inspector + first clip tools group
+            const app = document.getElementById('app');
+            if (app && app.classList.contains('hide-inspector')) {
+              const bi = document.getElementById('btnToggleInspector');
+              if (bi) bi.click();
+            }
+            const groups = document.querySelectorAll('#panel-inspector details.tool-group');
+            if (groups[0]) groups[0].open = true;
+            log('inspect ' + el.dataset.id);
+          });
+        });
+      };
+
+      // Better empty timeline message
+      const _rt = renderTimeline;
+      renderTimeline = function(tv) {
+        _rt(tv);
+        const tracksEl = document.getElementById('tracks');
+        if (tracksEl && tracksEl.querySelector('p') && !(tv.tracks && tv.tracks.some(t => (t.clips||[]).length))) {
+          tracksEl.innerHTML = '<div class="empty-cta"><strong>Timeline empty</strong>'
+            + '<span>Drop media in the left panel, or Place file</span></div>';
+        }
+        // mark video/audio lanes for height CSS
+        if (tv && tv.tracks) {
+          document.querySelectorAll('.track-row').forEach((row, i) => {
+            const tr = tv.tracks[i];
+            if (!tr) return;
+            row.classList.add(tr.kind === 'audio' ? 'audio-row' : 'video-row');
+            const lane = row.querySelector('.track-lane');
+            if (lane) lane.classList.add(tr.kind === 'audio' ? 'audio-lane' : 'video-lane');
+          });
+        }
+      };
+    })();
 </script>
+
+<div id="ctxMenu" role="menu">
+  <button type="button" data-act="mute">Mute / Unmute</button>
+  <button type="button" data-act="detach">Detach audio</button>
+  <button type="button" data-act="split">Split at playhead (S)</button>
+  <button type="button" data-act="copy">Copy (Ctrl+C)</button>
+  <button type="button" data-act="copyAttr">Copy attributes</button>
+  <div class="sep"></div>
+  <button type="button" data-act="info">Clip info</button>
+  <button type="button" data-act="match">Match frame</button>
+  <div class="sep"></div>
+  <button type="button" class="danger" data-act="ripple">Ripple delete</button>
+</div>
+
 </body>
 </html>
