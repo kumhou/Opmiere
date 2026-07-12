@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.16 — 2026-07-13
+
+### Added
+- **Rename** selection (R) → `clips/meta`
+- **Gain** presets (−6…+6 dB) → `clips/gain`
+- **Fade** in/out presets (0/6/12/24f) → `clips/fades`
+- Test: `tests/test_desktop_meta_gain_056.py`
+
 ## 0.4.15 — 2026-07-13
 
 ### Added

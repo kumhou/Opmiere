@@ -1381,6 +1381,71 @@ async function openProjectAt(path: string) {
   }
 }
 
+async function renameSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to rename";
+    return;
+  }
+  const current =
+    document.querySelector<HTMLElement>(
+      `.clip-block.selected[data-clip-id="${ids[0]}"]`,
+    )?.dataset.label || "";
+  const name = window.prompt("Clip name:", current);
+  if (name == null) return;
+  const trimmed = name.trim();
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/meta", {
+      clip_ids: ids,
+      name: trimmed || null,
+      clear_name: !trimmed,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = trimmed
+      ? `Renamed ${ids.length} → ${trimmed}`
+      : `Cleared name on ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Rename failed: ${e}`;
+  }
+}
+
+async function setSelectionGain(db: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for gain";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/gain", {
+      clip_ids: ids,
+      db,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Gain ${db} dB → ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Gain failed: ${e}`;
+  }
+}
+
+async function setSelectionFades(fadeIn: number, fadeOut: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for fades";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/fades", {
+      clip_ids: ids,
+      fade_in_frames: fadeIn,
+      fade_out_frames: fadeOut,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Fades in=${fadeIn} out=${fadeOut} → ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Fades failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -2107,6 +2172,11 @@ function onKey(ev: KeyboardEvent) {
     void cycleSelectionColor();
     return;
   }
+  if (k === "r" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    void renameSelection();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -2216,6 +2286,21 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-color-cycle").addEventListener("click", () => {
     void cycleSelectionColor();
+  });
+  $("btn-rename").addEventListener("click", () => {
+    void renameSelection();
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-gain]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const db = Number(b.dataset.gain);
+      if (Number.isFinite(db)) void setSelectionGain(db);
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-fade]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const n = Number(b.dataset.fade);
+      if (Number.isFinite(n)) void setSelectionFades(n, n);
+    });
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;
