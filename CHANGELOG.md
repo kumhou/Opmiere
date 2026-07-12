@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.7 — 2026-07-13
+
+### Added
+- **Razor** (S / button): split all tracks at playhead → `POST /api/razor`
+- **Save** (Ctrl+S / button) → `POST /api/save`
+- **Media bin double-click**: place media at playhead → `POST /api/place_media`
+- Test: `tests/test_desktop_edit_047.py`
+
 ## 0.4.6 — 2026-07-13
 
 ### Added

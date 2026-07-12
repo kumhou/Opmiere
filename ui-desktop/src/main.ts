@@ -83,6 +83,7 @@ const state = {
     pendingTrackId: string;
   },
   trackOrder: [] as string[], // video+audio lane track ids top→bottom
+  tracks: [] as Array<{ id: string; kind: string }>,
   selected: new Set<string>(),
 };
 
@@ -514,8 +515,90 @@ function renderMediaBin(data: MediaBin | null) {
     kind.textContent = `${m.kind || "?"}${dur}`;
     row.appendChild(name);
     row.appendChild(kind);
-    row.title = m.path || m.id;
+    row.title = `${m.path || m.id} · double-click to place at playhead`;
+    row.dataset.mediaId = m.id;
+    if (m.kind) row.dataset.kind = m.kind;
+    row.addEventListener("dblclick", () => {
+      void placeMediaAtPlayhead(m.id, m.kind || "video");
+    });
     el.appendChild(row);
+  }
+}
+
+function playheadFrame(): number {
+  return Math.max(0, Math.round(state.t * state.fps));
+}
+
+function trackForKind(kind: string): string | null {
+  const want =
+    kind === "audio" ? "audio" : "video"; // image → video
+  const hit = state.tracks.find((t) => t.kind === want);
+  return hit?.id ?? state.tracks[0]?.id ?? null;
+}
+
+async function placeMediaAtPlayhead(mediaId: string, kind: string) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind(kind);
+  if (!trackId) {
+    $("status-msg").textContent = "No track for this media kind";
+    return;
+  }
+  const start = playheadFrame();
+  $("status-msg").textContent = `Place ${mediaId} @ f${start}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/place_media",
+      {
+        media_id: mediaId,
+        track_id: trackId,
+        start,
+        mode: "insert",
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Placed ${r.clip_id || mediaId} @ f${start}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Place failed: ${e}`;
+  }
+}
+
+async function razorAtPlayhead() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const at = playheadFrame();
+  $("status-msg").textContent = `Razor @ f${at}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      split_count?: number;
+    }>("/api/razor", { at_frame: at });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Razor @ f${at}: ${r.split_count ?? 0} split(s)`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Razor failed: ${e}`;
+  }
+}
+
+async function saveProject() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Saving…";
+  try {
+    await postJson<{ saved?: boolean }>("/api/save", {});
+    $("status-msg").textContent = "Saved";
+  } catch (e) {
+    $("status-msg").textContent = `Save failed: ${e}`;
   }
 }
 
@@ -846,6 +929,8 @@ function renderTimeline(view: TimelineView | null) {
     body.textContent =
       "No timeline yet. Use Demo project or open via core API.";
     meta.textContent = "empty";
+    state.tracks = [];
+    state.trackOrder = [];
     return;
   }
   const durF = Math.max(1, view.duration_frames || 1);
@@ -854,7 +939,8 @@ function renderTimeline(view: TimelineView | null) {
   state.fps = view.fps || state.fps || 30;
   if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
   state.trackOrder = view.tracks.map((t) => t.id);
-  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · drag · edge trim · cross-track`;
+  state.tracks = view.tracks.map((t) => ({ id: t.id, kind: t.kind }));
+  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · drag · edge trim · S razor · Ctrl+S`;
   body.innerHTML = "";
   for (const tr of view.tracks) {
     const row = document.createElement("div");
@@ -1058,6 +1144,17 @@ function onKey(ev: KeyboardEvent) {
     void undoEdit();
     return;
   }
+  if ((ev.ctrlKey || ev.metaKey) && k === "s") {
+    ev.preventDefault();
+    void saveProject();
+    return;
+  }
+  if (k === "s" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    stopPlay();
+    void razorAtPlayhead();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -1101,6 +1198,13 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-export").addEventListener("click", () => {
     void exportProject();
+  });
+  $("btn-save").addEventListener("click", () => {
+    void saveProject();
+  });
+  $("btn-razor").addEventListener("click", () => {
+    stopPlay();
+    void razorAtPlayhead();
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;
