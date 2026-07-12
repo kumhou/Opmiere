@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.14 — 2026-07-13
+
+### Added
+- **Edit-point nav**: ↑/↓ or `;`/`'` or ◀Cut/Cut▶ — jump playhead on `snap_frames`
+- Test: `tests/test_desktop_cuts_054.py`
+
 ## 0.4.13 — 2026-07-13
 
 ### Added

@@ -961,6 +961,32 @@ function goToMarker(dir: -1 | 1) {
   void seekTo(f / state.fps);
 }
 
+/** Jump playhead to prev/next snap point (clip edges + markers). */
+function goToEditPoint(dir: -1 | 1) {
+  const pts = state.snapFrames.length
+    ? state.snapFrames
+    : [0, state.durationFrames];
+  const sorted = [...new Set(pts)].sort((a, b) => a - b);
+  if (!sorted.length) return;
+  const cur = playheadFrame();
+  let target: number | undefined;
+  if (dir > 0) {
+    target = sorted.find((f) => f > cur);
+    if (target === undefined) target = sorted[0];
+  } else {
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i] < cur) {
+        target = sorted[i];
+        break;
+      }
+    }
+    if (target === undefined) target = sorted[sorted.length - 1];
+  }
+  stopPlay();
+  $("status-msg").textContent = `Edit point f${target}`;
+  void seekTo(target / state.fps);
+}
+
 async function addTrack(kind: "video" | "audio") {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -1821,6 +1847,26 @@ function onKey(ev: KeyboardEvent) {
     void seekTo(Math.max(0, state.durationSec - 1 / state.fps));
     return;
   }
+  if (ev.key === "ArrowUp") {
+    ev.preventDefault();
+    goToEditPoint(-1);
+    return;
+  }
+  if (ev.key === "ArrowDown") {
+    ev.preventDefault();
+    goToEditPoint(1);
+    return;
+  }
+  if (k === ";" && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    goToEditPoint(-1);
+    return;
+  }
+  if (k === "'" && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    goToEditPoint(1);
+    return;
+  }
   if ((ev.ctrlKey || ev.metaKey) && k === "z") {
     ev.preventDefault();
     stopPlay();
@@ -1993,6 +2039,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-next-marker").addEventListener("click", () => {
     goToMarker(1);
+  });
+  $("btn-prev-cut").addEventListener("click", () => {
+    goToEditPoint(-1);
+  });
+  $("btn-next-cut").addEventListener("click", () => {
+    goToEditPoint(1);
   });
   $("btn-set-in").addEventListener("click", () => {
     void setInPoint();
