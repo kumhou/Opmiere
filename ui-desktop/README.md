@@ -9,7 +9,8 @@ See `docs/ADR_UI_AND_PREVIEW.md`.
 
 - Node 18+
 - Rust stable (`rustup`) — first `tauri dev` compiles the host
-- **Windows:** Visual Studio **Build Tools** with “Desktop development with C++” (`link.exe` / MSVC). Rustup alone is not enough.
+- **Windows:** Visual Studio **Build Tools** with C++ workload (`link.exe` / MSVC). Rustup alone is not enough.  
+  Verified: VS 2022 BuildTools + `vcvars64.bat` → `cargo check` succeeds.
 - Opmiere with web extras: `pip install -e ".[web]"`
 
 ## Dev
