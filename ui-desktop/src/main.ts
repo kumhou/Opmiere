@@ -1716,6 +1716,116 @@ async function setAutosave(enabled: boolean) {
   }
 }
 
+/** NLE Q/W: trim selection head/tail to playhead. */
+async function trimSelectionToPlayhead(edge: "head" | "tail") {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for Q/W trim";
+    return;
+  }
+  const ph = playheadFrame();
+  const mode = rippleEnabled() ? "ripple" : "normal";
+  $("status-msg").textContent = `Trim ${edge} @ f${ph} (${mode})…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/trim_playhead",
+        {
+          clip_id: clipId,
+          playhead_frame: ph,
+          edge,
+          mode,
+          follow_links: true,
+        },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Trim ${edge} @ f${ph} (${ids.length})`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Trim ${edge} failed: ${e}`;
+  }
+}
+
+async function workAreaFromSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for work area";
+    return;
+  }
+  try {
+    let io: WorkInOut;
+    if (ids.length === 1) {
+      io = await postJson<WorkInOut>("/api/work_area/from_clip", {
+        clip_id: ids[0],
+      });
+    } else {
+      io = await postJson<WorkInOut>("/api/work_area/from_selection", {
+        clip_ids: ids,
+      });
+    }
+    applyWorkIO(io);
+    $("status-msg").textContent = `I/O from selection → f${io.in_frame ?? "—"}–${io.out_frame ?? "—"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Work area failed: ${e}`;
+  }
+}
+
+async function ensureProxy() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = "Building preview proxy…";
+  const btn = document.getElementById("btn-proxy") as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await postJson<{
+      path?: string;
+      fresh?: boolean;
+      cache_hit?: boolean;
+      height?: number;
+      fps?: number;
+    }>("/api/preview/ensure", { height: 360, fps: 12, force: false });
+    state.proxyFresh = !!r.fresh || !!r.cache_hit;
+    $("status-msg").textContent = r.cache_hit
+      ? `Proxy cache hit (${r.height}p @ ${r.fps}fps)`
+      : `Proxy ready: ${r.path || "ok"}`;
+    await refresh();
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Proxy failed: ${e}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function clearSelectionEffects() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to clear effects";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/clear_effects",
+        { clip_id: clipId },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    $("status-msg").textContent = `Cleared effects on ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Clear effects failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -2480,6 +2590,18 @@ function onKey(ev: KeyboardEvent) {
     void renameSelection();
     return;
   }
+  if (k === "q" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    stopPlay();
+    void trimSelectionToPlayhead("head");
+    return;
+  }
+  if (k === "w" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    stopPlay();
+    void trimSelectionToPlayhead("tail");
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -2533,6 +2655,9 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-export-work").addEventListener("click", () => {
     void exportWorkArea();
   });
+  $("btn-proxy").addEventListener("click", () => {
+    void ensureProxy();
+  });
   $("btn-link").addEventListener("click", () => {
     void linkSelection();
   });
@@ -2553,6 +2678,20 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-mute").addEventListener("click", () => {
     stopPlay();
     void muteSelection();
+  });
+  $("btn-trim-q").addEventListener("click", () => {
+    stopPlay();
+    void trimSelectionToPlayhead("head");
+  });
+  $("btn-trim-w").addEventListener("click", () => {
+    stopPlay();
+    void trimSelectionToPlayhead("tail");
+  });
+  $("btn-io-sel").addEventListener("click", () => {
+    void workAreaFromSelection();
+  });
+  $("btn-clear-fx").addEventListener("click", () => {
+    void clearSelectionEffects();
   });
   $("btn-add-v").addEventListener("click", () => {
     void addTrack("video");

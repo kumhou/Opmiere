@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.20 — 2026-07-13
+
+### Added
+- **Q / W** trim head/tail to playhead (respects Ripple Del) → `clip/trim_playhead`
+- **I/O Sel**: work area from selection / single clip
+- **Proxy** button → `preview/ensure`
+- **Clear FX** on selection → `clip/clear_effects`
+- Test: `tests/test_desktop_trim_proxy_060.py`
+
 ## 0.4.19 — 2026-07-13
 
 ### Added
