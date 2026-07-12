@@ -77,8 +77,30 @@ type TimelineView = {
       link_group?: string | null;
       color?: string | null;
       speed?: number;
+      gain_db?: number;
+      opacity?: number;
+      fade_in_frames?: number;
+      fade_out_frames?: number;
+      transition_in?: unknown;
     }>;
   }>;
+};
+
+type ClipInfo = {
+  id: string;
+  trackId: string;
+  start: number;
+  dur: number;
+  label?: string;
+  name?: string;
+  color?: string | null;
+  speed?: number;
+  gain_db?: number;
+  opacity?: number;
+  muted?: boolean;
+  link_group?: string | null;
+  fade_in_frames?: number;
+  fade_out_frames?: number;
 };
 
 const state = {
@@ -119,6 +141,7 @@ const state = {
   dirty: false,
   workIO: { in_frame: null, out_frame: null, ready: false } as WorkInOut,
   palette: [] as string[],
+  clips: new Map<string, ClipInfo>(),
 };
 
 function $(id: string): HTMLElement {
@@ -435,6 +458,49 @@ function setSelection(ids: string[], opts?: { additive?: boolean }) {
   });
   const n = state.selected.size;
   $("sel-count").textContent = n ? String(n) : "0";
+  updateSelectionCard();
+}
+
+function updateSelectionCard() {
+  const el = document.getElementById("sel-card");
+  if (!el) return;
+  const ids = selectionList();
+  if (!ids.length) {
+    el.className = "sel-card muted";
+    el.textContent = "No selection";
+    return;
+  }
+  if (ids.length > 1) {
+    el.className = "sel-card";
+    el.innerHTML = `<div><b>${ids.length}</b> clips selected</div>`;
+    return;
+  }
+  const c = state.clips.get(ids[0]);
+  if (!c) {
+    el.className = "sel-card muted";
+    el.textContent = ids[0];
+    return;
+  }
+  el.className = "sel-card";
+  const name = c.name || c.label || c.id;
+  el.innerHTML = [
+    `<div class="sel-title">${escapeHtml(name)}</div>`,
+    `<div class="kv">id <span>${escapeHtml(c.id)}</span></div>`,
+    `<div class="kv">f${c.start} · ${c.dur}f · ${c.speed ?? 1}×</div>`,
+    `<div class="kv">gain ${c.gain_db ?? 0} dB · opac ${c.opacity ?? 1}</div>`,
+    c.muted ? `<div class="kv">muted</div>` : "",
+    c.link_group ? `<div class="kv">link ${escapeHtml(c.link_group)}</div>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function moveClip(clipId: string, startFrame: number) {
@@ -1446,6 +1512,81 @@ async function setSelectionFades(fadeIn: number, fadeOut: number) {
   }
 }
 
+async function setSelectionOpacity(amount: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for opacity";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/opacity",
+      { clip_ids: ids, amount },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Opacity ${amount} → ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Opacity failed: ${e}`;
+  }
+}
+
+async function joinSelection() {
+  const ids = selectionList();
+  if (ids.length !== 2) {
+    $("status-msg").textContent = "Select exactly 2 adjacent clips to join";
+    return;
+  }
+  // order by start frame
+  const infos = ids
+    .map((id) => state.clips.get(id))
+    .filter((c): c is ClipInfo => !!c)
+    .sort((a, b) => a.start - b.start);
+  if (infos.length !== 2) {
+    $("status-msg").textContent = "Join needs two known clips";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/join", {
+      clip_id_a: infos[0].id,
+      clip_id_b: infos[1].id,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    state.selected.clear();
+    updateSelectionCard();
+    $("status-msg").textContent = `Joined ${infos[0].id} + ${infos[1].id}`;
+  } catch (e) {
+    $("status-msg").textContent = `Join failed: ${e}`;
+  }
+}
+
+async function transitionSelection(durationFrames = 12) {
+  const ids = selectionList();
+  if (ids.length !== 2) {
+    $("status-msg").textContent = "Select 2 clips (left→right) for transition";
+    return;
+  }
+  const infos = ids
+    .map((id) => state.clips.get(id))
+    .filter((c): c is ClipInfo => !!c)
+    .sort((a, b) => a.start - b.start);
+  if (infos.length !== 2) {
+    $("status-msg").textContent = "Transition needs two known clips";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/transition", {
+      left_clip_id: infos[0].id,
+      right_clip_id: infos[1].id,
+      transition_type: "cross_dissolve",
+      duration_frames: durationFrames,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Cross-dissolve ${durationFrames}f`;
+  } catch (e) {
+    $("status-msg").textContent = `Transition failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -1722,6 +1863,8 @@ function renderTimeline(view: TimelineView | null) {
     meta.textContent = "empty";
     state.tracks = [];
     state.trackOrder = [];
+    state.clips.clear();
+    updateSelectionCard();
     return;
   }
   const durF = Math.max(1, view.duration_frames || 1);
@@ -1731,6 +1874,29 @@ function renderTimeline(view: TimelineView | null) {
   if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
   state.trackOrder = view.tracks.map((t) => t.id);
   state.tracks = view.tracks.map((t) => ({ id: t.id, kind: t.kind }));
+  state.clips.clear();
+  for (const tr of view.tracks) {
+    for (const c of tr.clips || []) {
+      const start = c.start_frame ?? c.start ?? 0;
+      const dur = c.duration_frames ?? 1;
+      state.clips.set(c.id, {
+        id: c.id,
+        trackId: tr.id,
+        start,
+        dur,
+        label: c.label,
+        name: c.name,
+        color: c.color,
+        speed: c.speed,
+        gain_db: c.gain_db,
+        opacity: c.opacity,
+        muted: c.muted,
+        link_group: c.link_group,
+        fade_in_frames: c.fade_in_frames,
+        fade_out_frames: c.fade_out_frames,
+      });
+    }
+  }
   state.snapFrames = view.snap_frames || [];
   if (view.markers) {
     state.markers = view.markers;
@@ -1851,6 +2017,7 @@ function renderTimeline(view: TimelineView | null) {
   }
   setPlayheadUi();
   $("sel-count").textContent = String(state.selected.size);
+  updateSelectionCard();
 }
 
 async function createDemoProject() {
@@ -2301,6 +2468,18 @@ window.addEventListener("DOMContentLoaded", () => {
       const n = Number(b.dataset.fade);
       if (Number.isFinite(n)) void setSelectionFades(n, n);
     });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-opacity]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const a = Number(b.dataset.opacity);
+      if (Number.isFinite(a)) void setSelectionOpacity(a);
+    });
+  });
+  $("btn-join").addEventListener("click", () => {
+    void joinSelection();
+  });
+  $("btn-transition").addEventListener("click", () => {
+    void transitionSelection(12);
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;

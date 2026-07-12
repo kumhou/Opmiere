@@ -99,6 +99,7 @@
             <p class="kv"><b>Frame mode</b> <span id="frame-mode">—</span></p>
             <p class="kv"><b>Play</b> <span id="play-mode">stopped</span></p>
             <p class="kv"><b>Selected</b> <span id="sel-count">0</span></p>
+            <div id="sel-card" class="sel-card muted">No selection</div>
             <h2 class="subh">Color</h2>
             <div id="color-palette" class="color-palette"></div>
             <button type="button" id="btn-color-cycle" class="btn-mini" title="Cycle color (C)">Cycle color</button>
@@ -127,6 +128,17 @@
               <button type="button" class="btn-mini" data-fade="6">6f</button>
               <button type="button" class="btn-mini" data-fade="12">12f</button>
               <button type="button" class="btn-mini" data-fade="24">24f</button>
+            </div>
+            <div class="speed-row">
+              <span class="muted" style="font-size:10px">Opacity</span>
+              <button type="button" class="btn-mini" data-opacity="0.25">25%</button>
+              <button type="button" class="btn-mini" data-opacity="0.5">50%</button>
+              <button type="button" class="btn-mini" data-opacity="0.75">75%</button>
+              <button type="button" class="btn-mini" data-opacity="1">100%</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-join" class="btn-mini" title="Join 2 selected clips">Join</button>
+              <button type="button" id="btn-transition" class="btn-mini" title="Cross-dissolve between 2 clips">Dissolve</button>
             </div>
             <h2 class="subh">Markers</h2>
             <div id="marker-list" class="marker-list muted">No markers (M to add)</div>

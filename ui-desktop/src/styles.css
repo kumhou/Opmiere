@@ -459,6 +459,37 @@ button:disabled {
   color: var(--color-primary);
 }
 
+.sel-card {
+  margin: var(--space-sm) 0 var(--space-md);
+  padding: var(--space-md);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  line-height: 1.45;
+}
+
+.sel-card.muted {
+  color: var(--color-muted);
+}
+
+.sel-card .sel-title {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--color-foreground);
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.sel-card .kv {
+  color: var(--color-muted);
+}
+
+.sel-card .kv span {
+  color: var(--color-foreground);
+}
+
 .track-label {
   display: flex;
   flex-direction: column;

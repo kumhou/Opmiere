@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.17 — 2026-07-13
+
+### Added
+- **Selection card** in inspector (name / TC / speed / gain / opacity)
+- **Opacity** presets → `clips/opacity`
+- **Join** two selected clips → `clips/join`
+- **Dissolve** cross-fade between two clips → `transition`
+- Test: `tests/test_desktop_opacity_join_057.py`
+
 ## 0.4.16 — 2026-07-13
 
 ### Added
