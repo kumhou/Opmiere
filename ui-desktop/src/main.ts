@@ -58,6 +58,8 @@ type TimelineView = {
   work_in_out?: WorkInOut;
   dirty?: boolean;
   can_undo?: boolean;
+  notes?: string;
+  bundle_path?: string;
   tracks?: Array<{
     id: string;
     kind: string;
@@ -142,6 +144,8 @@ const state = {
   workIO: { in_frame: null, out_frame: null, ready: false } as WorkInOut,
   palette: [] as string[],
   clips: new Map<string, ClipInfo>(),
+  notes: "",
+  bundlePath: "",
 };
 
 function $(id: string): HTMLElement {
@@ -1587,6 +1591,103 @@ async function transitionSelection(durationFrames = 12) {
   }
 }
 
+async function refreshValidate() {
+  const pill = document.getElementById("pill-validate");
+  const list = document.getElementById("validate-list");
+  if (!state.projectOpen) {
+    if (pill) {
+      pill.className = "pill";
+      pill.textContent = "valid —";
+    }
+    if (list) {
+      list.className = "validate-list muted";
+      list.textContent = "No project";
+    }
+    return;
+  }
+  try {
+    const r = await getJson<{
+      ok?: boolean;
+      error_count?: number;
+      warn_count?: number;
+      issue_count?: number;
+      issues?: Array<{
+        severity?: string;
+        code?: string;
+        message?: string;
+        track_id?: string;
+      }>;
+    }>("/api/validate");
+    const err = r.error_count ?? 0;
+    const warn = r.warn_count ?? 0;
+    if (pill) {
+      if (!r.ok || err > 0) {
+        pill.className = "pill err";
+        pill.textContent = `valid ${err}e`;
+      } else if (warn > 0) {
+        pill.className = "pill warn";
+        pill.textContent = `valid ${warn}w`;
+      } else {
+        pill.className = "pill ok";
+        pill.textContent = "valid ok";
+      }
+    }
+    if (list) {
+      const issues = r.issues || [];
+      if (!issues.length) {
+        list.className = "validate-list muted";
+        list.textContent = "No issues";
+      } else {
+        list.className = "validate-list";
+        list.innerHTML = "";
+        for (const it of issues.slice(0, 12)) {
+          const row = document.createElement("div");
+          row.className = `validate-row sev-${it.severity || "info"}`;
+          row.textContent = `${it.severity || "info"}: ${it.message || it.code || "?"}`;
+          list.appendChild(row);
+        }
+      }
+    }
+  } catch (e) {
+    if (pill) {
+      pill.className = "pill warn";
+      pill.textContent = "valid n/a";
+    }
+    if (list) {
+      list.className = "validate-list muted";
+      list.textContent = String(e);
+    }
+  }
+}
+
+function applyNotesUi(notes: string, bundlePath?: string) {
+  state.notes = notes || "";
+  if (bundlePath) state.bundlePath = bundlePath;
+  const ta = document.getElementById("notes-area") as HTMLTextAreaElement | null;
+  if (ta && ta !== document.activeElement) ta.value = state.notes;
+  const bp = document.getElementById("bundle-path");
+  if (bp) {
+    bp.textContent = state.bundlePath
+      ? state.bundlePath.split(/[/\\]/).slice(-2).join("/")
+      : "—";
+    bp.title = state.bundlePath || "";
+  }
+}
+
+async function saveNotes() {
+  if (!state.projectOpen) return;
+  const ta = document.getElementById("notes-area") as HTMLTextAreaElement | null;
+  if (!ta) return;
+  const notes = ta.value;
+  try {
+    await postJson("/api/notes", { notes });
+    state.notes = notes;
+    $("status-msg").textContent = "Notes saved";
+  } catch (e) {
+    $("status-msg").textContent = `Notes failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -1903,6 +2004,7 @@ function renderTimeline(view: TimelineView | null) {
     renderMarkerList();
   }
   if (view.work_in_out) applyWorkIO(view.work_in_out);
+  applyNotesUi(view.notes || "", view.bundle_path);
   state.dirty = !!view.dirty;
   const dirty = state.dirty ? " · dirty" : "";
   meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · snap±${state.snapThr}f${dirty}`;
@@ -2152,15 +2254,20 @@ async function refresh() {
       }
       await refreshMediaBin();
       await refreshMarkers();
+      await refreshValidate();
     } else {
       state.durationSec = 0;
       state.durationFrames = 0;
       state.markers = [];
+      state.notes = "";
+      state.bundlePath = "";
       renderTimeline(null);
       hideAllProgramSurfaces();
       setPlayheadUi();
       renderMediaBin(null);
       renderMarkerList();
+      applyNotesUi("");
+      await refreshValidate();
     }
 
     $("status-msg").textContent = "Ready";
@@ -2480,6 +2587,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-transition").addEventListener("click", () => {
     void transitionSelection(12);
+  });
+  $("btn-validate").addEventListener("click", () => {
+    void refreshValidate();
+  });
+  $("btn-notes-save").addEventListener("click", () => {
+    void saveNotes();
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;

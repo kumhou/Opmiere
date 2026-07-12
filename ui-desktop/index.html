@@ -144,6 +144,15 @@
             <div id="marker-list" class="marker-list muted">No markers (M to add)</div>
             <h2 class="subh">Recent</h2>
             <div id="recent-list" class="recent-list muted">—</div>
+            <h2 class="subh">Validate</h2>
+            <div class="speed-row">
+              <button type="button" id="btn-validate" class="btn-mini">Re-check</button>
+            </div>
+            <div id="validate-list" class="validate-list muted">—</div>
+            <h2 class="subh">Notes</h2>
+            <p class="kv"><b>Bundle</b> <span id="bundle-path">—</span></p>
+            <textarea id="notes-area" class="notes-area" rows="3" placeholder="Project notes…"></textarea>
+            <button type="button" id="btn-notes-save" class="btn-mini">Save notes</button>
             <div class="note" id="agent-note">
               No agent chat in GUI v1 — use MCP externally.
             </div>
@@ -176,6 +185,7 @@
         <span class="pill" id="pill-api">API</span>
         <span class="pill" id="pill-preview">preview</span>
         <span class="pill" id="pill-dirty">clean</span>
+        <span class="pill" id="pill-validate">valid —</span>
         <span id="status-msg">Starting…</span>
       </footer>
     </div>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.18 — 2026-07-13
+
+### Added
+- **Validate** status pill + issue list → `GET /api/validate`
+- **Project notes** textarea + Save → `GET/POST /api/notes` (from timeline.notes)
+- Bundle path display in inspector
+- Test: `tests/test_desktop_validate_notes_058.py`
+
 ## 0.4.17 — 2026-07-13
 
 ### Added
