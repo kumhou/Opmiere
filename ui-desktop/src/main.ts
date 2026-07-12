@@ -42,6 +42,9 @@ type TimelineView = {
     id: string;
     kind: string;
     name?: string;
+    muted?: boolean;
+    solo?: boolean;
+    locked?: boolean;
     clips?: Array<{
       id: string;
       start?: number;
@@ -49,8 +52,17 @@ type TimelineView = {
       duration_frames?: number;
       name?: string;
       label?: string;
+      muted?: boolean;
     }>;
   }>;
+};
+
+type Marker = {
+  id: string;
+  frame?: number;
+  label?: string;
+  color?: string;
+  time_seconds?: number;
 };
 
 const state = {
@@ -85,6 +97,7 @@ const state = {
   trackOrder: [] as string[], // video+audio lane track ids top→bottom
   tracks: [] as Array<{ id: string; kind: string }>,
   selected: new Set<string>(),
+  markers: [] as Marker[],
 };
 
 function $(id: string): HTMLElement {
@@ -602,6 +615,174 @@ async function saveProject() {
   }
 }
 
+async function refreshMarkers() {
+  if (!state.projectOpen) {
+    state.markers = [];
+    renderMarkerList();
+    return;
+  }
+  try {
+    const data = await getJson<{ markers?: Marker[]; count?: number }>(
+      "/api/markers",
+    );
+    state.markers = data.markers || [];
+  } catch {
+    state.markers = [];
+  }
+  renderMarkerList();
+  const ruler = document.querySelector(
+    ".marker-ruler",
+  ) as HTMLElement | null;
+  if (ruler) paintMarkerRuler(ruler);
+}
+
+function renderMarkerList() {
+  const el = document.getElementById("marker-list");
+  if (!el) return;
+  if (!state.markers.length) {
+    el.textContent = "No markers (M to add)";
+    el.className = "marker-list muted";
+    return;
+  }
+  el.className = "marker-list";
+  el.innerHTML = "";
+  for (const m of state.markers) {
+    const row = document.createElement("div");
+    row.className = "marker-row";
+    const f = m.frame ?? 0;
+    const lab = m.label || `M${f}`;
+    row.textContent = `${lab} · f${f}`;
+    row.title = "Click seek · Alt+click delete";
+    row.style.borderLeftColor = m.color || "var(--color-primary)";
+    row.addEventListener("click", (ev) => {
+      if (ev.altKey) {
+        void deleteMarker(m.id);
+      } else {
+        stopPlay();
+        void seekTo(f / state.fps);
+      }
+    });
+    el.appendChild(row);
+  }
+}
+
+async function addMarkerAtPlayhead() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const frame = playheadFrame();
+  $("status-msg").textContent = `Marker @ f${frame}…`;
+  try {
+    const r = await postJson<{ markers?: Marker[] }>("/api/markers", {
+      frame,
+      label: `M${frame}`,
+    });
+    state.markers = r.markers || [];
+    renderMarkerList();
+    // re-render timeline to paint ticks
+    const body = $("timeline-body");
+    if (body.querySelector(".marker-ruler")) {
+      paintMarkerRuler(body.querySelector(".marker-ruler") as HTMLElement);
+    }
+    $("status-msg").textContent = `Marker @ f${frame}`;
+  } catch (e) {
+    $("status-msg").textContent = `Marker failed: ${e}`;
+  }
+}
+
+async function deleteMarker(markerId: string) {
+  try {
+    const r = await postJson<{ markers?: Marker[] }>("/api/markers/delete", {
+      marker_id: markerId,
+    });
+    state.markers = r.markers || [];
+    renderMarkerList();
+    const body = $("timeline-body");
+    const ruler = body.querySelector(".marker-ruler") as HTMLElement | null;
+    if (ruler) paintMarkerRuler(ruler);
+    $("status-msg").textContent = `Deleted marker ${markerId}`;
+  } catch (e) {
+    $("status-msg").textContent = `Delete marker failed: ${e}`;
+  }
+}
+
+function paintMarkerRuler(ruler: HTMLElement) {
+  const durF = Math.max(1, state.durationFrames || 1);
+  ruler.innerHTML = "";
+  const lane = document.createElement("div");
+  lane.className = "marker-lane";
+  for (const m of state.markers) {
+    const f = m.frame ?? 0;
+    const tick = document.createElement("div");
+    tick.className = "marker-tick";
+    tick.style.left = `${(f / durF) * 100}%`;
+    tick.style.background = m.color || "var(--color-primary)";
+    tick.title = `${m.label || m.id} · f${f} · click seek · Alt+click delete`;
+    tick.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (ev.altKey) void deleteMarker(m.id);
+      else {
+        stopPlay();
+        void seekTo(f / state.fps);
+      }
+    });
+    lane.appendChild(tick);
+  }
+  ruler.appendChild(lane);
+}
+
+async function muteSelection(force?: boolean) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to mute";
+    return;
+  }
+  // toggle: if force undefined, mute if any unmuted
+  let muted = force;
+  if (muted === undefined) {
+    const blocks = Array.from(
+      document.querySelectorAll<HTMLElement>(".clip-block.selected"),
+    );
+    const anyLive = blocks.some((b) => !b.classList.contains("muted"));
+    muted = anyLive;
+  }
+  $("status-msg").textContent = `${muted ? "Mute" : "Unmute"} ${ids.length}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/mute", {
+      clip_ids: ids,
+      muted,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `${muted ? "Muted" : "Unmuted"} ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Mute failed: ${e}`;
+  }
+}
+
+async function setTrackFlag(
+  trackId: string,
+  flag: "mute" | "solo" | "lock",
+  value: boolean,
+) {
+  const path =
+    flag === "mute"
+      ? "/api/track/mute"
+      : flag === "solo"
+        ? "/api/track/solo"
+        : "/api/track/lock";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(path, {
+      track_id: trackId,
+      value,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Track ${flag} ${value ? "on" : "off"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Track ${flag} failed: ${e}`;
+  }
+}
+
 async function refreshMediaBin() {
   if (!state.projectOpen) {
     renderMediaBin(null);
@@ -940,14 +1121,64 @@ function renderTimeline(view: TimelineView | null) {
   if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
   state.trackOrder = view.tracks.map((t) => t.id);
   state.tracks = view.tracks.map((t) => ({ id: t.id, kind: t.kind }));
-  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · drag · edge trim · S razor · Ctrl+S`;
+  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · M mark · Shift+M mute · S razor`;
   body.innerHTML = "";
+
+  // marker ruler
+  const rulerRow = document.createElement("div");
+  rulerRow.className = "track-row marker-ruler-row";
+  const rulerLab = document.createElement("div");
+  rulerLab.className = "track-label muted";
+  rulerLab.textContent = "Mk";
+  const ruler = document.createElement("div");
+  ruler.className = "marker-ruler";
+  paintMarkerRuler(ruler);
+  rulerRow.appendChild(rulerLab);
+  rulerRow.appendChild(ruler);
+  body.appendChild(rulerRow);
+
   for (const tr of view.tracks) {
     const row = document.createElement("div");
     row.className = "track-row";
+    if (tr.muted) row.classList.add("track-muted");
+    if (tr.solo) row.classList.add("track-solo");
+    if (tr.locked) row.classList.add("track-locked");
     const label = document.createElement("div");
     label.className = "track-label";
-    label.textContent = tr.name || tr.kind || tr.id;
+    const name = document.createElement("div");
+    name.className = "track-name";
+    name.textContent = tr.name || tr.kind || tr.id;
+    const flags = document.createElement("div");
+    flags.className = "track-flags";
+    const mkBtn = (txt: string, on: boolean, title: string, fn: () => void) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `tflag${on ? " on" : ""}`;
+      b.textContent = txt;
+      b.title = title;
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        fn();
+      });
+      return b;
+    };
+    flags.appendChild(
+      mkBtn("M", !!tr.muted, "Mute track", () => {
+        void setTrackFlag(tr.id, "mute", !tr.muted);
+      }),
+    );
+    flags.appendChild(
+      mkBtn("S", !!tr.solo, "Solo track", () => {
+        void setTrackFlag(tr.id, "solo", !tr.solo);
+      }),
+    );
+    flags.appendChild(
+      mkBtn("L", !!tr.locked, "Lock track", () => {
+        void setTrackFlag(tr.id, "lock", !tr.locked);
+      }),
+    );
+    label.appendChild(name);
+    label.appendChild(flags);
     const lane = document.createElement("div");
     lane.className = "track-lane";
     lane.dataset.trackId = tr.id;
@@ -961,11 +1192,11 @@ function renderTimeline(view: TimelineView | null) {
       const left = (start / durF) * 100;
       const width = Math.max(0.5, (dur / durF) * 100);
       const block = document.createElement("div");
-      block.className = `clip-block${tr.kind === "audio" ? " audio" : ""}`;
+      block.className = `clip-block${tr.kind === "audio" ? " audio" : ""}${c.muted ? " muted" : ""}`;
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
       block.dataset.label = c.label || c.name || c.id;
-      block.title = `${c.id} · drag body=move · edges=trim · vertical=track`;
+      block.title = `${c.id}${c.muted ? " [muted]" : ""} · drag · edges · Shift+M mute`;
       bindClipInteractions(
         block,
         { id: c.id, start, dur, trackId: tr.id },
@@ -1131,13 +1362,16 @@ async function refresh() {
         $("timeline-body").textContent = String(e);
       }
       await refreshMediaBin();
+      await refreshMarkers();
     } else {
       state.durationSec = 0;
       state.durationFrames = 0;
+      state.markers = [];
       renderTimeline(null);
       hideAllProgramSurfaces();
       setPlayheadUi();
       renderMediaBin(null);
+      renderMarkerList();
     }
 
     $("status-msg").textContent = "Ready";
@@ -1217,6 +1451,18 @@ function onKey(ev: KeyboardEvent) {
     void razorAtPlayhead();
     return;
   }
+  if (k === "m" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.shiftKey) {
+    ev.preventDefault();
+    stopPlay();
+    void muteSelection();
+    return;
+  }
+  if (k === "m" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    stopPlay();
+    void addMarkerAtPlayhead();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -1273,6 +1519,14 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-razor").addEventListener("click", () => {
     stopPlay();
     void razorAtPlayhead();
+  });
+  $("btn-marker").addEventListener("click", () => {
+    stopPlay();
+    void addMarkerAtPlayhead();
+  });
+  $("btn-mute").addEventListener("click", () => {
+    stopPlay();
+    void muteSelection();
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;

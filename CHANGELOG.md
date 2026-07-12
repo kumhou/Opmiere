@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.9 — 2026-07-13
+
+### Added
+- **Markers**: M / Mark button → `POST /api/markers`; ruler ticks + inspector list; click seek, Alt+click delete
+- **Clip mute**: Shift+M / Mute button → `POST /api/clips/mute` (toggle)
+- **Track M/S/L** flags on lane labels → `track/mute`, `track/solo`, `track/lock`
+- Test: `tests/test_desktop_mark_mute_049.py`
+
 ## 0.4.8 — 2026-07-13
 
 ### Added
