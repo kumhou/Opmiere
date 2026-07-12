@@ -56,6 +56,7 @@ type TimelineView = {
 const state = {
   projectOpen: false,
   durationSec: 0,
+  durationFrames: 0,
   fps: 30,
   t: 0,
   engine: "auto" as string,
@@ -67,6 +68,14 @@ const state = {
   playTimer: 0 as number | ReturnType<typeof setTimeout>,
   lastFrameAt: 0,
   shuttle: 0, // -1 J, 0, +1 L
+  drag: null as null | {
+    clipId: string;
+    startFrame: number;
+    durationFrames: number;
+    originX: number;
+    laneWidth: number;
+    block: HTMLElement;
+  },
 };
 
 function $(id: string): HTMLElement {
@@ -362,6 +371,48 @@ async function startStepPlay() {
   void tick();
 }
 
+function applyTimelineView(view: TimelineView) {
+  renderTimeline(view);
+  setPlayheadUi();
+}
+
+async function moveClip(clipId: string, startFrame: number) {
+  $("status-msg").textContent = `Moving ${clipId} → f${startFrame}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip?: { start?: number };
+    }>("/api/clip/move", {
+      clip_id: clipId,
+      start_frame: startFrame,
+      refresh_preview: true,
+      quick_preview: true,
+    });
+    if (r.timeline) {
+      applyTimelineView(r.timeline);
+      state.proxyFresh = !!r.timeline.proxy?.fresh;
+    }
+    $("status-msg").textContent = `Moved ${clipId} → f${startFrame}`;
+    // Refresh program still at playhead (proxy may be rebuilding)
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Move failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function undoEdit() {
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/undo", {});
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    void seekTo(state.t);
+    $("status-msg").textContent = "Undo";
+  } catch (e) {
+    $("status-msg").textContent = `Undo: ${e}`;
+  }
+}
+
 function renderTimeline(view: TimelineView | null) {
   const body = $("timeline-body");
   const meta = $("timeline-meta");
@@ -372,10 +423,11 @@ function renderTimeline(view: TimelineView | null) {
     return;
   }
   const durF = Math.max(1, view.duration_frames || 1);
+  state.durationFrames = durF;
   state.durationSec = view.duration_seconds || durF / (view.fps || state.fps);
   state.fps = view.fps || state.fps || 30;
   if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
-  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s`;
+  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · drag clips`;
   body.innerHTML = "";
   for (const tr of view.tracks) {
     const row = document.createElement("div");
@@ -398,10 +450,61 @@ function renderTimeline(view: TimelineView | null) {
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
       block.textContent = c.label || c.name || c.id;
-      block.title = c.id;
+      block.title = `${c.id} · drag to move`;
+      block.dataset.clipId = c.id;
+      block.dataset.startFrame = String(start);
+      block.dataset.durationFrames = String(dur);
+      block.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        stopPlay();
+        const laneRect = lane.getBoundingClientRect();
+        state.drag = {
+          clipId: c.id,
+          startFrame: start,
+          durationFrames: dur,
+          originX: ev.clientX,
+          laneWidth: Math.max(1, laneRect.width),
+          block,
+        };
+        block.classList.add("dragging");
+        block.setPointerCapture(ev.pointerId);
+      });
+      block.addEventListener("pointermove", (ev) => {
+        if (!state.drag || state.drag.clipId !== c.id) return;
+        const dx = ev.clientX - state.drag.originX;
+        const dFrames = Math.round((dx / state.drag.laneWidth) * durF);
+        const newStart = Math.max(0, state.drag.startFrame + dFrames);
+        const leftPct = (newStart / durF) * 100;
+        block.style.left = `${leftPct}%`;
+        block.dataset.pendingStart = String(newStart);
+      });
+      block.addEventListener("pointerup", (ev) => {
+        if (!state.drag || state.drag.clipId !== c.id) return;
+        block.classList.remove("dragging");
+        const pending = block.dataset.pendingStart;
+        const newStart = pending != null ? parseInt(pending, 10) : state.drag.startFrame;
+        state.drag = null;
+        delete block.dataset.pendingStart;
+        try {
+          block.releasePointerCapture(ev.pointerId);
+        } catch {
+          /* ignore */
+        }
+        if (newStart !== start) {
+          void moveClip(c.id, newStart);
+        }
+      });
+      block.addEventListener("pointercancel", () => {
+        block.classList.remove("dragging");
+        state.drag = null;
+      });
       lane.appendChild(block);
     }
     lane.addEventListener("click", (ev) => {
+      if (state.drag) return;
+      if ((ev.target as HTMLElement).closest(".clip-block")) return;
       stopPlay();
       const rect = lane.getBoundingClientRect();
       const x = (ev.clientX - rect.left) / Math.max(1, rect.width);
@@ -493,7 +596,7 @@ async function refresh() {
     if (state.projectOpen) {
       try {
         const tl = await getJson<TimelineView>("/api/project/timeline");
-        renderTimeline(tl);
+        applyTimelineView(tl);
         if (state.durationSec > 0) {
           await seekTo(Math.min(state.t, state.durationSec));
         }
@@ -503,6 +606,7 @@ async function refresh() {
       }
     } else {
       state.durationSec = 0;
+      state.durationFrames = 0;
       renderTimeline(null);
       hideAllProgramSurfaces();
       setPlayheadUi();
@@ -556,6 +660,12 @@ function onKey(ev: KeyboardEvent) {
     ev.preventDefault();
     stopPlay();
     void seekTo(state.t + 1 / state.fps);
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "z") {
+    ev.preventDefault();
+    stopPlay();
+    void undoEdit();
   }
 }
 

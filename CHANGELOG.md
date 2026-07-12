@@ -1,8 +1,13 @@
 # Changelog
 
-## 0.4.2 — 2026-07-12
+## 0.4.3 — 2026-07-13
 
 ### Added
+- **Timeline drag-move** in `ui-desktop` → `POST /api/clip/move` (+ quick proxy refresh)
+- **Ctrl+Z undo** from product shell
+- Verified **Tauri host full `cargo build`** with VS 2022 Build Tools
+
+### Added (0.4.2)
 - **Program play**: Space/K — proxy HTML5 play when proxy fresh; else stepped stills (~8fps)
 - **Keyboard**: J/L ±5f, ←/→ ±1f, Space/K play·pause
 - Play mode indicator; auto-ensure proxy before proxy play
