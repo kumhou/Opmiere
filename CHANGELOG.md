@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.6 — 2026-07-13
+
+### Added
+- **Media bin**: list project media via `GET /api/media`; **Import** multi-file → `POST /api/upload_place`
+- **Ripple Del** toggle: delete + edge trim use ripple mode when checked
+- Test: `tests/test_desktop_import_046.py`
+
 ## 0.4.5 — 2026-07-13
 
 ### Added

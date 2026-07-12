@@ -410,6 +410,69 @@ button:disabled {
   font-size: 11px;
 }
 
+.media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.btn-file {
+  display: inline-block;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-foreground);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+}
+
+.btn-file:hover {
+  border-color: var(--color-primary);
+}
+
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.media-list {
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-md);
+}
+
+.media-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+  color: var(--color-foreground);
+}
+
+.media-row:hover {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+}
+
+.media-row .kind {
+  color: var(--color-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
 /* Workspace includes timeline under the 3 cols */
 .main {
   display: grid;

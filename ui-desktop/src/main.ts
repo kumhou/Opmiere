@@ -445,24 +445,147 @@ async function nudgeSelection(deltaFrames: number) {
   }
 }
 
+function rippleEnabled(): boolean {
+  return ($("chk-ripple") as HTMLInputElement).checked;
+}
+
 async function deleteSelection() {
   const ids = selectionList();
   if (!ids.length) return;
-  $("status-msg").textContent = `Delete ${ids.length} clip(s)…`;
+  const ripple = rippleEnabled();
+  $("status-msg").textContent = `Delete ${ids.length} clip(s)${ripple ? " (ripple)" : ""}…`;
   try {
     const r = await postJson<{ timeline?: TimelineView }>("/api/clips/delete", {
       clip_ids: ids,
-      ripple: false,
+      ripple,
       follow_links: true,
     });
     state.selected.clear();
     if (r.timeline) applyTimelineView(r.timeline);
     $("sel-count").textContent = "0";
-    $("status-msg").textContent = `Deleted ${ids.length}`;
+    $("status-msg").textContent = `Deleted ${ids.length}${ripple ? " ripple" : ""}`;
     void seekTo(state.t);
   } catch (e) {
     $("status-msg").textContent = `Delete failed: ${e}`;
     await refresh();
+  }
+}
+
+type MediaBin = {
+  count?: number;
+  items?: Array<{
+    id: string;
+    kind?: string;
+    path?: string;
+    duration_frames?: number;
+    label?: string;
+  }>;
+  // list_media_bin may use different shape
+  media?: Array<Record<string, unknown>>;
+};
+
+function renderMediaBin(data: MediaBin | null) {
+  const el = $("media-list");
+  const items =
+    data?.items ||
+    (Array.isArray(data?.media) ? (data!.media as MediaBin["items"]) : null) ||
+    [];
+  if (!items?.length) {
+    el.className = "media-list muted";
+    el.textContent = state.projectOpen ? "Empty bin — Import files" : "No project";
+    return;
+  }
+  el.className = "media-list";
+  el.innerHTML = "";
+  for (const m of items) {
+    const row = document.createElement("div");
+    row.className = "media-row";
+    const name = document.createElement("div");
+    name.textContent =
+      m.label ||
+      (m.path ? String(m.path).split(/[/\\]/).pop() : m.id) ||
+      m.id;
+    const kind = document.createElement("div");
+    kind.className = "kind";
+    const dur =
+      typeof m.duration_frames === "number"
+        ? ` · ${m.duration_frames}f`
+        : "";
+    kind.textContent = `${m.kind || "?"}${dur}`;
+    row.appendChild(name);
+    row.appendChild(kind);
+    row.title = m.path || m.id;
+    el.appendChild(row);
+  }
+}
+
+async function refreshMediaBin() {
+  if (!state.projectOpen) {
+    renderMediaBin(null);
+    return;
+  }
+  try {
+    const data = await getJson<MediaBin>("/api/media");
+    // normalize alternate shapes from list_media_bin
+    if (!data.items && Array.isArray((data as { media?: unknown }).media)) {
+      const raw = (data as { media: Array<Record<string, unknown>> }).media;
+      data.items = raw.map((m) => ({
+        id: String(m.id || m.media_id || ""),
+        kind: m.kind as string | undefined,
+        path: m.path as string | undefined,
+        duration_frames: m.duration_frames as number | undefined,
+        label: (m.label || m.name) as string | undefined,
+      }));
+    }
+    // some APIs return {count, entries}
+    if (!data.items && Array.isArray((data as { entries?: unknown }).entries)) {
+      const raw = (data as { entries: Array<Record<string, unknown>> }).entries;
+      data.items = raw.map((m) => ({
+        id: String(m.id || ""),
+        kind: m.kind as string | undefined,
+        path: m.path as string | undefined,
+        duration_frames: m.duration_frames as number | undefined,
+      }));
+    }
+    renderMediaBin(data);
+  } catch {
+    $("media-list").textContent = "Media list unavailable";
+  }
+}
+
+async function importFiles(fileList: FileList | null) {
+  if (!fileList?.length) return;
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open or create a project first";
+    return;
+  }
+  const fd = new FormData();
+  for (const f of Array.from(fileList)) {
+    fd.append("files", f, f.name);
+  }
+  $("status-msg").textContent = `Importing ${fileList.length} file(s)…`;
+  try {
+    const res = await fetch(`${API_BASE}/api/upload_place?build_proxy=false`, {
+      method: "POST",
+      body: fd,
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 200)}`);
+    }
+    const body = (await res.json()) as {
+      placed?: unknown[];
+      errors?: unknown[];
+      timeline?: TimelineView;
+    };
+    const n = body.placed?.length ?? 0;
+    $("status-msg").textContent = `Imported ${n} clip(s)`;
+    if (body.timeline) applyTimelineView(body.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Import failed: ${e}`;
   }
 }
 
@@ -498,13 +621,14 @@ async function edgeTrim(
   deltaFrames: number,
 ) {
   if (deltaFrames === 0) return;
-  $("status-msg").textContent = `Trim ${edge} ${clipId} Δ${deltaFrames}…`;
+  const mode = rippleEnabled() ? "ripple" : "normal";
+  $("status-msg").textContent = `Trim ${edge} ${clipId} Δ${deltaFrames} (${mode})…`;
   try {
     const r = await postJson<{ timeline?: TimelineView }>("/api/clip/edge_trim", {
       clip_id: clipId,
       edge,
       delta_frames: deltaFrames,
-      mode: "normal",
+      mode,
       refresh_preview: true,
       quick_preview: true,
     });
@@ -512,7 +636,7 @@ async function edgeTrim(
       applyTimelineView(r.timeline);
       state.proxyFresh = !!r.timeline.proxy?.fresh;
     }
-    $("status-msg").textContent = `Trimmed ${edge} Δ${deltaFrames}`;
+    $("status-msg").textContent = `Trimmed ${edge} Δ${deltaFrames} (${mode})`;
     void seekTo(state.t);
   } catch (e) {
     $("status-msg").textContent = `Trim failed: ${e}`;
@@ -868,12 +992,14 @@ async function refresh() {
         renderTimeline(null);
         $("timeline-body").textContent = String(e);
       }
+      await refreshMediaBin();
     } else {
       state.durationSec = 0;
       state.durationFrames = 0;
       renderTimeline(null);
       hideAllProgramSurfaces();
       setPlayheadUi();
+      renderMediaBin(null);
     }
 
     $("status-msg").textContent = "Ready";
@@ -975,6 +1101,11 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-export").addEventListener("click", () => {
     void exportProject();
+  });
+  $("file-import").addEventListener("change", (ev) => {
+    const input = ev.target as HTMLInputElement;
+    void importFiles(input.files);
+    input.value = "";
   });
   const scrub = $("scrub") as HTMLInputElement;
   scrub.addEventListener("input", () => {

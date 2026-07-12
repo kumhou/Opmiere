@@ -25,8 +25,19 @@
             <h2>Media</h2>
             <p class="kv"><b>Project</b> <span id="project-state">none</span></p>
             <p class="kv"><b>API</b> <span id="api-url">—</span></p>
+            <div class="media-actions">
+              <label class="btn-file">
+                Import
+                <input type="file" id="file-import" multiple accept="video/*,audio/*,image/*" hidden />
+              </label>
+              <label class="chk" title="Ripple delete closes gaps on track">
+                <input type="checkbox" id="chk-ripple" />
+                Ripple Del
+              </label>
+            </div>
+            <div id="media-list" class="media-list muted">No media</div>
             <div class="note" id="media-note">
-              Space play · Shift+click multi · Ctrl+A · Del · Ctrl+Z · drag multi-nudge · Export.
+              Import places at end of V/A track. Ripple Del · Shift multi · Export.
             </div>
           </aside>
 
