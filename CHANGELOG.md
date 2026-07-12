@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5 — 2026-07-13
+
+### Added
+- **Multi-select**: click / Shift+click / Ctrl+A / Esc; selected clips drag → `clips/nudge`
+- **Delete** selection (Del/Backspace) → `clips/delete`
+- **Export** button → `POST /api/desktop/export` (`finish_delivery`, video-only fallback)
+
 ## 0.4.4 — 2026-07-13
 
 ### Added

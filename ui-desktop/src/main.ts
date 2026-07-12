@@ -83,6 +83,7 @@ const state = {
     pendingTrackId: string;
   },
   trackOrder: [] as string[], // video+audio lane track ids top→bottom
+  selected: new Set<string>(),
 };
 
 function $(id: string): HTMLElement {
@@ -383,6 +384,24 @@ function applyTimelineView(view: TimelineView) {
   setPlayheadUi();
 }
 
+function selectionList(): string[] {
+  return Array.from(state.selected);
+}
+
+function setSelection(ids: string[], opts?: { additive?: boolean }) {
+  if (!opts?.additive) state.selected.clear();
+  for (const id of ids) {
+    if (state.selected.has(id) && opts?.additive) state.selected.delete(id);
+    else state.selected.add(id);
+  }
+  document.querySelectorAll<HTMLElement>(".clip-block").forEach((el) => {
+    const id = el.dataset.clipId;
+    el.classList.toggle("selected", !!id && state.selected.has(id));
+  });
+  const n = state.selected.size;
+  $("sel-count").textContent = n ? String(n) : "0";
+}
+
 async function moveClip(clipId: string, startFrame: number) {
   $("status-msg").textContent = `Moving ${clipId} → f${startFrame}…`;
   try {
@@ -404,6 +423,72 @@ async function moveClip(clipId: string, startFrame: number) {
   } catch (e) {
     $("status-msg").textContent = `Move failed: ${e}`;
     await refresh();
+  }
+}
+
+async function nudgeSelection(deltaFrames: number) {
+  const ids = selectionList();
+  if (!ids.length || deltaFrames === 0) return;
+  $("status-msg").textContent = `Nudge ${ids.length} clip(s) Δ${deltaFrames}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/nudge", {
+      clip_ids: ids,
+      delta_frames: deltaFrames,
+      follow_links: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Nudged ${ids.length} · Δ${deltaFrames}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Nudge failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function deleteSelection() {
+  const ids = selectionList();
+  if (!ids.length) return;
+  $("status-msg").textContent = `Delete ${ids.length} clip(s)…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/delete", {
+      clip_ids: ids,
+      ripple: false,
+      follow_links: true,
+    });
+    state.selected.clear();
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("sel-count").textContent = "0";
+    $("status-msg").textContent = `Deleted ${ids.length}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Delete failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function exportProject() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = "Exporting (finish_delivery)…";
+  ($("btn-export") as HTMLButtonElement).disabled = true;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      delivery?: { ok?: boolean; delivery_ok?: boolean };
+    }>("/api/desktop/export", {});
+    if (!r.ok) {
+      $("status-msg").textContent = `Export soft-fail: ${r.path || "see delivery"}`;
+    } else {
+      $("status-msg").textContent = `Exported: ${r.path}`;
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Export failed: ${e}`;
+  } finally {
+    ($("btn-export") as HTMLButtonElement).disabled = false;
   }
 }
 
@@ -566,16 +651,27 @@ function bindClipInteractions(
     } catch {
       /* ignore */
     }
+    // Click without movement → selection (shift toggles)
+    if (mode === "move" && pendingDelta === 0 && pendingStart === origStart) {
+      setSelection([c.id], { additive: ev.shiftKey });
+      return;
+    }
     if (mode === "move") {
-      if (pendingTrack !== origTrack) {
+      const multi =
+        state.selected.size > 1 && state.selected.has(c.id) && pendingTrack === origTrack;
+      if (multi) {
+        await nudgeSelection(pendingDelta);
+      } else if (pendingTrack !== origTrack) {
+        setSelection([c.id]);
         await moveClipToTrack(c.id, pendingTrack, pendingStart);
       } else if (pendingStart !== origStart) {
+        setSelection([c.id]);
         await moveClip(c.id, pendingStart);
       } else {
-        // snap UI back
         block.style.left = `${(origStart / durF) * 100}%`;
       }
     } else if (pendingDelta !== 0) {
+      setSelection([c.id]);
       await edgeTrim(c.id, mode === "trim-left" ? "left" : "right", pendingDelta);
     } else {
       block.style.left = `${(origStart / durF) * 100}%`;
@@ -612,6 +708,8 @@ function bindClipInteractions(
   });
   block.addEventListener("pointercancel", onCancel);
 
+  block.dataset.clipId = c.id;
+  if (state.selected.has(c.id)) block.classList.add("selected");
   block.appendChild(leftH);
   block.appendChild(label);
   block.appendChild(rightH);
@@ -670,6 +768,7 @@ function renderTimeline(view: TimelineView | null) {
       if (state.drag) return;
       if ((ev.target as HTMLElement).closest(".clip-block")) return;
       stopPlay();
+      if (!ev.shiftKey) setSelection([]);
       const rect = lane.getBoundingClientRect();
       const x = (ev.clientX - rect.left) / Math.max(1, rect.width);
       void seekTo(x * state.durationSec);
@@ -679,6 +778,7 @@ function renderTimeline(view: TimelineView | null) {
     body.appendChild(row);
   }
   setPlayheadUi();
+  $("sel-count").textContent = String(state.selected.size);
 }
 
 async function createDemoProject() {
@@ -830,6 +930,25 @@ function onKey(ev: KeyboardEvent) {
     ev.preventDefault();
     stopPlay();
     void undoEdit();
+    return;
+  }
+  if (ev.key === "Delete" || ev.key === "Backspace") {
+    ev.preventDefault();
+    stopPlay();
+    void deleteSelection();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "a") {
+    ev.preventDefault();
+    const all: string[] = [];
+    document.querySelectorAll<HTMLElement>(".clip-block[data-clip-id]").forEach((el) => {
+      if (el.dataset.clipId) all.push(el.dataset.clipId);
+    });
+    setSelection(all);
+    return;
+  }
+  if (ev.key === "Escape") {
+    setSelection([]);
   }
 }
 
@@ -853,6 +972,9 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-play").addEventListener("click", () => {
     void startPlay();
+  });
+  $("btn-export").addEventListener("click", () => {
+    void exportProject();
   });
   const scrub = $("scrub") as HTMLInputElement;
   scrub.addEventListener("input", () => {

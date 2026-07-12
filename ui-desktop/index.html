@@ -14,6 +14,7 @@
         <span class="muted" id="core-version">core —</span>
         <span class="spacer"></span>
         <button type="button" id="btn-demo" title="Create a short demo project">Demo project</button>
+        <button type="button" id="btn-export" title="finish_delivery to temp export.mp4">Export</button>
         <button type="button" id="btn-refresh">Refresh</button>
         <button type="button" id="btn-open-probe">HTML probe</button>
       </header>
@@ -25,7 +26,7 @@
             <p class="kv"><b>Project</b> <span id="project-state">none</span></p>
             <p class="kv"><b>API</b> <span id="api-url">—</span></p>
             <div class="note" id="media-note">
-              Space/K play · J/L ±5f · ←/→ · Ctrl+Z · drag body=move · edges=trim · vertical=track.
+              Space play · Shift+click multi · Ctrl+A · Del · Ctrl+Z · drag multi-nudge · Export.
             </div>
           </aside>
 
@@ -73,6 +74,7 @@
             <p class="kv"><b>OpenShot</b> <span id="openshot-app">—</span></p>
             <p class="kv"><b>Frame mode</b> <span id="frame-mode">—</span></p>
             <p class="kv"><b>Play</b> <span id="play-mode">stopped</span></p>
+            <p class="kv"><b>Selected</b> <span id="sel-count">0</span></p>
             <div class="note" id="agent-note">
               No agent chat in GUI v1 — use MCP externally.
             </div>

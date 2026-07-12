@@ -262,6 +262,51 @@ def desktop_demo_project() -> dict[str, Any]:
     }
 
 
+@app.post("/api/desktop/export")
+def desktop_export(
+    normalize_preset: str | None = None,
+    delivery_preset: str = "streaming",
+    run_review: bool = False,
+) -> dict[str, Any]:
+    """Export current project to a temp file (desktop shell export button).
+
+    Default normalize_preset=None so video-only lavfi demos still export;
+    pass normalize_preset=streaming when the cut has real audio.
+    """
+    import tempfile
+
+    ed = _ed()
+    out_dir = Path(tempfile.gettempdir()) / "opmiere_desktop_export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / "export.mp4"
+    try:
+        result = ed.finish_delivery(
+            out,
+            normalize_preset=normalize_preset,
+            delivery_preset=delivery_preset,
+            run_review=run_review,
+            run_sequence_sheet=False,
+            prepare=True,
+        )
+    except ValueError as e:
+        # e.g. no audio stream for loudnorm — plain export fallback
+        try:
+            written = ed.export(out, normalize_preset=None)
+            return {
+                "ok": Path(written).exists(),
+                "path": str(Path(written).resolve()),
+                "warning": str(e)[:300],
+                "delivery": None,
+            }
+        except Exception as e2:
+            return {"ok": False, "error": f"{e}; fallback: {e2}", "path": None}
+    return {
+        "ok": bool(result.get("ok")),
+        "path": str(out.resolve()) if out.exists() else None,
+        "delivery": result,
+    }
+
+
 @app.post("/api/project/create")
 def project_create(body: CreateBody) -> dict[str, Any]:
     global _editor
