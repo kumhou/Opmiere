@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8 — 2026-07-13
+
+### Added
+- **New / Open** project (Ctrl+N / Ctrl+O): path prompt → `project/create` + seed V/A tracks, or `project/open`
+- Test: `tests/test_desktop_project_048.py`
+
 ## 0.4.7 — 2026-07-13
 
 ### Added

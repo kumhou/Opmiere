@@ -1008,6 +1008,58 @@ async function createDemoProject() {
   }
 }
 
+function promptPath(message: string, fallback = ""): string | null {
+  const raw = window.prompt(message, fallback);
+  if (raw == null) return null;
+  const p = raw.trim().replace(/^["']|["']$/g, "");
+  return p || null;
+}
+
+async function openProjectPath() {
+  stopPlay();
+  const path = promptPath(
+    "Open project bundle path (.opm folder or path):",
+    "",
+  );
+  if (!path) return;
+  $("status-msg").textContent = `Opening ${path}…`;
+  try {
+    await postJson("/api/project/open", { bundle_path: path });
+    $("status-msg").textContent = `Opened: ${path}`;
+    state.t = 0;
+    await refresh();
+    void seekTo(0);
+  } catch (e) {
+    $("status-msg").textContent = `Open failed: ${e}`;
+  }
+}
+
+async function newProjectPath() {
+  stopPlay();
+  const path = promptPath(
+    "New project path (will create .opm bundle):",
+    "G:\\tmp\\opmiere_new.opm",
+  );
+  if (!path) return;
+  $("status-msg").textContent = `Creating ${path}…`;
+  try {
+    await postJson("/api/project/create", {
+      bundle_path: path,
+      fps: 30,
+      width: 1920,
+      height: 1080,
+    });
+    // empty project has no tracks — seed V1 + A1 for editing
+    await fetch(`${API_BASE}/api/track?kind=video`, { method: "POST" });
+    await fetch(`${API_BASE}/api/track?kind=audio`, { method: "POST" });
+    $("status-msg").textContent = `Created: ${path}`;
+    state.t = 0;
+    await refresh();
+  } catch (e) {
+    $("status-msg").textContent = `Create failed: ${e}`;
+  }
+}
+
 async function refresh() {
   stopPlay();
   $("api-url").textContent = API_BASE;
@@ -1149,6 +1201,16 @@ function onKey(ev: KeyboardEvent) {
     void saveProject();
     return;
   }
+  if ((ev.ctrlKey || ev.metaKey) && k === "o") {
+    ev.preventDefault();
+    void openProjectPath();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "n") {
+    ev.preventDefault();
+    void newProjectPath();
+    return;
+  }
   if (k === "s" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
     ev.preventDefault();
     stopPlay();
@@ -1184,6 +1246,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-demo").addEventListener("click", () => {
     void createDemoProject();
+  });
+  $("btn-open").addEventListener("click", () => {
+    void openProjectPath();
+  });
+  $("btn-new").addEventListener("click", () => {
+    void newProjectPath();
   });
   $("btn-frame-back").addEventListener("click", () => {
     stopPlay();
