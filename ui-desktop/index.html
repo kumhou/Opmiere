@@ -25,7 +25,7 @@
             <p class="kv"><b>Project</b> <span id="project-state">none</span></p>
             <p class="kv"><b>API</b> <span id="api-url">—</span></p>
             <div class="note" id="media-note">
-              Program monitor uses path-C OpenShot when installed, else proxy/base frame.
+              Space / K play·pause · J/L ±5f · ←/→ ±1f · engine auto prefers OpenShot frame, proxy for smooth play.
             </div>
           </aside>
 
@@ -35,14 +35,16 @@
                 <span>Program monitor</span>
                 <span class="accent" id="preview-backend">preview: —</span>
                 <span style="font-size: 11px; max-width: 28em; text-align: center">
-                  Open a project (Demo) then scrub. No agent chat in GUI v1.
+                  Demo project → Space to play. No agent chat in GUI v1.
                 </span>
               </div>
               <img id="program-img" class="program-img" alt="Program frame" hidden />
+              <video id="program-video" class="program-video" playsinline muted hidden></video>
             </div>
             <div class="transport">
-              <button type="button" id="btn-frame-back" title="−1 frame">◀</button>
-              <button type="button" id="btn-frame-fwd" title="+1 frame">▶</button>
+              <button type="button" id="btn-frame-back" title="−1 frame (←)">◀</button>
+              <button type="button" id="btn-play" title="Play/Pause (Space/K)">▶</button>
+              <button type="button" id="btn-frame-fwd" title="+1 frame (→)">▶|</button>
               <input
                 type="range"
                 id="scrub"
@@ -60,7 +62,7 @@
                 <option value="proxy">proxy</option>
                 <option value="base">base</option>
               </select>
-              <span class="muted" id="transport-note">seek → frame</span>
+              <span class="muted" id="transport-note">stopped</span>
             </div>
           </section>
 
@@ -70,6 +72,7 @@
             <p class="kv"><b>Engine</b> <span id="engine-active">—</span></p>
             <p class="kv"><b>OpenShot</b> <span id="openshot-app">—</span></p>
             <p class="kv"><b>Frame mode</b> <span id="frame-mode">—</span></p>
+            <p class="kv"><b>Play</b> <span id="play-mode">stopped</span></p>
             <div class="note" id="agent-note">
               No agent chat in GUI v1 — use MCP externally.
             </div>

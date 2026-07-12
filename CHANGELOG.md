@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 — 2026-07-12
+
+### Added
+- **Program play**: Space/K — proxy HTML5 play when proxy fresh; else stepped stills (~8fps)
+- **Keyboard**: J/L ±5f, ←/→ ±1f, Space/K play·pause
+- Play mode indicator; auto-ensure proxy before proxy play
+
 ## 0.4.1 — 2026-07-12
 
 ### Added

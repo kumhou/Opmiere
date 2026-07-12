@@ -1,8 +1,11 @@
 /**
  * Opmiere desktop shell (Tauri) — product UI.
  *
- * Python Editor is source of truth. Program monitor seeks path-C OpenShot
- * frames (fallback proxy/base). No agent chat (ADR).
+ * Python Editor is source of truth. Program monitor:
+ *  - scrub / frame step via OpenShot or proxy/base stills
+ *  - play: HTML5 proxy.mp4 when engine=proxy (or auto+fresh proxy);
+ *          otherwise stepped stills (~8fps) for openshot/base
+ * No agent chat (ADR).
  */
 
 const API_BASE =
@@ -15,9 +18,7 @@ type Health = {
   phase?: string;
 };
 
-type Doctor = {
-  ok?: boolean;
-};
+type Doctor = { ok?: boolean };
 
 type PreviewEngine = {
   active_backend?: string;
@@ -26,10 +27,17 @@ type PreviewEngine = {
   agent_note?: string;
 };
 
+type ProxyStatus = {
+  fresh?: boolean;
+  exists?: boolean;
+  path?: string;
+};
+
 type TimelineView = {
   duration_frames?: number;
   duration_seconds?: number;
   fps?: number;
+  proxy?: ProxyStatus;
   tracks?: Array<{
     id: string;
     kind: string;
@@ -53,6 +61,12 @@ const state = {
   engine: "auto" as string,
   seekToken: 0,
   seeking: false,
+  playing: false,
+  playMode: "stopped" as "stopped" | "proxy" | "step",
+  proxyFresh: false,
+  playTimer: 0 as number | ReturnType<typeof setTimeout>,
+  lastFrameAt: 0,
+  shuttle: 0, // -1 J, 0, +1 L
 };
 
 function $(id: string): HTMLElement {
@@ -111,7 +125,6 @@ function setPlayheadUi() {
   scrub.disabled = !state.projectOpen || state.durationSec <= 0;
   const frames = Math.round(state.t * state.fps);
   $("tc").textContent = framesToTc(frames, state.fps);
-  // playhead markers on lanes
   document.querySelectorAll<HTMLElement>(".timeline-playhead").forEach((el) => {
     const pct =
       state.durationSec > 0
@@ -119,31 +132,86 @@ function setPlayheadUi() {
         : 0;
     el.style.left = `${pct}%`;
   });
+  $("play-mode").textContent = state.playing
+    ? state.playMode
+    : "stopped";
+  const btn = $("btn-play");
+  btn.textContent = state.playing ? "❚❚" : "▶";
+}
+
+function hideAllProgramSurfaces() {
+  ($("program-img") as HTMLImageElement).hidden = true;
+  ($("program-video") as HTMLVideoElement).hidden = true;
+  $("program-empty").hidden = false;
 }
 
 function showProgramImage(url: string | null) {
   const img = $("program-img") as HTMLImageElement;
+  const vid = $("program-video") as HTMLVideoElement;
   const empty = $("program-empty");
   if (!url) {
     img.hidden = true;
-    empty.hidden = false;
+    if (!state.playing || state.playMode !== "proxy") {
+      empty.hidden = false;
+    }
     return;
   }
   empty.hidden = true;
+  vid.hidden = true;
+  vid.pause();
   img.hidden = false;
   img.src = url;
 }
 
-async function seekTo(t: number) {
+function showProgramVideo(src: string, t: number) {
+  const img = $("program-img") as HTMLImageElement;
+  const vid = $("program-video") as HTMLVideoElement;
+  const empty = $("program-empty");
+  empty.hidden = true;
+  img.hidden = true;
+  vid.hidden = false;
+  if (!vid.src.includes("proxy.mp4") || vid.dataset.base !== src) {
+    vid.src = src;
+    vid.dataset.base = src;
+  }
+  const apply = () => {
+    try {
+      if (Math.abs(vid.currentTime - t) > 0.04) {
+        vid.currentTime = Math.min(t, Math.max(0, vid.duration || t));
+      }
+    } catch {
+      /* seek before metadata */
+    }
+  };
+  if (vid.readyState >= 1) apply();
+  else vid.addEventListener("loadedmetadata", apply, { once: true });
+}
+
+async function seekTo(t: number, opts?: { fromPlay?: boolean }) {
   if (!state.projectOpen) return;
   state.t = Math.max(0, Math.min(state.durationSec || t, t));
   setPlayheadUi();
   const token = ++state.seekToken;
   state.seeking = true;
-  $("transport-note").textContent = "seeking…";
+  if (!opts?.fromPlay) {
+    $("transport-note").textContent = "seeking…";
+  }
   const eng = (document.getElementById("engine-select") as HTMLSelectElement)
     .value;
   state.engine = eng;
+
+  // While proxy-playing, keep video in sync without still fetch
+  if (state.playing && state.playMode === "proxy") {
+    const vid = $("program-video") as HTMLVideoElement;
+    try {
+      vid.currentTime = state.t;
+    } catch {
+      /* ignore */
+    }
+    state.seeking = false;
+    return;
+  }
+
   try {
     const q = new URLSearchParams({
       t: String(state.t),
@@ -154,7 +222,6 @@ async function seekTo(t: number) {
     const url = `${API_BASE}/api/preview/frame.jpg?${q.toString()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`frame HTTP ${res.status}`);
-    // blob URL so <img> does not re-hit disk races on Windows
     const blob = await res.blob();
     if (token !== state.seekToken) return;
     const objectUrl = URL.createObjectURL(blob);
@@ -163,11 +230,14 @@ async function seekTo(t: number) {
     if (prev) URL.revokeObjectURL(prev);
     img.dataset.objectUrl = objectUrl;
     showProgramImage(objectUrl);
-    $("frame-mode").textContent =
-      (res.headers.get("content-type") || "").includes("png")
-        ? `${eng}/png`
-        : `${eng}/jpg`;
-    $("transport-note").textContent = "seek → frame";
+    $("frame-mode").textContent = (res.headers.get("content-type") || "").includes(
+      "png",
+    )
+      ? `${eng}/png`
+      : `${eng}/jpg`;
+    if (!opts?.fromPlay) {
+      $("transport-note").textContent = "seek → frame";
+    }
   } catch (e) {
     if (token === state.seekToken) {
       $("transport-note").textContent = String(e).slice(0, 80);
@@ -176,6 +246,120 @@ async function seekTo(t: number) {
   } finally {
     if (token === state.seekToken) state.seeking = false;
   }
+}
+
+function stopPlay() {
+  state.playing = false;
+  state.playMode = "stopped";
+  state.shuttle = 0;
+  if (state.playTimer) {
+    clearTimeout(state.playTimer as number);
+    state.playTimer = 0;
+  }
+  const vid = $("program-video") as HTMLVideoElement;
+  vid.pause();
+  setPlayheadUi();
+  $("transport-note").textContent = "stopped";
+}
+
+async function ensureProxyFresh(): Promise<boolean> {
+  try {
+    const st = await getJson<ProxyStatus>("/api/preview/status");
+    if (st.fresh) {
+      state.proxyFresh = true;
+      return true;
+    }
+    await postJson("/api/preview/ensure", { height: 360, fps: 12 });
+    const st2 = await getJson<ProxyStatus>("/api/preview/status");
+    state.proxyFresh = !!st2.fresh;
+    return state.proxyFresh;
+  } catch {
+    state.proxyFresh = false;
+    return false;
+  }
+}
+
+function useProxyVideoForPlay(): boolean {
+  const eng = (document.getElementById("engine-select") as HTMLSelectElement)
+    .value;
+  if (eng === "proxy") return true;
+  if (eng === "openshot" || eng === "base") return false;
+  // auto: prefer smooth proxy when available
+  return state.proxyFresh;
+}
+
+async function startPlay() {
+  if (!state.projectOpen || state.durationSec <= 0) return;
+  if (state.playing) {
+    stopPlay();
+    // leave still at current t
+    void seekTo(state.t);
+    return;
+  }
+
+  const wantProxy = useProxyVideoForPlay();
+  if (wantProxy) {
+    const ok = await ensureProxyFresh();
+    if (ok) {
+      state.playing = true;
+      state.playMode = "proxy";
+      setPlayheadUi();
+      $("transport-note").textContent = "playing (proxy)";
+      const src = `${API_BASE}/api/preview/proxy.mp4?_=${Date.now()}`;
+      showProgramVideo(src, state.t);
+      const vid = $("program-video") as HTMLVideoElement;
+      const onTime = () => {
+        if (!state.playing || state.playMode !== "proxy") return;
+        state.t = vid.currentTime;
+        if (state.t >= state.durationSec - 0.02) {
+          stopPlay();
+          void seekTo(state.durationSec);
+          return;
+        }
+        setPlayheadUi();
+      };
+      vid.ontimeupdate = onTime;
+      vid.onended = () => {
+        stopPlay();
+        void seekTo(state.durationSec);
+      };
+      try {
+        vid.currentTime = state.t;
+        await vid.play();
+      } catch (e) {
+        stopPlay();
+        $("status-msg").textContent = `Proxy play failed: ${e}`;
+        void startStepPlay();
+      }
+      return;
+    }
+  }
+  await startStepPlay();
+}
+
+async function startStepPlay() {
+  state.playing = true;
+  state.playMode = "step";
+  setPlayheadUi();
+  $("transport-note").textContent = "playing (step ~8fps)";
+  const stepSec = 1 / 8;
+  const tick = async () => {
+    if (!state.playing || state.playMode !== "step") return;
+    const dir = state.shuttle === 0 ? 1 : state.shuttle;
+    const next = state.t + stepSec * dir;
+    if (next >= state.durationSec || next < 0) {
+      stopPlay();
+      await seekTo(Math.max(0, Math.min(state.durationSec, next)));
+      return;
+    }
+    await seekTo(next, { fromPlay: true });
+    if (state.playing && state.playMode === "step") {
+      state.playTimer = setTimeout(() => {
+        void tick();
+      }, 1000 / 8);
+    }
+  };
+  void tick();
 }
 
 function renderTimeline(view: TimelineView | null) {
@@ -190,6 +374,7 @@ function renderTimeline(view: TimelineView | null) {
   const durF = Math.max(1, view.duration_frames || 1);
   state.durationSec = view.duration_seconds || durF / (view.fps || state.fps);
   state.fps = view.fps || state.fps || 30;
+  if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
   meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s`;
   body.innerHTML = "";
   for (const tr of view.tracks) {
@@ -217,6 +402,7 @@ function renderTimeline(view: TimelineView | null) {
       lane.appendChild(block);
     }
     lane.addEventListener("click", (ev) => {
+      stopPlay();
       const rect = lane.getBoundingClientRect();
       const x = (ev.clientX - rect.left) / Math.max(1, rect.width);
       void seekTo(x * state.durationSec);
@@ -229,12 +415,8 @@ function renderTimeline(view: TimelineView | null) {
 }
 
 async function createDemoProject() {
+  stopPlay();
   $("status-msg").textContent = "Creating demo project…";
-  // Use a path under TEMP so we don't need elevated rights
-  const bundle = `${API_BASE.includes("127.0.0.1") ? "" : ""}`;
-  void bundle;
-  // Ask backend to create empty project — media still needs place.
-  // Desktop cannot upload easily without file picker; call a demo endpoint.
   try {
     const r = await postJson<{ ok?: boolean; path?: string; error?: string }>(
       "/api/desktop/demo_project",
@@ -250,6 +432,7 @@ async function createDemoProject() {
 }
 
 async function refresh() {
+  stopPlay();
   $("api-url").textContent = API_BASE;
   $("status-msg").textContent = "Refreshing…";
   try {
@@ -276,6 +459,12 @@ async function refresh() {
       } catch {
         preview = null;
       }
+      try {
+        const st = await getJson<ProxyStatus>("/api/preview/status");
+        state.proxyFresh = !!st.fresh;
+      } catch {
+        state.proxyFresh = false;
+      }
     }
     if (preview) {
       const active = preview.active_backend || "none";
@@ -293,7 +482,9 @@ async function refresh() {
         $("agent-note").textContent = preview.agent_note;
       }
     } else {
-      $("engine-active").textContent = state.projectOpen ? "unknown" : "open a project";
+      $("engine-active").textContent = state.projectOpen
+        ? "unknown"
+        : "open a project";
       $("openshot-app").textContent = "—";
       $("preview-backend").textContent = "preview: idle";
       setPill("pill-preview", "warn", "preview idle");
@@ -313,7 +504,7 @@ async function refresh() {
     } else {
       state.durationSec = 0;
       renderTimeline(null);
-      showProgramImage(null);
+      hideAllProgramSurfaces();
       setPlayheadUi();
     }
 
@@ -329,6 +520,45 @@ async function refresh() {
   }
 }
 
+function onKey(ev: KeyboardEvent) {
+  if (
+    ev.target instanceof HTMLInputElement ||
+    ev.target instanceof HTMLSelectElement ||
+    ev.target instanceof HTMLTextAreaElement
+  ) {
+    return;
+  }
+  const k = ev.key.toLowerCase();
+  if (k === " " || k === "k") {
+    ev.preventDefault();
+    void startPlay();
+    return;
+  }
+  if (k === "j") {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(state.t - 5 / state.fps);
+    return;
+  }
+  if (k === "l") {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(state.t + 5 / state.fps);
+    return;
+  }
+  if (ev.key === "ArrowLeft") {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(state.t - 1 / state.fps);
+    return;
+  }
+  if (ev.key === "ArrowRight") {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(state.t + 1 / state.fps);
+  }
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   $("btn-refresh").addEventListener("click", () => {
     void refresh();
@@ -340,22 +570,31 @@ window.addEventListener("DOMContentLoaded", () => {
     void createDemoProject();
   });
   $("btn-frame-back").addEventListener("click", () => {
+    stopPlay();
     void seekTo(state.t - 1 / state.fps);
   });
   $("btn-frame-fwd").addEventListener("click", () => {
+    stopPlay();
     void seekTo(state.t + 1 / state.fps);
+  });
+  $("btn-play").addEventListener("click", () => {
+    void startPlay();
   });
   const scrub = $("scrub") as HTMLInputElement;
   scrub.addEventListener("input", () => {
+    stopPlay();
     const t = Number(scrub.value) / 1000;
     state.t = t;
     setPlayheadUi();
   });
   scrub.addEventListener("change", () => {
+    stopPlay();
     void seekTo(Number(scrub.value) / 1000);
   });
   ($("engine-select") as HTMLSelectElement).addEventListener("change", () => {
+    stopPlay();
     void seekTo(state.t);
   });
+  window.addEventListener("keydown", onKey);
   void refresh();
 });

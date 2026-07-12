@@ -167,13 +167,18 @@ button:disabled {
   font-size: 12px;
 }
 
-.program-img {
+.program-img,
+.program-video {
   max-width: 96%;
   max-height: 96%;
   object-fit: contain;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #000;
+}
+
+.program-video {
+  width: min(90%, 720px);
 }
 
 .transport {
