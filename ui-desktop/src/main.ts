@@ -75,6 +75,8 @@ type TimelineView = {
       label?: string;
       muted?: boolean;
       link_group?: string | null;
+      color?: string | null;
+      speed?: number;
     }>;
   }>;
 };
@@ -116,6 +118,7 @@ const state = {
   snapThr: 4,
   dirty: false,
   workIO: { in_frame: null, out_frame: null, ready: false } as WorkInOut,
+  palette: [] as string[],
 };
 
 function $(id: string): HTMLElement {
@@ -1238,6 +1241,146 @@ async function redoEdit() {
   }
 }
 
+async function loadPalette() {
+  try {
+    const r = await getJson<{ colors?: string[] }>("/api/clip/colors");
+    state.palette = r.colors || [];
+    renderPalette();
+  } catch {
+    state.palette = [
+      "#3d5a80",
+      "#2d6a4f",
+      "#9b2226",
+      "#bb3e03",
+      "#0a9396",
+      "#8338ec",
+      "#ffb703",
+      "#6c757d",
+    ];
+    renderPalette();
+  }
+}
+
+function renderPalette() {
+  const el = document.getElementById("color-palette");
+  if (!el) return;
+  el.innerHTML = "";
+  for (const hex of state.palette) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch";
+    b.style.background = hex;
+    b.title = hex;
+    b.addEventListener("click", () => {
+      void setSelectionColor(hex);
+    });
+    el.appendChild(b);
+  }
+}
+
+async function setSelectionColor(color: string) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to color";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/color", {
+      clip_ids: ids,
+      color,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Color ${color} → ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Color failed: ${e}`;
+  }
+}
+
+async function cycleSelectionColor() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to cycle color";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/color_cycle",
+      { clip_ids: ids },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Cycled color on ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Color cycle failed: ${e}`;
+  }
+}
+
+async function setSelectionSpeed(speed: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for speed";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/speed", {
+      clip_ids: ids,
+      speed,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Speed ${speed}x → ${ids.length}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Speed failed: ${e}`;
+  }
+}
+
+async function refreshRecent() {
+  const el = document.getElementById("recent-list");
+  if (!el) return;
+  try {
+    const r = await getJson<{
+      projects?: Array<{ path?: string; label?: string }>;
+    }>("/api/recent?limit=8");
+    const list = r.projects || [];
+    if (!list.length) {
+      el.className = "recent-list muted";
+      el.textContent = "No recent projects";
+      return;
+    }
+    el.className = "recent-list";
+    el.innerHTML = "";
+    for (const p of list) {
+      const path = p.path || "";
+      if (!path) continue;
+      const row = document.createElement("div");
+      row.className = "recent-row";
+      row.textContent = p.label || path.split(/[/\\]/).pop() || path;
+      row.title = path;
+      row.addEventListener("click", () => {
+        void openProjectAt(path);
+      });
+      el.appendChild(row);
+    }
+  } catch {
+    el.className = "recent-list muted";
+    el.textContent = "Recent list n/a";
+  }
+}
+
+async function openProjectAt(path: string) {
+  stopPlay();
+  $("status-msg").textContent = `Opening ${path}…`;
+  try {
+    await postJson("/api/project/open", { bundle_path: path });
+    $("status-msg").textContent = `Opened: ${path}`;
+    state.t = 0;
+    await refresh();
+    await refreshRecent();
+    void seekTo(0);
+  } catch (e) {
+    $("status-msg").textContent = `Open failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -1323,6 +1466,8 @@ function bindClipInteractions(
     dur: number;
     trackId: string;
     linkGroup?: string | null;
+    color?: string | null;
+    speed?: number;
   },
   lane: HTMLElement,
   durF: number,
@@ -1476,6 +1621,9 @@ function bindClipInteractions(
   block.addEventListener("pointercancel", onCancel);
 
   block.dataset.clipId = c.id;
+  if (c.color) {
+    block.style.background = c.color;
+  }
   if (c.linkGroup) {
     block.dataset.link = c.linkGroup;
     block.classList.add("linked");
@@ -1483,6 +1631,13 @@ function bindClipInteractions(
   if (state.selected.has(c.id)) block.classList.add("selected");
   block.appendChild(leftH);
   block.appendChild(label);
+  if (c.speed != null && c.speed !== 1) {
+    const sp = document.createElement("span");
+    sp.className = "speed-badge";
+    sp.textContent = `${c.speed}x`;
+    sp.title = `speed ${c.speed}`;
+    block.appendChild(sp);
+  }
   if (c.linkGroup) {
     const badge = document.createElement("span");
     badge.className = "link-badge";
@@ -1608,6 +1763,8 @@ function renderTimeline(view: TimelineView | null) {
           dur,
           trackId: tr.id,
           linkGroup: c.link_group,
+          color: c.color,
+          speed: c.speed,
         },
         lane,
         durF,
@@ -1662,16 +1819,7 @@ async function openProjectPath() {
     "",
   );
   if (!path) return;
-  $("status-msg").textContent = `Opening ${path}…`;
-  try {
-    await postJson("/api/project/open", { bundle_path: path });
-    $("status-msg").textContent = `Opened: ${path}`;
-    state.t = 0;
-    await refresh();
-    void seekTo(0);
-  } catch (e) {
-    $("status-msg").textContent = `Open failed: ${e}`;
-  }
+  await openProjectAt(path);
 }
 
 async function newProjectPath() {
@@ -1954,6 +2102,11 @@ function onKey(ev: KeyboardEvent) {
     void clearInOut();
     return;
   }
+  if (k === "c" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    void cycleSelectionColor();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -2055,6 +2208,15 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-clear-io").addEventListener("click", () => {
     void clearInOut();
   });
+  document.querySelectorAll<HTMLButtonElement>("[data-speed]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const sp = Number(b.dataset.speed);
+      if (Number.isFinite(sp)) void setSelectionSpeed(sp);
+    });
+  });
+  $("btn-color-cycle").addEventListener("click", () => {
+    void cycleSelectionColor();
+  });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;
     void importFiles(input.files);
@@ -2076,5 +2238,7 @@ window.addEventListener("DOMContentLoaded", () => {
     void seekTo(state.t);
   });
   window.addEventListener("keydown", onKey);
+  void loadPalette();
+  void refreshRecent();
   void refresh();
 });

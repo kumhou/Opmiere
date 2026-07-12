@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.15 — 2026-07-13
+
+### Added
+- **Clip color**: palette swatches + **C** cycle → `clips/color` / `clips/color_cycle`
+- **Clip speed**: 0.5× / 1× / 1.5× / 2× on selection → `clips/speed` (+ badge on clip)
+- **Recent projects** list in inspector → `GET /api/recent` (click to open)
+- Test: `tests/test_desktop_color_speed_055.py`
+
 ## 0.4.14 — 2026-07-13
 
 ### Added

@@ -99,8 +99,20 @@
             <p class="kv"><b>Frame mode</b> <span id="frame-mode">—</span></p>
             <p class="kv"><b>Play</b> <span id="play-mode">stopped</span></p>
             <p class="kv"><b>Selected</b> <span id="sel-count">0</span></p>
+            <h2 class="subh">Color</h2>
+            <div id="color-palette" class="color-palette"></div>
+            <button type="button" id="btn-color-cycle" class="btn-mini" title="Cycle color (C)">Cycle color</button>
+            <h2 class="subh">Speed</h2>
+            <div class="speed-row">
+              <button type="button" class="btn-mini" data-speed="0.5">0.5×</button>
+              <button type="button" class="btn-mini" data-speed="1">1×</button>
+              <button type="button" class="btn-mini" data-speed="1.5">1.5×</button>
+              <button type="button" class="btn-mini" data-speed="2">2×</button>
+            </div>
             <h2 class="subh">Markers</h2>
             <div id="marker-list" class="marker-list muted">No markers (M to add)</div>
+            <h2 class="subh">Recent</h2>
+            <div id="recent-list" class="recent-list muted">—</div>
             <div class="note" id="agent-note">
               No agent chat in GUI v1 — use MCP externally.
             </div>
