@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4 — 2026-07-13
+
+### Added
+- **Edge trim** handles on desktop clips → `POST /api/clip/edge_trim`
+- **Cross-track drag** (drop on another same-kind lane) → `POST /api/clip/move_to_track`
+- Demo project includes a second empty V track for reparent practice
+
 ## 0.4.3 — 2026-07-13
 
 ### Added

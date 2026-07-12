@@ -242,8 +242,10 @@ def desktop_demo_project() -> dict[str, Any]:
     bundle = root / "demo.opm"
     ed = Editor.create(bundle, fps=fps, width=w, height=h)
     tr = ed.add_track("video")
+    tr2 = ed.add_track("video")  # second V track for cross-track drag tests
     c0 = ed.place_from_file(clips[0][0], "video", tr.id, 0)
     ed.place_from_file(clips[1][0], "video", tr.id, c0.end)
+    _ = tr2  # empty destination lane
     try:
         ed.ensure_preview_proxy(height=180, fps=8)
     except Exception:
@@ -256,6 +258,7 @@ def desktop_demo_project() -> dict[str, Any]:
         "duration_frames": ed.duration_frames(),
         "preview": ed.preview_proxy_status(),
         "engine": ed.preview_engine_status(),
+        "tracks": [t.id for t in ed.project.tracks if t.kind == "video"],
     }
 
 

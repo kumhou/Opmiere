@@ -42,7 +42,7 @@ Optional: `VITE_OPMIERE_API=http://127.0.0.1:8787` (default).
 | Window chrome + design tokens | Full NLE edit gestures |
 | Status: doctor / preview engine / timeline snapshot | Agent chat panel |
 | **Program monitor scrub + play** (proxy video / stepped OpenShot) | Full realtime effects play |
-| **Drag clips** + Ctrl+Z | Multi-select / ripple gestures |
+| **Drag clips / edge trim / cross-track** + Ctrl+Z | Multi-select / ripple gestures |
 | Demo project + timeline click seek | Shipping installer polish |
 
 ### Program monitor

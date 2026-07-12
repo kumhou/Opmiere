@@ -300,6 +300,48 @@ button:disabled {
   opacity: 0.92;
 }
 
+.clip-block.cross-track {
+  outline: 1px dashed var(--color-primary);
+}
+
+.clip-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.clip-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 4;
+  cursor: ew-resize;
+  background: transparent;
+}
+
+.clip-handle.left {
+  left: 0;
+  border-left: 2px solid rgba(240, 180, 41, 0.85);
+}
+
+.clip-handle.right {
+  right: 0;
+  border-right: 2px solid rgba(240, 180, 41, 0.85);
+}
+
+.clip-handle:hover {
+  background: rgba(240, 180, 41, 0.25);
+}
+
+.clip-block {
+  position: absolute;
+  /* reaffirm flex for label+handles */
+  display: flex;
+  align-items: center;
+}
+
 .clip-block.audio {
   background: var(--color-track-audio);
 }

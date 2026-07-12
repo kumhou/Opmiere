@@ -69,13 +69,20 @@ const state = {
   lastFrameAt: 0,
   shuttle: 0, // -1 J, 0, +1 L
   drag: null as null | {
+    mode: "move" | "trim-left" | "trim-right";
     clipId: string;
+    trackId: string;
     startFrame: number;
     durationFrames: number;
     originX: number;
+    originY: number;
     laneWidth: number;
     block: HTMLElement;
+    pendingStart: number;
+    pendingDelta: number;
+    pendingTrackId: string;
   },
+  trackOrder: [] as string[], // video+audio lane track ids top→bottom
 };
 
 function $(id: string): HTMLElement {
@@ -393,10 +400,62 @@ async function moveClip(clipId: string, startFrame: number) {
       state.proxyFresh = !!r.timeline.proxy?.fresh;
     }
     $("status-msg").textContent = `Moved ${clipId} → f${startFrame}`;
-    // Refresh program still at playhead (proxy may be rebuilding)
     void seekTo(state.t);
   } catch (e) {
     $("status-msg").textContent = `Move failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function edgeTrim(
+  clipId: string,
+  edge: "left" | "right",
+  deltaFrames: number,
+) {
+  if (deltaFrames === 0) return;
+  $("status-msg").textContent = `Trim ${edge} ${clipId} Δ${deltaFrames}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/edge_trim", {
+      clip_id: clipId,
+      edge,
+      delta_frames: deltaFrames,
+      mode: "normal",
+      refresh_preview: true,
+      quick_preview: true,
+    });
+    if (r.timeline) {
+      applyTimelineView(r.timeline);
+      state.proxyFresh = !!r.timeline.proxy?.fresh;
+    }
+    $("status-msg").textContent = `Trimmed ${edge} Δ${deltaFrames}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Trim failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function moveClipToTrack(
+  clipId: string,
+  trackId: string,
+  start: number | null,
+) {
+  $("status-msg").textContent = `Reparent ${clipId} → ${trackId}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/move_to_track",
+      {
+        clip_id: clipId,
+        track_id: trackId,
+        start,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Moved to track ${trackId}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Cross-track failed: ${e}`;
     await refresh();
   }
 }
@@ -413,6 +472,151 @@ async function undoEdit() {
   }
 }
 
+function trackIdAtClientY(y: number): string | null {
+  const lanes = document.querySelectorAll<HTMLElement>(".track-lane[data-track-id]");
+  for (const lane of lanes) {
+    const r = lane.getBoundingClientRect();
+    if (y >= r.top && y <= r.bottom) {
+      return lane.dataset.trackId || null;
+    }
+  }
+  return null;
+}
+
+function bindClipInteractions(
+  block: HTMLElement,
+  c: {
+    id: string;
+    start: number;
+    dur: number;
+    trackId: string;
+  },
+  lane: HTMLElement,
+  durF: number,
+) {
+  const begin = (
+    ev: PointerEvent,
+    mode: "move" | "trim-left" | "trim-right",
+  ) => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    stopPlay();
+    const laneRect = lane.getBoundingClientRect();
+    state.drag = {
+      mode,
+      clipId: c.id,
+      trackId: c.trackId,
+      startFrame: c.start,
+      durationFrames: c.dur,
+      originX: ev.clientX,
+      originY: ev.clientY,
+      laneWidth: Math.max(1, laneRect.width),
+      block,
+      pendingStart: c.start,
+      pendingDelta: 0,
+      pendingTrackId: c.trackId,
+    };
+    block.classList.add("dragging");
+    (ev.target as HTMLElement).setPointerCapture?.(ev.pointerId);
+    block.setPointerCapture(ev.pointerId);
+  };
+
+  const onMove = (ev: PointerEvent) => {
+    const d = state.drag;
+    if (!d || d.clipId !== c.id) return;
+    const dx = ev.clientX - d.originX;
+    const dFrames = Math.round((dx / d.laneWidth) * durF);
+    if (d.mode === "move") {
+      const newStart = Math.max(0, d.startFrame + dFrames);
+      d.pendingStart = newStart;
+      d.pendingDelta = dFrames;
+      block.style.left = `${(newStart / durF) * 100}%`;
+      const over = trackIdAtClientY(ev.clientY);
+      if (over) d.pendingTrackId = over;
+      block.classList.toggle("cross-track", d.pendingTrackId !== d.trackId);
+    } else if (d.mode === "trim-left") {
+      // positive delta = head later (shorter) when dragging right
+      d.pendingDelta = dFrames;
+      const visualStart = Math.max(0, d.startFrame + dFrames);
+      const visualDur = Math.max(1, d.durationFrames - dFrames);
+      block.style.left = `${(visualStart / durF) * 100}%`;
+      block.style.width = `${(visualDur / durF) * 100}%`;
+    } else {
+      // trim-right: drag right → longer (positive delta)
+      d.pendingDelta = dFrames;
+      const visualDur = Math.max(1, d.durationFrames + dFrames);
+      block.style.width = `${(visualDur / durF) * 100}%`;
+    }
+  };
+
+  const onUp = async (ev: PointerEvent) => {
+    const d = state.drag;
+    if (!d || d.clipId !== c.id) return;
+    block.classList.remove("dragging", "cross-track");
+    const mode = d.mode;
+    const pendingStart = d.pendingStart;
+    const pendingDelta = d.pendingDelta;
+    const pendingTrack = d.pendingTrackId;
+    const origTrack = d.trackId;
+    const origStart = d.startFrame;
+    state.drag = null;
+    try {
+      block.releasePointerCapture(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (mode === "move") {
+      if (pendingTrack !== origTrack) {
+        await moveClipToTrack(c.id, pendingTrack, pendingStart);
+      } else if (pendingStart !== origStart) {
+        await moveClip(c.id, pendingStart);
+      } else {
+        // snap UI back
+        block.style.left = `${(origStart / durF) * 100}%`;
+      }
+    } else if (pendingDelta !== 0) {
+      await edgeTrim(c.id, mode === "trim-left" ? "left" : "right", pendingDelta);
+    } else {
+      block.style.left = `${(origStart / durF) * 100}%`;
+      block.style.width = `${(c.dur / durF) * 100}%`;
+    }
+  };
+
+  const onCancel = () => {
+    block.classList.remove("dragging", "cross-track");
+    state.drag = null;
+    block.style.left = `${(c.start / durF) * 100}%`;
+    block.style.width = `${(c.dur / durF) * 100}%`;
+  };
+
+  const leftH = document.createElement("div");
+  leftH.className = "clip-handle left";
+  leftH.title = "Trim in";
+  const rightH = document.createElement("div");
+  rightH.className = "clip-handle right";
+  rightH.title = "Trim out";
+  const label = document.createElement("span");
+  label.className = "clip-label";
+  label.textContent = block.dataset.label || c.id;
+
+  leftH.addEventListener("pointerdown", (ev) => begin(ev, "trim-left"));
+  rightH.addEventListener("pointerdown", (ev) => begin(ev, "trim-right"));
+  block.addEventListener("pointerdown", (ev) => {
+    if ((ev.target as HTMLElement).classList.contains("clip-handle")) return;
+    begin(ev, "move");
+  });
+  block.addEventListener("pointermove", onMove);
+  block.addEventListener("pointerup", (ev) => {
+    void onUp(ev);
+  });
+  block.addEventListener("pointercancel", onCancel);
+
+  block.appendChild(leftH);
+  block.appendChild(label);
+  block.appendChild(rightH);
+}
+
 function renderTimeline(view: TimelineView | null) {
   const body = $("timeline-body");
   const meta = $("timeline-meta");
@@ -427,7 +631,8 @@ function renderTimeline(view: TimelineView | null) {
   state.durationSec = view.duration_seconds || durF / (view.fps || state.fps);
   state.fps = view.fps || state.fps || 30;
   if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
-  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · drag clips`;
+  state.trackOrder = view.tracks.map((t) => t.id);
+  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · drag · edge trim · cross-track`;
   body.innerHTML = "";
   for (const tr of view.tracks) {
     const row = document.createElement("div");
@@ -437,6 +642,8 @@ function renderTimeline(view: TimelineView | null) {
     label.textContent = tr.name || tr.kind || tr.id;
     const lane = document.createElement("div");
     lane.className = "track-lane";
+    lane.dataset.trackId = tr.id;
+    lane.dataset.trackKind = tr.kind;
     const ph = document.createElement("div");
     ph.className = "timeline-playhead";
     lane.appendChild(ph);
@@ -449,57 +656,14 @@ function renderTimeline(view: TimelineView | null) {
       block.className = `clip-block${tr.kind === "audio" ? " audio" : ""}`;
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
-      block.textContent = c.label || c.name || c.id;
-      block.title = `${c.id} · drag to move`;
-      block.dataset.clipId = c.id;
-      block.dataset.startFrame = String(start);
-      block.dataset.durationFrames = String(dur);
-      block.addEventListener("pointerdown", (ev) => {
-        if (ev.button !== 0) return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        stopPlay();
-        const laneRect = lane.getBoundingClientRect();
-        state.drag = {
-          clipId: c.id,
-          startFrame: start,
-          durationFrames: dur,
-          originX: ev.clientX,
-          laneWidth: Math.max(1, laneRect.width),
-          block,
-        };
-        block.classList.add("dragging");
-        block.setPointerCapture(ev.pointerId);
-      });
-      block.addEventListener("pointermove", (ev) => {
-        if (!state.drag || state.drag.clipId !== c.id) return;
-        const dx = ev.clientX - state.drag.originX;
-        const dFrames = Math.round((dx / state.drag.laneWidth) * durF);
-        const newStart = Math.max(0, state.drag.startFrame + dFrames);
-        const leftPct = (newStart / durF) * 100;
-        block.style.left = `${leftPct}%`;
-        block.dataset.pendingStart = String(newStart);
-      });
-      block.addEventListener("pointerup", (ev) => {
-        if (!state.drag || state.drag.clipId !== c.id) return;
-        block.classList.remove("dragging");
-        const pending = block.dataset.pendingStart;
-        const newStart = pending != null ? parseInt(pending, 10) : state.drag.startFrame;
-        state.drag = null;
-        delete block.dataset.pendingStart;
-        try {
-          block.releasePointerCapture(ev.pointerId);
-        } catch {
-          /* ignore */
-        }
-        if (newStart !== start) {
-          void moveClip(c.id, newStart);
-        }
-      });
-      block.addEventListener("pointercancel", () => {
-        block.classList.remove("dragging");
-        state.drag = null;
-      });
+      block.dataset.label = c.label || c.name || c.id;
+      block.title = `${c.id} · drag body=move · edges=trim · vertical=track`;
+      bindClipInteractions(
+        block,
+        { id: c.id, start, dur, trackId: tr.id },
+        lane,
+        durF,
+      );
       lane.appendChild(block);
     }
     lane.addEventListener("click", (ev) => {
