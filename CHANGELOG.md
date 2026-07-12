@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.12 — 2026-07-13
+
+### Added
+- **Work I/O**: I / O set at playhead, X clear, Shift+I/O jump; range on marker ruler
+- Display + buttons in timeline header
+- Test: `tests/test_desktop_io_052.py`
+
 ## 0.4.11 — 2026-07-13
 
 ### Added

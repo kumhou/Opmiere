@@ -41,6 +41,13 @@ type Marker = {
   time_seconds?: number;
 };
 
+type WorkInOut = {
+  in_frame?: number | null;
+  out_frame?: number | null;
+  ready?: boolean;
+  duration_frames?: number | null;
+};
+
 type TimelineView = {
   duration_frames?: number;
   duration_seconds?: number;
@@ -48,6 +55,7 @@ type TimelineView = {
   proxy?: ProxyStatus;
   snap_frames?: number[];
   markers?: Marker[];
+  work_in_out?: WorkInOut;
   dirty?: boolean;
   can_undo?: boolean;
   tracks?: Array<{
@@ -106,6 +114,7 @@ const state = {
   snapFrames: [] as number[],
   snapThr: 4,
   dirty: false,
+  workIO: { in_frame: null, out_frame: null, ready: false } as WorkInOut,
 };
 
 function $(id: string): HTMLElement {
@@ -758,6 +767,35 @@ function paintMarkerRuler(ruler: HTMLElement) {
   ruler.innerHTML = "";
   const lane = document.createElement("div");
   lane.className = "marker-lane";
+  // work area range
+  const inn = state.workIO.in_frame;
+  const out = state.workIO.out_frame;
+  if (inn != null || out != null) {
+    const a = inn ?? 0;
+    const b = out ?? durF;
+    const left = (Math.min(a, b) / durF) * 100;
+    const width = (Math.abs((out ?? durF) - (inn ?? 0)) / durF) * 100;
+    const range = document.createElement("div");
+    range.className = "work-range";
+    range.style.left = `${left}%`;
+    range.style.width = `${Math.max(0.3, width)}%`;
+    range.title = `Work I/O ${inn ?? "—"}–${out ?? "—"}`;
+    lane.appendChild(range);
+  }
+  if (inn != null) {
+    const tick = document.createElement("div");
+    tick.className = "io-tick in";
+    tick.style.left = `${(inn / durF) * 100}%`;
+    tick.title = `In f${inn}`;
+    lane.appendChild(tick);
+  }
+  if (out != null) {
+    const tick = document.createElement("div");
+    tick.className = "io-tick out";
+    tick.style.left = `${(out / durF) * 100}%`;
+    tick.title = `Out f${out}`;
+    lane.appendChild(tick);
+  }
   for (const m of state.markers) {
     const f = m.frame ?? 0;
     const tick = document.createElement("div");
@@ -776,6 +814,70 @@ function paintMarkerRuler(ruler: HTMLElement) {
     lane.appendChild(tick);
   }
   ruler.appendChild(lane);
+}
+
+function applyWorkIO(io: WorkInOut | null | undefined) {
+  state.workIO = {
+    in_frame: io?.in_frame ?? null,
+    out_frame: io?.out_frame ?? null,
+    ready: !!io?.ready,
+    duration_frames: io?.duration_frames ?? null,
+  };
+  const el = document.getElementById("io-display");
+  if (el) {
+    const a = state.workIO.in_frame;
+    const b = state.workIO.out_frame;
+    if (a == null && b == null) el.textContent = "I/O —";
+    else el.textContent = `I ${a ?? "—"} · O ${b ?? "—"}`;
+  }
+  const ruler = document.querySelector(".marker-ruler") as HTMLElement | null;
+  if (ruler) paintMarkerRuler(ruler);
+}
+
+async function setInPoint() {
+  if (!state.projectOpen) return;
+  const frame = playheadFrame();
+  try {
+    const r = await postJson<WorkInOut>("/api/in_out/in", { frame });
+    applyWorkIO(r);
+    $("status-msg").textContent = `In @ f${frame}`;
+  } catch (e) {
+    $("status-msg").textContent = `Set In failed: ${e}`;
+  }
+}
+
+async function setOutPoint() {
+  if (!state.projectOpen) return;
+  const frame = playheadFrame();
+  try {
+    const r = await postJson<WorkInOut>("/api/in_out/out", { frame });
+    applyWorkIO(r);
+    $("status-msg").textContent = `Out @ f${frame}`;
+  } catch (e) {
+    $("status-msg").textContent = `Set Out failed: ${e}`;
+  }
+}
+
+async function clearInOut() {
+  if (!state.projectOpen) return;
+  try {
+    const r = await postJson<WorkInOut>("/api/in_out/clear", {});
+    applyWorkIO(r);
+    $("status-msg").textContent = "I/O cleared";
+  } catch (e) {
+    $("status-msg").textContent = `Clear I/O failed: ${e}`;
+  }
+}
+
+async function goToInOut(which: "in" | "out") {
+  const f =
+    which === "in" ? state.workIO.in_frame : state.workIO.out_frame;
+  if (f == null) {
+    $("status-msg").textContent = `No ${which.toUpperCase()} point`;
+    return;
+  }
+  stopPlay();
+  void seekTo(f / state.fps);
 }
 
 async function muteSelection(force?: boolean) {
@@ -1297,6 +1399,7 @@ function renderTimeline(view: TimelineView | null) {
     state.markers = view.markers;
     renderMarkerList();
   }
+  if (view.work_in_out) applyWorkIO(view.work_in_out);
   state.dirty = !!view.dirty;
   const dirty = state.dirty ? " · dirty" : "";
   meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · snap±${state.snapThr}f${dirty}`;
@@ -1677,6 +1780,23 @@ function onKey(ev: KeyboardEvent) {
     void addMarkerAtPlayhead();
     return;
   }
+  if (k === "i" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    if (ev.shiftKey) goToInOut("in");
+    else void setInPoint();
+    return;
+  }
+  if (k === "o" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    if (ev.shiftKey) goToInOut("out");
+    else void setOutPoint();
+    return;
+  }
+  if (k === "x" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    void clearInOut();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -1753,6 +1873,15 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-next-marker").addEventListener("click", () => {
     goToMarker(1);
+  });
+  $("btn-set-in").addEventListener("click", () => {
+    void setInPoint();
+  });
+  $("btn-set-out").addEventListener("click", () => {
+    void setOutPoint();
+  });
+  $("btn-clear-io").addEventListener("click", () => {
+    void clearInOut();
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;

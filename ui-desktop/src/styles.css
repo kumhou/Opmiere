@@ -453,6 +453,44 @@ button:disabled {
   border: 1px solid var(--color-border);
 }
 
+.work-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(124, 156, 255, 0.18);
+  border-left: 1px solid var(--color-primary);
+  border-right: 1px solid var(--color-primary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.io-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.io-tick.in {
+  background: var(--color-success);
+}
+
+.io-tick.out {
+  background: var(--color-destructive);
+}
+
+.io-display {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-muted);
+  min-width: 7em;
+}
+
 .marker-tick {
   position: absolute;
   top: 1px;
