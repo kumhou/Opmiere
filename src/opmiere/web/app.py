@@ -13,14 +13,30 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from .. import __version__
 from ..generation import ComfyUIProvider
 from ..ops import Editor
 
-app = FastAPI(title="Opmiere", version="0.3.1")
+app = FastAPI(title="Opmiere", version=__version__)
+# Tauri / Vite product shell (ui-desktop) talks to this API from another origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:1420",
+        "http://127.0.0.1:1420",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 _editor: Editor | None = None
 _STATIC = Path(__file__).resolve().parent / "static"
 _last_sheet: str | None = None
@@ -167,10 +183,12 @@ def index() -> HTMLResponse:
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
-        "phase": "0.2.8",
+        "phase": __version__,
         "product": "video_editor",
         "project_open": _editor is not None,
+        "surfaces": ["mcp", "web_probe", "tauri_desktop"],
     }
+
 
 
 @app.get("/api/doctor")

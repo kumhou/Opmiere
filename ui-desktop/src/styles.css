@@ -1,0 +1,320 @@
+/* Opmiere design tokens — design-system/opmiere/MASTER.md */
+:root {
+  --color-primary: #7c9cff;
+  --color-on-primary: #0b0f14;
+  --color-secondary: #5b6b8c;
+  --color-accent: #f0b429;
+  --color-background: #0f1419;
+  --color-surface: #1a222c;
+  --color-surface-raised: #243040;
+  --color-foreground: #e8eef4;
+  --color-muted: #8b98a8;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-destructive: #f07178;
+  --color-success: #3dd68c;
+  --color-warning: #e6a23c;
+  --color-ring: #7c9cff;
+  --color-clip: #3d5a80;
+  --color-track-audio: #2d6a4f;
+  --font-ui: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --space-sm: 4px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --space-2xl: 24px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-foreground);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+}
+
+button:hover {
+  border-color: var(--color-primary);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 1px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: 36px 1fr 28px;
+  height: 100vh;
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 0 var(--space-lg);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-primary);
+}
+
+.topbar .muted {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+/* Main regions — media | program | inspector */
+.workspace {
+  display: grid;
+  grid-template-columns: 220px 1fr 260px;
+  min-height: 0;
+}
+
+.panel {
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-md);
+}
+
+.panel:last-child {
+  border-right: none;
+  border-left: 1px solid var(--color-border);
+}
+
+.panel h2 {
+  margin: 0 0 var(--space-md);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.program {
+  display: flex;
+  flex-direction: column;
+  background: #0a0d11;
+  min-height: 0;
+}
+
+.program-frame {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.program-placeholder {
+  width: min(90%, 640px);
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  color: var(--color-muted);
+}
+
+.program-placeholder .accent {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-surface);
+}
+
+.transport .tc {
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  min-width: 7em;
+}
+
+/* Timeline primary */
+.timeline-region {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  min-height: 160px;
+  max-height: 40vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timeline-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-md) var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.track-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-sm);
+  align-items: center;
+}
+
+.track-label {
+  color: var(--color-foreground);
+}
+
+.track-lane {
+  height: 28px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.clip-block {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: var(--color-clip);
+  border-radius: 2px;
+  font-size: 10px;
+  color: var(--color-foreground);
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.clip-block.audio {
+  background: var(--color-track-audio);
+}
+
+/* Status bar */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+  padding: 0 var(--space-lg);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+}
+
+.pill.ok {
+  color: var(--color-success);
+  border-color: rgba(61, 214, 140, 0.35);
+}
+
+.pill.warn {
+  color: var(--color-warning);
+  border-color: rgba(230, 162, 60, 0.35);
+}
+
+.pill.err {
+  color: var(--color-destructive);
+  border-color: rgba(240, 113, 120, 0.35);
+}
+
+.kv {
+  margin: 0 0 var(--space-sm);
+  font-size: 12px;
+}
+
+.kv b {
+  color: var(--color-muted);
+  font-weight: 500;
+  display: inline-block;
+  min-width: 7em;
+}
+
+.note {
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+/* Workspace includes timeline under the 3 cols */
+.main {
+  display: grid;
+  grid-template-rows: 1fr minmax(140px, 32vh);
+  min-height: 0;
+}

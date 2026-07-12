@@ -148,9 +148,10 @@ ordinary users never have to hand-assemble ComfyUI graphs.
 
 See **[docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md)** for full ADR.
 
-- **Product shell (end-state):** Windows-first **Tauri** host; chrome + timeline may use **WebView
-  web tech**; program monitor is driven by **interactive preview engine frames** (bridge), not by
-  HTML5 `<video>` as sole truth. v1 GUI has **no agent chat panel** — agents use MCP externally.
+- **Product shell (end-state):** Windows-first **Tauri** host (`ui-desktop/`, scaffold in 0.4.0);
+  chrome + timeline may use **WebView web tech**; program monitor will be driven by **interactive
+  preview engine frames** (bridge), not by HTML5 `<video>` as sole truth. v1 GUI has **no agent chat
+  panel** — agents use MCP externally. Dev: `scripts/dev-desktop.ps1`.
 - **HTML FastAPI shell (`opmiere-web`):** **maintenance / dogfood probe only.** Proved dual-surface
   and design tokens (0.3.0 checklist). Do not expand timeline UX there by default; do not treat it as
   the shipping editor.

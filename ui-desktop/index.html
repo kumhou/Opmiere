@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Opmiere</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <span class="brand">Opmiere</span>
+        <span class="muted" id="core-version">core —</span>
+        <span class="spacer"></span>
+        <button type="button" id="btn-refresh">Refresh status</button>
+        <button type="button" id="btn-open-probe">Open HTML probe</button>
+      </header>
+
+      <div class="main">
+        <div class="workspace">
+          <aside class="panel" id="media-panel">
+            <h2>Media</h2>
+            <p class="kv"><b>Project</b> <span id="project-state">none</span></p>
+            <p class="kv"><b>API</b> <span id="api-url">—</span></p>
+            <div class="note">
+              Product shell scaffold (0.4). Full media bin lands next; core remains
+              Python Editor via local HTTP.
+            </div>
+          </aside>
+
+          <section class="program">
+            <div class="program-frame">
+              <div class="program-placeholder">
+                <span>Program monitor</span>
+                <span class="accent" id="preview-backend">preview: —</span>
+                <span style="font-size: 11px; max-width: 28em; text-align: center">
+                  Path C: OpenShot frames when installed. Interim scrub still via
+                  FFmpeg proxy on the probe shell.
+                </span>
+              </div>
+            </div>
+            <div class="transport">
+              <button type="button" disabled title="Realtime play not wired">◀◀</button>
+              <button type="button" disabled title="Realtime play not wired">▶</button>
+              <span class="tc" id="tc">00:00:00:00</span>
+              <span class="muted" id="transport-note">transport → PreviewSession (stub)</span>
+            </div>
+          </section>
+
+          <aside class="panel" id="inspector-panel">
+            <h2>Inspector</h2>
+            <p class="kv"><b>Doctor</b> <span id="doctor-ok">—</span></p>
+            <p class="kv"><b>Engine</b> <span id="engine-active">—</span></p>
+            <p class="kv"><b>OpenShot</b> <span id="openshot-app">—</span></p>
+            <div class="note" id="agent-note">
+              No agent chat in GUI v1 — use MCP externally.
+            </div>
+          </aside>
+        </div>
+
+        <section class="timeline-region">
+          <div class="timeline-header">
+            <span>Timeline</span>
+            <span id="timeline-meta">—</span>
+          </div>
+          <div class="timeline-body" id="timeline-body">
+            Open a project via <code>opmiere web</code> / API, then refresh. Timeline
+            chrome is a placeholder; craft logic stays in Python.
+          </div>
+        </section>
+      </div>
+
+      <footer class="statusbar">
+        <span class="pill" id="pill-api">API</span>
+        <span class="pill" id="pill-preview">preview</span>
+        <span id="status-msg">Starting…</span>
+      </footer>
+    </div>
+  </body>
+</html>

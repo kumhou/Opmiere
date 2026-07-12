@@ -3,7 +3,8 @@
 > **PROJECT:** Opmiere  
 > **Page:** editor-shell (main NLE window)  
 > **Overrides** `design-system/opmiere/MASTER.md`  
-> **Status:** **COMPLETE** as of **0.3.0** (`src/opmiere/web/static/index.html`)
+> **Status:** HTML probe **COMPLETE** as of **0.3.0** (`src/opmiere/web/static/index.html`).  
+> **Product shell:** Tauri scaffold **0.4** (`ui-desktop/`) — same tokens/layout regions; craft stays in Python.
 
 ---
 

@@ -1,16 +1,20 @@
 # Changelog
 
-## Unreleased (0.4.x)
+## 0.4.0 — 2026-07-12
+
+### Milestone
+- **0.4 path C + product shell scaffold**: OpenShot interactive path + Tauri desktop host
 
 ### Decisions / docs
 - **ADR** `docs/ADR_UI_AND_PREVIEW.md`: Tauri product shell; HTML probe-only; path C preview
-- **Spike** `docs/SPIKE_LIBOPENSHOT_WINDOWS.md`: OpenShot 3.5.1 / libopenshot 0.7.0 on Windows — host import blocked; **S2 sidecar works**
+- **Spike** `docs/SPIKE_LIBOPENSHOT_WINDOWS.md`: OpenShot embed / S2 sidecar
 
 ### Added
-- **`PreviewSession`** + OpenShot embed when install present
-- **S2 OpenShot sidecar**: `openshot_runtime` / `openshot_worker` / `OpenShotClient` — seek→PNG via FFmpegReader + Timeline+Clip
-- **Multi-clip plan**: `openshot_map.build_openshot_plan` + `frame_from_project` (Timeline multi-clip; reader fallback if Timeline AVs)
+- **`PreviewSession`** + OpenShot S2 sidecar (seek→PNG; multi-clip plan + fallback)
 - MCP/Editor: `preview_engine_status`, `openshot_frame_at`, `openshot_plan`
+- **`ui-desktop/`** Tauri + Vite product shell (design tokens, core API status, timeline snapshot)
+- **`scripts/dev-desktop.ps1`**: start API + `tauri dev`
+- FastAPI **CORS** for Tauri/Vite origins
 
 ## 0.3.1 — 2026-07-11
 

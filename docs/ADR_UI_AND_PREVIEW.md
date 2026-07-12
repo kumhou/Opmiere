@@ -57,20 +57,19 @@ Shell and agents share semantics (implementation later):
 
 1. **ADR + ARCHITECTURE alignment** (this doc) — done  
 2. **libopenshot Windows spike** — done; report: [SPIKE_LIBOPENSHOT_WINDOWS.md](SPIKE_LIBOPENSHOT_WINDOWS.md)  
-   - In-process import on CPython 3.10: **no**; OpenShot ships MinGW 3.8 `_openshot.pyd`  
-   - Next packaging: **S2 sidecar** then **S1 wheel**; **S3 MLT** if blocked  
-3. **PreviewSession interface** in core (stub OK) + MCP/docs; no fake realtime claims  
-4. **Core NLE gaps** that block craft (only if spike blocked / between spikes) — Editor/MCP/tests first  
-5. **Tauri product shell scaffold** — empty window, talk to core API, design tokens, **no** agent chat  
-6. **OpenShot adapter vertical slice** — single track → multi-track → mapped effects  
-7. **Retire HTML as default UX** — keep for CI/smoke if useful; product entry is Tauri  
+3. **PreviewSession + S2 sidecar + multi-clip plan** — done (OpenShot install required)  
+4. **Core NLE gaps** as needed — ongoing  
+5. **Tauri product shell scaffold** — done: `ui-desktop/` + `scripts/dev-desktop.ps1`  
+6. **OpenShot adapter depth** — effects / speed / transform when stable  
+7. **Retire HTML as default UX** — keep for CI/smoke; product entry is Tauri  
 
 Do **not** run a parallel “HTML 0.3.x polish” track.
 
 ## Consequences
 
 - 0.3.0 “UI shell complete” = **probe checklist complete**, not shipping GUI done.  
-- Investment goes to core + engine spike + Tauri, not `index.html` feature velocity.  
+- Investment goes to core + engine + `ui-desktop`, not `index.html` feature velocity.
+- Dev entry: `scripts/dev-desktop.ps1` (API + Tauri).  
 - Choosing openshot preference may still flip to MLT after spike data — **PreviewSession** stays stable either way.  
 - Agent-native story unchanged: MCP remains first-class; GUI is the human client.
 
