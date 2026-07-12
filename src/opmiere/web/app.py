@@ -307,6 +307,62 @@ def desktop_export(
     }
 
 
+@app.post("/api/desktop/export_work")
+def desktop_export_work(
+    normalize_preset: str | None = None,
+    delivery_preset: str = "streaming",
+) -> dict[str, Any]:
+    """Export work area [in, out) to temp file (desktop shell)."""
+    import tempfile
+
+    ed = _ed()
+    io = ed.get_in_out()
+    if not io.get("ready"):
+        return {
+            "ok": False,
+            "error": "set In and Out points first (I / O keys)",
+            "path": None,
+            "work_in_out": io,
+        }
+    out_dir = Path(tempfile.gettempdir()) / "opmiere_desktop_export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / "export_work.mp4"
+    try:
+        result = ed.export_work_area(
+            out,
+            normalize_preset=normalize_preset,
+            run_delivery_check=True,
+            delivery_preset=delivery_preset,
+        )
+    except Exception as e:
+        try:
+            result = ed.export_work_area(
+                out,
+                normalize_preset=None,
+                run_delivery_check=False,
+            )
+            return {
+                "ok": Path(out).exists(),
+                "path": str(Path(out).resolve()) if out.exists() else None,
+                "warning": str(e)[:300],
+                "work_in_out": io,
+                "result": result,
+            }
+        except Exception as e2:
+            return {
+                "ok": False,
+                "error": f"{e}; fallback: {e2}",
+                "path": None,
+                "work_in_out": io,
+            }
+    return {
+        "ok": out.exists(),
+        "path": str(out.resolve()) if out.exists() else None,
+        "work_in_out": io,
+        "result": result,
+    }
+
+
 @app.post("/api/project/create")
 def project_create(body: CreateBody) -> dict[str, Any]:
     global _editor

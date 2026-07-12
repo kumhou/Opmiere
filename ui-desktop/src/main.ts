@@ -74,6 +74,7 @@ type TimelineView = {
       name?: string;
       label?: string;
       muted?: boolean;
+      link_group?: string | null;
     }>;
   }>;
 };
@@ -1133,6 +1134,84 @@ async function exportProject() {
   }
 }
 
+async function exportWorkArea() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.workIO.ready) {
+    $("status-msg").textContent = "Set In and Out first (I / O)";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = "Exporting work area…";
+  const btn = document.getElementById("btn-export-work") as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      error?: string;
+      warning?: string;
+    }>("/api/desktop/export_work", {});
+    if (!r.ok) {
+      $("status-msg").textContent = `Export work failed: ${r.error || "see log"}`;
+    } else {
+      $("status-msg").textContent = `Work export: ${r.path}${r.warning ? " (warn)" : ""}`;
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Export work failed: ${e}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function linkSelection() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips to link";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/link", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Linked ${ids.length} clips`;
+  } catch (e) {
+    $("status-msg").textContent = `Link failed: ${e}`;
+  }
+}
+
+async function unlinkSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to unlink";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/unlink", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Unlinked ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Unlink failed: ${e}`;
+  }
+}
+
+async function redoEdit() {
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/redo", {});
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    void seekTo(state.t);
+    $("status-msg").textContent = "Redo";
+  } catch (e) {
+    $("status-msg").textContent = `Redo: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -1217,6 +1296,7 @@ function bindClipInteractions(
     start: number;
     dur: number;
     trackId: string;
+    linkGroup?: string | null;
   },
   lane: HTMLElement,
   durF: number,
@@ -1370,9 +1450,20 @@ function bindClipInteractions(
   block.addEventListener("pointercancel", onCancel);
 
   block.dataset.clipId = c.id;
+  if (c.linkGroup) {
+    block.dataset.link = c.linkGroup;
+    block.classList.add("linked");
+  }
   if (state.selected.has(c.id)) block.classList.add("selected");
   block.appendChild(leftH);
   block.appendChild(label);
+  if (c.linkGroup) {
+    const badge = document.createElement("span");
+    badge.className = "link-badge";
+    badge.textContent = "🔗";
+    badge.title = `link ${c.linkGroup}`;
+    block.appendChild(badge);
+  }
   block.appendChild(rightH);
 }
 
@@ -1482,10 +1573,16 @@ function renderTimeline(view: TimelineView | null) {
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
       block.dataset.label = c.label || c.name || c.id;
-      block.title = `${c.id}${c.muted ? " [muted]" : ""} · drag · edges · Shift+M mute`;
+      block.title = `${c.id}${c.muted ? " [muted]" : ""}${c.link_group ? " [linked]" : ""} · drag · edges · Shift+M mute`;
       bindClipInteractions(
         block,
-        { id: c.id, start, dur, trackId: tr.id },
+        {
+          id: c.id,
+          start,
+          dur,
+          trackId: tr.id,
+          linkGroup: c.link_group,
+        },
         lane,
         durF,
       );
@@ -1686,13 +1783,13 @@ function onKey(ev: KeyboardEvent) {
     void startPlay();
     return;
   }
-  if (k === "j") {
+  if (k === "j" && !ev.ctrlKey && !ev.metaKey) {
     ev.preventDefault();
     stopPlay();
     void seekTo(state.t - 5 / state.fps);
     return;
   }
-  if (k === "l") {
+  if (k === "l" && !ev.ctrlKey && !ev.metaKey) {
     ev.preventDefault();
     stopPlay();
     void seekTo(state.t + 5 / state.fps);
@@ -1727,7 +1824,21 @@ function onKey(ev: KeyboardEvent) {
   if ((ev.ctrlKey || ev.metaKey) && k === "z") {
     ev.preventDefault();
     stopPlay();
-    void undoEdit();
+    if (ev.shiftKey) void redoEdit();
+    else void undoEdit();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "y") {
+    ev.preventDefault();
+    stopPlay();
+    void redoEdit();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "l") {
+    ev.preventDefault();
+    stopPlay();
+    if (ev.shiftKey) void unlinkSelection();
+    else void linkSelection();
     return;
   }
   if ((ev.ctrlKey || ev.metaKey) && k === "s") {
@@ -1846,6 +1957,15 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-export").addEventListener("click", () => {
     void exportProject();
+  });
+  $("btn-export-work").addEventListener("click", () => {
+    void exportWorkArea();
+  });
+  $("btn-link").addEventListener("click", () => {
+    void linkSelection();
+  });
+  $("btn-unlink").addEventListener("click", () => {
+    void unlinkSelection();
   });
   $("btn-save").addEventListener("click", () => {
     void saveProject();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.13 — 2026-07-13
+
+### Added
+- **Export I/O**: `POST /api/desktop/export_work` → temp `export_work.mp4` for [In, Out)
+- **Link / Unlink** selection (Ctrl+L / Ctrl+Shift+L) + link badge on clips
+- **Redo**: Ctrl+Y / Ctrl+Shift+Z
+- Test: `tests/test_desktop_export_link_053.py`
+
 ## 0.4.12 — 2026-07-13
 
 ### Added
