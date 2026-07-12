@@ -376,6 +376,11 @@ button:disabled {
   filter: grayscale(0.4);
 }
 
+.clip-block.snapped {
+  outline: 1px solid var(--color-success);
+  box-shadow: 0 0 0 1px var(--color-success);
+}
+
 .track-label {
   display: flex;
   flex-direction: column;

@@ -40,10 +40,14 @@
                 <input type="checkbox" id="chk-ripple" />
                 Ripple Del
               </label>
+              <label class="chk" title="Snap drag/trim to clip edges & markers (±4f)">
+                <input type="checkbox" id="chk-snap" checked />
+                Snap
+              </label>
             </div>
             <div id="media-list" class="media-list muted">No media</div>
             <div class="note" id="media-note">
-              Import · dbl-click place · M mark · Shift+M mute · S razor · track M/S/L.
+              Snap on · Ctrl+C/V/D · M mark · Shift+M mute · S razor · track M/S/L.
             </div>
           </aside>
 
@@ -119,6 +123,7 @@
       <footer class="statusbar">
         <span class="pill" id="pill-api">API</span>
         <span class="pill" id="pill-preview">preview</span>
+        <span class="pill" id="pill-dirty">clean</span>
         <span id="status-msg">Starting…</span>
       </footer>
     </div>

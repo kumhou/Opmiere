@@ -33,11 +33,23 @@ type ProxyStatus = {
   path?: string;
 };
 
+type Marker = {
+  id: string;
+  frame?: number;
+  label?: string;
+  color?: string;
+  time_seconds?: number;
+};
+
 type TimelineView = {
   duration_frames?: number;
   duration_seconds?: number;
   fps?: number;
   proxy?: ProxyStatus;
+  snap_frames?: number[];
+  markers?: Marker[];
+  dirty?: boolean;
+  can_undo?: boolean;
   tracks?: Array<{
     id: string;
     kind: string;
@@ -49,20 +61,13 @@ type TimelineView = {
       id: string;
       start?: number;
       start_frame?: number;
+      end_frame?: number;
       duration_frames?: number;
       name?: string;
       label?: string;
       muted?: boolean;
     }>;
   }>;
-};
-
-type Marker = {
-  id: string;
-  frame?: number;
-  label?: string;
-  color?: string;
-  time_seconds?: number;
 };
 
 const state = {
@@ -98,6 +103,9 @@ const state = {
   tracks: [] as Array<{ id: string; kind: string }>,
   selected: new Set<string>(),
   markers: [] as Marker[],
+  snapFrames: [] as number[],
+  snapThr: 4,
+  dirty: false,
 };
 
 function $(id: string): HTMLElement {
@@ -463,6 +471,44 @@ function rippleEnabled(): boolean {
   return ($("chk-ripple") as HTMLInputElement).checked;
 }
 
+function snapEnabled(): boolean {
+  const el = document.getElementById("chk-snap") as HTMLInputElement | null;
+  return el ? el.checked : true;
+}
+
+/** Snap frame to nearest edge/marker within threshold. */
+function snapFrame(frame: number, exclude?: Set<number>): number {
+  if (!snapEnabled() || !state.snapFrames.length) return frame;
+  const thr = state.snapThr;
+  let best = frame;
+  let bestD = thr + 1;
+  for (const p of state.snapFrames) {
+    if (exclude?.has(p)) continue;
+    const d = Math.abs(p - frame);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return bestD <= thr ? best : frame;
+}
+
+/**
+ * Snap a move: prefer snapping start; if end is closer to a target, shift so end aligns.
+ */
+function snapMoveStart(start: number, dur: number, exclude: Set<number>): number {
+  if (!snapEnabled()) return Math.max(0, start);
+  const s0 = Math.max(0, start);
+  const end = s0 + dur;
+  const snapS = snapFrame(s0, exclude);
+  const snapE = snapFrame(end, exclude);
+  const dS = Math.abs(snapS - s0);
+  const dE = Math.abs(snapE - end);
+  if (dS <= state.snapThr && dS <= dE) return Math.max(0, snapS);
+  if (dE <= state.snapThr) return Math.max(0, snapE - dur);
+  return s0;
+}
+
 async function deleteSelection() {
   const ids = selectionList();
   if (!ids.length) return;
@@ -826,6 +872,69 @@ async function addTrack(kind: "video" | "audio") {
   }
 }
 
+async function copySelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to copy";
+    return;
+  }
+  const clipId = ids[0];
+  try {
+    await postJson("/api/clip/copy", { clip_id: clipId });
+    $("status-msg").textContent = `Copied ${clipId}`;
+  } catch (e) {
+    $("status-msg").textContent = `Copy failed: ${e}`;
+  }
+}
+
+async function pasteAtPlayhead() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = state.tracks[0]?.id;
+  if (!trackId) {
+    $("status-msg").textContent = "No track to paste onto";
+    return;
+  }
+  const frame = playheadFrame();
+  $("status-msg").textContent = `Paste @ f${frame}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/clip/paste",
+      {
+        track_id: trackId,
+        playhead_frame: frame,
+        mode: "insert",
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Pasted ${r.clip_id || ""} @ f${frame}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Paste failed: ${e}`;
+  }
+}
+
+async function duplicateSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to duplicate";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/duplicate",
+      { clip_id: ids[0] },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Duplicated ${ids[0]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Duplicate failed: ${e}`;
+  }
+}
+
 async function refreshMediaBin() {
   if (!state.projectOpen) {
     renderMediaBin(null);
@@ -1044,32 +1153,51 @@ function bindClipInteractions(
     const dx = ev.clientX - d.originX;
     const dFrames = Math.round((dx / d.laneWidth) * durF);
     if (d.mode === "move") {
-      const newStart = Math.max(0, d.startFrame + dFrames);
+      const raw = Math.max(0, d.startFrame + dFrames);
+      const exclude = new Set([
+        d.startFrame,
+        d.startFrame + d.durationFrames,
+      ]);
+      const newStart = snapMoveStart(raw, d.durationFrames, exclude);
       d.pendingStart = newStart;
-      d.pendingDelta = dFrames;
+      d.pendingDelta = newStart - d.startFrame;
       block.style.left = `${(newStart / durF) * 100}%`;
+      block.classList.toggle("snapped", newStart !== raw && snapEnabled());
       const over = trackIdAtClientY(ev.clientY);
       if (over) d.pendingTrackId = over;
       block.classList.toggle("cross-track", d.pendingTrackId !== d.trackId);
     } else if (d.mode === "trim-left") {
       // positive delta = head later (shorter) when dragging right
-      d.pendingDelta = dFrames;
-      const visualStart = Math.max(0, d.startFrame + dFrames);
-      const visualDur = Math.max(1, d.durationFrames - dFrames);
+      let visualStart = Math.max(0, d.startFrame + dFrames);
+      const rightEdge = d.startFrame + d.durationFrames;
+      visualStart = Math.min(visualStart, rightEdge - 1);
+      const snapped = snapFrame(visualStart, new Set([rightEdge]));
+      visualStart = Math.max(0, Math.min(snapped, rightEdge - 1));
+      d.pendingDelta = visualStart - d.startFrame;
+      const visualDur = Math.max(1, d.durationFrames - d.pendingDelta);
       block.style.left = `${(visualStart / durF) * 100}%`;
       block.style.width = `${(visualDur / durF) * 100}%`;
+      block.classList.toggle("snapped", snapped !== d.startFrame + dFrames && snapEnabled());
     } else {
       // trim-right: drag right → longer (positive delta)
-      d.pendingDelta = dFrames;
-      const visualDur = Math.max(1, d.durationFrames + dFrames);
+      let right = d.startFrame + d.durationFrames + dFrames;
+      right = Math.max(d.startFrame + 1, right);
+      const snapped = snapFrame(right, new Set([d.startFrame]));
+      right = Math.max(d.startFrame + 1, snapped);
+      d.pendingDelta = right - (d.startFrame + d.durationFrames);
+      const visualDur = Math.max(1, d.durationFrames + d.pendingDelta);
       block.style.width = `${(visualDur / durF) * 100}%`;
+      block.classList.toggle(
+        "snapped",
+        snapped !== d.startFrame + d.durationFrames + dFrames && snapEnabled(),
+      );
     }
   };
 
   const onUp = async (ev: PointerEvent) => {
     const d = state.drag;
     if (!d || d.clipId !== c.id) return;
-    block.classList.remove("dragging", "cross-track");
+    block.classList.remove("dragging", "cross-track", "snapped");
     const mode = d.mode;
     const pendingStart = d.pendingStart;
     const pendingDelta = d.pendingDelta;
@@ -1111,7 +1239,7 @@ function bindClipInteractions(
   };
 
   const onCancel = () => {
-    block.classList.remove("dragging", "cross-track");
+    block.classList.remove("dragging", "cross-track", "snapped");
     state.drag = null;
     block.style.left = `${(c.start / durF) * 100}%`;
     block.style.width = `${(c.dur / durF) * 100}%`;
@@ -1164,7 +1292,19 @@ function renderTimeline(view: TimelineView | null) {
   if (view.proxy) state.proxyFresh = !!view.proxy.fresh;
   state.trackOrder = view.tracks.map((t) => t.id);
   state.tracks = view.tracks.map((t) => ({ id: t.id, kind: t.kind }));
-  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · M mark · Shift+M mute · S razor`;
+  state.snapFrames = view.snap_frames || [];
+  if (view.markers) {
+    state.markers = view.markers;
+    renderMarkerList();
+  }
+  state.dirty = !!view.dirty;
+  const dirty = state.dirty ? " · dirty" : "";
+  meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · snap±${state.snapThr}f${dirty}`;
+  const dirtyPill = document.getElementById("pill-dirty");
+  if (dirtyPill) {
+    dirtyPill.className = `pill ${state.dirty ? "warn" : "ok"}`;
+    dirtyPill.textContent = state.dirty ? "dirty" : "clean";
+  }
   body.innerHTML = "";
 
   // marker ruler
@@ -1500,6 +1640,23 @@ function onKey(ev: KeyboardEvent) {
   if ((ev.ctrlKey || ev.metaKey) && k === "n") {
     ev.preventDefault();
     void newProjectPath();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "c") {
+    ev.preventDefault();
+    void copySelection();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "v") {
+    ev.preventDefault();
+    stopPlay();
+    void pasteAtPlayhead();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "d") {
+    ev.preventDefault();
+    stopPlay();
+    void duplicateSelection();
     return;
   }
   if (k === "s" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {

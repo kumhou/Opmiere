@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.11 — 2026-07-13
+
+### Added
+- **Snap** (on by default): drag/trim magnet to `snap_frames` (clip edges + markers, ±4f)
+- **Ctrl+C / Ctrl+V / Ctrl+D**: copy · paste@playhead · duplicate
+- Dirty pill in status bar (`timeline.dirty`)
+- Test: `tests/test_desktop_snap_copy_051.py`
+
 ## 0.4.10 — 2026-07-13
 
 ### Added
