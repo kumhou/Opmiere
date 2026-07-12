@@ -13,8 +13,9 @@
         <span class="brand">Opmiere</span>
         <span class="muted" id="core-version">core —</span>
         <span class="spacer"></span>
-        <button type="button" id="btn-refresh">Refresh status</button>
-        <button type="button" id="btn-open-probe">Open HTML probe</button>
+        <button type="button" id="btn-demo" title="Create a short demo project">Demo project</button>
+        <button type="button" id="btn-refresh">Refresh</button>
+        <button type="button" id="btn-open-probe">HTML probe</button>
       </header>
 
       <div class="main">
@@ -23,28 +24,43 @@
             <h2>Media</h2>
             <p class="kv"><b>Project</b> <span id="project-state">none</span></p>
             <p class="kv"><b>API</b> <span id="api-url">—</span></p>
-            <div class="note">
-              Product shell scaffold (0.4). Full media bin lands next; core remains
-              Python Editor via local HTTP.
+            <div class="note" id="media-note">
+              Program monitor uses path-C OpenShot when installed, else proxy/base frame.
             </div>
           </aside>
 
           <section class="program">
             <div class="program-frame">
-              <div class="program-placeholder">
+              <div class="program-placeholder" id="program-empty">
                 <span>Program monitor</span>
                 <span class="accent" id="preview-backend">preview: —</span>
                 <span style="font-size: 11px; max-width: 28em; text-align: center">
-                  Path C: OpenShot frames when installed. Interim scrub still via
-                  FFmpeg proxy on the probe shell.
+                  Open a project (Demo) then scrub. No agent chat in GUI v1.
                 </span>
               </div>
+              <img id="program-img" class="program-img" alt="Program frame" hidden />
             </div>
             <div class="transport">
-              <button type="button" disabled title="Realtime play not wired">◀◀</button>
-              <button type="button" disabled title="Realtime play not wired">▶</button>
+              <button type="button" id="btn-frame-back" title="−1 frame">◀</button>
+              <button type="button" id="btn-frame-fwd" title="+1 frame">▶</button>
+              <input
+                type="range"
+                id="scrub"
+                min="0"
+                max="1000"
+                value="0"
+                step="1"
+                disabled
+                title="Scrub playhead"
+              />
               <span class="tc" id="tc">00:00:00:00</span>
-              <span class="muted" id="transport-note">transport → PreviewSession (stub)</span>
+              <select id="engine-select" title="Frame engine">
+                <option value="auto">auto</option>
+                <option value="openshot">openshot</option>
+                <option value="proxy">proxy</option>
+                <option value="base">base</option>
+              </select>
+              <span class="muted" id="transport-note">seek → frame</span>
             </div>
           </section>
 
@@ -53,6 +69,7 @@
             <p class="kv"><b>Doctor</b> <span id="doctor-ok">—</span></p>
             <p class="kv"><b>Engine</b> <span id="engine-active">—</span></p>
             <p class="kv"><b>OpenShot</b> <span id="openshot-app">—</span></p>
+            <p class="kv"><b>Frame mode</b> <span id="frame-mode">—</span></p>
             <div class="note" id="agent-note">
               No agent chat in GUI v1 — use MCP externally.
             </div>
@@ -65,8 +82,7 @@
             <span id="timeline-meta">—</span>
           </div>
           <div class="timeline-body" id="timeline-body">
-            Open a project via <code>opmiere web</code> / API, then refresh. Timeline
-            chrome is a placeholder; craft logic stays in Python.
+            Click a lane to seek. Craft logic stays in Python Editor.
           </div>
         </section>
       </div>

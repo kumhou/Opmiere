@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 — 2026-07-12
+
+### Added
+- **Program monitor** in `ui-desktop`: scrub + timeline click seek → `/api/preview/frame.jpg`
+- **Demo project** API: `POST /api/desktop/demo_project` (lavfi cut for shell bootstrap)
+- **Engine select**: auto / openshot / proxy / base
+- API: `/api/preview/interactive`, `/api/preview/openshot_frame`, frame `engine=` param
+
 ## 0.4.0 — 2026-07-12
 
 ### Milestone

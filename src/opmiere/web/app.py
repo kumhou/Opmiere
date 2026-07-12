@@ -121,6 +121,13 @@ class FrameBody(BaseModel):
     time_seconds: float = 0.0
     width: int = 640
     prefer_proxy: bool = True
+    engine: str = "auto"  # auto | proxy | openshot | base
+
+
+class OpenShotFrameBody(BaseModel):
+    time_seconds: float = 0.0
+    height: int = 360
+    use_timeline: bool = True
 
 
 class MediaProxyBody(BaseModel):
@@ -195,6 +202,61 @@ def health() -> dict[str, Any]:
 def doctor(check_comfy: bool = False) -> dict[str, Any]:
     from ..doctor import run_doctor
     return run_doctor(check_comfy=check_comfy)
+
+
+@app.post("/api/desktop/demo_project")
+def desktop_demo_project() -> dict[str, Any]:
+    """Create a short lavfi demo bundle and open it (desktop shell bootstrap)."""
+    global _editor
+    import shutil
+    import subprocess
+    import tempfile
+
+    root = Path(tempfile.gettempdir()) / "opmiere_desktop_demo"
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    src = root / "src"
+    src.mkdir()
+    fps, w, h = 30, 640, 360
+    clips = [
+        (src / "a.mp4", "0x1a3a5a"),
+        (src / "b.mp4", "0x5a3a1a"),
+    ]
+    for path, color in clips:
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi",
+                "-i", f"color=c={color}:size={w}x{h}:duration=0.8:rate={fps}",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                str(path),
+            ],
+            capture_output=True, text=True,
+        )
+        if proc.returncode != 0 or not path.exists():
+            return {
+                "ok": False,
+                "error": f"ffmpeg demo failed: {(proc.stderr or '')[-400:]}",
+            }
+    bundle = root / "demo.opm"
+    ed = Editor.create(bundle, fps=fps, width=w, height=h)
+    tr = ed.add_track("video")
+    c0 = ed.place_from_file(clips[0][0], "video", tr.id, 0)
+    ed.place_from_file(clips[1][0], "video", tr.id, c0.end)
+    try:
+        ed.ensure_preview_proxy(height=180, fps=8)
+    except Exception:
+        pass
+    ed.save()
+    _editor = ed
+    return {
+        "ok": True,
+        "path": str(bundle.resolve()),
+        "duration_frames": ed.duration_frames(),
+        "preview": ed.preview_proxy_status(),
+        "engine": ed.preview_engine_status(),
+    }
 
 
 @app.post("/api/project/create")
@@ -2574,32 +2636,104 @@ def preview_proxy_mp4() -> FileResponse:
     )
 
 
+@app.get("/api/preview/interactive")
+def preview_interactive() -> dict[str, Any]:
+    """Path-C engine status (libopenshot when OpenShot installed)."""
+    return _ed().preview_engine_status()
+
+
+@app.get("/api/preview/openshot_plan")
+def preview_openshot_plan(height: int = 360) -> dict[str, Any]:
+    return _ed().openshot_plan(height=height)
+
+
+@app.post("/api/preview/openshot_frame")
+def preview_openshot_frame(body: OpenShotFrameBody) -> dict[str, Any]:
+    """Path-C multi-clip frame via OpenShot sidecar."""
+    global _last_frame
+    ed = _ed()
+    out = ed.bundle.root / "review" / "openshot_frame.png"
+    result = ed.openshot_frame_at(
+        body.time_seconds,
+        out,
+        height=body.height,
+        use_timeline=body.use_timeline,
+    )
+    if result.get("path"):
+        _last_frame = result["path"]
+    return result
+
+
 @app.post("/api/preview/frame")
 def preview_frame(body: FrameBody) -> dict[str, Any]:
     global _last_frame
     ed = _ed()
+    engine = (body.engine or "auto").lower()
+    if engine in ("openshot", "auto"):
+        out = ed.bundle.root / "review" / "program_frame.png"
+        if engine == "openshot":
+            result = ed.openshot_frame_at(body.time_seconds, out, height=max(72, body.width * 9 // 16))
+            if result.get("ok") and result.get("path"):
+                _last_frame = result["path"]
+                return result
+            if engine == "openshot":
+                return result
+        # auto: try openshot then fall through
+        try:
+            result = ed.openshot_frame_at(
+                body.time_seconds, out, height=max(72, int(body.width * 9 / 16)),
+            )
+            if result.get("ok") and result.get("path"):
+                _last_frame = result["path"]
+                return result
+        except Exception:
+            pass
     out = ed.bundle.root / "review" / f"frame_{body.time_seconds:.2f}.jpg"
+    prefer = body.prefer_proxy if engine != "base" else False
     result = ed.frame_at(
         body.time_seconds,
         out,
         width=body.width,
-        prefer_proxy=body.prefer_proxy,
+        prefer_proxy=prefer,
     )
     _last_frame = result.get("path")
     return result
 
 
 @app.get("/api/preview/frame.jpg")
-def preview_frame_jpg(t: float = 0.0, width: int = 640) -> FileResponse:
-    """GET convenience for <img src> scrubbing."""
+def preview_frame_jpg(
+    t: float = 0.0,
+    width: int = 640,
+    engine: str = "auto",
+) -> FileResponse:
+    """GET convenience for <img src> scrubbing.
+
+    engine=auto tries OpenShot then proxy/base; openshot|proxy|base force path.
+    """
     global _last_frame
     ed = _ed()
-    out = ed.bundle.root / "review" / "scrub_frame.jpg"
-    result = ed.frame_at(t, out, width=width, prefer_proxy=True)
-    _last_frame = result.get("path")
-    if not _last_frame or not Path(_last_frame).exists():
+    eng = (engine or "auto").lower()
+    out_png = ed.bundle.root / "review" / "program_scrub.png"
+    out_jpg = ed.bundle.root / "review" / "scrub_frame.jpg"
+    path: str | None = None
+    if eng in ("openshot", "auto"):
+        try:
+            r = ed.openshot_frame_at(t, out_png, height=max(72, int(width * 9 / 16)))
+            if r.get("ok") and r.get("path") and Path(str(r["path"])).exists():
+                path = str(r["path"])
+        except Exception:
+            path = None
+        if eng == "openshot" and not path:
+            raise HTTPException(503, "openshot frame failed — is OpenShot installed?")
+    if path is None:
+        prefer = eng != "base"
+        result = ed.frame_at(t, out_jpg, width=width, prefer_proxy=prefer)
+        path = result.get("path")
+    _last_frame = path
+    if not path or not Path(path).exists():
         raise HTTPException(500, "frame extract failed")
-    return FileResponse(_last_frame, media_type="image/jpeg")
+    media = "image/png" if path.lower().endswith(".png") else "image/jpeg"
+    return FileResponse(path, media_type=media)
 
 
 @app.post("/api/preview/keyframes")

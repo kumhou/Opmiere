@@ -34,13 +34,21 @@ npm run tauri dev
 
 Optional: `VITE_OPMIERE_API=http://127.0.0.1:8787` (default).
 
-## Scope (0.4 scaffold)
+## Scope (0.4.x)
 
 | In | Out |
 |----|-----|
-| Window chrome + design tokens | Full timeline craft (still Python) |
+| Window chrome + design tokens | Full NLE edit gestures |
 | Status: doctor / preview engine / timeline snapshot | Agent chat panel |
-| Link to HTML probe | Shipping installer polish |
+| **Program monitor scrub** (OpenShot/proxy/base) | Realtime play loop |
+| Demo project + timeline click seek | Shipping installer polish |
+
+### Program monitor
+
+After core API is up and **Demo project** (or any open project):
+
+1. Scrub bar / ◀ ▶ / click timeline lane  
+2. Engine: `auto` (OpenShot if installed) · `openshot` · `proxy` · `base`
 
 ## Layout
 
