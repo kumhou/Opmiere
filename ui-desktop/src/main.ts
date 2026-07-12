@@ -783,6 +783,49 @@ async function setTrackFlag(
   }
 }
 
+function goToMarker(dir: -1 | 1) {
+  if (!state.markers.length) {
+    $("status-msg").textContent = "No markers";
+    return;
+  }
+  const sorted = [...state.markers].sort(
+    (a, b) => (a.frame ?? 0) - (b.frame ?? 0),
+  );
+  const cur = playheadFrame();
+  let target: Marker | undefined;
+  if (dir > 0) {
+    target = sorted.find((m) => (m.frame ?? 0) > cur);
+    if (!target) target = sorted[0];
+  } else {
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if ((sorted[i].frame ?? 0) < cur) {
+        target = sorted[i];
+        break;
+      }
+    }
+    if (!target) target = sorted[sorted.length - 1];
+  }
+  if (!target) return;
+  stopPlay();
+  const f = target.frame ?? 0;
+  $("status-msg").textContent = `Marker ${target.label || target.id} @ f${f}`;
+  void seekTo(f / state.fps);
+}
+
+async function addTrack(kind: "video" | "audio") {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    await fetch(`${API_BASE}/api/track?kind=${kind}`, { method: "POST" });
+    $("status-msg").textContent = `Added ${kind} track`;
+    await refresh();
+  } catch (e) {
+    $("status-msg").textContent = `Add track failed: ${e}`;
+  }
+}
+
 async function refreshMediaBin() {
   if (!state.projectOpen) {
     renderMediaBin(null);
@@ -1415,13 +1458,27 @@ function onKey(ev: KeyboardEvent) {
   if (ev.key === "ArrowLeft") {
     ev.preventDefault();
     stopPlay();
-    void seekTo(state.t - 1 / state.fps);
+    if (ev.shiftKey) goToMarker(-1);
+    else void seekTo(state.t - 1 / state.fps);
     return;
   }
   if (ev.key === "ArrowRight") {
     ev.preventDefault();
     stopPlay();
-    void seekTo(state.t + 1 / state.fps);
+    if (ev.shiftKey) goToMarker(1);
+    else void seekTo(state.t + 1 / state.fps);
+    return;
+  }
+  if (ev.key === "Home") {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(0);
+    return;
+  }
+  if (ev.key === "End") {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(Math.max(0, state.durationSec - 1 / state.fps));
     return;
   }
   if ((ev.ctrlKey || ev.metaKey) && k === "z") {
@@ -1527,6 +1584,18 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-mute").addEventListener("click", () => {
     stopPlay();
     void muteSelection();
+  });
+  $("btn-add-v").addEventListener("click", () => {
+    void addTrack("video");
+  });
+  $("btn-add-a").addEventListener("click", () => {
+    void addTrack("audio");
+  });
+  $("btn-prev-marker").addEventListener("click", () => {
+    goToMarker(-1);
+  });
+  $("btn-next-marker").addEventListener("click", () => {
+    goToMarker(1);
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;

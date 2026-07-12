@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.10 — 2026-07-13
+
+### Added
+- **Marker nav**: Shift+←/→ or ◀Mk/Mk▶ (wrap)
+- **+V / +A** track buttons → `POST /api/track`
+- **Home / End** seek to sequence start/end
+- Test: `tests/test_desktop_nav_050.py`
+
 ## 0.4.9 — 2026-07-13
 
 ### Added
