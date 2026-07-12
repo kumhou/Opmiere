@@ -57,6 +57,7 @@ type TimelineView = {
   markers?: Marker[];
   work_in_out?: WorkInOut;
   dirty?: boolean;
+  autosave?: boolean;
   can_undo?: boolean;
   notes?: string;
   bundle_path?: string;
@@ -146,6 +147,7 @@ const state = {
   clips: new Map<string, ClipInfo>(),
   notes: "",
   bundlePath: "",
+  autosave: false,
 };
 
 function $(id: string): HTMLElement {
@@ -1688,6 +1690,32 @@ async function saveNotes() {
   }
 }
 
+function syncAutosaveUi(enabled: boolean) {
+  state.autosave = !!enabled;
+  const el = document.getElementById("chk-autosave") as HTMLInputElement | null;
+  if (el && el !== document.activeElement) el.checked = state.autosave;
+}
+
+async function setAutosave(enabled: boolean) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    const el = document.getElementById("chk-autosave") as HTMLInputElement | null;
+    if (el) el.checked = state.autosave;
+    return;
+  }
+  try {
+    const r = await postJson<{ autosave?: boolean }>("/api/autosave", {
+      enabled,
+    });
+    syncAutosaveUi(!!r.autosave);
+    $("status-msg").textContent = state.autosave ? "Autosave on" : "Autosave off";
+  } catch (e) {
+    const el = document.getElementById("chk-autosave") as HTMLInputElement | null;
+    if (el) el.checked = state.autosave;
+    $("status-msg").textContent = `Autosave failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -2005,6 +2033,7 @@ function renderTimeline(view: TimelineView | null) {
   }
   if (view.work_in_out) applyWorkIO(view.work_in_out);
   applyNotesUi(view.notes || "", view.bundle_path);
+  if (typeof view.autosave === "boolean") syncAutosaveUi(view.autosave);
   state.dirty = !!view.dirty;
   const dirty = state.dirty ? " · dirty" : "";
   meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · snap±${state.snapThr}f${dirty}`;
@@ -2593,6 +2622,10 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-notes-save").addEventListener("click", () => {
     void saveNotes();
+  });
+  $("chk-autosave").addEventListener("change", (ev) => {
+    const on = (ev.target as HTMLInputElement).checked;
+    void setAutosave(on);
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;

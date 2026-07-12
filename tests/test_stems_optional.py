@@ -16,10 +16,12 @@ def test_separate_stems_import_or_run(tmp_path: Path):
     try:
         import demucs  # noqa: F401
     except ImportError:
+        # separate_stems checks path.exists() before demucs import — touch a file
+        # so the honest error is DemucsNotInstalledError, not FileNotFoundError.
+        dummy = tmp_path / "x.wav"
+        dummy.write_bytes(b"RIFF....WAVE")
         with pytest.raises(DemucsNotInstalledError):
-            separate_stems(tmp_path / "x.wav", tmp_path / "o")
-        # create dummy so FileNotFound is not the error
-        # re-call after writing empty is still FileNotFound for empty
+            separate_stems(dummy, tmp_path / "o")
         return
     # If demucs is installed, we do not run full GPU separation in unit tests
     # (multi-GB model download). Structural: function is callable and rejects

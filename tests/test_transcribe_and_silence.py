@@ -120,7 +120,9 @@ def test_apply_effect_subtitles_rejects_missing_file(tmp_path: Path):
 
 
 def test_transcribe_entry_point_uses_whisper_model(tmp_path: Path):
-    """Drives shipped transcribe(); mocks only WhisperModel (external binary)."""
+    """Drives shipped transcribe(); mocks WhisperModel (works without package installed)."""
+    import sys
+
     import opmiere.render.asr as asr_mod
 
     wav = tmp_path / "t.wav"
@@ -144,10 +146,16 @@ def test_transcribe_entry_point_uses_whisper_model(tmp_path: Path):
     fake_info = MagicMock()
     fake_info.language = "en"
 
+    # CI has no faster_whisper — inject a fake module so
+    # `from faster_whisper import WhisperModel` succeeds under mock.
+    fake_fw = MagicMock()
+    WM = MagicMock()
+    fake_fw.WhisperModel = WM
+    inst = WM.return_value
+    inst.transcribe.return_value = (iter([fake_seg]), fake_info)
+
     with patch.object(asr_mod, "_require_faster_whisper"):
-        with patch("faster_whisper.WhisperModel") as WM:
-            inst = WM.return_value
-            inst.transcribe.return_value = (iter([fake_seg]), fake_info)
+        with patch.dict(sys.modules, {"faster_whisper": fake_fw}):
             result = asr_mod.transcribe(wav, model_size="tiny", language="en")
 
     assert result["language"] == "en"

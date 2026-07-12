@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.19 — 2026-07-13
+
+### Added
+- **Autosave** checkbox in product shell → `POST /api/autosave`
+- Test: `tests/test_desktop_autosave_059.py`
+
+### Fixed
+- CI: optional demucs/faster-whisper tests no longer fail when extras are absent
+  (`test_stems_optional`, `test_transcribe_entry_point_uses_whisper_model`)
+
 ## 0.4.18 — 2026-07-13
 
 ### Added
