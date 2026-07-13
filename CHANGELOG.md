@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.31 — 2026-07-13
+
+### Added
+- **Native file dialogs** (Tauri): Open = folder picker, New = save-as path
+  - `@tauri-apps/plugin-dialog` + `tauri-plugin-dialog` + `dialog:default` capability
+  - Browser / Vite-only dev still falls back to `window.prompt`
+- **Exp dir** uses `@tauri-apps/plugin-opener` to open export folder when available
+- Test: `tests/test_desktop_dialog_fallback_071.py` (prompt-path helpers via HTTP open/create)
+
 ## 0.4.30 — 2026-07-13
 
 ### Added

@@ -2134,13 +2134,14 @@ async function openExportDir() {
       }
     }
     $("status-msg").textContent = `Export dir: ${r.path} (${r.count ?? 0} files)`;
-    // try open folder via opener if available in Tauri
-    try {
-      // @ts-expect-error optional global from Tauri
-      const open = window.__TAURI__?.opener?.openPath || window.__TAURI__?.opener?.open;
-      if (open && r.path) await open(r.path);
-    } catch {
-      /* browser/dev: list only */
+    // try open folder via opener plugin when under Tauri
+    if (r.path && isTauri()) {
+      try {
+        const { openPath } = await import("@tauri-apps/plugin-opener");
+        await openPath(r.path);
+      } catch {
+        /* list only in browser/dev */
+      }
     }
   } catch (e) {
     $("status-msg").textContent = `Export dir failed: ${e}`;
@@ -3525,22 +3526,70 @@ function promptPath(message: string, fallback = ""): string | null {
   return p || null;
 }
 
+function isTauri(): boolean {
+  return typeof window !== "undefined" && !!(window as unknown as { __TAURI__?: unknown }).__TAURI__;
+}
+
+/** Native folder picker when running under Tauri; else window.prompt. */
+async function pickProjectFolder(opts: {
+  title: string;
+  defaultPath?: string;
+}): Promise<string | null> {
+  if (isTauri()) {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: opts.title,
+        defaultPath: opts.defaultPath,
+      });
+      if (selected == null) return null;
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      return path ? String(path) : null;
+    } catch (e) {
+      console.warn("Tauri dialog open failed, falling back to prompt", e);
+    }
+  }
+  return promptPath(opts.title, opts.defaultPath || "");
+}
+
+/** Save-as path for new .opm bundle (folder name). */
+async function pickNewProjectPath(opts: {
+  title: string;
+  defaultPath?: string;
+}): Promise<string | null> {
+  if (isTauri()) {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        title: opts.title,
+        defaultPath: opts.defaultPath || "project.opm",
+        filters: [{ name: "Opmiere project", extensions: ["opm"] }],
+      });
+      return path ? String(path) : null;
+    } catch (e) {
+      console.warn("Tauri dialog save failed, falling back to prompt", e);
+    }
+  }
+  return promptPath(opts.title, opts.defaultPath || "G:\\tmp\\opmiere_new.opm");
+}
+
 async function openProjectPath() {
   stopPlay();
-  const path = promptPath(
-    "Open project bundle path (.opm folder or path):",
-    "",
-  );
+  const path = await pickProjectFolder({
+    title: "Open Opmiere project folder (.opm)",
+  });
   if (!path) return;
   await openProjectAt(path);
 }
 
 async function newProjectPath() {
   stopPlay();
-  const path = promptPath(
-    "New project path (will create .opm bundle):",
-    "G:\\tmp\\opmiere_new.opm",
-  );
+  const path = await pickNewProjectPath({
+    title: "Create new Opmiere project",
+    defaultPath: "opmiere_new.opm",
+  });
   if (!path) return;
   $("status-msg").textContent = `Creating ${path}…`;
   try {
@@ -3556,6 +3605,7 @@ async function newProjectPath() {
     $("status-msg").textContent = `Created: ${path}`;
     state.t = 0;
     await refresh();
+    await refreshRecent();
   } catch (e) {
     $("status-msg").textContent = `Create failed: ${e}`;
   }
