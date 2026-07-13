@@ -307,6 +307,46 @@ def desktop_export(
     }
 
 
+@app.post("/api/desktop/export_preset")
+def desktop_export_preset(preset: str = "draft") -> dict[str, Any]:
+    """Export with a named preset to a temp file (desktop shell)."""
+    import tempfile
+
+    ed = _ed()
+    out_dir = Path(tempfile.gettempdir()) / "opmiere_desktop_export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in (preset or "draft"))
+    out = out_dir / f"export_{safe}.mp4"
+    try:
+        result = ed.export_with_preset(out, preset=preset or "draft")
+        path = result.get("path") or str(out)
+        ok = Path(path).exists()
+        return {
+            "ok": ok,
+            "path": str(Path(path).resolve()) if ok else None,
+            "preset": preset,
+            "result": result,
+        }
+    except Exception as e:
+        # video-only demos: fall back to plain export
+        try:
+            written = ed.export(out, normalize_preset=None)
+            return {
+                "ok": Path(written).exists(),
+                "path": str(Path(written).resolve()),
+                "preset": preset,
+                "warning": str(e)[:300],
+                "result": None,
+            }
+        except Exception as e2:
+            return {
+                "ok": False,
+                "error": f"{e}; fallback: {e2}",
+                "path": None,
+                "preset": preset,
+            }
+
+
 @app.post("/api/desktop/export_work")
 def desktop_export_work(
     normalize_preset: str | None = None,

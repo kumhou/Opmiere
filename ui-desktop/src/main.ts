@@ -1215,29 +1215,135 @@ async function importFiles(fileList: FileList | null) {
   }
 }
 
+function selectedExportPreset(): string {
+  const el = document.getElementById("export-preset") as HTMLSelectElement | null;
+  return el?.value || "draft";
+}
+
+async function loadExportPresets() {
+  const el = document.getElementById("export-preset") as HTMLSelectElement | null;
+  if (!el) return;
+  try {
+    const r = await getJson<{
+      presets?: Array<{ id: string; description?: string }>;
+    }>("/api/export/presets");
+    const presets = r.presets || [];
+    if (!presets.length) return;
+    const cur = el.value || "draft";
+    el.innerHTML = "";
+    for (const p of presets) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.id;
+      opt.title = p.description || p.id;
+      el.appendChild(opt);
+    }
+    if ([...el.options].some((o) => o.value === cur)) el.value = cur;
+    else if ([...el.options].some((o) => o.value === "draft")) el.value = "draft";
+  } catch {
+    /* keep static options */
+  }
+}
+
 async function exportProject() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
     return;
   }
   stopPlay();
-  $("status-msg").textContent = "Exporting (finish_delivery)…";
+  const preset = selectedExportPreset();
+  $("status-msg").textContent = `Exporting (${preset})…`;
   ($("btn-export") as HTMLButtonElement).disabled = true;
   try {
     const r = await postJson<{
       ok?: boolean;
       path?: string;
-      delivery?: { ok?: boolean; delivery_ok?: boolean };
-    }>("/api/desktop/export", {});
+      error?: string;
+      warning?: string;
+      preset?: string;
+    }>(`/api/desktop/export_preset?preset=${encodeURIComponent(preset)}`, {});
     if (!r.ok) {
-      $("status-msg").textContent = `Export soft-fail: ${r.path || "see delivery"}`;
+      $("status-msg").textContent =
+        `Export soft-fail: ${r.error || r.path || "see log"}`;
     } else {
-      $("status-msg").textContent = `Exported: ${r.path}`;
+      $("status-msg").textContent =
+        `Exported [${r.preset || preset}]: ${r.path}${r.warning ? " (warn)" : ""}`;
     }
   } catch (e) {
-    $("status-msg").textContent = `Export failed: ${e}`;
+    // fallback legacy full export
+    try {
+      const r = await postJson<{
+        ok?: boolean;
+        path?: string;
+      }>("/api/desktop/export", {});
+      $("status-msg").textContent = r.ok
+        ? `Exported: ${r.path}`
+        : `Export soft-fail: ${r.path || "see delivery"}`;
+    } catch (e2) {
+      $("status-msg").textContent = `Export failed: ${e2}`;
+    }
   } finally {
     ($("btn-export") as HTMLButtonElement).disabled = false;
+  }
+}
+
+async function refreshProjectStats() {
+  const el = document.getElementById("project-stats");
+  if (!el) return;
+  if (!state.projectOpen) {
+    el.className = "project-stats muted";
+    el.textContent = "—";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      duration_seconds?: number;
+      clip_count?: number;
+      media_count?: number;
+      unused_media_count?: number;
+      track_count?: number;
+      marker_count?: number;
+      link_group_count?: number;
+      dirty?: boolean;
+      resolution?: { w?: number; h?: number };
+      fps?: number;
+    }>("/api/project/stats");
+    el.className = "project-stats";
+    const res =
+      r.resolution?.w && r.resolution?.h
+        ? `${r.resolution.w}×${r.resolution.h}`
+        : "—";
+    el.innerHTML = [
+      `<div>${res} · ${r.fps ?? "—"}fps · ${(r.duration_seconds ?? 0).toFixed(2)}s</div>`,
+      `<div class="kv">${r.clip_count ?? 0} clips · ${r.media_count ?? 0} media` +
+        (r.unused_media_count ? ` (${r.unused_media_count} unused)` : "") +
+        ` · ${r.track_count ?? 0} trk · ${r.marker_count ?? 0} mk</div>`,
+      r.link_group_count
+        ? `<div class="kv">${r.link_group_count} link group(s)</div>`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("");
+  } catch {
+    el.className = "project-stats muted";
+    el.textContent = "stats n/a";
+  }
+}
+
+async function splitAtMarkers() {
+  if (!state.projectOpen) return;
+  $("status-msg").textContent = "Split at markers…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/split_at_markers",
+      {},
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Split at markers: ${r.count ?? "ok"}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Split@markers failed: ${e}`;
   }
 }
 
@@ -2709,6 +2815,7 @@ async function refresh() {
       await refreshValidate();
       await refreshHistory();
       await refreshDurationReport();
+      await refreshProjectStats();
     } else {
       state.durationSec = 0;
       state.durationFrames = 0;
@@ -2724,6 +2831,7 @@ async function refresh() {
       await refreshValidate();
       await refreshHistory();
       await refreshDurationReport();
+      await refreshProjectStats();
     }
 
     $("status-msg").textContent = "Ready";
@@ -3057,6 +3165,10 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-marks-clear").addEventListener("click", () => {
     void clearAllMarkers();
   });
+  $("btn-split-markers").addEventListener("click", () => {
+    stopPlay();
+    void splitAtMarkers();
+  });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();
     void closeGapsOnTracks();
@@ -3205,6 +3317,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   window.addEventListener("keydown", onKey);
   void loadPalette();
+  void loadExportPresets();
   void refreshRecent();
   void refresh();
 });

@@ -527,7 +527,8 @@ button:disabled {
   color: var(--color-primary);
 }
 
-.duration-report {
+.duration-report,
+.project-stats {
   margin: var(--space-sm) 0;
   padding: var(--space-sm) var(--space-md);
   background: rgba(0, 0, 0, 0.2);
@@ -537,8 +538,20 @@ button:disabled {
   color: var(--color-foreground);
 }
 
-.duration-report.muted {
+.duration-report.muted,
+.project-stats.muted {
   color: var(--color-muted);
+}
+
+.export-preset {
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-foreground);
+  max-width: 8em;
 }
 
 .duration-report .kv {

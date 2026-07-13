@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.24 — 2026-07-13
+
+### Added
+- **Export presets** selector + `POST /api/desktop/export_preset`
+- **Project stats** in inspector → `GET /api/project/stats`
+- **Split@Mk**: razor at markers → `split_at_markers`
+- Test: `tests/test_desktop_export_preset_064.py`
+
 ## 0.4.23 — 2026-07-13
 
 ### Added

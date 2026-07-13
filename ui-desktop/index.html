@@ -29,7 +29,14 @@
         <button type="button" id="btn-unlink" title="Unlink selection (Ctrl+Shift+L)">Unlink</button>
         <button type="button" id="btn-trim-q" title="Trim head to playhead (Q)">Q</button>
         <button type="button" id="btn-trim-w" title="Trim tail to playhead (W)">W</button>
-        <button type="button" id="btn-export" title="finish_delivery to temp export.mp4">Export</button>
+        <select id="export-preset" title="Export preset" class="export-preset">
+          <option value="draft">draft</option>
+          <option value="streaming">streaming</option>
+          <option value="youtube">youtube</option>
+          <option value="broadcast">broadcast</option>
+          <option value="review">review</option>
+        </select>
+        <button type="button" id="btn-export" title="Export with selected preset">Export</button>
         <button type="button" id="btn-export-work" title="Export work area [In, Out)">Export I/O</button>
         <button type="button" id="btn-proxy" title="Ensure preview proxy">Proxy</button>
         <button type="button" id="btn-refresh">Refresh</button>
@@ -112,6 +119,7 @@
             <p class="kv"><b>Play</b> <span id="play-mode">stopped</span></p>
             <p class="kv"><b>Selected</b> <span id="sel-count">0</span></p>
             <div id="duration-report" class="duration-report muted">—</div>
+            <div id="project-stats" class="project-stats muted">—</div>
             <div id="sel-card" class="sel-card muted">No selection</div>
             <div id="match-frame-info" class="match-frame-info muted">Match frame (F)</div>
             <h2 class="subh">Color</h2>
@@ -158,6 +166,7 @@
             <h2 class="subh">Markers</h2>
             <div class="speed-row">
               <button type="button" id="btn-marks-cuts" class="btn-mini" title="Markers at cut points">From cuts</button>
+              <button type="button" id="btn-split-markers" class="btn-mini" title="Razor at all markers">Split@Mk</button>
               <button type="button" id="btn-marks-clear" class="btn-mini" title="Clear all markers">Clear</button>
             </div>
             <div id="marker-list" class="marker-list muted">No markers (M to add)</div>
