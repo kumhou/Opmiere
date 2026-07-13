@@ -153,6 +153,7 @@ const state = {
   canRedo: false,
   undoDepth: 0,
   redoDepth: 0,
+  zoom: 1,
 };
 
 function $(id: string): HTMLElement {
@@ -2041,6 +2042,95 @@ async function clearAllMarkers() {
   }
 }
 
+async function closeGapsOnTracks() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Closing gaps…";
+  try {
+    // close on every video/audio track that has clips
+    let last: TimelineView | undefined;
+    const tids = state.tracks.map((t) => t.id);
+    if (!tids.length) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/close_gaps", {
+        track_id: null,
+        from_frame: 0,
+      });
+      last = r.timeline;
+    } else {
+      for (const trackId of tids) {
+        const r = await postJson<{ timeline?: TimelineView }>("/api/close_gaps", {
+          track_id: trackId,
+          from_frame: 0,
+        });
+        if (r.timeline) last = r.timeline;
+      }
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = "Gaps closed";
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Close gaps failed: ${e}`;
+  }
+}
+
+async function liftWorkArea(ripple: boolean) {
+  if (!state.projectOpen) return;
+  if (!state.workIO.ready) {
+    $("status-msg").textContent = "Set In and Out first (I / O)";
+    return;
+  }
+  const start = state.workIO.in_frame!;
+  const end = state.workIO.out_frame!;
+  const path = ripple ? "/api/extract_range" : "/api/lift";
+  $("status-msg").textContent = ripple
+    ? `Extract [${start},${end})…`
+    : `Lift [${start},${end})…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(path, {
+      start_frame: start,
+      end_frame: end,
+      ripple: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = ripple
+      ? `Extracted [${start},${end})`
+      : `Lifted [${start},${end})`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `${ripple ? "Extract" : "Lift"} failed: ${e}`;
+  }
+}
+
+function setZoom(z: number) {
+  state.zoom = Math.max(0.5, Math.min(8, Math.round(z * 100) / 100));
+  const el = document.getElementById("zoom-label");
+  if (el) el.textContent = `${state.zoom.toFixed(1)}×`;
+  applyZoomToLanes();
+}
+
+function applyZoomToLanes() {
+  const pct = `${100 * state.zoom}%`;
+  document.querySelectorAll<HTMLElement>(".track-lane").forEach((lane) => {
+    lane.style.width = pct;
+    lane.style.minWidth = pct;
+  });
+  document.querySelectorAll<HTMLElement>(".marker-ruler").forEach((r) => {
+    r.style.width = pct;
+    r.style.minWidth = pct;
+  });
+}
+
+function toggleHelp() {
+  const el = document.getElementById("help-overlay");
+  if (!el) return;
+  const open = el.classList.toggle("open");
+  el.setAttribute("aria-hidden", open ? "false" : "true");
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -2478,6 +2568,7 @@ function renderTimeline(view: TimelineView | null) {
     row.appendChild(lane);
     body.appendChild(row);
   }
+  applyZoomToLanes();
   setPlayheadUi();
   $("sel-count").textContent = String(state.selected.size);
   updateSelectionCard();
@@ -2845,6 +2936,32 @@ function onKey(ev: KeyboardEvent) {
     void subclipSelection();
     return;
   }
+  if (k === "g" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    stopPlay();
+    void closeGapsOnTracks();
+    return;
+  }
+  if ((k === "=" || k === "+") && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    setZoom(state.zoom * 1.25);
+    return;
+  }
+  if (k === "-" && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    setZoom(state.zoom / 1.25);
+    return;
+  }
+  if (k === "0" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    setZoom(1);
+    return;
+  }
+  if (k === "?" || (ev.shiftKey && k === "/")) {
+    ev.preventDefault();
+    toggleHelp();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -2861,6 +2978,12 @@ function onKey(ev: KeyboardEvent) {
     return;
   }
   if (ev.key === "Escape") {
+    const help = document.getElementById("help-overlay");
+    if (help?.classList.contains("open")) {
+      help.classList.remove("open");
+      help.setAttribute("aria-hidden", "true");
+      return;
+    }
     setSelection([]);
   }
 }
@@ -2933,6 +3056,33 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-marks-clear").addEventListener("click", () => {
     void clearAllMarkers();
+  });
+  $("btn-close-gaps").addEventListener("click", () => {
+    stopPlay();
+    void closeGapsOnTracks();
+  });
+  $("btn-lift").addEventListener("click", () => {
+    stopPlay();
+    void liftWorkArea(false);
+  });
+  $("btn-extract").addEventListener("click", () => {
+    stopPlay();
+    void liftWorkArea(true);
+  });
+  $("btn-zoom-in").addEventListener("click", () => {
+    setZoom(state.zoom * 1.25);
+  });
+  $("btn-zoom-out").addEventListener("click", () => {
+    setZoom(state.zoom / 1.25);
+  });
+  $("btn-zoom-reset").addEventListener("click", () => {
+    setZoom(1);
+  });
+  $("btn-help").addEventListener("click", () => {
+    toggleHelp();
+  });
+  $("help-overlay").addEventListener("click", (ev) => {
+    if (ev.target === $("help-overlay")) toggleHelp();
   });
   $("btn-razor").addEventListener("click", () => {
     stopPlay();

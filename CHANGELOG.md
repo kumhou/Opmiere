@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.23 — 2026-07-13
+
+### Added
+- **Close gaps (G)** on all tracks → `close_gaps`
+- **Lift / Extract** work area [In, Out)
+- **Timeline zoom** (+/− / 0 / buttons), horizontal scroll
+- **Keyboard help** overlay (`?`)
+- Test: `tests/test_desktop_gaps_lift_063.py`
+
 ## 0.4.22 — 2026-07-13
 
 ### Added

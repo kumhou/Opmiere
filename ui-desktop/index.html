@@ -192,8 +192,16 @@
             <button type="button" id="btn-next-cut" class="btn-mini" title="Next edit point (↓ / ')">Cut▶</button>
             <button type="button" id="btn-prev-marker" class="btn-mini" title="Prev marker (Shift+←)">◀Mk</button>
             <button type="button" id="btn-next-marker" class="btn-mini" title="Next marker (Shift+→)">Mk▶</button>
+            <button type="button" id="btn-close-gaps" class="btn-mini" title="Close gaps (G)">Gaps</button>
+            <button type="button" id="btn-lift" class="btn-mini" title="Lift work area (leave gap)">Lift</button>
+            <button type="button" id="btn-extract" class="btn-mini" title="Extract work area (ripple)">Extract</button>
+            <button type="button" id="btn-zoom-out" class="btn-mini" title="Zoom out (−)">−</button>
+            <span id="zoom-label" class="zoom-label">1.0×</span>
+            <button type="button" id="btn-zoom-in" class="btn-mini" title="Zoom in (+)">+</button>
+            <button type="button" id="btn-zoom-reset" class="btn-mini" title="Zoom 1× (0)">1×</button>
             <button type="button" id="btn-add-v" class="btn-mini" title="Add video track">+V</button>
             <button type="button" id="btn-add-a" class="btn-mini" title="Add audio track">+A</button>
+            <button type="button" id="btn-help" class="btn-mini" title="Keyboard help (?)">?</button>
           </div>
           <div class="timeline-body" id="timeline-body">
             Seek empty lane · drag body/edges · drop on another V/A track.
@@ -209,6 +217,39 @@
         <span class="pill" id="pill-validate">valid —</span>
         <span id="status-msg">Starting…</span>
       </footer>
+    </div>
+
+    <div id="help-overlay" class="help-overlay" aria-hidden="true">
+      <div class="help-panel" role="dialog" aria-label="Keyboard shortcuts">
+        <h2>Shortcuts</h2>
+        <div class="help-grid">
+          <div><kbd>Space</kbd>/<kbd>K</kbd> Play/Pause</div>
+          <div><kbd>J</kbd>/<kbd>L</kbd> −/+5f</div>
+          <div><kbd>←</kbd>/<kbd>→</kbd> ±1f</div>
+          <div><kbd>↑</kbd>/<kbd>↓</kbd> Edit points</div>
+          <div><kbd>I</kbd>/<kbd>O</kbd> Set In/Out</div>
+          <div><kbd>X</kbd> Clear I/O</div>
+          <div><kbd>S</kbd> Razor</div>
+          <div><kbd>Q</kbd>/<kbd>W</kbd> Trim head/tail</div>
+          <div><kbd>M</kbd> Marker</div>
+          <div><kbd>Shift</kbd>+<kbd>M</kbd> Mute</div>
+          <div><kbd>D</kbd> Select @ playhead</div>
+          <div><kbd>F</kbd> Match frame</div>
+          <div><kbd>U</kbd> Subclip</div>
+          <div><kbd>G</kbd> Close gaps</div>
+          <div><kbd>C</kbd> Cycle color</div>
+          <div><kbd>R</kbd> Rename</div>
+          <div><kbd>+</kbd>/<kbd>−</kbd> Zoom</div>
+          <div><kbd>0</kbd> Zoom 1×</div>
+          <div><kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> Undo/Redo</div>
+          <div><kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> Copy/Paste/Dup</div>
+          <div><kbd>Ctrl</kbd>+<kbd>L</kbd> Link</div>
+          <div><kbd>Del</kbd> Delete</div>
+          <div><kbd>?</kbd> This help</div>
+          <div><kbd>Esc</kbd> Clear / close</div>
+        </div>
+        <p class="help-note">Click outside or press Esc to close.</p>
+      </div>
     </div>
   </body>
 </html>
