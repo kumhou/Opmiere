@@ -554,6 +554,43 @@ button:disabled {
   max-width: 8em;
 }
 
+.clip-search {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--color-foreground);
+}
+
+.clip-search:focus {
+  outline: 1px solid var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.export-dir-list {
+  max-height: 10vh;
+  overflow: auto;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-md);
+  color: var(--color-foreground);
+}
+
+.export-dir-list.muted {
+  color: var(--color-muted);
+}
+
+.export-dir-row {
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .duration-report .kv {
   color: var(--color-muted);
   margin-top: 2px;

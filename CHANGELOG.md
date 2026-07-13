@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.30 — 2026-07-13
+
+### Added
+- **Clip search** box → select hits via `clips/search`
+- **Stabilize** selection
+- **Describe** clip JSON dump
+- **Mk out** YouTube chapters export
+- **Exp dir**: `GET /api/desktop/export_dir` list (+ Tauri open if available)
+- Test: `tests/test_desktop_search_stab_070.py`
+
 ## 0.4.29 — 2026-07-13
 
 ### Added

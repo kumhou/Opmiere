@@ -118,6 +118,10 @@
             <p class="kv"><b>Frame mode</b> <span id="frame-mode">—</span></p>
             <p class="kv"><b>Play</b> <span id="play-mode">stopped</span></p>
             <p class="kv"><b>Selected</b> <span id="sel-count">0</span></p>
+            <div class="speed-row">
+              <input type="search" id="clip-search" class="clip-search" placeholder="Search clips…" />
+              <button type="button" id="btn-clip-search" class="btn-mini" title="Search clips by name/path">Go</button>
+            </div>
             <div id="duration-report" class="duration-report muted">—</div>
             <div id="project-stats" class="project-stats muted">—</div>
             <div id="sel-card" class="sel-card muted">No selection</div>
@@ -176,6 +180,13 @@
               <button type="button" id="btn-dup-range" class="btn-mini" title="Duplicate I/O range after end">Dup I/O</button>
               <button type="button" id="btn-prep-export" class="btn-mini" title="prepare_export">Prep exp</button>
             </div>
+            <div class="speed-row">
+              <button type="button" id="btn-stabilize" class="btn-mini" title="Stabilize selected clip">Stabilize</button>
+              <button type="button" id="btn-describe" class="btn-mini" title="Describe selected clip">Describe</button>
+              <button type="button" id="btn-export-markers" class="btn-mini" title="Export markers (YouTube chapters)">Mk out</button>
+              <button type="button" id="btn-export-dir" class="btn-mini" title="List/open export folder">Exp dir</button>
+            </div>
+            <div id="export-dir-list" class="export-dir-list muted">—</div>
             <h2 class="subh">Style</h2>
             <div class="speed-row">
               <select id="style-select" class="export-preset" title="Look preset">

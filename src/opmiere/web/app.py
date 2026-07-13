@@ -307,6 +307,32 @@ def desktop_export(
     }
 
 
+@app.get("/api/desktop/export_dir")
+def desktop_export_dir() -> dict[str, Any]:
+    """Temp directory used by desktop Export buttons."""
+    import tempfile
+
+    out_dir = Path(tempfile.gettempdir()) / "opmiere_desktop_export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    files = sorted(
+        [
+            {
+                "name": p.name,
+                "path": str(p.resolve()),
+                "size": p.stat().st_size,
+            }
+            for p in out_dir.glob("*.mp4")
+            if p.is_file()
+        ],
+        key=lambda x: x["name"],
+    )
+    return {
+        "path": str(out_dir.resolve()),
+        "count": len(files),
+        "files": files[-20:],
+    }
+
+
 @app.post("/api/desktop/export_preset")
 def desktop_export_preset(preset: str = "draft") -> dict[str, Any]:
     """Export with a named preset to a temp file (desktop shell)."""

@@ -2044,6 +2044,130 @@ async function prepareExport() {
   }
 }
 
+async function searchAndSelectClips() {
+  if (!state.projectOpen) return;
+  const input = document.getElementById("clip-search") as HTMLInputElement | null;
+  const q = (input?.value || "").trim();
+  if (!q) {
+    $("status-msg").textContent = "Enter search text";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      hits?: Array<{ clip_id: string }>;
+    }>("/api/clips/search", { query: q });
+    const ids = (r.hits || []).map((h) => h.clip_id).filter(Boolean);
+    setSelection(ids);
+    $("status-msg").textContent = `Search "${q}": ${ids.length} hit(s)`;
+  } catch (e) {
+    $("status-msg").textContent = `Search failed: ${e}`;
+  }
+}
+
+async function stabilizeSelection() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select 1 clip to stabilize";
+    return;
+  }
+  $("status-msg").textContent = "Stabilizing (may take a bit)…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/stabilize",
+      { clip_id: ids[0], replace: true, strength: 1.0 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Stabilized ${ids[0]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Stabilize failed: ${e}`;
+  }
+}
+
+async function exportMarkersYoutube() {
+  if (!state.projectOpen) return;
+  try {
+    const r = await postJson<{ path?: string; count?: number; text?: string }>(
+      "/api/markers/export",
+      { format: "youtube" },
+    );
+    const el = document.getElementById("review-out");
+    if (el && r.text) {
+      el.className = "review-out";
+      el.textContent = String(r.text).slice(0, 500);
+    }
+    $("status-msg").textContent = r.path
+      ? `Markers exported: ${r.path}`
+      : `Markers export (${r.count ?? "ok"})`;
+  } catch (e) {
+    $("status-msg").textContent = `Export markers failed: ${e}`;
+  }
+}
+
+async function openExportDir() {
+  try {
+    const r = await getJson<{
+      path?: string;
+      count?: number;
+      files?: Array<{ name: string; path: string }>;
+    }>("/api/desktop/export_dir");
+    const el = document.getElementById("export-dir-list");
+    if (el) {
+      el.className = "export-dir-list";
+      if (!r.files?.length) {
+        el.className = "export-dir-list muted";
+        el.textContent = r.path ? `Empty: ${r.path}` : "No exports yet";
+      } else {
+        el.innerHTML = "";
+        const head = document.createElement("div");
+        head.className = "kv";
+        head.textContent = r.path || "";
+        head.title = r.path || "";
+        el.appendChild(head);
+        for (const f of r.files.slice(-8)) {
+          const row = document.createElement("div");
+          row.className = "export-dir-row";
+          row.textContent = f.name;
+          row.title = f.path;
+          el.appendChild(row);
+        }
+      }
+    }
+    $("status-msg").textContent = `Export dir: ${r.path} (${r.count ?? 0} files)`;
+    // try open folder via opener if available in Tauri
+    try {
+      // @ts-expect-error optional global from Tauri
+      const open = window.__TAURI__?.opener?.openPath || window.__TAURI__?.opener?.open;
+      if (open && r.path) await open(r.path);
+    } catch {
+      /* browser/dev: list only */
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Export dir failed: ${e}`;
+  }
+}
+
+async function describeSelectedClip() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select 1 clip to describe";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>(
+      `/api/clip/${encodeURIComponent(ids[0])}/describe`,
+    );
+    const el = document.getElementById("review-out");
+    if (el) {
+      el.className = "review-out";
+      el.textContent = JSON.stringify(r).slice(0, 500);
+    }
+    $("status-msg").textContent = `Described ${ids[0]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Describe failed: ${e}`;
+  }
+}
+
 async function exportWorkArea() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -3970,6 +4094,27 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-prep-export").addEventListener("click", () => {
     void prepareExport();
+  });
+  $("btn-clip-search").addEventListener("click", () => {
+    void searchAndSelectClips();
+  });
+  $("clip-search").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      void searchAndSelectClips();
+    }
+  });
+  $("btn-stabilize").addEventListener("click", () => {
+    void stabilizeSelection();
+  });
+  $("btn-export-markers").addEventListener("click", () => {
+    void exportMarkersYoutube();
+  });
+  $("btn-export-dir").addEventListener("click", () => {
+    void openExportDir();
+  });
+  $("btn-describe").addEventListener("click", () => {
+    void describeSelectedClip();
   });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();
