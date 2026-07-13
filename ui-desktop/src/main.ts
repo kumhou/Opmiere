@@ -1347,6 +1347,135 @@ async function splitAtMarkers() {
   }
 }
 
+async function nameSelectionFromMedia() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to name from media";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/name_from_media",
+      { clip_ids: ids, strip_ext: true },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Named ${ids.length} from media`;
+  } catch (e) {
+    $("status-msg").textContent = `Name from media failed: ${e}`;
+  }
+}
+
+async function duplicateSelectedTrack() {
+  if (!state.projectOpen) return;
+  // prefer track of first selected clip, else first track
+  let trackId: string | null = null;
+  const ids = selectionList();
+  if (ids.length) {
+    trackId = state.clips.get(ids[0])?.trackId || null;
+  }
+  if (!trackId) trackId = state.tracks[0]?.id || null;
+  if (!trackId) {
+    $("status-msg").textContent = "No track to duplicate";
+    return;
+  }
+  $("status-msg").textContent = `Duplicate track ${trackId}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/track/duplicate",
+      { track_id: trackId, copy_clips: true },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Duplicated track ${trackId}`;
+  } catch (e) {
+    $("status-msg").textContent = `Dup track failed: ${e}`;
+  }
+}
+
+async function purgeUnusedMedia() {
+  if (!state.projectOpen) return;
+  $("status-msg").textContent = "Purging unused media…";
+  try {
+    const unused = await getJson<{ count?: number; media?: unknown[] }>(
+      "/api/media/unused",
+    );
+    const n = unused.count ?? (unused.media?.length ?? 0);
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      removed?: unknown[];
+    }>("/api/media/purge_unused", { delete_files: false });
+    if (r.timeline) applyTimelineView(r.timeline);
+    await refreshMediaBin();
+    await refreshProjectStats();
+    $("status-msg").textContent = `Purged ${r.count ?? n} unused media`;
+  } catch (e) {
+    $("status-msg").textContent = `Purge failed: ${e}`;
+  }
+}
+
+async function soloSelection(exclusive = true) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to solo";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/solo", {
+      clip_id: ids[0],
+      exclusive,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Solo ${ids[0]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Solo failed: ${e}`;
+  }
+}
+
+async function unmuteAllClips() {
+  if (!state.projectOpen) return;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/unmute_all",
+      {},
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = "Unmuted all clips";
+  } catch (e) {
+    // endpoint may be query-only
+    try {
+      const res = await fetch(`${API_BASE}/api/clips/unmute_all`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = (await res.json()) as { timeline?: TimelineView };
+      if (body.timeline) applyTimelineView(body.timeline);
+      $("status-msg").textContent = "Unmuted all clips";
+    } catch (e2) {
+      $("status-msg").textContent = `Unmute all failed: ${e2}`;
+    }
+  }
+}
+
+async function jlCutSelection(kind: "j" | "l", frames = 12) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = `Select a linked clip for ${kind.toUpperCase()}-cut`;
+    return;
+  }
+  const path = kind === "j" ? "/api/clip/j_cut" : "/api/clip/l_cut";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(path, {
+      clip_id: ids[0],
+      frames,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `${kind.toUpperCase()}-cut ${frames}f`;
+  } catch (e) {
+    $("status-msg").textContent = `${kind.toUpperCase()}-cut failed: ${e}`;
+  }
+}
+
 async function exportWorkArea() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -3168,6 +3297,28 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-split-markers").addEventListener("click", () => {
     stopPlay();
     void splitAtMarkers();
+  });
+  $("btn-name-media").addEventListener("click", () => {
+    void nameSelectionFromMedia();
+  });
+  $("btn-dup-track").addEventListener("click", () => {
+    stopPlay();
+    void duplicateSelectedTrack();
+  });
+  $("btn-purge").addEventListener("click", () => {
+    void purgeUnusedMedia();
+  });
+  $("btn-solo").addEventListener("click", () => {
+    void soloSelection(true);
+  });
+  $("btn-unmute-all").addEventListener("click", () => {
+    void unmuteAllClips();
+  });
+  $("btn-jcut").addEventListener("click", () => {
+    void jlCutSelection("j", 12);
+  });
+  $("btn-lcut").addEventListener("click", () => {
+    void jlCutSelection("l", 12);
   });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();

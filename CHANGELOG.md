@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.25 — 2026-07-13
+
+### Added
+- **Name←file**: rename selection from media basename → `clips/name_from_media`
+- **Dup trk**: duplicate track of selection → `track/duplicate`
+- **Purge**: unused media (metadata) → `media/purge_unused`
+- **Solo / Unmute**: clip solo + unmute all
+- **J-cut / L-cut** buttons (needs linked A/V)
+- Test: `tests/test_desktop_craft_065.py`
+
 ## 0.4.24 — 2026-07-13
 
 ### Added
