@@ -39,11 +39,10 @@ Optional: `VITE_OPMIERE_API=http://127.0.0.1:8787` (default).
 
 | In | Out |
 |----|-----|
-| Window chrome + design tokens | Full NLE edit gestures |
-| Status: doctor / preview engine / timeline snapshot | Agent chat panel |
-| **Program monitor scrub + play** (proxy video / stepped OpenShot) | Full realtime effects play |
-| **Edit shell**: full NLE craft + native Open/New dialogs (Tauri) | Installer packaging |
-| Demo project + timeline click seek | Shipping installer polish |
+| Window chrome + design tokens | Agent chat panel |
+| Program monitor scrub + play (proxy / OpenShot stills) | Full realtime effects play |
+| Full NLE craft shell + native Open/New dialogs | Embedded Python core in installer |
+| **Windows NSIS installer** (`scripts/build-desktop.ps1`) | Code-signing / auto-update |
 
 ### Program monitor
 
@@ -52,10 +51,39 @@ After core API is up and **Demo project** (or any open project):
 1. Scrub bar / ◀ ▶ / click timeline lane  
 2. Engine: `auto` (OpenShot if installed) · `openshot` · `proxy` · `base`
 
+## Release build (Windows installer)
+
+From repo root (loads VS Build Tools `vcvars64` when present):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-desktop.ps1
+```
+
+Artifacts:
+
+- `ui-desktop/src-tauri/target/release/opmiere-desktop.exe` — portable shell
+- `ui-desktop/src-tauri/target/release/bundle/nsis/*.exe` — NSIS installer
+
+Or from `ui-desktop/`:
+
+```powershell
+npm run tauri:build
+```
+
+**Runtime:** the shell still expects Python core on `http://127.0.0.1:8787`:
+
+```powershell
+pip install -e ".[web]"
+python -m opmiere.web.app
+```
+
 ## Layout
 
 ```
 ui-desktop/
   src/           # Vite TS frontend
-  src-tauri/     # Tauri host
+  src-tauri/     # Tauri host + NSIS bundle config
+scripts/
+  dev-desktop.ps1
+  build-desktop.ps1
 ```

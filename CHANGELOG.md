@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.32 — 2026-07-13
+
+### Added
+- **Windows packaging**: NSIS installer target for Tauri shell
+  - `scripts/build-desktop.ps1` (MSVC vcvars + `tauri build --bundles nsis`)
+  - `npm run tauri:build` in `ui-desktop/`
+  - Bundle metadata (publisher, description, currentUser install)
+- Docs: release artifact paths + runtime note (Python API still separate)
+
 ## 0.4.31 — 2026-07-13
 
 ### Added
