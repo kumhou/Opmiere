@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.21 — 2026-07-13
+
+### Added
+- **Undo / Redo** buttons + history pill (`undo/redo` depth via `GET /api/history`)
+- **Sel@ / D**: select clip(s) under playhead → `clips/at`
+- **Duration report** in inspector → `GET /api/duration_report`
+- Test: `tests/test_desktop_history_sel_061.py`
+
 ## 0.4.20 — 2026-07-13
 
 ### Added

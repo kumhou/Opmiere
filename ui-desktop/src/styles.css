@@ -459,6 +459,30 @@ button:disabled {
   color: var(--color-primary);
 }
 
+.duration-report {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-foreground);
+}
+
+.duration-report.muted {
+  color: var(--color-muted);
+}
+
+.duration-report .kv {
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sel-card {
   margin: var(--space-sm) 0 var(--space-md);
   padding: var(--space-md);

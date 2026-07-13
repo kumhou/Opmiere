@@ -59,6 +59,7 @@ type TimelineView = {
   dirty?: boolean;
   autosave?: boolean;
   can_undo?: boolean;
+  can_redo?: boolean;
   notes?: string;
   bundle_path?: string;
   tracks?: Array<{
@@ -148,6 +149,10 @@ const state = {
   notes: "",
   bundlePath: "",
   autosave: false,
+  canUndo: false,
+  canRedo: false,
+  undoDepth: 0,
+  redoDepth: 0,
 };
 
 function $(id: string): HTMLElement {
@@ -1306,6 +1311,7 @@ async function redoEdit() {
     const r = await postJson<{ timeline?: TimelineView }>("/api/redo", {});
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
+    await refreshHistory();
     void seekTo(state.t);
     $("status-msg").textContent = "Redo";
   } catch (e) {
@@ -1826,6 +1832,105 @@ async function clearSelectionEffects() {
   }
 }
 
+function syncHistoryUi(opts?: {
+  can_undo?: boolean;
+  can_redo?: boolean;
+  undo_depth?: number;
+  redo_depth?: number;
+}) {
+  if (typeof opts?.can_undo === "boolean") state.canUndo = opts.can_undo;
+  if (typeof opts?.can_redo === "boolean") state.canRedo = opts.can_redo;
+  if (typeof opts?.undo_depth === "number") state.undoDepth = opts.undo_depth;
+  if (typeof opts?.redo_depth === "number") state.redoDepth = opts.redo_depth;
+  const u = document.getElementById("btn-undo") as HTMLButtonElement | null;
+  const r = document.getElementById("btn-redo") as HTMLButtonElement | null;
+  if (u) {
+    u.disabled = !state.canUndo;
+    u.title = `Undo (Ctrl+Z)${state.undoDepth ? ` · ${state.undoDepth}` : ""}`;
+  }
+  if (r) {
+    r.disabled = !state.canRedo;
+    r.title = `Redo (Ctrl+Y)${state.redoDepth ? ` · ${state.redoDepth}` : ""}`;
+  }
+  const pill = document.getElementById("pill-history");
+  if (pill) {
+    pill.textContent = `↕ ${state.undoDepth}/${state.redoDepth}`;
+    pill.className = `pill ${state.canUndo || state.canRedo ? "ok" : ""}`;
+    pill.title = `undo ${state.undoDepth} · redo ${state.redoDepth}`;
+  }
+}
+
+async function refreshHistory() {
+  if (!state.projectOpen) {
+    syncHistoryUi({
+      can_undo: false,
+      can_redo: false,
+      undo_depth: 0,
+      redo_depth: 0,
+    });
+    return;
+  }
+  try {
+    const h = await getJson<{
+      can_undo?: boolean;
+      can_redo?: boolean;
+      undo_depth?: number;
+      redo_depth?: number;
+    }>("/api/history");
+    syncHistoryUi(h);
+  } catch {
+    /* keep last */
+  }
+}
+
+async function refreshDurationReport() {
+  const el = document.getElementById("duration-report");
+  if (!el) return;
+  if (!state.projectOpen) {
+    el.className = "duration-report muted";
+    el.textContent = "—";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      duration_seconds?: number;
+      duration_frames?: number;
+      track_count?: number;
+      media_count?: number;
+      marker_count?: number;
+    }>("/api/duration_report");
+    el.className = "duration-report";
+    el.innerHTML = [
+      `<div>${(r.duration_seconds ?? 0).toFixed(2)}s · ${r.duration_frames ?? 0}f</div>`,
+      `<div class="kv">${r.track_count ?? 0} tracks · ${r.media_count ?? 0} media · ${r.marker_count ?? 0} mk</div>`,
+    ].join("");
+  } catch {
+    el.className = "duration-report muted";
+    el.textContent = "report n/a";
+  }
+}
+
+async function selectAtPlayhead() {
+  if (!state.projectOpen) return;
+  const frame = playheadFrame();
+  try {
+    const r = await postJson<{
+      hits?: Array<{ clip_id: string; track_id?: string }>;
+      count?: number;
+    }>("/api/clips/at", { timeline_frame: frame });
+    const hits = r.hits || [];
+    if (!hits.length) {
+      setSelection([]);
+      $("status-msg").textContent = `No clip @ f${frame}`;
+      return;
+    }
+    setSelection(hits.map((h) => h.clip_id));
+    $("status-msg").textContent = `Selected ${hits.length} @ f${frame}`;
+  } catch (e) {
+    $("status-msg").textContent = `Select@playhead failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -1885,6 +1990,7 @@ async function undoEdit() {
     const r = await postJson<{ timeline?: TimelineView }>("/api/undo", {});
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
+    await refreshHistory();
     void seekTo(state.t);
     $("status-msg").textContent = "Undo";
   } catch (e) {
@@ -2145,6 +2251,12 @@ function renderTimeline(view: TimelineView | null) {
   applyNotesUi(view.notes || "", view.bundle_path);
   if (typeof view.autosave === "boolean") syncAutosaveUi(view.autosave);
   state.dirty = !!view.dirty;
+  if (typeof view.can_undo === "boolean" || typeof view.can_redo === "boolean") {
+    syncHistoryUi({
+      can_undo: view.can_undo,
+      can_redo: view.can_redo,
+    });
+  }
   const dirty = state.dirty ? " · dirty" : "";
   meta.textContent = `${view.tracks.length} tracks · ${state.durationSec.toFixed(2)}s · snap±${state.snapThr}f${dirty}`;
   const dirtyPill = document.getElementById("pill-dirty");
@@ -2394,6 +2506,8 @@ async function refresh() {
       await refreshMediaBin();
       await refreshMarkers();
       await refreshValidate();
+      await refreshHistory();
+      await refreshDurationReport();
     } else {
       state.durationSec = 0;
       state.durationFrames = 0;
@@ -2407,6 +2521,8 @@ async function refresh() {
       renderMarkerList();
       applyNotesUi("");
       await refreshValidate();
+      await refreshHistory();
+      await refreshDurationReport();
     }
 
     $("status-msg").textContent = "Ready";
@@ -2602,6 +2718,12 @@ function onKey(ev: KeyboardEvent) {
     void trimSelectionToPlayhead("tail");
     return;
   }
+  if (k === "d" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    // plain D: select under playhead (Ctrl+D remains duplicate)
+    ev.preventDefault();
+    void selectAtPlayhead();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -2666,6 +2788,17 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-save").addEventListener("click", () => {
     void saveProject();
+  });
+  $("btn-undo").addEventListener("click", () => {
+    stopPlay();
+    void undoEdit();
+  });
+  $("btn-redo").addEventListener("click", () => {
+    stopPlay();
+    void redoEdit();
+  });
+  $("btn-select-at").addEventListener("click", () => {
+    void selectAtPlayhead();
   });
   $("btn-razor").addEventListener("click", () => {
     stopPlay();
