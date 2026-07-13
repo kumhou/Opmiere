@@ -1931,6 +1931,116 @@ async function selectAtPlayhead() {
   }
 }
 
+async function matchFrameAtPlayhead() {
+  if (!state.projectOpen) return;
+  const frame = playheadFrame();
+  const ids = selectionList();
+  const body: { timeline_frame: number; clip_id?: string } = {
+    timeline_frame: frame,
+  };
+  if (ids.length === 1) body.clip_id = ids[0];
+  try {
+    const r = await postJson<{
+      clip_id?: string;
+      src_frame?: number;
+      src_time_seconds?: number;
+      path?: string;
+      media_id?: string;
+      start?: number;
+      end?: number;
+    }>("/api/clip/match_frame", body);
+    if (r.clip_id) setSelection([r.clip_id]);
+    const el = document.getElementById("match-frame-info");
+    if (el) {
+      el.className = "match-frame-info";
+      el.innerHTML = [
+        `<div class="sel-title">Match frame</div>`,
+        `<div class="kv">tl f${frame} → src f${r.src_frame ?? "—"} (${(r.src_time_seconds ?? 0).toFixed(3)}s)</div>`,
+        `<div class="kv">${escapeHtml(String(r.path || r.media_id || r.clip_id || ""))}</div>`,
+      ].join("");
+    }
+    $("status-msg").textContent = `Match: src f${r.src_frame ?? "—"} · ${r.path || r.clip_id || ""}`;
+  } catch (e) {
+    $("status-msg").textContent = `Match frame failed: ${e}`;
+  }
+}
+
+async function subclipSelection() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip for subclip";
+    return;
+  }
+  const clipId = ids[0];
+  const useIO = !!state.workIO.ready;
+  $("status-msg").textContent = useIO
+    ? "Subclip from work area…"
+    : "Subclip (middle half)…";
+  try {
+    const payload: Record<string, unknown> = {
+      clip_id: clipId,
+      place: "after",
+      name: "subclip",
+    };
+    if (useIO) {
+      payload.use_work_area = true;
+    } else {
+      const c = state.clips.get(clipId);
+      if (!c) throw new Error("clip not found");
+      const a = c.start + Math.floor(c.dur * 0.25);
+      const b = c.start + Math.floor(c.dur * 0.75);
+      if (b <= a + 1) throw new Error("clip too short for auto subclip");
+      payload.timeline_start = a;
+      payload.timeline_end = b;
+    }
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/clip/subclip",
+      payload,
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    if (r.clip_id) setSelection([r.clip_id]);
+    $("status-msg").textContent = `Subclip ${r.clip_id || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Subclip failed: ${e}`;
+  }
+}
+
+async function markersFromCuts() {
+  if (!state.projectOpen) return;
+  // prefer first video track with clips
+  const tid =
+    state.tracks.find((t) => t.kind === "video")?.id || state.tracks[0]?.id;
+  if (!tid) {
+    $("status-msg").textContent = "No track for cut markers";
+    return;
+  }
+  try {
+    const r = await postJson<{ count?: number; markers?: Marker[] }>(
+      "/api/markers/from_cuts",
+      { track_id: tid, label_prefix: "Cut", color: "#ffb703" },
+    );
+    await refreshMarkers();
+    $("status-msg").textContent = `Cut markers: +${r.count ?? 0}`;
+  } catch (e) {
+    $("status-msg").textContent = `Cut markers failed: ${e}`;
+  }
+}
+
+async function clearAllMarkers() {
+  if (!state.projectOpen) return;
+  try {
+    await postJson("/api/markers/clear", {});
+    state.markers = [];
+    renderMarkerList();
+    const ruler = document.querySelector(".marker-ruler") as HTMLElement | null;
+    if (ruler) paintMarkerRuler(ruler);
+    $("status-msg").textContent = "Markers cleared";
+  } catch (e) {
+    $("status-msg").textContent = `Clear markers failed: ${e}`;
+  }
+}
+
 async function edgeTrim(
   clipId: string,
   edge: "left" | "right",
@@ -2724,6 +2834,17 @@ function onKey(ev: KeyboardEvent) {
     void selectAtPlayhead();
     return;
   }
+  if (k === "f" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    void matchFrameAtPlayhead();
+    return;
+  }
+  if (k === "u" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    stopPlay();
+    void subclipSelection();
+    return;
+  }
   if (ev.key === "Delete" || ev.key === "Backspace") {
     ev.preventDefault();
     stopPlay();
@@ -2799,6 +2920,19 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-select-at").addEventListener("click", () => {
     void selectAtPlayhead();
+  });
+  $("btn-match-frame").addEventListener("click", () => {
+    void matchFrameAtPlayhead();
+  });
+  $("btn-subclip").addEventListener("click", () => {
+    stopPlay();
+    void subclipSelection();
+  });
+  $("btn-marks-cuts").addEventListener("click", () => {
+    void markersFromCuts();
+  });
+  $("btn-marks-clear").addEventListener("click", () => {
+    void clearAllMarkers();
   });
   $("btn-razor").addEventListener("click", () => {
     stopPlay();

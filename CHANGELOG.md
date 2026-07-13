@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.22 — 2026-07-13
+
+### Added
+- **Match frame (F)**: source frame at playhead → `clip/match_frame` + inspector card
+- **Subclip (U)**: from work I/O if set, else middle half → `clip/subclip`
+- **Markers from cuts** + clear all
+- Test: `tests/test_desktop_match_subclip_062.py`
+
 ## 0.4.21 — 2026-07-13
 
 ### Added
