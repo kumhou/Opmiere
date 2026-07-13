@@ -480,17 +480,20 @@ function updateSelectionCard() {
   if (!ids.length) {
     el.className = "sel-card muted";
     el.textContent = "No selection";
+    void refreshEffectsList();
     return;
   }
   if (ids.length > 1) {
     el.className = "sel-card";
     el.innerHTML = `<div><b>${ids.length}</b> clips selected</div>`;
+    void refreshEffectsList();
     return;
   }
   const c = state.clips.get(ids[0]);
   if (!c) {
     el.className = "sel-card muted";
     el.textContent = ids[0];
+    void refreshEffectsList();
     return;
   }
   el.className = "sel-card";
@@ -505,6 +508,7 @@ function updateSelectionCard() {
   ]
     .filter(Boolean)
     .join("");
+  void refreshEffectsList();
 }
 
 function escapeHtml(s: string): string {
@@ -1629,6 +1633,172 @@ async function applySelectedStyle() {
     $("status-msg").textContent = `Style ${name} applied`;
   } catch (e) {
     $("status-msg").textContent = `Style failed: ${e}`;
+  }
+}
+
+async function copyEffectsFromSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to copy effects";
+    return;
+  }
+  try {
+    const r = await postJson<{ count?: number; types?: string[] }>(
+      "/api/clip/copy_effects",
+      { clip_id: ids[0] },
+    );
+    $("status-msg").textContent =
+      `Copied ${r.count ?? 0} fx: ${(r.types || []).join(",") || "—"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Copy FX failed: ${e}`;
+  }
+}
+
+async function pasteEffectsToSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to paste effects";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/paste_effects",
+        { clip_id: clipId, replace: true },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    $("status-msg").textContent = `Pasted FX → ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Paste FX failed: ${e}`;
+  }
+}
+
+async function copyAttributesFromSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to copy attributes";
+    return;
+  }
+  try {
+    await postJson("/api/clip/copy_attributes", { clip_id: ids[0] });
+    $("status-msg").textContent = `Copied attributes from ${ids[0]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Copy attrs failed: ${e}`;
+  }
+}
+
+async function pasteAttributesToSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to paste attributes";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/paste_attributes",
+        {
+          clip_id: clipId,
+          speed: true,
+          position: true,
+          gain: true,
+          opacity: true,
+          fades: true,
+        },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    $("status-msg").textContent = `Pasted attrs → ${ids.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Paste attrs failed: ${e}`;
+  }
+}
+
+async function refreshEffectsList() {
+  const el = document.getElementById("effects-list");
+  if (!el) return;
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    el.className = "effects-list muted";
+    el.textContent = ids.length ? "Select 1 clip for FX list" : "No selection";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      count?: number;
+      effects?: Array<{ type?: string }>;
+    }>(`/api/clip/effects/${encodeURIComponent(ids[0])}`);
+    const fx = r.effects || [];
+    if (!fx.length) {
+      el.className = "effects-list muted";
+      el.textContent = "No effects";
+      return;
+    }
+    el.className = "effects-list";
+    el.innerHTML = "";
+    for (const e of fx) {
+      const row = document.createElement("div");
+      row.className = "effects-row";
+      row.textContent = e.type || "?";
+      el.appendChild(row);
+    }
+  } catch {
+    el.className = "effects-list muted";
+    el.textContent = "FX list n/a";
+  }
+}
+
+async function runReview() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Running review…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/review", {});
+    const el = document.getElementById("review-out");
+    if (el) {
+      el.className = "review-out";
+      el.textContent = JSON.stringify(r, null, 0).slice(0, 400);
+    }
+    $("status-msg").textContent = "Review complete";
+  } catch (e) {
+    $("status-msg").textContent = `Review failed: ${e}`;
+  }
+}
+
+async function makeSequenceSheet() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Building sequence sheet…";
+  try {
+    const r = await postJson<{ path?: string; output_path?: string }>(
+      "/api/sequence_sheet",
+      { max_tiles: 12 },
+    );
+    const path = r.path || r.output_path;
+    $("status-msg").textContent = path
+      ? `Sheet: ${path}`
+      : "Sequence sheet done";
+    // try open image via API
+    try {
+      const img = document.getElementById("sheet-preview") as HTMLImageElement | null;
+      if (img) {
+        img.src = `${API_BASE}/api/sequence_sheet/image?t=${Date.now()}`;
+        img.hidden = false;
+      }
+    } catch {
+      /* optional */
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Sheet failed: ${e}`;
   }
 }
 
@@ -3502,6 +3672,24 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-style").addEventListener("click", () => {
     void applySelectedStyle();
+  });
+  $("btn-copy-fx").addEventListener("click", () => {
+    void copyEffectsFromSelection();
+  });
+  $("btn-paste-fx").addEventListener("click", () => {
+    void pasteEffectsToSelection();
+  });
+  $("btn-copy-attr").addEventListener("click", () => {
+    void copyAttributesFromSelection();
+  });
+  $("btn-paste-attr").addEventListener("click", () => {
+    void pasteAttributesToSelection();
+  });
+  $("btn-review").addEventListener("click", () => {
+    void runReview();
+  });
+  $("btn-sheet").addEventListener("click", () => {
+    void makeSequenceSheet();
   });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();

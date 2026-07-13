@@ -584,6 +584,37 @@ button:disabled {
   color: var(--color-muted);
 }
 
+.effects-list,
+.review-out {
+  max-height: 10vh;
+  overflow: auto;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  margin-bottom: var(--space-md);
+  color: var(--color-foreground);
+}
+
+.effects-list.muted,
+.review-out.muted {
+  color: var(--color-muted);
+}
+
+.effects-row {
+  padding: 1px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sheet-preview {
+  display: block;
+  width: 100%;
+  max-height: 12vh;
+  object-fit: contain;
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #000;
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;

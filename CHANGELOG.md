@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.27 — 2026-07-13
+
+### Added
+- **Copy/Paste FX** + **Copy/Paste attributes** (session clipboard)
+- **Effects list** for single selection
+- **Review** (`review_cut`) + **Sequence sheet** (+ image preview)
+- Test: `tests/test_desktop_fx_review_067.py`
+
 ## 0.4.26 — 2026-07-13
 
 ### Added
