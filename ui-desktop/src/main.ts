@@ -1934,6 +1934,116 @@ async function fillGapsOnTracks() {
   }
 }
 
+async function freezeAtPlayhead(durationFrames = 15) {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select 1 clip for freeze frame";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Freeze @ f${ph}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/clip/freeze",
+      {
+        clip_id: ids[0],
+        at_timeline_frame: ph,
+        duration_frames: durationFrames,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Freeze ${durationFrames}f @ f${ph}`;
+  } catch (e) {
+    $("status-msg").textContent = `Freeze failed: ${e}`;
+  }
+}
+
+async function matchDurationSelection() {
+  const ids = selectionList();
+  if (ids.length !== 2) {
+    $("status-msg").textContent = "Select 2 clips: target then reference order (start order)";
+    return;
+  }
+  const ordered = ids
+    .map((id) => state.clips.get(id))
+    .filter((c): c is ClipInfo => !!c)
+    .sort((a, b) => a.start - b.start);
+  if (ordered.length !== 2) {
+    $("status-msg").textContent = "Match duration needs 2 known clips";
+    return;
+  }
+  // stretch first to match second's duration (reference = later by default)
+  // UX: selected[0] is target, selected[1] is reference if we use selection order
+  const target = ids[0];
+  const reference = ids[1];
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/match_duration",
+      { clip_id: target, reference_clip_id: reference, clamp: true },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Match duration ${target} ← ${reference}`;
+  } catch (e) {
+    $("status-msg").textContent = `Match duration failed: ${e}`;
+  }
+}
+
+async function duplicateWorkArea() {
+  if (!state.projectOpen) return;
+  if (!state.workIO.ready) {
+    $("status-msg").textContent = "Set In/Out for range duplicate";
+    return;
+  }
+  const start = state.workIO.in_frame!;
+  const end = state.workIO.out_frame!;
+  let trackId =
+    selectionList()
+      .map((id) => state.clips.get(id)?.trackId)
+      .find(Boolean) || state.tracks[0]?.id;
+  if (!trackId) {
+    $("status-msg").textContent = "No track for duplicate range";
+    return;
+  }
+  // place after sequence end
+  const destStart = Math.max(state.durationFrames, end);
+  $("status-msg").textContent = `Dup range [${start},${end})…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/duplicate_range",
+      {
+        start_frame: start,
+        end_frame: end,
+        track_id: trackId,
+        dest_start: destStart,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Duplicated range → f${destStart}`;
+  } catch (e) {
+    $("status-msg").textContent = `Dup range failed: ${e}`;
+  }
+}
+
+async function prepareExport() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Prepare export…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; result?: unknown }>(
+      "/api/prepare_export",
+      {},
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = "Export prepared";
+  } catch (e) {
+    $("status-msg").textContent = `Prepare failed: ${e}`;
+  }
+}
+
 async function exportWorkArea() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -3846,6 +3956,20 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-fill-gaps").addEventListener("click", () => {
     void fillGapsOnTracks();
+  });
+  $("btn-freeze").addEventListener("click", () => {
+    stopPlay();
+    void freezeAtPlayhead(15);
+  });
+  $("btn-match-dur").addEventListener("click", () => {
+    void matchDurationSelection();
+  });
+  $("btn-dup-range").addEventListener("click", () => {
+    stopPlay();
+    void duplicateWorkArea();
+  });
+  $("btn-prep-export").addEventListener("click", () => {
+    void prepareExport();
   });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();

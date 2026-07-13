@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.29 — 2026-07-13
+
+### Added
+- **Freeze**: freeze-frame at playhead (15f) → `clip/freeze`
+- **MatchΔ**: match duration (1st selected ← 2nd)
+- **Dup I/O**: duplicate work-area range after sequence end
+- **Prep exp**: `prepare_export`
+- Test: `tests/test_desktop_freeze_dup_069.py`
+
 ## 0.4.28 — 2026-07-13
 
 ### Added
