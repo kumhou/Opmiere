@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.28 — 2026-07-13
+
+### Added
+- **Slide±**, **Stretch ×0.5/×2**, **Stagger**
+- **Rev trk / Rev clip**, **Fill gaps**
+- Test: `tests/test_desktop_slide_stretch_068.py`
+
 ## 0.4.27 — 2026-07-13
 
 ### Added

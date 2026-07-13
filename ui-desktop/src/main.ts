@@ -1802,6 +1802,138 @@ async function makeSequenceSheet() {
   }
 }
 
+async function slideSelection(delta: number) {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select 1 middle clip to slide";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/slide", {
+      clip_id: ids[0],
+      delta_frames: delta,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Slide ${delta > 0 ? "+" : ""}${delta}f`;
+  } catch (e) {
+    $("status-msg").textContent = `Slide failed: ${e}`;
+  }
+}
+
+async function stretchSelection(factor: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to stretch";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const info = state.clips.get(id);
+      if (!info) continue;
+      const target = Math.max(1, Math.round(info.dur * factor));
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/stretch", {
+        clip_id: id,
+        target_duration_frames: target,
+        clamp: true,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    $("status-msg").textContent = `Stretch ×${factor} (${ids.length})`;
+  } catch (e) {
+    $("status-msg").textContent = `Stretch failed: ${e}`;
+  }
+}
+
+async function staggerSelection(offset = 6) {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips to stagger";
+    return;
+  }
+  // order by start
+  const ordered = ids
+    .map((id) => state.clips.get(id))
+    .filter((c): c is ClipInfo => !!c)
+    .sort((a, b) => a.start - b.start)
+    .map((c) => c.id);
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/stagger", {
+      clip_ids: ordered,
+      offset_frames: offset,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Stagger +${offset}f ×${ordered.length}`;
+  } catch (e) {
+    $("status-msg").textContent = `Stagger failed: ${e}`;
+  }
+}
+
+async function reverseTrackOrder() {
+  if (!state.projectOpen) return;
+  let trackId: string | null = null;
+  const ids = selectionList();
+  if (ids.length) trackId = state.clips.get(ids[0])?.trackId || null;
+  if (!trackId) trackId = state.tracks[0]?.id || null;
+  if (!trackId) {
+    $("status-msg").textContent = "No track to reverse";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/track/reverse_order",
+      { track_id: trackId, pack_from: 0 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Reversed track order ${trackId}`;
+  } catch (e) {
+    $("status-msg").textContent = `Reverse track failed: ${e}`;
+  }
+}
+
+async function reverseSelectionClip() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select 1 clip to reverse";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/reverse", {
+      clip_id: ids[0],
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Reversed ${ids[0]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Reverse clip failed: ${e}`;
+  }
+}
+
+async function fillGapsOnTracks() {
+  if (!state.projectOpen) return;
+  $("status-msg").textContent = "Fill gaps…";
+  try {
+    let last: TimelineView | undefined;
+    for (const t of state.tracks) {
+      try {
+        const r = await postJson<{ timeline?: TimelineView }>("/api/fill_gaps", {
+          track_id: t.id,
+          mode: "slug",
+        });
+        if (r.timeline) last = r.timeline;
+      } catch {
+        /* track may not support */
+      }
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = "Fill gaps done";
+  } catch (e) {
+    $("status-msg").textContent = `Fill gaps failed: ${e}`;
+  }
+}
+
 async function exportWorkArea() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -3690,6 +3822,30 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-sheet").addEventListener("click", () => {
     void makeSequenceSheet();
+  });
+  $("btn-slide-m").addEventListener("click", () => {
+    void slideSelection(-5);
+  });
+  $("btn-slide-p").addEventListener("click", () => {
+    void slideSelection(5);
+  });
+  $("btn-stretch-half").addEventListener("click", () => {
+    void stretchSelection(0.5);
+  });
+  $("btn-stretch-dbl").addEventListener("click", () => {
+    void stretchSelection(2);
+  });
+  $("btn-stagger").addEventListener("click", () => {
+    void staggerSelection(6);
+  });
+  $("btn-rev-track").addEventListener("click", () => {
+    void reverseTrackOrder();
+  });
+  $("btn-rev-clip").addEventListener("click", () => {
+    void reverseSelectionClip();
+  });
+  $("btn-fill-gaps").addEventListener("click", () => {
+    void fillGapsOnTracks();
   });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();
