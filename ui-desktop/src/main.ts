@@ -1476,6 +1476,162 @@ async function jlCutSelection(kind: "j" | "l", frames = 12) {
   }
 }
 
+async function snapSelection(to: "prev_end" | "next_start" | "zero" = "prev_end") {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to snap";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/snap", {
+        clip_id: clipId,
+        to,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    $("status-msg").textContent = `Snap → ${to} (${ids.length})`;
+  } catch (e) {
+    $("status-msg").textContent = `Snap failed: ${e}`;
+  }
+}
+
+async function quantizeSelection(grid = 10) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to quantize";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/quantize",
+      { clip_ids: ids, grid_frames: grid, edge: "start" },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Quantize ${grid}f grid (${ids.length})`;
+  } catch (e) {
+    $("status-msg").textContent = `Quantize failed: ${e}`;
+  }
+}
+
+async function alignSelectionToPlayhead() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to align";
+    return;
+  }
+  const frame = playheadFrame();
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/align", {
+      clip_ids: ids,
+      to_frame: frame,
+      mode: "start",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Align start → f${frame}`;
+  } catch (e) {
+    $("status-msg").textContent = `Align failed: ${e}`;
+  }
+}
+
+async function slipSelection(delta: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to slip";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/slip", {
+        clip_id: clipId,
+        delta_src_frames: delta,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    $("status-msg").textContent = `Slip ${delta > 0 ? "+" : ""}${delta}f`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Slip failed: ${e}`;
+  }
+}
+
+async function rollSelection(delta: number) {
+  const ids = selectionList();
+  if (ids.length !== 2) {
+    $("status-msg").textContent = "Select 2 adjacent clips to roll";
+    return;
+  }
+  const infos = ids
+    .map((id) => state.clips.get(id))
+    .filter((c): c is ClipInfo => !!c)
+    .sort((a, b) => a.start - b.start);
+  if (infos.length !== 2) {
+    $("status-msg").textContent = "Roll needs two known clips";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/roll", {
+      left_clip_id: infos[0].id,
+      right_clip_id: infos[1].id,
+      delta_frames: delta,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Roll ${delta > 0 ? "+" : ""}${delta}f`;
+  } catch (e) {
+    $("status-msg").textContent = `Roll failed: ${e}`;
+  }
+}
+
+async function loadStyles() {
+  const el = document.getElementById("style-select") as HTMLSelectElement | null;
+  if (!el) return;
+  try {
+    const r = await getJson<{ names?: string[]; styles?: Record<string, unknown> }>(
+      "/api/styles",
+    );
+    const names = r.names || Object.keys(r.styles || {});
+    if (!names.length) return;
+    const cur = el.value;
+    el.innerHTML = "";
+    for (const n of names) {
+      const opt = document.createElement("option");
+      opt.value = n;
+      opt.textContent = n;
+      el.appendChild(opt);
+    }
+    if ([...el.options].some((o) => o.value === cur)) el.value = cur;
+  } catch {
+    /* keep static */
+  }
+}
+
+async function applySelectedStyle() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const el = document.getElementById("style-select") as HTMLSelectElement | null;
+  const name = el?.value || "documentary";
+  const ids = selectionList();
+  $("status-msg").textContent = `Apply style ${name}…`;
+  try {
+    await postJson("/api/style", {
+      styles: name,
+      clip_ids: ids.length ? ids : null,
+      video_only: true,
+      apply_motion: true,
+    });
+    await refresh();
+    $("status-msg").textContent = `Style ${name} applied`;
+  } catch (e) {
+    $("status-msg").textContent = `Style failed: ${e}`;
+  }
+}
+
 async function exportWorkArea() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -3320,6 +3476,33 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-lcut").addEventListener("click", () => {
     void jlCutSelection("l", 12);
   });
+  $("btn-snap-prev").addEventListener("click", () => {
+    void snapSelection("prev_end");
+  });
+  $("btn-snap-next").addEventListener("click", () => {
+    void snapSelection("next_start");
+  });
+  $("btn-quantize").addEventListener("click", () => {
+    void quantizeSelection(10);
+  });
+  $("btn-align-ph").addEventListener("click", () => {
+    void alignSelectionToPlayhead();
+  });
+  $("btn-slip-m").addEventListener("click", () => {
+    void slipSelection(-5);
+  });
+  $("btn-slip-p").addEventListener("click", () => {
+    void slipSelection(5);
+  });
+  $("btn-roll-m").addEventListener("click", () => {
+    void rollSelection(-5);
+  });
+  $("btn-roll-p").addEventListener("click", () => {
+    void rollSelection(5);
+  });
+  $("btn-style").addEventListener("click", () => {
+    void applySelectedStyle();
+  });
   $("btn-close-gaps").addEventListener("click", () => {
     stopPlay();
     void closeGapsOnTracks();
@@ -3469,6 +3652,7 @@ window.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("keydown", onKey);
   void loadPalette();
   void loadExportPresets();
+  void loadStyles();
   void refreshRecent();
   void refresh();
 });

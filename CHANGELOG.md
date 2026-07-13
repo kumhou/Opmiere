@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.26 — 2026-07-13
+
+### Added
+- **Timing**: Snap←/→, quantize 10f, align@playhead, slip ±5f, roll ±5f
+- **Style** select + Apply → `POST /api/style` (selection or all)
+- Test: `tests/test_desktop_timing_style_066.py`
+
 ## 0.4.25 — 2026-07-13
 
 ### Added

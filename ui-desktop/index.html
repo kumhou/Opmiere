@@ -145,6 +145,31 @@
               <button type="button" id="btn-dup-track" class="btn-mini" title="Duplicate track of selection">Dup trk</button>
               <button type="button" id="btn-purge" class="btn-mini" title="Purge unused media (metadata only)">Purge</button>
             </div>
+            <h2 class="subh">Timing</h2>
+            <div class="speed-row">
+              <button type="button" id="btn-snap-prev" class="btn-mini" title="Snap to previous end">Snap←</button>
+              <button type="button" id="btn-snap-next" class="btn-mini" title="Snap before next">Snap→</button>
+              <button type="button" id="btn-quantize" class="btn-mini" title="Quantize starts to 10f grid">Qnt10</button>
+              <button type="button" id="btn-align-ph" class="btn-mini" title="Align start to playhead">Align@</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-slip-m" class="btn-mini" title="Slip −5f">Slip−</button>
+              <button type="button" id="btn-slip-p" class="btn-mini" title="Slip +5f">Slip+</button>
+              <button type="button" id="btn-roll-m" class="btn-mini" title="Roll −5f (2 clips)">Roll−</button>
+              <button type="button" id="btn-roll-p" class="btn-mini" title="Roll +5f (2 clips)">Roll+</button>
+            </div>
+            <h2 class="subh">Style</h2>
+            <div class="speed-row">
+              <select id="style-select" class="export-preset" title="Look preset">
+                <option value="documentary">documentary</option>
+                <option value="thriller">thriller</option>
+                <option value="horror">horror</option>
+                <option value="cyberpunk">cyberpunk</option>
+                <option value="wes_anderson">wes_anderson</option>
+                <option value="ang_lee">ang_lee</option>
+              </select>
+              <button type="button" id="btn-style" class="btn-mini" title="Apply style to selection or all">Apply</button>
+            </div>
             <div class="speed-row">
               <span class="muted" style="font-size:10px">Gain</span>
               <button type="button" class="btn-mini" data-gain="-6">−6</button>
