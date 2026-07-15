@@ -2111,6 +2111,267 @@ async function relinkSelectionToBin() {
   }
 }
 
+/** Pick .edl/.csv for import: Tauri native path, else FileReader text. */
+async function pickImportFile(opts: {
+  title: string;
+  extensions: string[];
+}): Promise<{ path?: string; text?: string } | null> {
+  if (isTauri()) {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        title: opts.title,
+        filters: [
+          { name: "Interchange", extensions: opts.extensions },
+          { name: "All", extensions: ["*"] },
+        ],
+      });
+      if (selected == null) return null;
+      const path = Array.isArray(selected) ? selected[0] : selected;
+      return path ? { path: String(path) } : null;
+    } catch (e) {
+      console.warn("import dialog failed", e);
+    }
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = opts.extensions.map((e) => `.${e}`).join(",");
+    input.addEventListener("change", () => {
+      const f = input.files?.[0];
+      if (!f) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({ text: String(reader.result || "") });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsText(f);
+    });
+    input.click();
+  });
+}
+
+async function importEdlFile() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const picked = await pickImportFile({
+    title: "Import CMX EDL",
+    extensions: ["edl", "txt"],
+  });
+  if (!picked) return;
+  $("status-msg").textContent = "Importing EDL…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      events?: number;
+      agent_note?: string;
+    }>("/api/import/edl", {
+      path: picked.path || null,
+      text: picked.text || null,
+      replace_track: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    $("status-msg").textContent =
+      `EDL imported (${r.count ?? r.events ?? "?"} events)`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `EDL import failed: ${e}`;
+  }
+}
+
+async function importCutlistFile() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const picked = await pickImportFile({
+    title: "Import cutlist CSV/JSON",
+    extensions: ["csv", "json", "txt"],
+  });
+  if (!picked) return;
+  $("status-msg").textContent = "Importing cutlist…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      agent_note?: string;
+    }>("/api/import/cutlist", {
+      path: picked.path || null,
+      text: picked.text || null,
+      replace_track: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    $("status-msg").textContent = `Cutlist imported (${r.count ?? "?"} rows)`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Cutlist import failed: ${e}`;
+  }
+}
+
+/** Transcribe bin selection or media of selected clips. */
+async function transcribeSelection() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const mediaIds = new Set<string>();
+  if (state.binMediaId) mediaIds.add(state.binMediaId);
+  for (const id of selectionList()) {
+    const c = state.clips.get(id);
+    if (c?.mediaId) mediaIds.add(c.mediaId);
+  }
+  if (!mediaIds.size) {
+    $("status-msg").textContent = "Select bin media or timeline clips first";
+    return;
+  }
+  $("status-msg").textContent = `Transcribing ×${mediaIds.size}…`;
+  try {
+    let last: Record<string, unknown> | null = null;
+    for (const mid of mediaIds) {
+      last = await postJson<Record<string, unknown>>("/api/media/transcribe", {
+        media_id: mid,
+        model_size: "base",
+      });
+    }
+    await refreshMediaBin();
+    const segs =
+      (last?.segments as unknown[] | undefined)?.length ??
+      (last?.segment_count as number | undefined) ??
+      "?";
+    $("status-msg").textContent = `Transcribed ×${mediaIds.size} (${segs} segs)`;
+    const out = document.getElementById("review-out");
+    if (out && last) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(last, null, 2).slice(0, 2000);
+    }
+  } catch (e) {
+    $("status-msg").textContent =
+      `Transcribe failed: ${e} (needs pip install -e ".[transcribe]")`;
+  }
+}
+
+async function refreshMediaStatus() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      media?: Array<{
+        id?: string;
+        online?: boolean;
+        path?: string;
+        missing?: boolean;
+      }>;
+      offline_count?: number;
+      count?: number;
+      items?: Array<Record<string, unknown>>;
+    }>("/api/media/status");
+    const items = r.media || r.items || [];
+    const offline = items.filter(
+      (m) => m.online === false || m.missing === true,
+    );
+    const nOff = r.offline_count ?? offline.length;
+    $("status-msg").textContent =
+      `Media status: ${items.length} assets, ${nOff} offline`;
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent =
+        nOff > 0
+          ? JSON.stringify(offline.slice(0, 20), null, 2)
+          : JSON.stringify({ online: items.length, offline: 0 }, null, 2);
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Media status failed: ${e}`;
+  }
+}
+
+/**
+ * Duck first selected audio track under second (or first A under second A).
+ * Selection order: music track clip then VO clip — uses their tracks.
+ */
+async function duckSelection() {
+  if (!state.projectOpen) return;
+  const ids = selectionList();
+  const audioTracks = state.tracks.filter((t) => t.kind === "audio");
+  let musicId: string | null = null;
+  let voId: string | null = null;
+  if (ids.length >= 2) {
+    const a = state.clips.get(ids[0]);
+    const b = state.clips.get(ids[1]);
+    if (a && b) {
+      musicId = a.trackId;
+      voId = b.trackId;
+    }
+  } else if (audioTracks.length >= 2) {
+    musicId = audioTracks[0].id;
+    voId = audioTracks[1].id;
+  }
+  if (!musicId || !voId || musicId === voId) {
+    $("status-msg").textContent =
+      "Duck needs 2 audio tracks (select music then VO clips, or have ≥2 A tracks)";
+    return;
+  }
+  $("status-msg").textContent = `Duck ${musicId} under ${voId}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/duck", {
+      track_id: musicId,
+      against_track_id: voId,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Ducking on ${musicId} ← ${voId}`;
+  } catch (e) {
+    $("status-msg").textContent = `Duck failed: ${e}`;
+  }
+}
+
+async function clearDuckSelection() {
+  if (!state.projectOpen) return;
+  const ids = selectionList();
+  const trackIds = new Set<string>();
+  for (const id of ids) {
+    const c = state.clips.get(id);
+    if (c) trackIds.add(c.trackId);
+  }
+  if (!trackIds.size) {
+    for (const t of state.tracks.filter((x) => x.kind === "audio")) {
+      trackIds.add(t.id);
+    }
+  }
+  if (!trackIds.size) {
+    $("status-msg").textContent = "No audio tracks to clear duck";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const tid of trackIds) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/duck/clear", {
+        track_id: tid,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Cleared duck ×${trackIds.size}`;
+  } catch (e) {
+    $("status-msg").textContent = `Clear duck failed: ${e}`;
+  }
+}
+
 /** ASR filler plan (dry_run) then optional apply on selection. Needs [transcribe] extra. */
 async function fillerCutsSelection(apply: boolean) {
   const ids = selectionList();
@@ -5382,6 +5643,29 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-export-cutlist").addEventListener("click", () => {
     void exportCutlist("csv");
+  });
+  $("btn-import-edl").addEventListener("click", () => {
+    stopPlay();
+    void importEdlFile();
+  });
+  $("btn-import-cutlist").addEventListener("click", () => {
+    stopPlay();
+    void importCutlistFile();
+  });
+  $("btn-transcribe").addEventListener("click", () => {
+    stopPlay();
+    void transcribeSelection();
+  });
+  $("btn-media-status").addEventListener("click", () => {
+    void refreshMediaStatus();
+  });
+  $("btn-duck").addEventListener("click", () => {
+    stopPlay();
+    void duckSelection();
+  });
+  $("btn-duck-clear").addEventListener("click", () => {
+    stopPlay();
+    void clearDuckSelection();
   });
   $("btn-rot-m90").addEventListener("click", () => {
     stopPlay();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.48 — 2026-07-15
+
+### Added
+- **Import EDL / Cutlist** (`Imp EDL` / `Imp CSV`) — Tauri path or browser file text
+- **ASR** transcribe bin/selection media (`[transcribe]`)
+- **Media?** online/offline status dump
+- **Duck / Un-duck** music under VO (2 audio tracks)
+- Test: `tests/test_desktop_import_duck_088.py`
 ## 0.4.47 — 2026-07-15
 
 ### Added

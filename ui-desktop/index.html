@@ -41,6 +41,8 @@
         <button type="button" id="btn-export-work" title="Export work area [In, Out)">Export I/O</button>
         <button type="button" id="btn-export-edl" title="Export CMX EDL to export dir">EDL</button>
         <button type="button" id="btn-export-cutlist" title="Export CSV cutlist to export dir">Cutlist</button>
+        <button type="button" id="btn-import-edl" title="Import CMX EDL (media must be in bin)">Imp EDL</button>
+        <button type="button" id="btn-import-cutlist" title="Import cutlist CSV/JSON">Imp CSV</button>
         <button type="button" id="btn-proxy" title="Ensure preview proxy">Proxy</button>
         <button type="button" id="btn-refresh">Refresh</button>
         <button type="button" id="btn-open-probe">HTML probe</button>
@@ -270,6 +272,12 @@
               <button type="button" id="btn-relink" class="btn-mini" title="Relink selection to media selected in bin">Relink←bin</button>
               <button type="button" id="btn-filler-plan" class="btn-mini" title="Plan filler/um cuts (ASR dry-run)">Filler?</button>
               <button type="button" id="btn-filler-go" class="btn-mini" title="Apply filler cuts (needs transcript)">Filler✓</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-transcribe" class="btn-mini" title="Transcribe bin/selection media (ASR)">ASR</button>
+              <button type="button" id="btn-media-status" class="btn-mini" title="List online/offline media">Media?</button>
+              <button type="button" id="btn-duck" class="btn-mini" title="Duck music track under VO (2 A tracks)">Duck</button>
+              <button type="button" id="btn-duck-clear" class="btn-mini" title="Clear ducking">Un-duck</button>
             </div>
             <h2 class="subh">Markers</h2>
             <div class="speed-row">
