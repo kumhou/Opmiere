@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.43 — 2026-07-15
+
+### Added
+- **Zoom to selection** (`Z` / Sel) — fit selection span in view
+- **Fit sequence** (`Shift+Z` / Fit) — reset to 1× overview
+- Test: `tests/test_desktop_zoom_fit_083.py`
 ## 0.4.42 — 2026-07-15
 
 ### Added

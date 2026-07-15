@@ -3661,6 +3661,51 @@ function setZoom(z: number) {
   applyZoomToLanes();
 }
 
+/** Fit full sequence into visible timeline body width. */
+function zoomFitSequence() {
+  if (!state.projectOpen || state.durationFrames <= 0) {
+    setZoom(1);
+    return;
+  }
+  setZoom(1);
+  $("status-msg").textContent = "Zoom fit sequence (1×)";
+}
+
+/** Zoom so selection spans ~70% of viewport; scroll playhead into view. */
+function zoomToSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to zoom";
+    return;
+  }
+  let minF = Infinity;
+  let maxF = 0;
+  for (const id of ids) {
+    const c = state.clips.get(id);
+    if (!c) continue;
+    minF = Math.min(minF, c.start);
+    maxF = Math.max(maxF, c.start + c.dur);
+  }
+  if (!Number.isFinite(minF) || maxF <= minF) {
+    $("status-msg").textContent = "Selection has no duration";
+    return;
+  }
+  const span = maxF - minF;
+  const total = Math.max(1, state.durationFrames);
+  // Want selection ~70% of view → zoom = 0.7 * total / span
+  const z = Math.max(0.5, Math.min(8, (0.7 * total) / span));
+  setZoom(z);
+  // Seek to selection start so it's on-screen
+  void seekTo(minF / Math.max(1, state.fps));
+  // scroll timeline body horizontally toward selection
+  const body = document.getElementById("timeline-body");
+  if (body) {
+    const ratio = minF / total;
+    body.scrollLeft = Math.max(0, ratio * body.scrollWidth * state.zoom - body.clientWidth * 0.15);
+  }
+  $("status-msg").textContent = `Zoom ${state.zoom.toFixed(1)}× → selection`;
+}
+
 function applyZoomToLanes() {
   const pct = `${100 * state.zoom}%`;
   document.querySelectorAll<HTMLElement>(".track-lane").forEach((lane) => {
@@ -4865,6 +4910,12 @@ function onKey(ev: KeyboardEvent) {
     setZoom(1);
     return;
   }
+  if (k === "z" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    if (ev.shiftKey) zoomFitSequence();
+    else zoomToSelection();
+    return;
+  }
   if (k === "?" || (ev.shiftKey && k === "/")) {
     ev.preventDefault();
     toggleHelp();
@@ -5165,6 +5216,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-zoom-reset").addEventListener("click", () => {
     setZoom(1);
+  });
+  $("btn-zoom-fit").addEventListener("click", () => {
+    zoomFitSequence();
+  });
+  $("btn-zoom-sel").addEventListener("click", () => {
+    zoomToSelection();
   });
   $("btn-help").addEventListener("click", () => {
     toggleHelp();
