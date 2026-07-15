@@ -206,6 +206,92 @@ function framesToTc(frames: number, fps: number): string {
   return `${p(hh)}:${p(mm)}:${p(ss)}:${p(ff)}`;
 }
 
+/** Parse HH:MM:SS:FF, HH:MM:SS.mmm, or seconds → seconds. */
+function parseTcToSeconds(raw: string, fps: number): number | null {
+  const s = raw.trim().replace(/;/g, ":");
+  if (!s) return null;
+  const rate = Math.max(1, Math.round(fps || 30));
+  const colonParts = s.split(":");
+  if (colonParts.length === 4 && colonParts.every((p) => /^\d+$/.test(p))) {
+    const [hh, mm, ss, ff] = colonParts.map((p) => parseInt(p, 10));
+    const frames = ((hh * 3600 + mm * 60 + ss) * rate) + ff;
+    return frames / rate;
+  }
+  if (colonParts.length === 3) {
+    const [hms0, hms1, rest] = colonParts;
+    if (!/^\d+$/.test(hms0) || !/^\d+$/.test(hms1)) return null;
+    const secParts = rest.split(".");
+    if (!/^\d+$/.test(secParts[0])) return null;
+    const hh = parseInt(hms0, 10);
+    const mm = parseInt(hms1, 10);
+    const ss = parseInt(secParts[0], 10);
+    const frac = secParts[1] ? parseFloat(`0.${secParts[1]}`) : 0;
+    return hh * 3600 + mm * 60 + ss + frac;
+  }
+  const n = Number(s);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return null;
+}
+
+async function jumpToTimecode() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  stopPlay();
+  const cur = framesToTc(Math.round(state.t * state.fps), state.fps);
+  const raw = window.prompt("Go to timecode (HH:MM:SS:FF or seconds)", cur);
+  if (raw == null) return;
+  const sec = parseTcToSeconds(raw, state.fps);
+  if (sec == null) {
+    $("status-msg").textContent = `Bad timecode: ${raw}`;
+    return;
+  }
+  await seekTo(sec);
+  $("status-msg").textContent = `Playhead → ${framesToTc(Math.round(state.t * state.fps), state.fps)}`;
+}
+
+async function closeProject() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "No project open";
+    return;
+  }
+  stopPlay();
+  let save = false;
+  if (state.dirty) {
+    const ans = window.confirm("Project has unsaved changes.\nOK = Save & Close, Cancel = discard?");
+    // confirm: OK true = save, Cancel false = discard without save still closes
+    // Use three-way via two dialogs is heavy; treat OK as save, Cancel as close without save
+    // Actually better: if dirty, ask Save? then Close always
+    if (ans) save = true;
+  }
+  try {
+    await postJson("/api/project/close", { save });
+    state.projectOpen = false;
+    state.dirty = false;
+    state.bundlePath = "";
+    state.t = 0;
+    state.durationSec = 0;
+    state.durationFrames = 0;
+    state.markers = [];
+    state.selected.clear();
+    state.clips.clear();
+    renderTimeline(null);
+    hideAllProgramSurfaces();
+    setPlayheadUi();
+    renderMediaBin(null);
+    renderMarkerList();
+    applyNotesUi("");
+    $("project-state").textContent = "none";
+    void setShellTitle(null);
+    $("status-msg").textContent = save ? "Saved & closed" : "Project closed";
+    await refreshRecent();
+    await refresh();
+  } catch (e) {
+    $("status-msg").textContent = `Close failed: ${e}`;
+  }
+}
+
 function setPlayheadUi() {
   const scrub = $("scrub") as HTMLInputElement;
   const max = Math.max(1, Math.round(state.durationSec * 1000));
@@ -4106,6 +4192,16 @@ function onKey(ev: KeyboardEvent) {
     void saveProject();
     return;
   }
+  if ((ev.ctrlKey || ev.metaKey) && k === "w") {
+    ev.preventDefault();
+    void closeProject();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && k === "g") {
+    ev.preventDefault();
+    void jumpToTimecode();
+    return;
+  }
   if ((ev.ctrlKey || ev.metaKey) && k === "i") {
     ev.preventDefault();
     void startImport();
@@ -4276,6 +4372,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-open").addEventListener("click", () => {
     void openProjectPath();
+  });
+  $("btn-close").addEventListener("click", () => {
+    void closeProject();
+  });
+  $("tc").addEventListener("click", () => {
+    void jumpToTimecode();
   });
   $("btn-new").addEventListener("click", () => {
     void newProjectPath();

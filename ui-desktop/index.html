@@ -15,6 +15,7 @@
         <span class="spacer"></span>
         <button type="button" id="btn-new" title="New project — native save dialog in Tauri (Ctrl+N)">New</button>
         <button type="button" id="btn-open" title="Open project folder — native dialog in Tauri (Ctrl+O)">Open</button>
+        <button type="button" id="btn-close" title="Close project (Ctrl+W)">Close</button>
         <button type="button" id="btn-demo" title="Create a short demo project">Demo</button>
         <button type="button" id="btn-save" title="Save project (Ctrl+S)">Save</button>
         <button type="button" id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
@@ -99,7 +100,7 @@
                 disabled
                 title="Scrub playhead"
               />
-              <span class="tc" id="tc">00:00:00:00</span>
+              <button type="button" class="tc tc-btn" id="tc" title="Go to timecode (G then type, or click)">00:00:00:00</button>
               <select id="engine-select" title="Frame engine">
                 <option value="auto">auto</option>
                 <option value="openshot">openshot</option>

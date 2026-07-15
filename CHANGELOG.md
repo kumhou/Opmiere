@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.37 — 2026-07-15
+
+### Added
+- **Close project**: `POST /api/project/close` (+ optional save); desktop **Close** / **Ctrl+W**
+- **Go to timecode**: click program TC or **Ctrl+G** (HH:MM:SS:FF / seconds)
+- Test: `tests/test_desktop_close_tc_077.py`
 ## 0.4.36 — 2026-07-15
 
 ### Added

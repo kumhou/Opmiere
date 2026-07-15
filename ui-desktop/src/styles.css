@@ -195,6 +195,24 @@ button:disabled {
   min-width: 7em;
 }
 
+.transport .tc-btn {
+  font: inherit;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  cursor: pointer;
+  min-width: 7em;
+  text-align: center;
+}
+
+.transport .tc-btn:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-raised);
+}
+
 .transport input[type="range"] {
   flex: 1;
   min-width: 80px;

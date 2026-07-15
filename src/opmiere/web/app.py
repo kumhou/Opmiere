@@ -449,6 +449,42 @@ def project_open(body: OpenBody) -> dict[str, Any]:
     return _editor.describe()
 
 
+class CloseBody(BaseModel):
+    """Close the in-memory project. Optional save first."""
+
+    save: bool = False
+
+
+@app.post("/api/project/close")
+def project_close(body: CloseBody | None = None) -> dict[str, Any]:
+    """Release the open Editor (desktop Close / New without process restart)."""
+    global _editor
+    body = body or CloseBody()
+    if _editor is None:
+        return {
+            "closed": True,
+            "was_open": False,
+            "saved": False,
+            "project_open": False,
+        }
+    saved = False
+    dirty = bool(_editor.is_dirty())
+    path = str(_editor.bundle.root)
+    if body.save:
+        _editor.save()
+        saved = True
+        dirty = False
+    _editor = None
+    return {
+        "closed": True,
+        "was_open": True,
+        "saved": saved,
+        "was_dirty": dirty and not saved,
+        "path": path,
+        "project_open": False,
+    }
+
+
 @app.get("/api/project/state")
 def project_state() -> dict[str, Any]:
     return _ed().describe()
