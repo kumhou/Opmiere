@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.45 — 2026-07-15
+
+### Added
+- **Dirty guards**: Close asks stay/save/discard; Open/New/Demo/Recent warn if dirty
+- **Auto-proxy** (default on): debounced `preview/ensure` after import/place/razor/delete
+- Test: `tests/test_desktop_dirty_proxy_085.py`
 ## 0.4.44 — 2026-07-15
 
 ### Added

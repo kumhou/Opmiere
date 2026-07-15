@@ -279,6 +279,14 @@ async function jumpToTimecode() {
   $("status-msg").textContent = `Playhead → ${framesToTc(Math.round(state.t * state.fps), state.fps)}`;
 }
 
+/** Return false if user aborts a destructive project switch. */
+async function confirmLeaveDirty(action: string): Promise<boolean> {
+  if (!state.projectOpen || !state.dirty) return true;
+  return window.confirm(
+    `Unsaved changes — ${action}?\nOK = continue (discard if not saved), Cancel = stay`,
+  );
+}
+
 async function closeProject() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "No project open";
@@ -287,11 +295,14 @@ async function closeProject() {
   stopPlay();
   let save = false;
   if (state.dirty) {
-    const ans = window.confirm("Project has unsaved changes.\nOK = Save & Close, Cancel = discard?");
-    // confirm: OK true = save, Cancel false = discard without save still closes
-    // Use three-way via two dialogs is heavy; treat OK as save, Cancel as close without save
-    // Actually better: if dirty, ask Save? then Close always
-    if (ans) save = true;
+    if (
+      !window.confirm(
+        "Close project with unsaved changes?\nOK = continue, Cancel = stay open",
+      )
+    ) {
+      return;
+    }
+    save = window.confirm("Save before closing?\nOK = Save & Close, Cancel = Close without saving");
   }
   try {
     await postJson("/api/project/close", { save });
@@ -304,6 +315,7 @@ async function closeProject() {
     state.markers = [];
     state.selected.clear();
     state.clips.clear();
+    waveCache.clear();
     renderTimeline(null);
     hideAllProgramSurfaces();
     setPlayheadUi();
@@ -480,6 +492,27 @@ async function ensureProxyFresh(): Promise<boolean> {
     state.proxyFresh = false;
     return false;
   }
+}
+
+let proxyRefreshTimer: ReturnType<typeof setTimeout> | 0 = 0;
+
+/** Debounced proxy rebuild after timeline structure changes (import/place/razor…). */
+function scheduleProxyRefresh() {
+  const el = document.getElementById("chk-auto-proxy") as HTMLInputElement | null;
+  if (el && !el.checked) return;
+  if (!state.projectOpen) return;
+  if (proxyRefreshTimer) clearTimeout(proxyRefreshTimer);
+  proxyRefreshTimer = setTimeout(() => {
+    void (async () => {
+      const ok = await ensureProxyFresh();
+      if (ok) {
+        const note = $("status-msg").textContent || "";
+        if (!note.includes("Proxy")) {
+          $("status-msg").textContent = `${note} · proxy ready`.replace(/^ · /, "");
+        }
+      }
+    })();
+  }, 900);
 }
 
 function useProxyVideoForPlay(): boolean {
@@ -858,6 +891,7 @@ async function deleteSelection() {
     $("sel-count").textContent = "0";
     $("status-msg").textContent = `Deleted ${ids.length}${ripple ? " ripple" : ""}`;
     void seekTo(state.t);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Delete failed: ${e}`;
     await refresh();
@@ -983,6 +1017,7 @@ async function placeMediaOnTrack(
     $("status-msg").textContent =
       `Placed ${r.clip_id || mediaId} @ f${start} (${mode})`;
     void seekTo(state.t);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Place failed: ${e}`;
   }
@@ -1145,6 +1180,7 @@ async function placeMediaAtPlayhead(mediaId: string, kind: string) {
     $("status-msg").textContent =
       `Placed ${r.clip_id || mediaId} @ f${start} (${mode})`;
     void seekTo(state.t);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Place failed: ${e}`;
   }
@@ -1166,6 +1202,7 @@ async function razorAtPlayhead() {
     else await refresh();
     $("status-msg").textContent = `Razor @ f${at}: ${r.split_count ?? 0} split(s)`;
     void seekTo(state.t);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Razor failed: ${e}`;
   }
@@ -1644,6 +1681,7 @@ async function importFiles(fileList: FileList | null) {
     else await refresh();
     await refreshMediaBin();
     void seekTo(state.t);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Import failed: ${e}`;
   }
@@ -1678,6 +1716,7 @@ async function importLocalPaths(paths: string[]) {
     else await refresh();
     await refreshMediaBin();
     void seekTo(state.t);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Import failed: ${e}`;
   }
@@ -3102,6 +3141,7 @@ async function refreshRecent() {
 
 async function openProjectAt(path: string) {
   stopPlay();
+  if (!(await confirmLeaveDirty("open this project"))) return;
   $("status-msg").textContent = `Opening ${path}…`;
   try {
     await postJson("/api/project/open", { bundle_path: path });
@@ -3112,6 +3152,7 @@ async function openProjectAt(path: string) {
     await refreshRecent();
     void seekTo(0);
     void setShellTitle(projectLabelFromPath(path));
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Open failed: ${e}`;
   }
@@ -4431,6 +4472,7 @@ function toggleProgramFullscreen() {
 
 async function createDemoProject() {
   stopPlay();
+  if (!(await confirmLeaveDirty("open demo"))) return;
   $("status-msg").textContent = "Creating demo project…";
   try {
     const r = await postJson<{ ok?: boolean; path?: string; error?: string }>(
@@ -4441,6 +4483,7 @@ async function createDemoProject() {
     $("status-msg").textContent = `Demo open: ${r.path || "ok"}`;
     await refresh();
     await seekTo(0.1);
+    scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `Demo failed: ${e}`;
   }
@@ -4504,6 +4547,7 @@ async function pickNewProjectPath(opts: {
 
 async function openProjectPath() {
   stopPlay();
+  if (!(await confirmLeaveDirty("open another project"))) return;
   const path = await pickProjectFolder({
     title: "Open Opmiere project folder (.opm)",
   });
@@ -4513,6 +4557,7 @@ async function openProjectPath() {
 
 async function newProjectPath() {
   stopPlay();
+  if (!(await confirmLeaveDirty("create a new project"))) return;
   const path = await pickNewProjectPath({
     title: "Create new Opmiere project",
     defaultPath: "opmiere_new.opm",
@@ -5100,6 +5145,14 @@ window.addEventListener("DOMContentLoaded", () => {
   chkOw?.addEventListener("change", () => {
     state.editMode = chkOw.checked ? "overwrite" : "insert";
     $("status-msg").textContent = `Place mode: ${state.editMode}`;
+  });
+  const chkProxy = document.getElementById(
+    "chk-auto-proxy",
+  ) as HTMLInputElement | null;
+  chkProxy?.addEventListener("change", () => {
+    $("status-msg").textContent = chkProxy.checked
+      ? "Auto-proxy on"
+      : "Auto-proxy off";
   });
   $("btn-frame-back").addEventListener("click", () => {
     stopPlay();
