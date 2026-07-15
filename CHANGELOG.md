@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.42 — 2026-07-15
+
+### Added
+- **Magnetic time edits** (desktop):
+  - **Ripple nudge**: clip + later on track — buttons ≪/≫, `Ctrl+Alt+←/→`
+  - **Alt+←/→** plain nudge selection (±1 / Shift±5)
+  - **Insert time** at playhead on all tracks: +15f / +1s, `[` / `]`
+  - **Cut I/O**: `extract_time` I/O range on all tracks (ripple)
+- Help overlay updated
+- Test: `tests/test_desktop_magnetic_082.py`
 ## 0.4.41 — 2026-07-15
 
 ### Added

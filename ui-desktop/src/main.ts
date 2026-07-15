@@ -678,6 +678,128 @@ async function nudgeSelection(deltaFrames: number) {
   }
 }
 
+/** Magnetic: move earliest selected clip on each track + everything after it. */
+async function rippleNudgeSelection(deltaFrames: number) {
+  const ids = selectionList();
+  if (!ids.length || deltaFrames === 0) {
+    $("status-msg").textContent = "Select clip(s) for ripple nudge";
+    return;
+  }
+  // One representative per track: leftmost selected
+  const byTrack = new Map<string, string>();
+  for (const id of ids) {
+    const c = state.clips.get(id);
+    if (!c) continue;
+    const prev = byTrack.get(c.trackId);
+    if (!prev) {
+      byTrack.set(c.trackId, id);
+      continue;
+    }
+    const p = state.clips.get(prev);
+    if (p && c.start < p.start) byTrack.set(c.trackId, id);
+  }
+  $("status-msg").textContent = `Ripple nudge Δ${deltaFrames}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of byTrack.values()) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/ripple_nudge", {
+        clip_id: clipId,
+        delta_frames: deltaFrames,
+        include_self: true,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent =
+      `Ripple nudge Δ${deltaFrames} · ${byTrack.size} track(s)`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Ripple nudge failed: ${e}`;
+    await refresh();
+  }
+}
+
+/** Open a hole at playhead on all tracks (keeps A/V aligned). */
+async function insertTimeAtPlayhead(frames: number) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!Number.isFinite(frames) || frames <= 0) return;
+  const at = playheadFrame();
+  const tracks = state.tracks.length
+    ? state.tracks
+    : [{ id: "", kind: "video" }];
+  $("status-msg").textContent = `Insert ${frames}f @ f${at}…`;
+  try {
+    let last: TimelineView | undefined;
+    if (!state.tracks.length) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/insert_time", {
+        at_frame: at,
+        frames,
+      });
+      last = r.timeline;
+    } else {
+      for (const t of tracks) {
+        const r = await postJson<{ timeline?: TimelineView }>("/api/insert_time", {
+          track_id: t.id,
+          at_frame: at,
+          frames,
+        });
+        if (r.timeline) last = r.timeline;
+      }
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Inserted ${frames}f @ f${at}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Insert time failed: ${e}`;
+    await refresh();
+  }
+}
+
+/** Extract [In,Out) on all tracks (ripple) — magnetic cut. */
+async function extractTimeIO() {
+  if (!state.projectOpen) return;
+  if (!state.workIO.ready) {
+    $("status-msg").textContent = "Set In and Out first (I / O)";
+    return;
+  }
+  const start = state.workIO.in_frame!;
+  const end = state.workIO.out_frame!;
+  if (end <= start) {
+    $("status-msg").textContent = "Invalid I/O range";
+    return;
+  }
+  $("status-msg").textContent = `Extract time [${start},${end})…`;
+  try {
+    let last: TimelineView | undefined;
+    const tracks = state.tracks.length ? state.tracks : [{ id: "" }];
+    for (const t of tracks) {
+      const body: Record<string, unknown> = {
+        start_frame: start,
+        end_frame: end,
+        ripple: true,
+      };
+      if (t.id) body.track_id = t.id;
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/extract_time",
+        body,
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Extracted time [${start},${end})`;
+    void seekTo(Math.min(state.t, start / state.fps));
+  } catch (e) {
+    $("status-msg").textContent = `Extract time failed: ${e}`;
+    await refresh();
+  }
+}
+
 function rippleEnabled(): boolean {
   return ($("chk-ripple") as HTMLInputElement).checked;
 }
@@ -4496,6 +4618,12 @@ function onKey(ev: KeyboardEvent) {
   if (ev.key === "ArrowLeft") {
     ev.preventDefault();
     stopPlay();
+    if (ev.altKey) {
+      const d = ev.shiftKey ? -5 : -1;
+      if (ev.ctrlKey || ev.metaKey) void rippleNudgeSelection(d);
+      else void nudgeSelection(d);
+      return;
+    }
     if (ev.shiftKey) goToMarker(-1);
     else void seekTo(state.t - 1 / state.fps);
     return;
@@ -4503,8 +4631,27 @@ function onKey(ev: KeyboardEvent) {
   if (ev.key === "ArrowRight") {
     ev.preventDefault();
     stopPlay();
+    if (ev.altKey) {
+      const d = ev.shiftKey ? 5 : 1;
+      if (ev.ctrlKey || ev.metaKey) void rippleNudgeSelection(d);
+      else void nudgeSelection(d);
+      return;
+    }
     if (ev.shiftKey) goToMarker(1);
     else void seekTo(state.t + 1 / state.fps);
+    return;
+  }
+  // [ ] insert 15f / 1s at playhead
+  if (k === "[" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    ev.preventDefault();
+    stopPlay();
+    void insertTimeAtPlayhead(ev.shiftKey ? Math.max(1, Math.round(state.fps)) : 15);
+    return;
+  }
+  if (k === "]" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    stopPlay();
+    void insertTimeAtPlayhead(Math.max(1, Math.round(state.fps)));
     return;
   }
   if (ev.key === "Home") {
@@ -4982,6 +5129,22 @@ window.addEventListener("DOMContentLoaded", () => {
     stopPlay();
     void closeGapsOnTracks();
   });
+  $("btn-insert-15").addEventListener("click", () => {
+    stopPlay();
+    void insertTimeAtPlayhead(15);
+  });
+  $("btn-insert-1s").addEventListener("click", () => {
+    stopPlay();
+    void insertTimeAtPlayhead(Math.max(1, Math.round(state.fps || 30)));
+  });
+  $("btn-ripple-m").addEventListener("click", () => {
+    stopPlay();
+    void rippleNudgeSelection(-1);
+  });
+  $("btn-ripple-p").addEventListener("click", () => {
+    stopPlay();
+    void rippleNudgeSelection(1);
+  });
   $("btn-lift").addEventListener("click", () => {
     stopPlay();
     void liftWorkArea(false);
@@ -4989,6 +5152,10 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-extract").addEventListener("click", () => {
     stopPlay();
     void liftWorkArea(true);
+  });
+  $("btn-extract-time").addEventListener("click", () => {
+    stopPlay();
+    void extractTimeIO();
   });
   $("btn-zoom-in").addEventListener("click", () => {
     setZoom(state.zoom * 1.25);
