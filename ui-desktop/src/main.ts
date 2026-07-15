@@ -2111,6 +2111,53 @@ async function relinkSelectionToBin() {
   }
 }
 
+/** ASR filler plan (dry_run) then optional apply on selection. Needs [transcribe] extra. */
+async function fillerCutsSelection(apply: boolean) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for filler cut";
+    return;
+  }
+  $("status-msg").textContent = apply
+    ? `Applying filler cuts ×${ids.length}…`
+    : `Planning filler cuts ×${ids.length}…`;
+  try {
+    let lastPlan: Record<string, unknown> | null = null;
+    let applied = 0;
+    for (const id of ids) {
+      const r = await postJson<Record<string, unknown>>("/api/filler", {
+        clip_id: id,
+        dry_run: !apply,
+        pad_seconds: 0.02,
+      });
+      lastPlan = r;
+      if (apply && r.applied) applied += 1;
+    }
+    if (apply) {
+      await refresh();
+      scheduleProxyRefresh();
+      $("status-msg").textContent = `Filler applied ×${applied}/${ids.length}`;
+      void seekTo(state.t);
+    } else {
+      const cuts =
+        (lastPlan?.cut_count as number | undefined) ??
+        (lastPlan?.ranges as unknown[] | undefined)?.length ??
+        (lastPlan?.filler_count as number | undefined) ??
+        "?";
+      const note = String(lastPlan?.agent_note || "").slice(0, 120);
+      $("status-msg").textContent = `Filler plan: ${cuts} cut(s)${note ? " — " + note : ""}`;
+      const out = document.getElementById("review-out");
+      if (out) {
+        out.className = "review-out";
+        out.textContent = JSON.stringify(lastPlan, null, 2).slice(0, 2000);
+      }
+    }
+  } catch (e) {
+    $("status-msg").textContent =
+      `Filler failed: ${e} (needs pip install -e ".[transcribe]")`;
+  }
+}
+
 async function refreshProjectStats() {
   const el = document.getElementById("project-stats");
   if (!el) return;
@@ -5355,6 +5402,21 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-relink").addEventListener("click", () => {
     stopPlay();
     void relinkSelectionToBin();
+  });
+  $("btn-filler-plan").addEventListener("click", () => {
+    stopPlay();
+    void fillerCutsSelection(false);
+  });
+  $("btn-filler-go").addEventListener("click", () => {
+    stopPlay();
+    if (
+      !window.confirm(
+        "Apply filler cuts to selection? This razor-keeps speech ranges (undoable).",
+      )
+    ) {
+      return;
+    }
+    void fillerCutsSelection(true);
   });
   $("btn-export-work").addEventListener("click", () => {
     void exportWorkArea();

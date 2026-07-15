@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.47 — 2026-07-15
+
+### Added
+- **Filler plan/apply** (desktop): `Filler?` dry-run ASR plan, `Filler✓` apply
+  (`POST /api/filler`; needs `[transcribe]` extra / faster-whisper)
+- Test: `tests/test_desktop_filler_087.py`
 ## 0.4.46 — 2026-07-15
 
 ### Added
