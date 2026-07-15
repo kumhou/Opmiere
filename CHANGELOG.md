@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.53 — 2026-07-16
+
+### Added
+- **Brief** director brief + session plan (intent + bin assets)
+- **Workflow** film session doc dump in Review
+- **Proxies** build all bin media proxies
+- Help `?` merges core `/api/help/keymap`
+- Marker list double-click rename; dirty pill sync via `/api/dirty`
+- Marker next/prev uses `/api/markers/near`
+- Test: `tests/test_desktop_agent_workflow_093.py`
 ## 0.4.52 — 2026-07-15
 
 ### Added

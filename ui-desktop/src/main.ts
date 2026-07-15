@@ -1269,7 +1269,7 @@ function renderMarkerList() {
     const f = m.frame ?? 0;
     const lab = m.label || `M${f}`;
     row.textContent = `${lab} · f${f}`;
-    row.title = "Click seek · Alt+click delete";
+    row.title = "Click seek · double-click rename · Alt+click delete";
     row.style.borderLeftColor = m.color || "var(--color-primary)";
     row.addEventListener("click", (ev) => {
       if (ev.altKey) {
@@ -1278,6 +1278,10 @@ function renderMarkerList() {
         stopPlay();
         void seekTo(f / state.fps);
       }
+    });
+    row.addEventListener("dblclick", (ev) => {
+      ev.preventDefault();
+      void renameMarker(m.id, m.label || "");
     });
     el.appendChild(row);
   }
@@ -1494,32 +1498,39 @@ async function setTrackFlag(
 }
 
 function goToMarker(dir: -1 | 1) {
-  if (!state.markers.length) {
-    $("status-msg").textContent = "No markers";
-    return;
-  }
-  const sorted = [...state.markers].sort(
-    (a, b) => (a.frame ?? 0) - (b.frame ?? 0),
-  );
-  const cur = playheadFrame();
-  let target: Marker | undefined;
-  if (dir > 0) {
-    target = sorted.find((m) => (m.frame ?? 0) > cur);
-    if (!target) target = sorted[0];
-  } else {
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      if ((sorted[i].frame ?? 0) < cur) {
-        target = sorted[i];
-        break;
-      }
+  void (async () => {
+    try {
+      await jumpNearMarker(dir > 0 ? "next" : "prev");
+      return;
+    } catch {
+      /* local fallback */
     }
-    if (!target) target = sorted[sorted.length - 1];
-  }
-  if (!target) return;
-  stopPlay();
-  const f = target.frame ?? 0;
-  $("status-msg").textContent = `Marker ${target.label || target.id} @ f${f}`;
-  void seekTo(f / state.fps);
+    if (!state.markers.length) {
+      $("status-msg").textContent = "No markers";
+      return;
+    }
+    const sorted = [...state.markers].sort(
+      (a, b) => (a.frame ?? 0) - (b.frame ?? 0),
+    );
+    const cur = playheadFrame();
+    let target: Marker | undefined;
+    if (dir > 0) {
+      target = sorted.find((m) => (m.frame ?? 0) > cur) || sorted[0];
+    } else {
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        if ((sorted[i].frame ?? 0) < cur) {
+          target = sorted[i];
+          break;
+        }
+      }
+      if (!target) target = sorted[sorted.length - 1];
+    }
+    if (!target) return;
+    stopPlay();
+    const f = target.frame ?? 0;
+    $("status-msg").textContent = `Marker ${target.label || target.id} @ f${f}`;
+    void seekTo(f / state.fps);
+  })();
 }
 
 /** Jump playhead to prev/next snap point (clip edges + markers). */
@@ -5168,6 +5179,184 @@ function toggleHelp() {
   if (!el) return;
   const open = el.classList.toggle("open");
   el.setAttribute("aria-hidden", open ? "false" : "true");
+  if (open) void enrichHelpFromKeymap();
+}
+
+/** Merge server keymap into help grid (once per open if empty server section). */
+async function enrichHelpFromKeymap() {
+  const grid = document.querySelector(".help-grid");
+  if (!grid || grid.querySelector("[data-from-api]")) return;
+  try {
+    const r = await getJson<{
+      shortcuts?: Array<{ keys?: string; action?: string }>;
+    }>("/api/help/keymap");
+    const list = r.shortcuts || [];
+    if (!list.length) return;
+    const sep = document.createElement("div");
+    sep.dataset.fromApi = "1";
+    sep.style.gridColumn = "1 / -1";
+    sep.style.marginTop = "8px";
+    sep.style.opacity = "0.7";
+    sep.textContent = "— core keymap —";
+    grid.appendChild(sep);
+    for (const s of list.slice(0, 24)) {
+      const row = document.createElement("div");
+      row.dataset.fromApi = "1";
+      row.innerHTML = `<kbd>${escapeHtml(s.keys || "?")}</kbd> ${escapeHtml(s.action || "")}`;
+      grid.appendChild(row);
+    }
+  } catch {
+    /* offline */
+  }
+}
+
+async function ensureAllMediaProxies(force = false) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Building media proxies…";
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/media/proxies?height=480&force=${force}`,
+      { method: "POST", headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 160)}`);
+    }
+    const body = (await res.json()) as {
+      count?: number;
+      ready?: number;
+      results?: unknown[];
+      built?: number;
+    };
+    await refreshMediaBin();
+    $("status-msg").textContent =
+      `Media proxies: ${body.count ?? body.built ?? body.ready ?? body.results?.length ?? "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Media proxies failed: ${e}`;
+  }
+}
+
+async function showWorkflow() {
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/workflow");
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      const wf = r.workflow;
+      out.textContent =
+        typeof wf === "string"
+          ? wf.slice(0, 4000)
+          : JSON.stringify(r, null, 2).slice(0, 4000);
+    }
+    $("status-msg").textContent = `Workflow v${r.version ?? "?"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Workflow failed: ${e}`;
+  }
+}
+
+async function makeBriefUi() {
+  const intent = window.prompt(
+    "Creative intent for director brief (empty = defaults)",
+    "",
+  );
+  if (intent == null) return;
+  $("status-msg").textContent = "Building brief…";
+  try {
+    // assets from bin abs paths
+    let assets: Array<{ path: string; role?: string }> = [];
+    try {
+      const media = await getJson<{
+        media?: Array<{ abs_path?: string; path?: string; kind?: string }>;
+      }>("/api/media");
+      assets = (media.media || [])
+        .map((m) => ({
+          path: m.abs_path || m.path || "",
+          role: m.kind === "audio" ? "music" : "a_roll",
+        }))
+        .filter((a) => a.path);
+    } catch {
+      /* no project */
+    }
+    const r = await postJson<Record<string, unknown>>("/api/brief", {
+      intent: intent.trim() || null,
+      assets,
+      constraints: {},
+      deliverable: {},
+    });
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 4000);
+    }
+    $("status-msg").textContent = "Brief + plan ready (see Review)";
+  } catch (e) {
+    $("status-msg").textContent = `Brief failed: ${e}`;
+  }
+}
+
+async function renameMarker(markerId: string, current: string) {
+  const label = window.prompt("Marker label", current);
+  if (label == null) return;
+  try {
+    const r = await postJson<{ markers?: Marker[] }>("/api/markers/update", {
+      marker_id: markerId,
+      label: label.trim(),
+    });
+    state.markers = r.markers || state.markers;
+    renderMarkerList();
+    $("status-msg").textContent = `Marker → ${label.trim() || "(empty)"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Marker update failed: ${e}`;
+  }
+}
+
+async function syncDirtyFromApi() {
+  if (!state.projectOpen) return;
+  try {
+    const r = await getJson<{ dirty?: boolean; autosave?: boolean }>(
+      "/api/dirty",
+    );
+    if (typeof r.dirty === "boolean") {
+      state.dirty = r.dirty;
+      const dirtyPill = document.getElementById("pill-dirty");
+      if (dirtyPill) {
+        dirtyPill.className = `pill ${state.dirty ? "warn" : "ok"}`;
+        dirtyPill.textContent = state.dirty ? "dirty" : "clean";
+      }
+    }
+    if (typeof r.autosave === "boolean") syncAutosaveUi(r.autosave);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function jumpNearMarker(direction: "next" | "prev") {
+  if (!state.projectOpen) return;
+  try {
+    const r = await postJson<{
+      marker?: Marker | null;
+      frame?: number;
+      found?: boolean;
+    }>("/api/markers/near", {
+      frame: playheadFrame(),
+      direction,
+      wrap: true,
+    });
+    const f = r.marker?.frame ?? r.frame;
+    if (f == null || r.found === false) {
+      $("status-msg").textContent = `No ${direction} marker`;
+      return;
+    }
+    stopPlay();
+    void seekTo(Number(f) / Math.max(1, state.fps));
+    $("status-msg").textContent =
+      `Marker ${r.marker?.label || f} (${direction})`;
+  } catch (e) {
+    $("status-msg").textContent = `Near marker failed: ${e}`;
+  }
 }
 
 async function edgeTrim(
@@ -6071,6 +6260,7 @@ async function refresh() {
     }
 
     $("status-msg").textContent = "Ready";
+    void syncDirtyFromApi();
   } catch (e) {
     setPill("pill-api", "err", "API down");
     setPill("pill-preview", "err", "preview n/a");
@@ -6492,6 +6682,15 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-duck-clear").addEventListener("click", () => {
     stopPlay();
     void clearDuckSelection();
+  });
+  $("btn-proxies-all").addEventListener("click", () => {
+    void ensureAllMediaProxies(false);
+  });
+  $("btn-workflow").addEventListener("click", () => {
+    void showWorkflow();
+  });
+  $("btn-brief").addEventListener("click", () => {
+    void makeBriefUi();
   });
   $("btn-rot-m90").addEventListener("click", () => {
     stopPlay();
