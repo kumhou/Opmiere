@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-ensure-core-api"
+description = "Allow starting Opmiere Python core API when down"
+commands.allow = ["ensure_core_api"]

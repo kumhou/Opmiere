@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.35 — 2026-07-15
+
+### Added
+- **Auto-start core API** (Tauri): if `:8787` is down on refresh, invoke
+  `ensure_core_api` → spawn `python -m opmiere.web.app` from
+  `%LOCALAPPDATA%\Opmiere\install.json` or PATH
+- Permission `allow-ensure-core-api`
+- Test: `tests/test_desktop_ensure_core_075.py`
+
 ## 0.4.34 — 2026-07-15
 
 ### Added

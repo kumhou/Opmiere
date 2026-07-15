@@ -3801,12 +3801,51 @@ async function newProjectPath() {
   }
 }
 
+type EnsureCoreResult = {
+  ok: boolean;
+  started: boolean;
+  alreadyUp: boolean;
+  message: string;
+  pid?: number | null;
+  python?: string | null;
+};
+
+/** Tauri: spawn python -m opmiere.web.app when :8787 is down. */
+async function tryEnsureCoreApi(): Promise<EnsureCoreResult | null> {
+  if (!isTauri()) return null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<EnsureCoreResult>("ensure_core_api");
+  } catch (e) {
+    console.warn("ensure_core_api invoke failed", e);
+    return {
+      ok: false,
+      started: false,
+      alreadyUp: false,
+      message: String(e),
+    };
+  }
+}
+
 async function refresh() {
   stopPlay();
   $("api-url").textContent = API_BASE;
   $("status-msg").textContent = "Refreshing…";
   try {
-    const health = await getJson<Health>("/api/health");
+    let health: Health;
+    try {
+      health = await getJson<Health>("/api/health");
+    } catch (first) {
+      // Desktop product path: try to start local core once, then retry.
+      $("status-msg").textContent = "Core API down — starting…";
+      const ensured = await tryEnsureCoreApi();
+      if (ensured?.ok || ensured?.started) {
+        $("status-msg").textContent = ensured.message;
+        health = await getJson<Health>("/api/health");
+      } else {
+        throw first;
+      }
+    }
     setPill("pill-api", "ok", "API up");
     state.projectOpen = !!health.project_open;
     $("project-state").textContent = state.projectOpen ? "open" : "none";
@@ -3900,7 +3939,7 @@ async function refresh() {
     setPill("pill-api", "err", "API down");
     setPill("pill-preview", "err", "preview n/a");
     $("status-msg").textContent =
-      `Core API unreachable at ${API_BASE}. Run scripts/dev-desktop.ps1 or opmiere web`;
+      `Core API unreachable at ${API_BASE}. Install Opmiere or run opmiere web / scripts/dev-desktop.ps1`;
     $("project-state").textContent = "—";
     state.projectOpen = false;
     console.error(e);
