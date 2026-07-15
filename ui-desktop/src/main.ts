@@ -3211,6 +3211,280 @@ async function importMarkersText() {
   }
 }
 
+async function refreshMixConsole() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      audio_tracks?: Array<{
+        id?: string;
+        name?: string;
+        clip_count?: number;
+        duck?: unknown;
+      }>;
+      duck_edges?: unknown[];
+      audio_track_count?: number;
+      agent_note?: string;
+    }>("/api/mix");
+    const el = document.getElementById("mix-out");
+    const n = r.audio_track_count ?? r.audio_tracks?.length ?? 0;
+    const ducks = r.duck_edges?.length ?? 0;
+    $("status-msg").textContent = `Mix: ${n} A-track(s), ${ducks} duck edge(s)`;
+    if (el) {
+      el.className = "review-out";
+      const lines = (r.audio_tracks || []).map((t) => {
+        const duck = t.duck ? " [duck]" : "";
+        return `${t.name || t.id}: ${t.clip_count ?? "?"} clips${duck}`;
+      });
+      el.textContent =
+        (lines.length ? lines.join("\n") : "(no audio tracks)") +
+        (r.agent_note ? `\n— ${r.agent_note}` : "");
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Mix failed: ${e}`;
+  }
+}
+
+async function findGapsUi() {
+  if (!state.projectOpen) return;
+  try {
+    const vids = state.tracks.filter((t) => t.kind === "video");
+    const body: Record<string, unknown> = {
+      from_frame: 0,
+      min_gap_frames: 1,
+    };
+    if (vids[0]?.id) body.track_id = vids[0].id;
+    const r = await postJson<{
+      gaps?: Array<{ start?: number; end?: number; frames?: number }>;
+      count?: number;
+    }>("/api/gaps/find", body);
+    const gaps = r.gaps || [];
+    $("status-msg").textContent = `Gaps: ${r.count ?? gaps.length}`;
+    const out = document.getElementById("mix-out");
+    if (out) {
+      out.className = "review-out";
+      if (!gaps.length) {
+        out.textContent = "No gaps";
+      } else {
+        out.innerHTML = "";
+        for (const g of gaps.slice(0, 40)) {
+          const row = document.createElement("div");
+          row.className = "export-dir-row";
+          const s = g.start ?? 0;
+          const e = g.end ?? s;
+          row.textContent = `f${s}–${e} (${g.frames ?? e - s}f)`;
+          row.addEventListener("click", () => {
+            void seekTo(s / Math.max(1, state.fps));
+          });
+          out.appendChild(row);
+        }
+        void seekTo((gaps[0].start ?? 0) / Math.max(1, state.fps));
+      }
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Find gaps failed: ${e}`;
+  }
+}
+
+async function closeAllGapsUi() {
+  if (!state.projectOpen) return;
+  stopPlay();
+  $("status-msg").textContent = "Closing all gaps…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/gaps/close_all",
+      { from_frame: 0 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = "Closed gaps on all tracks";
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Close-all gaps failed: ${e}`;
+  }
+}
+
+async function selectClipsInIO() {
+  if (!state.projectOpen) return;
+  if (!state.workIO.ready) {
+    $("status-msg").textContent = "Set In and Out first (I / O)";
+    return;
+  }
+  const start = state.workIO.in_frame!;
+  const end = state.workIO.out_frame!;
+  try {
+    const r = await postJson<{
+      clip_ids?: string[];
+      clips?: Array<{ id?: string; clip_id?: string }>;
+      count?: number;
+    }>("/api/clips/in_range", {
+      start_frame: start,
+      end_frame: end,
+      partial: true,
+    });
+    const ids =
+      r.clip_ids ||
+      (r.clips || [])
+        .map((c) => c.id || c.clip_id || "")
+        .filter(Boolean);
+    setSelection(ids);
+    $("status-msg").textContent = `Selected ${ids.length} in I/O [${start},${end})`;
+  } catch (e) {
+    $("status-msg").textContent = `Sel I/O failed: ${e}`;
+  }
+}
+
+async function selectByColorOfSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a colored clip first";
+    return;
+  }
+  const color = state.clips.get(ids[0])?.color;
+  if (!color) {
+    $("status-msg").textContent = "First selection has no color";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      clip_ids?: string[];
+      clips?: Array<{ id?: string; clip_id?: string }>;
+    }>("/api/clips/by_color", { color });
+    const found =
+      r.clip_ids ||
+      (r.clips || [])
+        .map((c) => c.id || c.clip_id || "")
+        .filter(Boolean);
+    setSelection(found);
+    $("status-msg").textContent = `Selected ${found.length} with color ${color}`;
+  } catch (e) {
+    $("status-msg").textContent = `Sel color failed: ${e}`;
+  }
+}
+
+async function selectLinkedGroup() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a linked clip first";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      clip_ids?: string[];
+      members?: string[];
+      group_id?: string;
+    }>("/api/clips/linked", { clip_id: ids[0] });
+    const members = r.clip_ids || r.members || [];
+    if (!members.length) {
+      $("status-msg").textContent = "No link group";
+      return;
+    }
+    setSelection(members);
+    $("status-msg").textContent =
+      `Link group ${r.group_id || ""}: ${members.length} clip(s)`;
+  } catch (e) {
+    $("status-msg").textContent = `Sel link failed: ${e}`;
+  }
+}
+
+async function renameSelectionPattern() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to rename";
+    return;
+  }
+  const pattern =
+    window.prompt("Rename pattern ({nn} = 01,02…)", "Shot{nn}") || "";
+  if (!pattern.trim()) return;
+  $("status-msg").textContent = `Rename ${ids.length}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/rename", {
+      pattern: pattern.trim(),
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Renamed ×${ids.length} as ${pattern}`;
+  } catch (e) {
+    $("status-msg").textContent = `Rename failed: ${e}`;
+  }
+}
+
+async function moveBlockToPlayhead() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to move as a block";
+    return;
+  }
+  const to = playheadFrame();
+  stopPlay();
+  $("status-msg").textContent = `Move block → f${to}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/move_block",
+      {
+        clip_ids: ids,
+        to_frame: to,
+        follow_links: true,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Block @ f${to} (${ids.length} clips)`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Move block failed: ${e}`;
+  }
+}
+
+async function moveTrackOfSelection(delta: number) {
+  const ids = selectionList();
+  let trackId: string | null = null;
+  if (ids.length) {
+    trackId = state.clips.get(ids[0])?.trackId || null;
+  } else if (state.tracks[0]) {
+    trackId = state.tracks[0].id;
+  }
+  if (!trackId) {
+    $("status-msg").textContent = "Select a clip (or have tracks) to reorder";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/track/move", {
+      track_id: trackId,
+      delta,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Track ${delta < 0 ? "up" : "down"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Track move failed: ${e}`;
+  }
+}
+
+async function shiftMarkersUi(delta: number) {
+  if (!state.projectOpen) return;
+  try {
+    const r = await postJson<{ markers?: Marker[] }>("/api/markers/shift", {
+      delta_frames: delta,
+    });
+    state.markers = r.markers || [];
+    renderMarkerList();
+    // repaint ruler if timeline open
+    const ruler = document.querySelector(".marker-ruler") as HTMLElement | null;
+    if (ruler) {
+      // trigger via refresh markers path
+      await refreshMarkers();
+    }
+    $("status-msg").textContent = `Markers Δ${delta}f`;
+  } catch (e) {
+    $("status-msg").textContent = `Marker shift failed: ${e}`;
+  }
+}
+
 async function applySelectedStyle() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -6216,6 +6490,42 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-mk-import").addEventListener("click", () => {
     void importMarkersText();
+  });
+  $("btn-mix").addEventListener("click", () => {
+    void refreshMixConsole();
+  });
+  $("btn-find-gaps").addEventListener("click", () => {
+    void findGapsUi();
+  });
+  $("btn-close-all-gaps").addEventListener("click", () => {
+    void closeAllGapsUi();
+  });
+  $("btn-sel-io").addEventListener("click", () => {
+    void selectClipsInIO();
+  });
+  $("btn-sel-color").addEventListener("click", () => {
+    void selectByColorOfSelection();
+  });
+  $("btn-sel-link").addEventListener("click", () => {
+    void selectLinkedGroup();
+  });
+  $("btn-rename-pat").addEventListener("click", () => {
+    void renameSelectionPattern();
+  });
+  $("btn-block-ph").addEventListener("click", () => {
+    void moveBlockToPlayhead();
+  });
+  $("btn-trk-up").addEventListener("click", () => {
+    void moveTrackOfSelection(-1);
+  });
+  $("btn-trk-dn").addEventListener("click", () => {
+    void moveTrackOfSelection(1);
+  });
+  $("btn-mk-shift-m").addEventListener("click", () => {
+    void shiftMarkersUi(-15);
+  });
+  $("btn-mk-shift-p").addEventListener("click", () => {
+    void shiftMarkersUi(15);
   });
   $("btn-copy-fx").addEventListener("click", () => {
     void copyEffectsFromSelection();

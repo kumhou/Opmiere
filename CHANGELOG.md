@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.51 — 2026-07-15
+
+### Added
+- **Organize** panel: mix snapshot, find/close-all gaps, select I/O / color / link
+- **Shot##** batch rename, **Blk@PH** move_block to playhead
+- **Trk↑/↓** reorder track of selection, **Mk±** shift markers 15f
+- Test: `tests/test_desktop_organize_091.py`
 ## 0.4.50 — 2026-07-15
 
 ### Added
