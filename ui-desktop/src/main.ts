@@ -176,7 +176,15 @@ const state = {
   zoom: 1,
   /** Session: only auto-open the most recent project once after API is up. */
   didAutoOpenRecent: false,
+  /** Place mode for bin → timeline / dbl-click place. */
+  editMode: "insert" as "insert" | "overwrite",
 };
+
+function currentEditMode(): "insert" | "overwrite" {
+  const el = document.getElementById("chk-overwrite") as HTMLInputElement | null;
+  if (el) state.editMode = el.checked ? "overwrite" : "insert";
+  return state.editMode;
+}
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -835,21 +843,23 @@ async function placeMediaOnTrack(
     $("status-msg").textContent = "Open a project first";
     return;
   }
-  $("status-msg").textContent = `Place ${mediaId} @ f${startFrame}…`;
+  const mode = currentEditMode();
+  const start = Math.max(0, Math.floor(startFrame));
+  $("status-msg").textContent = `Place ${mediaId} @ f${start} (${mode})…`;
   try {
     const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
       "/api/place_media",
       {
         media_id: mediaId,
         track_id: trackId,
-        start: Math.max(0, Math.floor(startFrame)),
-        mode: "insert",
+        start,
+        mode,
       },
     );
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
     $("status-msg").textContent =
-      `Placed ${r.clip_id || mediaId} @ f${Math.max(0, Math.floor(startFrame))}`;
+      `Placed ${r.clip_id || mediaId} @ f${start} (${mode})`;
     void seekTo(state.t);
   } catch (e) {
     $("status-msg").textContent = `Place failed: ${e}`;
@@ -996,7 +1006,8 @@ async function placeMediaAtPlayhead(mediaId: string, kind: string) {
     return;
   }
   const start = playheadFrame();
-  $("status-msg").textContent = `Place ${mediaId} @ f${start}…`;
+  const mode = currentEditMode();
+  $("status-msg").textContent = `Place ${mediaId} @ f${start} (${mode})…`;
   try {
     const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
       "/api/place_media",
@@ -1004,12 +1015,13 @@ async function placeMediaAtPlayhead(mediaId: string, kind: string) {
         media_id: mediaId,
         track_id: trackId,
         start,
-        mode: "insert",
+        mode,
       },
     );
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
-    $("status-msg").textContent = `Placed ${r.clip_id || mediaId} @ f${start}`;
+    $("status-msg").textContent =
+      `Placed ${r.clip_id || mediaId} @ f${start} (${mode})`;
     void seekTo(state.t);
   } catch (e) {
     $("status-msg").textContent = `Place failed: ${e}`;
@@ -4726,6 +4738,17 @@ function onKey(ev: KeyboardEvent) {
     setSelection(all);
     return;
   }
+  // Plain `.` toggles insert/overwrite place mode (NLE three-point habit)
+  if (k === "." && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
+    ev.preventDefault();
+    const el = document.getElementById("chk-overwrite") as HTMLInputElement | null;
+    if (el) {
+      el.checked = !el.checked;
+      state.editMode = el.checked ? "overwrite" : "insert";
+      $("status-msg").textContent = `Place mode: ${state.editMode}`;
+    }
+    return;
+  }
   if (ev.key === "Escape") {
     const help = document.getElementById("help-overlay");
     if (help?.classList.contains("open")) {
@@ -4766,6 +4789,11 @@ window.addEventListener("DOMContentLoaded", () => {
   wireTimelineMarquee($("timeline-body"));
   $("btn-fs").addEventListener("click", () => {
     toggleProgramFullscreen();
+  });
+  const chkOw = document.getElementById("chk-overwrite") as HTMLInputElement | null;
+  chkOw?.addEventListener("change", () => {
+    state.editMode = chkOw.checked ? "overwrite" : "insert";
+    $("status-msg").textContent = `Place mode: ${state.editMode}`;
   });
   $("btn-frame-back").addEventListener("click", () => {
     stopPlay();

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.41 — 2026-07-15
+
+### Added
+- **Insert / Overwrite** place mode for bin drag + double-click place
+  - checkbox `Overwrite`; toggle with `.`
+  - `mode=overwrite` lifts target range before place (core `place_media`)
+- Test: `tests/test_desktop_edit_mode_081.py`
 ## 0.4.40 — 2026-07-15
 
 ### Added
