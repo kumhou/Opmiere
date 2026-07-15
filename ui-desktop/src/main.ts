@@ -75,6 +75,9 @@ type TimelineView = {
       start_frame?: number;
       end_frame?: number;
       duration_frames?: number;
+      media_id?: string;
+      media_kind?: string;
+      has_audio_media?: boolean;
       name?: string;
       label?: string;
       muted?: boolean;
@@ -95,6 +98,8 @@ type ClipInfo = {
   trackId: string;
   start: number;
   dur: number;
+  mediaId?: string;
+  hasAudio?: boolean;
   label?: string;
   name?: string;
   color?: string | null;
@@ -106,6 +111,11 @@ type ClipInfo = {
   fade_in_frames?: number;
   fade_out_frames?: number;
 };
+
+/** media_id → peak envelope (0..1) */
+const waveCache = new Map<string, number[]>();
+let wavesLoading = false;
+let waveTimer: ReturnType<typeof setTimeout> | 0 = 0;
 
 const state = {
   projectOpen: false,
@@ -722,6 +732,7 @@ type MediaBin = {
     path?: string;
     duration_frames?: number;
     label?: string;
+    has_audio?: boolean;
   }>;
   // list_media_bin may use different shape
   media?: Array<Record<string, unknown>>;
@@ -743,20 +754,43 @@ function renderMediaBin(data: MediaBin | null) {
   for (const m of items) {
     const row = document.createElement("div");
     row.className = "media-row";
+    const kind = (m.kind || "video").toLowerCase();
+    if (kind === "video" || kind === "image") {
+      const thumb = document.createElement("img");
+      thumb.className = "media-thumb";
+      thumb.alt = "";
+      thumb.loading = "lazy";
+      thumb.decoding = "async";
+      thumb.src = `${API_BASE}/api/media/${encodeURIComponent(m.id)}/thumb.jpg?t=0.1&width=96`;
+      thumb.addEventListener("error", () => {
+        thumb.classList.add("missing");
+        thumb.removeAttribute("src");
+      });
+      row.appendChild(thumb);
+    } else {
+      const ph = document.createElement("div");
+      ph.className = "media-thumb audio-ph";
+      ph.textContent = "♪";
+      row.appendChild(ph);
+    }
+    const meta = document.createElement("div");
+    meta.className = "media-meta";
     const name = document.createElement("div");
+    name.className = "media-name";
     name.textContent =
       m.label ||
       (m.path ? String(m.path).split(/[/\\]/).pop() : m.id) ||
       m.id;
-    const kind = document.createElement("div");
-    kind.className = "kind";
+    const kindEl = document.createElement("div");
+    kindEl.className = "kind";
     const dur =
       typeof m.duration_frames === "number"
         ? ` · ${m.duration_frames}f`
         : "";
-    kind.textContent = `${m.kind || "?"}${dur}`;
-    row.appendChild(name);
-    row.appendChild(kind);
+    kindEl.textContent = `${m.kind || "?"}${dur}`;
+    meta.appendChild(name);
+    meta.appendChild(kindEl);
+    row.appendChild(meta);
     row.title = `${m.path || m.id} · double-click to place at playhead`;
     row.dataset.mediaId = m.id;
     if (m.kind) row.dataset.kind = m.kind;
@@ -764,6 +798,74 @@ function renderMediaBin(data: MediaBin | null) {
       void placeMediaAtPlayhead(m.id, m.kind || "video");
     });
     el.appendChild(row);
+  }
+}
+
+function paintWaveOnCanvas(canvas: HTMLCanvasElement, peaks: number[]) {
+  const w = Math.max(1, canvas.clientWidth || canvas.width || 1);
+  const h = Math.max(1, canvas.clientHeight || canvas.height || 1);
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx || !peaks.length) return;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(120, 200, 255, 0.55)";
+  const mid = h / 2;
+  const n = peaks.length;
+  for (let i = 0; i < n; i++) {
+    const p = Math.max(0, Math.min(1, peaks[i] ?? 0));
+    const x0 = (i / n) * w;
+    const x1 = ((i + 1) / n) * w;
+    const amp = p * (mid - 1);
+    ctx.fillRect(x0, mid - amp, Math.max(1, x1 - x0), amp * 2);
+  }
+}
+
+function paintAllWaveforms() {
+  document.querySelectorAll<HTMLCanvasElement>("canvas.clip-wave").forEach((cv) => {
+    const mid = cv.dataset.mediaId;
+    if (!mid) return;
+    const peaks = waveCache.get(mid);
+    if (peaks?.length) paintWaveOnCanvas(cv, peaks);
+  });
+}
+
+function scheduleWaveformLoad() {
+  if (waveTimer) clearTimeout(waveTimer);
+  waveTimer = setTimeout(() => {
+    void loadMissingWaveforms();
+  }, 400);
+}
+
+async function loadMissingWaveforms() {
+  if (wavesLoading || !state.projectOpen) return;
+  const need: string[] = [];
+  document.querySelectorAll<HTMLElement>(".clip-block[data-media-id]").forEach((el) => {
+    if (el.dataset.hasAudio !== "1") return;
+    const mid = el.dataset.mediaId;
+    if (mid && !waveCache.has(mid)) need.push(mid);
+  });
+  const unique = [...new Set(need)].slice(0, 16);
+  if (!unique.length) {
+    paintAllWaveforms();
+    return;
+  }
+  wavesLoading = true;
+  try {
+    for (const mediaId of unique) {
+      try {
+        const r = await postJson<{ peaks?: number[] }>("/api/waveform", {
+          media_id: mediaId,
+          num_peaks: 160,
+        });
+        if (r.peaks?.length) waveCache.set(mediaId, r.peaks);
+      } catch {
+        /* skip missing audio */
+      }
+    }
+    paintAllWaveforms();
+  } finally {
+    wavesLoading = false;
   }
 }
 
@@ -3637,6 +3739,8 @@ function renderTimeline(view: TimelineView | null) {
         trackId: tr.id,
         start,
         dur,
+        mediaId: c.media_id,
+        hasAudio: !!c.has_audio_media || tr.kind === "audio",
         label: c.label,
         name: c.name,
         color: c.color,
@@ -3746,7 +3850,16 @@ function renderTimeline(view: TimelineView | null) {
       block.style.left = `${left}%`;
       block.style.width = `${width}%`;
       block.dataset.label = c.label || c.name || c.id;
+      if (c.media_id) block.dataset.mediaId = c.media_id;
+      const hasAudio = !!c.has_audio_media || tr.kind === "audio";
+      if (hasAudio) block.dataset.hasAudio = "1";
       block.title = `${c.id}${c.muted ? " [muted]" : ""}${c.link_group ? " [linked]" : ""} · drag · edges · Shift+M mute`;
+      if (hasAudio && c.media_id) {
+        const wave = document.createElement("canvas");
+        wave.className = "clip-wave";
+        wave.dataset.mediaId = c.media_id;
+        block.appendChild(wave);
+      }
       bindClipInteractions(
         block,
         {
@@ -3780,6 +3893,7 @@ function renderTimeline(view: TimelineView | null) {
   setPlayheadUi();
   $("sel-count").textContent = String(state.selected.size);
   updateSelectionCard();
+  scheduleWaveformLoad();
 }
 
 async function createDemoProject() {

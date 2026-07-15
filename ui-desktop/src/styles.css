@@ -1026,13 +1026,15 @@ button:disabled {
 
 .media-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   margin-bottom: 2px;
   color: var(--color-foreground);
+  cursor: default;
 }
 
 .media-row:hover {
@@ -1040,10 +1042,68 @@ button:disabled {
   border-color: var(--color-border);
 }
 
+.media-thumb {
+  width: 48px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 2px;
+  background: var(--color-surface-raised);
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.media-thumb.missing {
+  display: none;
+}
+
+.media-thumb.audio-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--color-accent);
+  object-fit: unset;
+}
+
+.media-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.media-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .media-row .kind {
   color: var(--color-muted);
   font-size: 10px;
   text-transform: uppercase;
+}
+
+.clip-wave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.75;
+  z-index: 0;
+}
+
+.clip-block .clip-label,
+.clip-block .clip-handle,
+.clip-block .speed-badge,
+.clip-block .link-badge {
+  position: relative;
+  z-index: 1;
 }
 
 /* Workspace includes timeline under the 3 cols */

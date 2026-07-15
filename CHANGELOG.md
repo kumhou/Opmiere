@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.38 — 2026-07-15
+
+### Added
+- **Media bin thumbnails** (desktop): video/image poster via `/api/media/{id}/thumb.jpg`
+- **Timeline waveforms**: auto-load `POST /api/waveform` peaks for clips with audio; canvas paint
+- Test: `tests/test_desktop_thumbs_waves_078.py`
 ## 0.4.37 — 2026-07-15
 
 ### Added
