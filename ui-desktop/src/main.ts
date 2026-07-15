@@ -117,6 +117,16 @@ const waveCache = new Map<string, number[]>();
 let wavesLoading = false;
 let waveTimer: ReturnType<typeof setTimeout> | 0 = 0;
 
+type MarqueeDrag = {
+  x0: number;
+  y0: number;
+  additive: boolean;
+  moved: boolean;
+};
+let marqueeDrag: MarqueeDrag | null = null;
+/** Suppress lane click-seek after a marquee gesture. */
+let marqueeSuppressClick = false;
+
 const state = {
   projectOpen: false,
   durationSec: 0,
@@ -3974,6 +3984,7 @@ function renderTimeline(view: TimelineView | null) {
     }
     lane.addEventListener("click", (ev) => {
       if (state.drag) return;
+      if (marqueeSuppressClick) return;
       if ((ev.target as HTMLElement).closest(".clip-block")) return;
       stopPlay();
       if (!ev.shiftKey) setSelection([]);
@@ -3985,11 +3996,150 @@ function renderTimeline(view: TimelineView | null) {
     row.appendChild(lane);
     body.appendChild(row);
   }
+  // marquee node is wiped by innerHTML — re-create shell only
+  ensureMarqueeEl(body);
   applyZoomToLanes();
   setPlayheadUi();
   $("sel-count").textContent = String(state.selected.size);
   updateSelectionCard();
   scheduleWaveformLoad();
+}
+
+function ensureMarqueeEl(body: HTMLElement): HTMLElement {
+  let mq = body.querySelector("#marquee") as HTMLElement | null;
+  if (!mq) {
+    mq = document.createElement("div");
+    mq.id = "marquee";
+    body.appendChild(mq);
+  }
+  return mq;
+}
+
+/** Drag empty lane space to rubber-band select clips. Wire once on #timeline-body. */
+function wireTimelineMarquee(body: HTMLElement) {
+  if (body.dataset.marqueeWired === "1") return;
+  body.dataset.marqueeWired = "1";
+  body.style.position = "relative";
+  ensureMarqueeEl(body);
+
+  body.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0) return;
+    if (state.drag) return;
+    const t = ev.target as HTMLElement;
+    if (
+      t.closest(".clip-block") ||
+      t.closest("button") ||
+      t.closest(".track-flags") ||
+      t.closest(".track-label")
+    ) {
+      return;
+    }
+    if (!t.closest(".track-lane") && !t.closest(".marker-ruler")) return;
+    const rect = body.getBoundingClientRect();
+    marqueeDrag = {
+      x0: ev.clientX - rect.left + body.scrollLeft,
+      y0: ev.clientY - rect.top + body.scrollTop,
+      additive: ev.shiftKey || ev.ctrlKey || ev.metaKey,
+      moved: false,
+    };
+    const mq = ensureMarqueeEl(body);
+    mq.classList.add("on");
+    mq.style.left = `${marqueeDrag.x0}px`;
+    mq.style.top = `${marqueeDrag.y0}px`;
+    mq.style.width = "0px";
+    mq.style.height = "0px";
+    try {
+      body.setPointerCapture(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
+  });
+
+  body.addEventListener("pointermove", (ev) => {
+    if (!marqueeDrag) return;
+    const rect = body.getBoundingClientRect();
+    const x1 = ev.clientX - rect.left + body.scrollLeft;
+    const y1 = ev.clientY - rect.top + body.scrollTop;
+    const L = Math.min(marqueeDrag.x0, x1);
+    const T = Math.min(marqueeDrag.y0, y1);
+    const W = Math.abs(x1 - marqueeDrag.x0);
+    const H = Math.abs(y1 - marqueeDrag.y0);
+    if (W > 4 || H > 4) marqueeDrag.moved = true;
+    const mq = ensureMarqueeEl(body);
+    mq.style.left = `${L}px`;
+    mq.style.top = `${T}px`;
+    mq.style.width = `${W}px`;
+    mq.style.height = `${H}px`;
+  });
+
+  const endMarquee = (ev: PointerEvent) => {
+    if (!marqueeDrag) return;
+    const drag = marqueeDrag;
+    marqueeDrag = null;
+    const mq = body.querySelector("#marquee") as HTMLElement | null;
+    mq?.classList.remove("on");
+    try {
+      body.releasePointerCapture(ev.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (!drag.moved) return;
+    marqueeSuppressClick = true;
+    setTimeout(() => {
+      marqueeSuppressClick = false;
+    }, 0);
+
+    const rect = body.getBoundingClientRect();
+    const x1 = ev.clientX - rect.left + body.scrollLeft;
+    const y1 = ev.clientY - rect.top + body.scrollTop;
+    const L = Math.min(drag.x0, x1);
+    const T = Math.min(drag.y0, y1);
+    const R = Math.max(drag.x0, x1);
+    const B = Math.max(drag.y0, y1);
+
+    const hits: string[] = [];
+    body.querySelectorAll<HTMLElement>(".clip-block[data-clip-id]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      const elL = r.left - rect.left + body.scrollLeft;
+      const elT = r.top - rect.top + body.scrollTop;
+      const elR = elL + r.width;
+      const elB = elT + r.height;
+      if (elL < R && elR > L && elT < B && elB > T && el.dataset.clipId) {
+        hits.push(el.dataset.clipId);
+      }
+    });
+    if (!hits.length) {
+      if (!drag.additive) setSelection([]);
+      $("status-msg").textContent = "Marquee: 0 clips";
+      return;
+    }
+    if (drag.additive) {
+      const merged = new Set(state.selected);
+      for (const id of hits) merged.add(id);
+      setSelection([...merged]);
+    } else {
+      setSelection(hits);
+    }
+    $("status-msg").textContent = `Marquee: ${state.selected.size} clip(s)`;
+  };
+
+  body.addEventListener("pointerup", endMarquee);
+  body.addEventListener("pointercancel", () => {
+    marqueeDrag = null;
+    body.querySelector("#marquee")?.classList.remove("on");
+  });
+}
+
+function toggleProgramFullscreen() {
+  const frame = document.querySelector(".program-frame") as HTMLElement | null;
+  if (!frame) return;
+  if (!document.fullscreenElement) {
+    void frame.requestFullscreen?.().catch((e) => {
+      $("status-msg").textContent = `Fullscreen failed: ${e}`;
+    });
+  } else {
+    void document.exitFullscreen?.();
+  }
 }
 
 async function createDemoProject() {
@@ -4507,9 +4657,26 @@ function onKey(ev: KeyboardEvent) {
     void selectAtPlayhead();
     return;
   }
+  if (k === "f" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && ev.shiftKey) {
+    ev.preventDefault();
+    toggleProgramFullscreen();
+    return;
+  }
   if (k === "f" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
     ev.preventDefault();
     void matchFrameAtPlayhead();
+    return;
+  }
+  if (ev.key === "Home" && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(0);
+    return;
+  }
+  if (ev.key === "End" && !ev.ctrlKey && !ev.metaKey) {
+    ev.preventDefault();
+    stopPlay();
+    void seekTo(Math.max(0, state.durationSec));
     return;
   }
   if (k === "u" && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) {
@@ -4566,6 +4733,10 @@ function onKey(ev: KeyboardEvent) {
       help.setAttribute("aria-hidden", "true");
       return;
     }
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+      return;
+    }
     setSelection([]);
   }
 }
@@ -4591,6 +4762,10 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-new").addEventListener("click", () => {
     void newProjectPath();
+  });
+  wireTimelineMarquee($("timeline-body"));
+  $("btn-fs").addEventListener("click", () => {
+    toggleProgramFullscreen();
   });
   $("btn-frame-back").addEventListener("click", () => {
     stopPlay();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.40 — 2026-07-15
+
+### Added
+- **Marquee select**: drag empty timeline lane space to rubber-band select clips
+  (Shift/Ctrl additive)
+- **Program fullscreen**: FS button + **Shift+F** (Esc exits)
+- **Home / End**: seek sequence start / end
+- Test: `tests/test_desktop_marquee_fs_080.py`
 ## 0.4.39 — 2026-07-15
 
 ### Added
