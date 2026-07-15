@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.39 — 2026-07-15
+
+### Added
+- **Bin → timeline drag**: drag media row onto a track lane to place at drop x
+  (kind-aware track remap; insert mode)
+- Test: `tests/test_desktop_bin_drag_079.py`
 ## 0.4.38 — 2026-07-15
 
 ### Added

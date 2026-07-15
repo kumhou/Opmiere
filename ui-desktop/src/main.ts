@@ -791,14 +791,109 @@ function renderMediaBin(data: MediaBin | null) {
     meta.appendChild(name);
     meta.appendChild(kindEl);
     row.appendChild(meta);
-    row.title = `${m.path || m.id} · double-click to place at playhead`;
+    row.title = `${m.path || m.id} · drag to timeline or double-click @ playhead`;
     row.dataset.mediaId = m.id;
     if (m.kind) row.dataset.kind = m.kind;
+    row.draggable = true;
+    row.addEventListener("dragstart", (ev) => {
+      if (!ev.dataTransfer) return;
+      ev.dataTransfer.setData(
+        "application/x-opmiere-media",
+        JSON.stringify({ id: m.id, kind: m.kind || "video" }),
+      );
+      ev.dataTransfer.setData("text/plain", m.id);
+      ev.dataTransfer.effectAllowed = "copy";
+      row.classList.add("dragging-bin");
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging-bin");
+    });
     row.addEventListener("dblclick", () => {
       void placeMediaAtPlayhead(m.id, m.kind || "video");
     });
     el.appendChild(row);
   }
+}
+
+async function placeMediaOnTrack(
+  mediaId: string,
+  _kind: string,
+  trackId: string,
+  startFrame: number,
+) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = `Place ${mediaId} @ f${startFrame}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/place_media",
+      {
+        media_id: mediaId,
+        track_id: trackId,
+        start: Math.max(0, Math.floor(startFrame)),
+        mode: "insert",
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent =
+      `Placed ${r.clip_id || mediaId} @ f${Math.max(0, Math.floor(startFrame))}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Place failed: ${e}`;
+  }
+}
+
+function wireLaneMediaDrop(lane: HTMLElement, trackId: string, trackKind: string) {
+  lane.addEventListener("dragover", (ev) => {
+    const types = ev.dataTransfer?.types;
+    if (!types) return;
+    const ok =
+      [...types].includes("application/x-opmiere-media") ||
+      [...types].includes("text/plain");
+    if (!ok) return;
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = "copy";
+    lane.classList.add("drop-media");
+  });
+  lane.addEventListener("dragleave", (ev) => {
+    if (ev.target === lane) lane.classList.remove("drop-media");
+  });
+  lane.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    lane.classList.remove("drop-media");
+    const raw =
+      ev.dataTransfer?.getData("application/x-opmiere-media") ||
+      ev.dataTransfer?.getData("text/plain") ||
+      "";
+    if (!raw) return;
+    let mediaId = raw;
+    let kind = trackKind === "audio" ? "audio" : "video";
+    try {
+      const parsed = JSON.parse(raw) as { id?: string; kind?: string };
+      if (parsed.id) {
+        mediaId = parsed.id;
+        if (parsed.kind) kind = parsed.kind;
+      }
+    } catch {
+      /* plain media id */
+    }
+    const rect = lane.getBoundingClientRect();
+    const x = (ev.clientX - rect.left) / Math.max(1, rect.width);
+    const startFrame = Math.round(x * state.durationFrames);
+    // Prefer track matching media kind when dropping on wrong lane kind
+    let tid = trackId;
+    if (kind === "audio" && trackKind !== "audio") {
+      const a = trackForKind("audio");
+      if (a) tid = a;
+    } else if (kind !== "audio" && trackKind === "audio") {
+      const v = trackForKind("video");
+      if (v) tid = v;
+    }
+    void placeMediaOnTrack(mediaId, kind, tid, startFrame);
+  });
 }
 
 function paintWaveOnCanvas(canvas: HTMLCanvasElement, peaks: number[]) {
@@ -3837,6 +3932,7 @@ function renderTimeline(view: TimelineView | null) {
     lane.className = "track-lane";
     lane.dataset.trackId = tr.id;
     lane.dataset.trackKind = tr.kind;
+    wireLaneMediaDrop(lane, tr.id, tr.kind);
     const ph = document.createElement("div");
     ph.className = "timeline-playhead";
     lane.appendChild(ph);
