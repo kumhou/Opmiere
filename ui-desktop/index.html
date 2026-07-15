@@ -207,7 +207,7 @@
               <button type="button" id="btn-export-dir" class="btn-mini" title="List/open export folder">Exp dir</button>
             </div>
             <div id="export-dir-list" class="export-dir-list muted">—</div>
-            <h2 class="subh">Style</h2>
+            <h2 class="subh">Style / Template</h2>
             <div class="speed-row">
               <select id="style-select" class="export-preset" title="Look preset">
                 <option value="documentary">documentary</option>
@@ -218,6 +218,22 @@
                 <option value="ang_lee">ang_lee</option>
               </select>
               <button type="button" id="btn-style" class="btn-mini" title="Apply style to selection or all">Apply</button>
+            </div>
+            <div class="speed-row">
+              <select id="template-select" class="export-preset" title="Cut template">
+                <option value="talking_head">talking_head</option>
+                <option value="short_form">short_form</option>
+                <option value="interview">interview</option>
+                <option value="vlog">vlog</option>
+              </select>
+              <button type="button" id="btn-template" class="btn-mini" title="Apply cut template using bin video paths">Template</button>
+              <button type="button" id="btn-finish" class="btn-mini" title="finish_delivery to export dir">Finish</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-search-asr" class="btn-mini" title="Search cached transcripts">Find ASR</button>
+              <button type="button" id="btn-replace-edit" class="btn-mini" title="Replace selected clip media with bin media">Replace</button>
+              <button type="button" id="btn-copy-track" class="btn-mini" title="Copy selection to new same-kind track">Copy→trk</button>
+              <button type="button" id="btn-mk-import" class="btn-mini" title="Import YouTube chapter markers">Mk in</button>
             </div>
             <h2 class="subh">FX / Attrs</h2>
             <div class="speed-row">

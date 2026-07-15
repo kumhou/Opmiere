@@ -2930,6 +2930,287 @@ async function loadStyles() {
   }
 }
 
+async function loadTemplates() {
+  const el = document.getElementById("template-select") as HTMLSelectElement | null;
+  if (!el) return;
+  try {
+    const r = await getJson<{
+      names?: string[];
+      templates?: Record<string, { label?: string; description?: string }>;
+    }>("/api/templates");
+    const names = r.names || Object.keys(r.templates || {});
+    if (!names.length) return;
+    const cur = el.value;
+    el.innerHTML = "";
+    for (const n of names) {
+      const opt = document.createElement("option");
+      opt.value = n;
+      const meta = r.templates?.[n];
+      opt.textContent = meta?.label || n;
+      opt.title = meta?.description || n;
+      el.appendChild(opt);
+    }
+    if ([...el.options].some((o) => o.value === cur)) el.value = cur;
+  } catch {
+    /* keep static */
+  }
+}
+
+/** Apply cut template using absolute paths of video media currently in the bin. */
+async function applyCutTemplate() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const el = document.getElementById("template-select") as HTMLSelectElement | null;
+  const template = el?.value || "talking_head";
+  $("status-msg").textContent = `Apply template ${template}…`;
+  try {
+    const media = await getJson<{
+      media?: Array<{ kind?: string; abs_path?: string; path?: string }>;
+    }>("/api/media");
+    const paths = (media.media || [])
+      .filter((m) => (m.kind || "video") !== "audio")
+      .map((m) => m.abs_path || m.path || "")
+      .filter(Boolean);
+    if (!paths.length) {
+      $("status-msg").textContent = "Bin has no video media for template";
+      return;
+    }
+    const styleEl = document.getElementById(
+      "style-select",
+    ) as HTMLSelectElement | null;
+    const r = await postJson<Record<string, unknown>>("/api/templates/apply", {
+      template,
+      paths,
+      style_override: styleEl?.value || null,
+      dry_run: false,
+      build_proxy: true,
+      apply_silence: false,
+    });
+    await refresh();
+    await refreshMediaBin();
+    scheduleProxyRefresh();
+    const note = String(r.agent_note || r.next_steps || "").slice(0, 160);
+    $("status-msg").textContent = `Template ${template}${note ? " — " + note : ""}`;
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 2500);
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Template failed: ${e}`;
+  }
+}
+
+/** Agent-style finish: prepare + export + delivery check → export dir. */
+async function finishDelivery() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  stopPlay();
+  const preset = selectedExportPreset();
+  $("status-msg").textContent = `Finish delivery (${preset})…`;
+  try {
+    const dir = await exportDirPath();
+    const output_path = joinExportPath(
+      dir,
+      `finish_${preset}_${exportStamp()}.mp4`,
+    );
+    const r = await postJson<Record<string, unknown>>("/api/finish", {
+      output_path,
+      normalize_preset: preset === "draft" ? "streaming" : preset,
+      delivery_preset: preset === "draft" ? "streaming" : preset,
+      run_review: true,
+      run_sequence_sheet: false,
+    });
+    const ok = r.ok !== false;
+    const path = String(r.output_path || output_path);
+    $("status-msg").textContent = ok
+      ? `Finish ok: ${path}`
+      : `Finish soft-fail: ${path} (check delivery)`;
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 2500);
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Finish failed: ${e}`;
+  }
+}
+
+async function searchTranscriptsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const q = window.prompt("Search transcripts (cached ASR)", "");
+  if (q == null || !q.trim()) return;
+  $("status-msg").textContent = `Search ASR: ${q}…`;
+  try {
+    const r = await postJson<{
+      hits?: Array<{
+        media_id?: string;
+        start?: number;
+        end?: number;
+        text?: string;
+        time_seconds?: number;
+      }>;
+      count?: number;
+    }>("/api/search_transcripts", {
+      query: q.trim(),
+      media_id: state.binMediaId || null,
+      max_hits: 30,
+    });
+    const hits = r.hits || [];
+    $("status-msg").textContent = `ASR hits: ${hits.length}`;
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.innerHTML = "";
+      if (!hits.length) {
+        out.textContent = "No hits (run ASR first)";
+        return;
+      }
+      for (const h of hits) {
+        const row = document.createElement("div");
+        row.className = "export-dir-row";
+        const t = h.time_seconds ?? h.start ?? 0;
+        row.textContent = `${Number(t).toFixed(1)}s  ${h.text || ""}`;
+        row.title = h.media_id || "";
+        row.addEventListener("click", () => {
+          void seekTo(Number(t) || 0);
+        });
+        out.appendChild(row);
+      }
+    }
+  } catch (e) {
+    $("status-msg").textContent = `ASR search failed: ${e}`;
+  }
+}
+
+/** Replace selected clip media with bin media (stretch to keep duration). */
+async function replaceEditSelection() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select exactly 1 clip to replace";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Click a media row in the bin first";
+    return;
+  }
+  $("status-msg").textContent = `Replace edit → ${state.binMediaId}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/replace_edit",
+      {
+        clip_id: ids[0],
+        media_id: state.binMediaId,
+        mode: "stretch",
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = "Replace edit done";
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Replace failed: ${e}`;
+  }
+}
+
+/** Copy each selected clip onto a new same-kind track. */
+async function copySelectionToNewTrack() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to copy to a new track";
+    return;
+  }
+  $("status-msg").textContent = `Copy → new track ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    const byKind = new Map<string, string[]>();
+    for (const id of ids) {
+      const c = state.clips.get(id);
+      const tr = state.tracks.find((t) => t.id === c?.trackId);
+      const kind = tr?.kind || "video";
+      if (!byKind.has(kind)) byKind.set(kind, []);
+      byKind.get(kind)!.push(id);
+    }
+    for (const [kind, clipIds] of byKind) {
+      // POST /api/track?kind= returns track dict with id
+      const res = await fetch(
+        `${API_BASE}/api/track?kind=${encodeURIComponent(kind)}`,
+        {
+          method: "POST",
+          headers: { Accept: "application/json" },
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`create track HTTP ${res.status}`);
+      }
+      const created = (await res.json()) as { id?: string };
+      let destId = created.id;
+      if (!destId) {
+        await refresh();
+        const same = state.tracks.filter((t) => t.kind === kind);
+        destId = same[same.length - 1]?.id;
+      }
+      if (!destId) throw new Error(`could not create ${kind} track`);
+      for (const cid of clipIds) {
+        const r = await postJson<{ timeline?: TimelineView }>(
+          "/api/clip/copy_to_track",
+          {
+            clip_id: cid,
+            track_id: destId,
+            start: null,
+            copy_effects: true,
+            copy_link: false,
+          },
+        );
+        if (r.timeline) last = r.timeline;
+      }
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Copied ×${ids.length} to new track(s)`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Copy→track failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function importMarkersText() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const text = window.prompt(
+    "Paste YouTube chapters / marker text\n(e.g. 0:00 Intro\\n1:30 Hook)",
+    "",
+  );
+  if (text == null || !text.trim()) return;
+  $("status-msg").textContent = "Importing markers…";
+  try {
+    const r = await postJson<{ markers?: Marker[]; count?: number }>(
+      "/api/markers/import",
+      {
+        text,
+        format: "youtube",
+        replace: false,
+      },
+    );
+    state.markers = r.markers || [];
+    renderMarkerList();
+    $("status-msg").textContent = `Markers imported (${r.count ?? state.markers.length})`;
+  } catch (e) {
+    $("status-msg").textContent = `Marker import failed: ${e}`;
+  }
+}
+
 async function applySelectedStyle() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -5915,6 +6196,27 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-style").addEventListener("click", () => {
     void applySelectedStyle();
   });
+  $("btn-template").addEventListener("click", () => {
+    stopPlay();
+    void applyCutTemplate();
+  });
+  $("btn-finish").addEventListener("click", () => {
+    void finishDelivery();
+  });
+  $("btn-search-asr").addEventListener("click", () => {
+    void searchTranscriptsUi();
+  });
+  $("btn-replace-edit").addEventListener("click", () => {
+    stopPlay();
+    void replaceEditSelection();
+  });
+  $("btn-copy-track").addEventListener("click", () => {
+    stopPlay();
+    void copySelectionToNewTrack();
+  });
+  $("btn-mk-import").addEventListener("click", () => {
+    void importMarkersText();
+  });
   $("btn-copy-fx").addEventListener("click", () => {
     void copyEffectsFromSelection();
   });
@@ -6176,6 +6478,7 @@ window.addEventListener("DOMContentLoaded", () => {
   void loadPalette();
   void loadExportPresets();
   void loadStyles();
+  void loadTemplates();
   void refreshRecent();
   void refresh();
 });

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.50 — 2026-07-15
+
+### Added
+- **Cut templates** (talking_head / short_form / interview / vlog) from bin video paths
+- **Finish** delivery (prepare + export + check → export dir)
+- **Find ASR** search cached transcripts (click hit seeks)
+- **Replace** clip media from bin selection (stretch)
+- **Copy→trk** clone selection onto a new same-kind track
+- **Mk in** import YouTube chapter markers
+- Test: `tests/test_desktop_template_finish_090.py`
 ## 0.4.49 — 2026-07-15
 
 ### Added
