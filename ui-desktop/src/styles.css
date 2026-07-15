@@ -982,6 +982,12 @@ button:disabled {
   border-color: var(--color-primary);
 }
 
+#media-panel.drop-active {
+  outline: 2px dashed var(--color-primary, #5b8def);
+  outline-offset: -4px;
+  background: color-mix(in srgb, var(--color-primary, #5b8def) 12%, transparent);
+}
+
 .chk {
   display: inline-flex;
   align-items: center;

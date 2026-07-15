@@ -1321,6 +1321,94 @@ async function startImport() {
   $("file-import").click();
 }
 
+const MEDIA_DROP_EXTS = new Set([
+  ".mp4",
+  ".mov",
+  ".mkv",
+  ".webm",
+  ".avi",
+  ".m4v",
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".aac",
+  ".flac",
+  ".ogg",
+  ".opus",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".bmp",
+  ".gif",
+  ".tif",
+  ".tiff",
+]);
+
+function isLikelyMediaPath(p: string): boolean {
+  const lower = p.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  if (dot < 0) return false;
+  return MEDIA_DROP_EXTS.has(lower.slice(dot));
+}
+
+function setDropTargetActive(on: boolean) {
+  const el = document.getElementById("media-panel");
+  if (el) el.classList.toggle("drop-active", on);
+}
+
+/** Browser HTML5 drop → upload_place. */
+function wireBrowserFileDrop() {
+  const panel = document.getElementById("media-panel");
+  if (!panel) return;
+  panel.addEventListener("dragover", (ev) => {
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = "copy";
+    setDropTargetActive(true);
+  });
+  panel.addEventListener("dragleave", (ev) => {
+    if (ev.target === panel) setDropTargetActive(false);
+  });
+  panel.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    setDropTargetActive(false);
+    const files = ev.dataTransfer?.files;
+    if (files?.length) void importFiles(files);
+  });
+}
+
+/** Tauri OS file drop → place_batch with absolute paths. */
+async function wireTauriFileDrop() {
+  if (!isTauri()) return;
+  try {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    await getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload;
+      if (payload.type === "enter" || payload.type === "over") {
+        setDropTargetActive(true);
+        return;
+      }
+      if (payload.type === "leave") {
+        setDropTargetActive(false);
+        return;
+      }
+      if (payload.type === "drop") {
+        setDropTargetActive(false);
+        const paths = (payload.paths || [])
+          .map(String)
+          .filter((p) => isLikelyMediaPath(p));
+        if (!paths.length) {
+          $("status-msg").textContent = "Drop ignored — no media files";
+          return;
+        }
+        void importLocalPaths(paths);
+      }
+    });
+  } catch (e) {
+    console.warn("Tauri drag-drop wire failed", e);
+  }
+}
+
 function selectedExportPreset(): string {
   const el = document.getElementById("export-preset") as HTMLSelectElement | null;
   return el?.value || "draft";
@@ -3916,6 +4004,11 @@ function onKey(ev: KeyboardEvent) {
     void saveProject();
     return;
   }
+  if ((ev.ctrlKey || ev.metaKey) && k === "i") {
+    ev.preventDefault();
+    void startImport();
+    return;
+  }
   if ((ev.ctrlKey || ev.metaKey) && k === "o") {
     ev.preventDefault();
     void openProjectPath();
@@ -4402,6 +4495,11 @@ window.addEventListener("DOMContentLoaded", () => {
     void importFiles(input.files);
     input.value = "";
   });
+  if (isTauri()) {
+    void wireTauriFileDrop();
+  } else {
+    wireBrowserFileDrop();
+  }
   const scrub = $("scrub") as HTMLInputElement;
   scrub.addEventListener("input", () => {
     stopPlay();

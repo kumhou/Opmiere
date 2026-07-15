@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.34 — 2026-07-15
+
+### Added
+- **Drag-drop import**: drop media onto Media panel
+  - Tauri: OS paths via `onDragDropEvent` → `place_batch`
+  - Browser: HTML5 FileList → `upload_place`
+- **Ctrl+I** starts import (native picker / file input)
+- Drop target highlight (`.drop-active`)
+- Test: `tests/test_desktop_drop_import_074.py`
+
 ## 0.4.33 — 2026-07-15
 
 ### Added
