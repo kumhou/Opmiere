@@ -50,10 +50,10 @@
             <p class="kv"><b>Project</b> <span id="project-state">none</span></p>
             <p class="kv"><b>API</b> <span id="api-url">—</span></p>
             <div class="media-actions">
-              <label class="btn-file">
+              <button type="button" id="btn-import" class="btn-file" title="Import media (native picker in desktop)">
                 Import
-                <input type="file" id="file-import" multiple accept="video/*,audio/*,image/*" hidden />
-              </label>
+              </button>
+              <input type="file" id="file-import" multiple accept="video/*,audio/*,image/*" hidden />
               <label class="chk" title="Ripple delete closes gaps on track">
                 <input type="checkbox" id="chk-ripple" />
                 Ripple Del

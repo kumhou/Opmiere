@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.33 — 2026-07-15
+
+### Added
+- **Native media import** (Tauri): Import uses multi-file dialog + `POST /api/place_batch`
+  (absolute local paths, no re-upload copy into browser FormData)
+- Browser / Vite-only still uses hidden file input → `/api/upload_place`
+- Test: `tests/test_desktop_native_import_073.py`
+
 ## 0.4.32 — 2026-07-13
 
 ### Added

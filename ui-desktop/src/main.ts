@@ -1183,6 +1183,7 @@ async function refreshMediaBin() {
   }
 }
 
+/** Browser multipart upload (no reliable local paths). */
 async function importFiles(fileList: FileList | null) {
   if (!fileList?.length) return;
   if (!state.projectOpen) {
@@ -1217,6 +1218,107 @@ async function importFiles(fileList: FileList | null) {
   } catch (e) {
     $("status-msg").textContent = `Import failed: ${e}`;
   }
+}
+
+/** Desktop: place existing local paths via place_batch (no re-upload copy). */
+async function importLocalPaths(paths: string[]) {
+  if (!paths.length) return;
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open or create a project first";
+    return;
+  }
+  $("status-msg").textContent = `Importing ${paths.length} path(s)…`;
+  try {
+    const r = await postJson<{
+      result?: {
+        placed_count?: number;
+        error_count?: number;
+        errors?: Array<{ path?: string; error?: string }>;
+      };
+      timeline?: TimelineView;
+    }>("/api/place_batch", {
+      paths,
+      sequential: true,
+      build_proxy: false,
+    });
+    const n = r.result?.placed_count ?? 0;
+    const errs = r.result?.error_count ?? 0;
+    $("status-msg").textContent =
+      errs > 0 ? `Imported ${n} clip(s), ${errs} error(s)` : `Imported ${n} clip(s)`;
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Import failed: ${e}`;
+  }
+}
+
+/** Native multi-file picker (Tauri); returns absolute paths. */
+async function pickMediaFiles(): Promise<string[] | null> {
+  if (!isTauri()) return null;
+  try {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: true,
+      directory: false,
+      title: "Import media",
+      filters: [
+        {
+          name: "Media",
+          extensions: [
+            "mp4",
+            "mov",
+            "mkv",
+            "webm",
+            "avi",
+            "m4v",
+            "mp3",
+            "wav",
+            "m4a",
+            "aac",
+            "flac",
+            "ogg",
+            "opus",
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "bmp",
+            "gif",
+            "tif",
+            "tiff",
+          ],
+        },
+        { name: "All", extensions: ["*"] },
+      ],
+    });
+    if (selected == null) return [];
+    if (Array.isArray(selected)) return selected.map(String).filter(Boolean);
+    return selected ? [String(selected)] : [];
+  } catch (e) {
+    console.warn("Tauri media dialog failed", e);
+    return null;
+  }
+}
+
+async function startImport() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open or create a project first";
+    return;
+  }
+  if (isTauri()) {
+    const paths = await pickMediaFiles();
+    if (paths === null) {
+      // dialog plugin failed — browser-style file input
+      $("file-import").click();
+      return;
+    }
+    if (!paths.length) return; // cancelled
+    await importLocalPaths(paths);
+    return;
+  }
+  $("file-import").click();
 }
 
 function selectedExportPreset(): string {
@@ -4291,6 +4393,9 @@ window.addEventListener("DOMContentLoaded", () => {
   $("chk-autosave").addEventListener("change", (ev) => {
     const on = (ev.target as HTMLInputElement).checked;
     void setAutosave(on);
+  });
+  $("btn-import").addEventListener("click", () => {
+    void startImport();
   });
   $("file-import").addEventListener("change", (ev) => {
     const input = ev.target as HTMLInputElement;
