@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.49 — 2026-07-15
+
+### Added
+- **Crop presets**: 1:1 (1080²), 9:16, 4:3 center crop
+- **PiP**: top-right / bottom-left overlays + Full (clear position)
+- Test: `tests/test_desktop_crop_pip_089.py`
 ## 0.4.48 — 2026-07-15
 
 ### Added

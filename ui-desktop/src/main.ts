@@ -2078,6 +2078,87 @@ async function resetTransformSelection() {
   }
 }
 
+/** Center crop to width×height (project-relative defaults for 1080p). */
+async function cropSelection(width: number, height: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to crop";
+    return;
+  }
+  $("status-msg").textContent = `Crop ${width}×${height} ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/crop", {
+        clip_id: id,
+        width,
+        height,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Crop ${width}×${height} ×${ids.length}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Crop failed: ${e}`;
+  }
+}
+
+/** PiP / overlay position (normalized x,y + scale). */
+async function positionSelection(x: number, y: number, scale: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for PiP position";
+    return;
+  }
+  $("status-msg").textContent = `Position scale=${scale} ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/position", {
+        clip_id: id,
+        x,
+        y,
+        scale,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `PiP ${scale} @ (${x},${y}) ×${ids.length}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Position failed: ${e}`;
+  }
+}
+
+async function clearPositionSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to clear PiP";
+    return;
+  }
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/position/clear",
+        { clip_id: id },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Cleared PiP ×${ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Clear PiP failed: ${e}`;
+  }
+}
+
 /** Relink selected clip(s) to the media currently selected in the bin. */
 async function relinkSelectionToBin() {
   const ids = selectionList();
@@ -5682,6 +5763,30 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-reset-xf").addEventListener("click", () => {
     stopPlay();
     void resetTransformSelection();
+  });
+  $("btn-crop-sq").addEventListener("click", () => {
+    stopPlay();
+    void cropSelection(1080, 1080);
+  });
+  $("btn-crop-916").addEventListener("click", () => {
+    stopPlay();
+    void cropSelection(608, 1080);
+  });
+  $("btn-crop-43").addEventListener("click", () => {
+    stopPlay();
+    void cropSelection(1440, 1080);
+  });
+  $("btn-pip-tr").addEventListener("click", () => {
+    stopPlay();
+    void positionSelection(0.62, 0.05, 0.35);
+  });
+  $("btn-pip-bl").addEventListener("click", () => {
+    stopPlay();
+    void positionSelection(0.05, 0.6, 0.35);
+  });
+  $("btn-pip-full").addEventListener("click", () => {
+    stopPlay();
+    void clearPositionSelection();
   });
   $("btn-relink").addEventListener("click", () => {
     stopPlay();
