@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.44 — 2026-07-15
+
+### Added
+- **Detach A**: split selected video audio onto an A track (linked)
+- **Auto-link**: link V/A clips that share the same start
+- **Fit fill**: rate-stretch selection to next clip gap
+- **Swap**: swap timeline starts of two selected clips
+- Test: `tests/test_desktop_craft_av_084.py`
 ## 0.4.43 — 2026-07-15
 
 ### Added

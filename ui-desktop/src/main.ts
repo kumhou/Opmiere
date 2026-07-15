@@ -2209,6 +2209,114 @@ async function rollSelection(delta: number) {
   }
 }
 
+/** Detach embedded audio of selected video clips onto an audio track. */
+async function detachAudioSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select video clip(s) to detach audio";
+    return;
+  }
+  $("status-msg").textContent = `Detach audio ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    let n = 0;
+    for (const id of ids) {
+      const info = state.clips.get(id);
+      // skip pure audio tracks
+      const tr = state.tracks.find((t) => t.id === info?.trackId);
+      if (tr?.kind === "audio") continue;
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/detach_audio", {
+        clip_id: id,
+        link: true,
+      });
+      if (r.timeline) last = r.timeline;
+      n += 1;
+    }
+    if (!n) {
+      $("status-msg").textContent = "No video clips in selection";
+      return;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Detached audio ×${n}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Detach audio failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function autoLinkAV() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Auto-link V/A…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      linked_count?: number;
+      count?: number;
+      pairs?: unknown[];
+    }>("/api/auto_link_av", { tolerance_frames: 0 });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    const n = r.linked_count ?? r.count ?? r.pairs?.length ?? 0;
+    $("status-msg").textContent = `Auto-link: ${n} pair(s)`;
+  } catch (e) {
+    $("status-msg").textContent = `Auto-link failed: ${e}`;
+  }
+}
+
+/** Rate-stretch selected clips to meet next clip (or playhead if alone). */
+async function fitToFillSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to fit-to-fill";
+    return;
+  }
+  $("status-msg").textContent = `Fit-to-fill ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/fit_to_fill", {
+        clip_id: id,
+        end_frame: null,
+        clamp: true,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Fit-to-fill ×${ids.length}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Fit-to-fill failed: ${e}`;
+    await refresh();
+  }
+}
+
+async function swapSelection() {
+  const ids = selectionList();
+  if (ids.length !== 2) {
+    $("status-msg").textContent = "Select exactly 2 clips to swap";
+    return;
+  }
+  $("status-msg").textContent = "Swap starts…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/swap", {
+      clip_a: ids[0],
+      clip_b: ids[1],
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = "Swapped clip starts";
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Swap failed: ${e}`;
+  }
+}
+
 async function loadStyles() {
   const el = document.getElementById("style-select") as HTMLSelectElement | null;
   if (!el) return;
@@ -5071,6 +5179,22 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-lcut").addEventListener("click", () => {
     void jlCutSelection("l", 12);
+  });
+  $("btn-detach-a").addEventListener("click", () => {
+    stopPlay();
+    void detachAudioSelection();
+  });
+  $("btn-auto-link").addEventListener("click", () => {
+    stopPlay();
+    void autoLinkAV();
+  });
+  $("btn-fit-fill").addEventListener("click", () => {
+    stopPlay();
+    void fitToFillSelection();
+  });
+  $("btn-swap").addEventListener("click", () => {
+    stopPlay();
+    void swapSelection();
   });
   $("btn-snap-prev").addEventListener("click", () => {
     void snapSelection("prev_end");
