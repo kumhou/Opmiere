@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.46 — 2026-07-15
+
+### Added
+- **EDL / Cutlist** export buttons → desktop export dir (CMX EDL + CSV)
+- **Rotate** −90/+90/180 + **Reset XF** on selection
+- **Relink←bin**: single-click select media, relink timeline selection
+- `export_dir` lists `.edl/.csv/.json` as well as `.mp4`
+- Test: `tests/test_desktop_interchange_086.py`
 ## 0.4.45 — 2026-07-15
 
 ### Added

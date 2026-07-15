@@ -39,6 +39,8 @@
         </select>
         <button type="button" id="btn-export" title="Export with selected preset">Export</button>
         <button type="button" id="btn-export-work" title="Export work area [In, Out)">Export I/O</button>
+        <button type="button" id="btn-export-edl" title="Export CMX EDL to export dir">EDL</button>
+        <button type="button" id="btn-export-cutlist" title="Export CSV cutlist to export dir">Cutlist</button>
         <button type="button" id="btn-proxy" title="Ensure preview proxy">Proxy</button>
         <button type="button" id="btn-refresh">Refresh</button>
         <button type="button" id="btn-open-probe">HTML probe</button>
@@ -256,6 +258,16 @@
               <button type="button" id="btn-join" class="btn-mini" title="Join 2 selected clips">Join</button>
               <button type="button" id="btn-transition" class="btn-mini" title="Cross-dissolve between 2 clips">Dissolve</button>
               <button type="button" id="btn-clear-fx" class="btn-mini" title="Clear effects on selection">Clear FX</button>
+            </div>
+            <div class="speed-row">
+              <span class="muted" style="font-size:10px">Rotate</span>
+              <button type="button" id="btn-rot-m90" class="btn-mini" title="Rotate −90°">−90°</button>
+              <button type="button" id="btn-rot-p90" class="btn-mini" title="Rotate +90°">+90°</button>
+              <button type="button" id="btn-rot-180" class="btn-mini" title="Rotate 180°">180°</button>
+              <button type="button" id="btn-reset-xf" class="btn-mini" title="Reset position/crop/rotate">Reset XF</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-relink" class="btn-mini" title="Relink selection to media selected in bin">Relink←bin</button>
             </div>
             <h2 class="subh">Markers</h2>
             <div class="speed-row">

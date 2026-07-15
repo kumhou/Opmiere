@@ -1073,6 +1073,11 @@ button:disabled {
   border-color: var(--color-border);
 }
 
+.media-row.selected {
+  border-color: var(--color-primary, #5b8def);
+  background: color-mix(in srgb, var(--color-primary, #5b8def) 14%, transparent);
+}
+
 .media-row.dragging-bin {
   opacity: 0.55;
 }

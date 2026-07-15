@@ -178,6 +178,8 @@ const state = {
   didAutoOpenRecent: false,
   /** Place mode for bin → timeline / dbl-click place. */
   editMode: "insert" as "insert" | "overwrite",
+  /** Single-select media in bin (for relink). */
+  binMediaId: "" as string,
 };
 
 function currentEditMode(): "insert" | "overwrite" {
@@ -982,9 +984,17 @@ function renderMediaBin(data: MediaBin | null) {
     row.addEventListener("dragend", () => {
       row.classList.remove("dragging-bin");
     });
+    row.addEventListener("click", (ev) => {
+      if ((ev.target as HTMLElement).closest("button")) return;
+      state.binMediaId = m.id;
+      el.querySelectorAll(".media-row").forEach((r) => {
+        r.classList.toggle("selected", (r as HTMLElement).dataset.mediaId === m.id);
+      });
+    });
     row.addEventListener("dblclick", () => {
       void placeMediaAtPlayhead(m.id, m.kind || "video");
     });
+    if (state.binMediaId === m.id) row.classList.add("selected");
     el.appendChild(row);
   }
 }
@@ -1946,6 +1956,158 @@ async function exportProject() {
     }
   } finally {
     ($("btn-export") as HTMLButtonElement).disabled = false;
+  }
+}
+
+async function exportDirPath(): Promise<string> {
+  const r = await getJson<{ path?: string }>("/api/desktop/export_dir");
+  if (!r.path) throw new Error("export dir unavailable");
+  return r.path;
+}
+
+function joinExportPath(dir: string, name: string): string {
+  const sep = dir.includes("\\") ? "\\" : "/";
+  const base = dir.endsWith("\\") || dir.endsWith("/") ? dir.slice(0, -1) : dir;
+  return `${base}${sep}${name}`;
+}
+
+function exportStamp(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+}
+
+/** CMX-style EDL of base video track → export dir. */
+async function exportEdl() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting EDL…";
+  try {
+    const dir = await exportDirPath();
+    const path = joinExportPath(dir, `opmiere_${exportStamp()}.edl`);
+    const title = state.bundlePath
+      ? projectLabelFromPath(state.bundlePath)
+      : "Opmiere";
+    const r = await postJson<{ path?: string; count?: number; body?: string }>(
+      "/api/export/edl",
+      { path, title },
+    );
+    $("status-msg").textContent =
+      `EDL: ${r.path || path} (${r.count ?? "?"} events)`;
+  } catch (e) {
+    $("status-msg").textContent = `EDL failed: ${e}`;
+  }
+}
+
+/** CSV/JSON cutlist → export dir. */
+async function exportCutlist(format: "csv" | "json" = "csv") {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = `Exporting cutlist (${format})…`;
+  try {
+    const dir = await exportDirPath();
+    const path = joinExportPath(dir, `opmiere_${exportStamp()}.${format}`);
+    const r = await postJson<{ path?: string; count?: number }>(
+      "/api/export/cutlist",
+      { path, format },
+    );
+    $("status-msg").textContent =
+      `Cutlist: ${r.path || path} (${r.count ?? "?"} rows)`;
+  } catch (e) {
+    $("status-msg").textContent = `Cutlist failed: ${e}`;
+  }
+}
+
+async function rotateSelection(degrees: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to rotate";
+    return;
+  }
+  $("status-msg").textContent = `Rotate ${degrees}° ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/rotate", {
+        clip_id: id,
+        degrees,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Rotated ${degrees}° ×${ids.length}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Rotate failed: ${e}`;
+  }
+}
+
+async function resetTransformSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to reset transform";
+    return;
+  }
+  $("status-msg").textContent = `Reset transform ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/reset_transform",
+        {
+          clip_id: id,
+          position: true,
+          crop: true,
+          rotate: true,
+          opacity: false,
+        },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Transform reset ×${ids.length}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Reset transform failed: ${e}`;
+  }
+}
+
+/** Relink selected clip(s) to the media currently selected in the bin. */
+async function relinkSelectionToBin() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select timeline clip(s) to relink";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Click a media row in the bin first";
+    return;
+  }
+  $("status-msg").textContent = `Relink ×${ids.length} → ${state.binMediaId}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/relink", {
+        clip_id: id,
+        media_id: state.binMediaId,
+        keep_source_range: true,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    await refreshMediaBin();
+    $("status-msg").textContent = `Relinked ×${ids.length}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Relink failed: ${e}`;
   }
 }
 
@@ -5167,6 +5329,32 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-export").addEventListener("click", () => {
     void exportProject();
+  });
+  $("btn-export-edl").addEventListener("click", () => {
+    void exportEdl();
+  });
+  $("btn-export-cutlist").addEventListener("click", () => {
+    void exportCutlist("csv");
+  });
+  $("btn-rot-m90").addEventListener("click", () => {
+    stopPlay();
+    void rotateSelection(-90);
+  });
+  $("btn-rot-p90").addEventListener("click", () => {
+    stopPlay();
+    void rotateSelection(90);
+  });
+  $("btn-rot-180").addEventListener("click", () => {
+    stopPlay();
+    void rotateSelection(180);
+  });
+  $("btn-reset-xf").addEventListener("click", () => {
+    stopPlay();
+    void resetTransformSelection();
+  });
+  $("btn-relink").addEventListener("click", () => {
+    stopPlay();
+    void relinkSelectionToBin();
   });
   $("btn-export-work").addEventListener("click", () => {
     void exportWorkArea();

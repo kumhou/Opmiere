@@ -309,27 +309,27 @@ def desktop_export(
 
 @app.get("/api/desktop/export_dir")
 def desktop_export_dir() -> dict[str, Any]:
-    """Temp directory used by desktop Export buttons."""
+    """Temp directory used by desktop Export buttons (mp4/edl/csv/json)."""
     import tempfile
 
     out_dir = Path(tempfile.gettempdir()) / "opmiere_desktop_export"
     out_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted(
-        [
-            {
-                "name": p.name,
-                "path": str(p.resolve()),
-                "size": p.stat().st_size,
-            }
-            for p in out_dir.glob("*.mp4")
-            if p.is_file()
-        ],
-        key=lambda x: x["name"],
-    )
+    entries: list[dict[str, Any]] = []
+    for pat in ("*.mp4", "*.edl", "*.csv", "*.json"):
+        for p in out_dir.glob(pat):
+            if p.is_file():
+                entries.append(
+                    {
+                        "name": p.name,
+                        "path": str(p.resolve()),
+                        "size": p.stat().st_size,
+                    }
+                )
+    files = sorted(entries, key=lambda x: x["name"])
     return {
         "path": str(out_dir.resolve()),
         "count": len(files),
-        "files": files[-20:],
+        "files": files[-30:],
     }
 
 
