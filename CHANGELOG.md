@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.52 — 2026-07-15
+
+### Added
+- **Xfade all / clr**: apply or clear cross-dissolves on track cuts
+- **Rm empty** tracks, **Trk name**, **Append** bin media to track end
+- **Plan edit** from bin paths, **Look** project grade from style select
+- Test: `tests/test_desktop_xfade_plan_092.py`
 ## 0.4.51 — 2026-07-15
 
 ### Added

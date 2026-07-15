@@ -3485,6 +3485,196 @@ async function shiftMarkersUi(delta: number) {
   }
 }
 
+function trackIdOfSelection(): string | null {
+  const ids = selectionList();
+  if (ids.length) {
+    return state.clips.get(ids[0])?.trackId || null;
+  }
+  const v = state.tracks.find((t) => t.kind === "video");
+  return v?.id || state.tracks[0]?.id || null;
+}
+
+/** Cross-dissolve on every cut of the track of selection. */
+async function xfadeAllOnTrack(durationFrames = 12) {
+  if (!state.projectOpen) return;
+  const trackId = trackIdOfSelection();
+  if (!trackId) {
+    $("status-msg").textContent = "No track for xfade";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = `Xfade all cuts on ${trackId}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/transitions/apply_on_cuts",
+      {
+        track_id: trackId,
+        transition_type: "cross_dissolve",
+        duration_frames: durationFrames,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent =
+      `Xfade applied (${r.count ?? "?"} cuts, ${durationFrames}f)`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Xfade all failed: ${e}`;
+  }
+}
+
+async function clearTransitionsOnTrack() {
+  if (!state.projectOpen) return;
+  const trackId = trackIdOfSelection();
+  const ids = selectionList();
+  stopPlay();
+  try {
+    const body: Record<string, unknown> = {};
+    if (ids.length) body.clip_ids = ids;
+    else if (trackId) body.track_id = trackId;
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/transitions/clear",
+      body,
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = "Transitions cleared";
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Clear xfade failed: ${e}`;
+  }
+}
+
+async function removeEmptyTracksUi() {
+  if (!state.projectOpen) return;
+  stopPlay();
+  try {
+    const r = await postJson<{ timeline?: TimelineView; removed?: unknown[] }>(
+      "/api/tracks/remove_empty",
+      { keep_one_per_kind: true },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    const n = Array.isArray(r.removed) ? r.removed.length : "?";
+    $("status-msg").textContent = `Removed empty tracks (${n})`;
+  } catch (e) {
+    $("status-msg").textContent = `Rm empty failed: ${e}`;
+  }
+}
+
+async function renameTrackOfSelection() {
+  if (!state.projectOpen) return;
+  const trackId = trackIdOfSelection();
+  if (!trackId) {
+    $("status-msg").textContent = "Select a clip (or have a track)";
+    return;
+  }
+  const tr = state.tracks.find((t) => t.id === trackId);
+  const cur = (tr as { name?: string } | undefined)?.name || "";
+  // track name not always on state.tracks — use prompt default
+  const name = window.prompt("Track name", cur || "V1");
+  if (name == null) return;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/track/name", {
+      track_id: trackId,
+      name: name.trim() || null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Track renamed → ${name.trim() || "(cleared)"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Track name failed: ${e}`;
+  }
+}
+
+/** Append selected bin media to end of matching track. */
+async function appendBinMedia() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Click a media row in the bin first";
+    return;
+  }
+  // guess kind from first selected track or video default
+  let trackId = trackIdOfSelection();
+  if (!trackId) {
+    trackId = state.tracks.find((t) => t.kind === "video")?.id || null;
+  }
+  if (!trackId) {
+    $("status-msg").textContent = "No track to append onto";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = `Append ${state.binMediaId}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/append_media", {
+      media_id: state.binMediaId,
+      track_id: trackId,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Appended ${state.binMediaId}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Append failed: ${e}`;
+  }
+}
+
+/** Plan (and apply) multi-clip edit from bin media absolute paths. */
+async function planEditFromBin(apply = true) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = apply ? "Plan+apply edit…" : "Plan edit…";
+  try {
+    const media = await getJson<{
+      media?: Array<{ kind?: string; abs_path?: string; path?: string }>;
+    }>("/api/media");
+    const paths = (media.media || [])
+      .map((m) => m.abs_path || m.path || "")
+      .filter(Boolean);
+    if (!paths.length) {
+      $("status-msg").textContent = "Bin empty — import media first";
+      return;
+    }
+    const r = await postJson<Record<string, unknown>>("/api/plan_edit", {
+      paths,
+      b_roll_mode: "overlay",
+      j_cut_seconds: 0.4,
+      apply,
+    });
+    if (apply) await refresh();
+    scheduleProxyRefresh();
+    $("status-msg").textContent = apply ? "Plan edit applied" : "Plan ready";
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 2500);
+    }
+  } catch (e) {
+    $("status-msg").textContent = `Plan edit failed: ${e}`;
+  }
+}
+
+async function applyProjectLook() {
+  if (!state.projectOpen) return;
+  const el = document.getElementById("style-select") as HTMLSelectElement | null;
+  const look = el?.value || "documentary";
+  $("status-msg").textContent = `Apply look ${look}…`;
+  try {
+    await postJson("/api/look", { look });
+    await refresh();
+    $("status-msg").textContent = `Look: ${look}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Look failed: ${e}`;
+  }
+}
+
 async function applySelectedStyle() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -6526,6 +6716,28 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-mk-shift-p").addEventListener("click", () => {
     void shiftMarkersUi(15);
+  });
+  $("btn-xfade-all").addEventListener("click", () => {
+    void xfadeAllOnTrack(12);
+  });
+  $("btn-xfade-clr").addEventListener("click", () => {
+    void clearTransitionsOnTrack();
+  });
+  $("btn-rm-empty").addEventListener("click", () => {
+    void removeEmptyTracksUi();
+  });
+  $("btn-trk-name").addEventListener("click", () => {
+    void renameTrackOfSelection();
+  });
+  $("btn-append-bin").addEventListener("click", () => {
+    void appendBinMedia();
+  });
+  $("btn-plan-edit").addEventListener("click", () => {
+    stopPlay();
+    void planEditFromBin(true);
+  });
+  $("btn-look").addEventListener("click", () => {
+    void applyProjectLook();
   });
   $("btn-copy-fx").addEventListener("click", () => {
     void copyEffectsFromSelection();
