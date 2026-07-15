@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.36 — 2026-07-15
+
+### Added
+- **Core lifecycle**: track owned core PID; `stop_core_api` + kill on Tauri `Exit`
+  (only processes we spawned — never kills a pre-existing server)
+- **Window title**: `Opmiere — <project>` when a bundle is open
+- **Reopen last**: first empty session auto-opens the first viable recent project
+- Permissions: `allow-stop-core-api`, `core:window:allow-set-title`
+- Test: `tests/test_desktop_lifecycle_076.py`
 ## 0.4.35 — 2026-07-15
 
 ### Added

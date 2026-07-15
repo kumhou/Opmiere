@@ -2,3 +2,8 @@
 identifier = "allow-ensure-core-api"
 description = "Allow starting Opmiere Python core API when down"
 commands.allow = ["ensure_core_api"]
+
+[[permission]]
+identifier = "allow-stop-core-api"
+description = "Allow stopping an owned Opmiere Python core API process"
+commands.allow = ["stop_core_api"]

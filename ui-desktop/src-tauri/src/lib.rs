@@ -6,8 +6,12 @@ use std::fs;
 use std::net::TcpStream;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+
+/// PID of a core API we started ourselves (not pre-existing servers).
+static OWNED_CORE_PID: Mutex<Option<u32>> = Mutex::new(None);
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +22,15 @@ struct EnsureCoreResult {
     message: String,
     pid: Option<u32>,
     python: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StopCoreResult {
+    ok: bool,
+    stopped: bool,
+    message: String,
+    pid: Option<u32>,
 }
 
 fn api_port_open() -> bool {
@@ -46,7 +59,6 @@ fn resolve_python() -> Option<PathBuf> {
     if let Some(p) = read_install_python() {
         return Some(p);
     }
-    // PATH fallbacks
     for name in ["python", "python3", "py"] {
         if let Ok(out) = Command::new("where").arg(name).output() {
             if out.status.success() {
@@ -83,6 +95,65 @@ fn spawn_core(python: &PathBuf) -> Result<u32, String> {
     Ok(child.id())
 }
 
+fn kill_pid(pid: u32) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let status = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|e| format!("taskkill failed: {e}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("taskkill exit {:?}", status.code()))
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let status = Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .status()
+            .map_err(|e| format!("kill failed: {e}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("kill exit {:?}", status.code()))
+        }
+    }
+}
+
+fn stop_owned_core() -> StopCoreResult {
+    let pid = {
+        let mut guard = OWNED_CORE_PID.lock().unwrap_or_else(|e| e.into_inner());
+        guard.take()
+    };
+    match pid {
+        None => StopCoreResult {
+            ok: true,
+            stopped: false,
+            message: "No owned core process".into(),
+            pid: None,
+        },
+        Some(pid) => match kill_pid(pid) {
+            Ok(()) => StopCoreResult {
+                ok: true,
+                stopped: true,
+                message: format!("Stopped core API (pid {pid})"),
+                pid: Some(pid),
+            },
+            Err(e) => StopCoreResult {
+                ok: false,
+                stopped: false,
+                message: format!("Failed to stop pid {pid}: {e}"),
+                pid: Some(pid),
+            },
+        },
+    }
+}
+
 /// Ensure Opmiere Python core API is listening on 127.0.0.1:8787.
 /// If down, start `python -m opmiere.web.app` from install marker or PATH.
 #[tauri::command]
@@ -112,7 +183,9 @@ fn ensure_core_api() -> EnsureCoreResult {
     let py_s = python.display().to_string();
     match spawn_core(&python) {
         Ok(pid) => {
-            // Poll briefly for port open
+            if let Ok(mut guard) = OWNED_CORE_PID.lock() {
+                *guard = Some(pid);
+            }
             let mut up = false;
             for _ in 0..20 {
                 thread::sleep(Duration::from_millis(250));
@@ -147,12 +220,23 @@ fn ensure_core_api() -> EnsureCoreResult {
     }
 }
 
+/// Stop a core API process we started (no-op if we did not own it).
+#[tauri::command]
+fn stop_core_api() -> StopCoreResult {
+    stop_owned_core()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![ensure_core_api])
-        .run(tauri::generate_context!())
-        .expect("error while running Opmiere desktop");
+        .invoke_handler(tauri::generate_handler![ensure_core_api, stop_core_api])
+        .build(tauri::generate_context!())
+        .expect("error while building Opmiere desktop")
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let _ = stop_owned_core();
+            }
+        });
 }

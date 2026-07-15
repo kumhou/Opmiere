@@ -5,8 +5,10 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-set-title",
     "opener:default",
     "dialog:default",
-    "allow-ensure-core-api"
+    "allow-ensure-core-api",
+    "allow-stop-core-api"
   ]
 }

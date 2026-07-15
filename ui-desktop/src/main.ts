@@ -154,6 +154,8 @@ const state = {
   undoDepth: 0,
   redoDepth: 0,
   zoom: 1,
+  /** Session: only auto-open the most recent project once after API is up. */
+  didAutoOpenRecent: false,
 };
 
 function $(id: string): HTMLElement {
@@ -2570,9 +2572,11 @@ async function openProjectAt(path: string) {
     await postJson("/api/project/open", { bundle_path: path });
     $("status-msg").textContent = `Opened: ${path}`;
     state.t = 0;
+    state.didAutoOpenRecent = true; // user/path open counts as settled
     await refresh();
     await refreshRecent();
     void seekTo(0);
+    void setShellTitle(projectLabelFromPath(path));
   } catch (e) {
     $("status-msg").textContent = `Open failed: ${e}`;
   }
@@ -3827,6 +3831,54 @@ async function tryEnsureCoreApi(): Promise<EnsureCoreResult | null> {
   }
 }
 
+async function setShellTitle(projectLabel?: string | null) {
+  const title = projectLabel?.trim()
+    ? `Opmiere — ${projectLabel.trim()}`
+    : "Opmiere";
+  document.title = title;
+  if (!isTauri()) return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().setTitle(title);
+  } catch (e) {
+    console.warn("setTitle failed", e);
+  }
+}
+
+function projectLabelFromPath(path: string): string {
+  const parts = path.split(/[/\\]/).filter(Boolean);
+  if (!parts.length) return "project";
+  const last = parts[parts.length - 1];
+  // .opm is often a folder named foo.opm
+  return last || parts[parts.length - 2] || path;
+}
+
+async function maybeAutoOpenRecent() {
+  if (state.didAutoOpenRecent || state.projectOpen) return;
+  state.didAutoOpenRecent = true;
+  try {
+    const r = await getJson<{
+      projects?: Array<{ path?: string; label?: string }>;
+    }>("/api/recent?limit=8");
+    const candidates = (r.projects || [])
+      .map((p) => p.path || "")
+      .filter(Boolean);
+    for (const path of candidates) {
+      try {
+        $("status-msg").textContent = `Reopening ${projectLabelFromPath(path)}…`;
+        await postJson("/api/project/open", { bundle_path: path });
+        state.t = 0;
+        await refresh();
+        return;
+      } catch {
+        // skip missing/stale recent entries
+      }
+    }
+  } catch {
+    // recent n/a
+  }
+}
+
 async function refresh() {
   stopPlay();
   $("api-url").textContent = API_BASE;
@@ -3916,6 +3968,11 @@ async function refresh() {
       await refreshHistory();
       await refreshDurationReport();
       await refreshProjectStats();
+      void setShellTitle(
+        state.bundlePath
+          ? projectLabelFromPath(state.bundlePath)
+          : "project",
+      );
     } else {
       state.durationSec = 0;
       state.durationFrames = 0;
@@ -3932,6 +3989,11 @@ async function refresh() {
       await refreshHistory();
       await refreshDurationReport();
       await refreshProjectStats();
+      void setShellTitle(null);
+      // First connect with empty editor: reopen last good recent once.
+      await maybeAutoOpenRecent();
+      if (!state.projectOpen) $("status-msg").textContent = "Ready";
+      return;
     }
 
     $("status-msg").textContent = "Ready";
@@ -3942,6 +4004,7 @@ async function refresh() {
       `Core API unreachable at ${API_BASE}. Install Opmiere or run opmiere web / scripts/dev-desktop.ps1`;
     $("project-state").textContent = "—";
     state.projectOpen = false;
+    void setShellTitle(null);
     console.error(e);
   }
 }
