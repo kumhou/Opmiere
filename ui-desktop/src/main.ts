@@ -5687,6 +5687,104 @@ async function matchGradeUi() {
   }
 }
 
+async function sequenceFromMediaUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in the bin (first piece)";
+    return;
+  }
+  const ids = selectionList();
+  let trackId = ids.length ? state.clips.get(ids[0])?.trackId : "";
+  if (!trackId) {
+    const tracks = (state as { tracks?: { id: string; kind?: string }[] }).tracks;
+    const vt = Array.isArray(tracks)
+      ? tracks.find((t) => t.kind === "video") || tracks[0]
+      : null;
+    trackId = vt?.id || "";
+  }
+  if (!trackId) {
+    $("status-msg").textContent = "Need a target track (select a clip)";
+    return;
+  }
+  // Gather all bin media ids from DOM if multi-select not available — use selected only
+  const mediaIds = [state.binMediaId];
+  $("status-msg").textContent = "Assembling sequence from bin media…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      end_frame?: number;
+    }>("/api/sequence/from_media", {
+      media_ids: mediaIds,
+      track_id: trackId,
+      start_frame: playheadFrame(),
+      clear_track: false,
+      transition: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Seq · ${r.count ?? "?"} clips · end f${r.end_frame ?? "?"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Seq failed: ${e}`);
+    $("status-msg").textContent = `Seq failed: ${e}`;
+  }
+}
+
+async function titleCardUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const content = window.prompt("Title text", "Opmiere");
+  if (content == null) return;
+  const trimmed = content.trim();
+  if (!trimmed) {
+    $("status-msg").textContent = "Empty title";
+    return;
+  }
+  const ids = selectionList();
+  let trackId = ids.length ? state.clips.get(ids[0])?.trackId : "";
+  if (!trackId) {
+    const tracks = (state as { tracks?: { id: string; kind?: string }[] }).tracks;
+    const vt = Array.isArray(tracks)
+      ? tracks.find((t) => t.kind === "video") || tracks[0]
+      : null;
+    trackId = vt?.id || "";
+  }
+  if (!trackId) {
+    $("status-msg").textContent = "Need a video track";
+    return;
+  }
+  $("status-msg").textContent = "Creating title card…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/title_card", {
+      content: trimmed,
+      track_id: trackId,
+      start_frame: playheadFrame(),
+      duration_frames: 90,
+      position: "center",
+      size: 64,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Title · ${r.clip_id || "ok"} @ PH`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Title failed: ${e}`);
+    $("status-msg").textContent = `Title failed: ${e}`;
+  }
+}
+
 async function importFcpxmlFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9599,6 +9697,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-track-stems", () => void exportTrackStemsUi());
   proBind("btn-bal-gain", () => void balanceGainsUi());
   proBind("btn-match-grade", () => void matchGradeUi());
+  proBind("btn-seq-media", () => void sequenceFromMediaUi());
+  proBind("btn-title-card", () => void titleCardUi());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-interchange", () => void interchangeCatalogUi());

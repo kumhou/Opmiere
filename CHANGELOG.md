@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.59 — 2026-07-17
+
+### Added
+- `sequence_from_media` assembly cut + API/MCP/desktop **Seq**
+- `create_title_card` black slug + text + **Title**
+- `paste_attributes_to_clips` batch paste
+- path-C **adapter v18**: reverse/freeze tags on plan clips
 ## 0.5.58 — 2026-07-17
 
 ### Added
@@ -1445,6 +1452,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

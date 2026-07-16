@@ -3846,6 +3846,93 @@ def match_grade_api(body: MatchGradeBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SequenceFromMediaBody(BaseModel):
+    media_ids: list[str]
+    track_id: str
+    start_frame: int = 0
+    clear_track: bool = False
+    transition: str | None = None
+    transition_frames: int = 12
+    name_from_media: bool = True
+
+
+@app.post("/api/sequence/from_media")
+def sequence_from_media_api(body: SequenceFromMediaBody) -> dict[str, Any]:
+    """Assemble bin media end-to-end on a track."""
+    ed = _ed()
+    try:
+        r = ed.sequence_from_media(
+            body.media_ids,
+            body.track_id,
+            start_frame=body.start_frame,
+            clear_track=body.clear_track,
+            transition=body.transition,
+            transition_frames=body.transition_frames,
+            name_from_media=body.name_from_media,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"sequence_from_media failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class TitleCardBody(BaseModel):
+    content: str
+    track_id: str
+    start_frame: int = 0
+    duration_frames: int = 90
+    position: str = "center"
+    size: int = 64
+    border_width: int = 2
+    color: str | None = "#ffd60a"
+
+
+@app.post("/api/title_card")
+def title_card_api(body: TitleCardBody) -> dict[str, Any]:
+    """Place black slug + text title on a video track."""
+    ed = _ed()
+    try:
+        r = ed.create_title_card(
+            body.content,
+            body.track_id,
+            body.start_frame,
+            body.duration_frames,
+            position=body.position,
+            size=body.size,
+            border_width=body.border_width,
+            color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"title_card failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class PasteAttributesBatchBody(BaseModel):
+    clip_ids: list[str]
+    speed: bool = True
+    position: bool = True
+    gain: bool = True
+    opacity: bool = True
+    fades: bool = True
+
+
+@app.post("/api/clips/paste_attributes")
+def paste_attributes_batch_api(body: PasteAttributesBatchBody) -> dict[str, Any]:
+    """Paste attributes clipboard onto many clips."""
+    ed = _ed()
+    try:
+        r = ed.paste_attributes_to_clips(
+            body.clip_ids,
+            speed=body.speed,
+            position=body.position,
+            gain=body.gain,
+            opacity=body.opacity,
+            fades=body.fades,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"paste_attributes batch failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)

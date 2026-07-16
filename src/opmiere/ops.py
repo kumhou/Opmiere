@@ -4159,6 +4159,229 @@ class Editor:
             clip.position = {"x": float(x), "y": float(y), "scale": float(scale)}
             return clip
 
+    def sequence_from_media(
+        self,
+        media_ids: list[str],
+        track_id: str,
+        *,
+        start_frame: int = 0,
+        clear_track: bool = False,
+        transition: str | None = None,
+        transition_frames: int = 12,
+        name_from_media: bool = True,
+    ) -> dict[str, Any]:
+        """Assemble bin media end-to-end on a track (rough cut / assembly).
+
+        Places each media at full duration (speed=1) after the previous clip.
+        Optional cross_dissolve between hard cuts. Agents use this after bin
+        import for a first timeline layout.
+        """
+        if not media_ids:
+            raise ValueError("media_ids is empty")
+        if transition is not None and transition not in KNOWN_TRANSITION_TYPES:
+            raise ValueError(
+                f"unknown transition {transition!r}; "
+                f"supported: {sorted(KNOWN_TRANSITION_TYPES)}"
+            )
+        ids = list(dict.fromkeys(media_ids))
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            if clear_track:
+                track.clips.clear()
+            cursor = max(0, int(start_frame))
+            placed: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            prev_clip = None
+            for mid in ids:
+                try:
+                    media = self.project.media_by_id(mid)
+                except Exception as e:
+                    skipped.append({"media_id": mid, "reason": str(e)})
+                    continue
+                if track.kind == "video" and media.kind == "audio":
+                    skipped.append({"media_id": mid, "reason": "audio on video track"})
+                    continue
+                if track.kind == "audio" and media.kind == "image":
+                    skipped.append({"media_id": mid, "reason": "image on audio track"})
+                    continue
+                sin = 0
+                sout = max(1, int(media.duration_frames))
+                if media.kind == "image":
+                    from .model import IMAGE_VIRTUAL_DURATION_FRAMES
+                    # default still hold ~3s if using virtual duration
+                    hold = min(int(media.duration_frames), max(1, int(round(
+                        float(self.project.timebase.fps or 30) * 3
+                    ))))
+                    # stills use IMAGE_VIRTUAL_DURATION as max; place 3s hold
+                    hold = min(hold, IMAGE_VIRTUAL_DURATION_FRAMES)
+                    sout = hold
+                clip = self.project.add_clip(track, media, cursor, sin, sout)
+                if name_from_media:
+                    clip.name = Path(media.path).stem
+                if (
+                    transition
+                    and prev_clip is not None
+                    and prev_clip.timeline_duration_frames > transition_frames
+                    and clip.timeline_duration_frames > transition_frames
+                ):
+                    clip.transition_in = {
+                        "type": transition,
+                        "duration_frames": int(transition_frames),
+                    }
+                    clip.start = prev_clip.end - int(transition_frames)
+                placed.append({
+                    "clip_id": clip.id,
+                    "media_id": media.id,
+                    "start": clip.start,
+                    "end": clip.end,
+                })
+                prev_clip = clip
+                cursor = clip.end
+            return {
+                "track_id": track_id,
+                "count": len(placed),
+                "placed": placed,
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+                "end_frame": cursor,
+                "transition": transition,
+                "agent_note": "Assembly cut ready; refine with razor/trim/grade.",
+            }
+
+    def create_title_card(
+        self,
+        content: str,
+        track_id: str,
+        start_frame: int,
+        duration_frames: int = 90,
+        *,
+        position: str = "center",
+        size: int = 64,
+        border_width: int = 2,
+        color: str | None = "#ffd60a",
+    ) -> dict[str, Any]:
+        """Place a black slug still-range with a text title effect.
+
+        Uses cached black slug media + text effect for lower-thirds/titles.
+        """
+        content = (content or "").strip()
+        if not content:
+            raise ValueError("content is empty")
+        if duration_frames <= 0:
+            raise ValueError("duration_frames must be positive")
+        if position not in TEXT_POSITIONS:
+            raise ValueError(
+                f"position must be one of {sorted(TEXT_POSITIONS)}, got {position!r}"
+            )
+        track0 = self.project.track_by_id(track_id)
+        if track0.kind != "video":
+            raise ValueError("title card requires a video track")
+        slug = self.ensure_slug_media("video")
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            start = max(0, int(start_frame))
+            dur = int(duration_frames)
+            clip = self.project.add_clip(track, slug, start, 0, dur)
+            clip.name = content[:48]
+            if color:
+                clip.color = color
+            self._apply_effect_unlocked(
+                clip.id,
+                {
+                    "type": "text",
+                    "content": content,
+                    "position": position,
+                    "size": int(size),
+                    "border_width": int(border_width),
+                },
+            )
+            return {
+                "clip_id": clip.id,
+                "media_id": slug.id,
+                "start": clip.start,
+                "end": clip.end,
+                "content": content,
+                "position": position,
+                "agent_note": "Title on black slug; path-C maps text props in plan.",
+            }
+
+    def paste_attributes_to_clips(
+        self,
+        clip_ids: list[str],
+        *,
+        speed: bool = True,
+        position: bool = True,
+        gain: bool = True,
+        opacity: bool = True,
+        fades: bool = True,
+    ) -> dict[str, Any]:
+        """Paste attributes clipboard onto many clips (one undo)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not self._attributes_clipboard:
+            raise ValueError("attributes clipboard empty — copy_attributes first")
+        bp = self._attributes_clipboard
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                applied: list[str] = []
+                if speed and isinstance(bp.get("speed"), (int, float)):
+                    sp = float(bp["speed"])
+                    if 0.25 <= sp <= 4.0:
+                        clip.speed = sp
+                        applied.append("speed")
+                if position:
+                    if bp.get("position") is None:
+                        clip.position = None
+                    elif isinstance(bp.get("position"), dict):
+                        clip.position = dict(bp["position"])
+                    applied.append("position")
+                if gain and isinstance(bp.get("gain_db"), (int, float)):
+                    db = float(bp["gain_db"])
+                    clip.effects = [
+                        e for e in (clip.effects or []) if e.get("type") != "gain"
+                    ]
+                    if abs(db) >= 0.05:
+                        clip.effects.append({"type": "gain", "db": db})
+                    applied.append("gain")
+                if opacity and isinstance(bp.get("opacity"), (int, float)):
+                    op = max(0.0, min(1.0, float(bp["opacity"])))
+                    clip.effects = [
+                        e for e in (clip.effects or []) if e.get("type") != "opacity"
+                    ]
+                    if abs(op - 1.0) >= 0.01:
+                        clip.effects.append({"type": "opacity", "amount": op})
+                    applied.append("opacity")
+                if fades:
+                    # remove existing fades then re-add
+                    clip.effects = [
+                        e for e in (clip.effects or []) if e.get("type") != "fade"
+                    ]
+                    fi = int(bp.get("fade_in_frames") or 0)
+                    fo = int(bp.get("fade_out_frames") or 0)
+                    if fi > 0:
+                        clip.effects.append({
+                            "type": "fade", "direction": "in", "duration_frames": fi,
+                        })
+                    if fo > 0:
+                        clip.effects.append({
+                            "type": "fade", "direction": "out", "duration_frames": fo,
+                        })
+                    if fi > 0 or fo > 0:
+                        applied.append("fades")
+                out.append({"clip_id": cid, "applied": applied})
+            return {
+                "count": len(out),
+                "clips": out,
+                "source_clip_id": bp.get("source_clip_id"),
+            }
+
     def freeze_frame(
         self,
         clip_id: str,
@@ -4340,6 +4563,7 @@ class Editor:
                 duration_frames=dur_f,
                 has_audio=has_audio and info.has_audio if kind == "video" else has_audio,
                 origin={
+                    "reversed": True,
                     "reversed_from_clip": clip_id,
                     "source_media": media.id,
                     "src_in": clip.src_in,

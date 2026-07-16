@@ -60,7 +60,7 @@ _UNMAPPED_VISUAL = frozenset({
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 17
+ADAPTER_VERSION = 18
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -602,6 +602,18 @@ def build_openshot_plan(
                 else:
                     unsupported.append(f"transition:{clip.id}")
 
+            origin = getattr(media, "origin", None) or {}
+            is_reverse = bool(
+                origin.get("reversed")
+                or origin.get("reverse")
+                or str(media.path).startswith("rev_")
+                or "/rev_" in str(media.path).replace("\\", "/")
+                or str(Path(media.path).name).startswith("rev_")
+            )
+            is_freeze = bool(
+                origin.get("freeze_from_clip")
+                or str(Path(media.path).name).startswith("freeze_")
+            )
             entry: dict[str, Any] = {
                 "id": clip.id,
                 "path": str(path.resolve()),
@@ -623,7 +635,13 @@ def build_openshot_plan(
                 "sharpen": vis.get("sharpen") or 0.0,
                 "film_grain": vis.get("film_grain") or 0.0,
                 "gain_db": vis.get("gain_db") or 0.0,
+                "reversed": is_reverse,
+                "freeze_still": is_freeze,
             }
+            if is_reverse:
+                mapped_notes.append(f"reverse:{clip.id}")
+            if is_freeze:
+                mapped_notes.append(f"freeze:{clip.id}")
             if dip_color:
                 entry["dip_in"] = dip_color
             if wipe_dir:

@@ -1588,6 +1588,72 @@ def match_grade_to_clip(
 
 
 @mcp.tool()
+def sequence_from_media(
+    media_ids: list[str],
+    track_id: str,
+    start_frame: int = 0,
+    clear_track: bool = False,
+    transition: str | None = None,
+    transition_frames: int = 12,
+    name_from_media: bool = True,
+) -> dict:
+    """Assemble bin media end-to-end on a track (first rough cut)."""
+    return _require_editor().sequence_from_media(
+        media_ids,
+        track_id,
+        start_frame=start_frame,
+        clear_track=clear_track,
+        transition=transition,
+        transition_frames=transition_frames,
+        name_from_media=name_from_media,
+    )
+
+
+@mcp.tool()
+def create_title_card(
+    content: str,
+    track_id: str,
+    start_frame: int = 0,
+    duration_frames: int = 90,
+    position: str = "center",
+    size: int = 64,
+    border_width: int = 2,
+    color: str | None = "#ffd60a",
+) -> dict:
+    """Place a black title card with text effect on a video track."""
+    return _require_editor().create_title_card(
+        content,
+        track_id,
+        start_frame,
+        duration_frames,
+        position=position,
+        size=size,
+        border_width=border_width,
+        color=color,
+    )
+
+
+@mcp.tool()
+def paste_attributes_to_clips(
+    clip_ids: list[str],
+    speed: bool = True,
+    position: bool = True,
+    gain: bool = True,
+    opacity: bool = True,
+    fades: bool = True,
+) -> dict:
+    """Paste attributes clipboard onto many clips."""
+    return _require_editor().paste_attributes_to_clips(
+        clip_ids,
+        speed=speed,
+        position=position,
+        gain=gain,
+        opacity=opacity,
+        fades=fades,
+    )
+
+
+@mcp.tool()
 def openshot_plan(height: int = 360, include_audio: bool = False) -> dict:
     """OpenShot multi-clip plan (optional audio track listing)."""
     return _require_editor().openshot_plan(
