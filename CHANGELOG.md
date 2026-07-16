@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.23 — 2026-07-17
+
+### Added
+- Guard: adapter v4 + Pro collapse + gen params present
+
 ## 0.5.22 — 2026-07-17
 
 ### Added
