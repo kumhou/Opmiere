@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.62 — 2026-07-16
+
+### Added
+- Desktop **Analyze TL** / **Analyze A** (`/api/analyze/*`)
+
 ## 0.4.61 — 2026-07-16
 
 ### Added
