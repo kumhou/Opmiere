@@ -9640,6 +9640,55 @@ def finish_work_area_delivery_api(
         ) from e
 
 
+class StabilizeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    replace: bool = True
+    strength: float = 1.0
+    video_only: bool = True
+
+
+@app.post("/api/edit/stabilize_selection")
+def stabilize_selection_api(body: StabilizeSelectionBody) -> dict[str, Any]:
+    """Batch deshake stabilize on selection video clips."""
+    ed = _ed()
+    try:
+        r = ed.stabilize_selection(
+            body.clip_ids,
+            replace=body.replace,
+            strength=body.strength,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"stabilize_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionMarkersSrtBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_markers.srt"
+    cue_seconds: float = 2.0
+    relative: bool = True
+
+
+@app.post("/api/edit/export_selection_markers_srt")
+def export_selection_markers_srt_api(
+    body: ExportSelectionMarkersSrtBody,
+) -> dict[str, Any]:
+    """Export selection-span markers as SRT under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_markers_srt(
+            body.clip_ids,
+            filename=body.filename,
+            cue_seconds=body.cue_seconds,
+            relative=body.relative,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_markers_srt failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

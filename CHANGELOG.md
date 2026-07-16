@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.60 — 2026-07-17
+
+### Added
+- `stabilize_selection` / `export_selection_markers_srt` + **StabSel** / **MkrSRT**
+
 ## 0.6.59 — 2026-07-17
 
 ### Added

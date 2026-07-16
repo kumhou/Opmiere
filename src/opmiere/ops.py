@@ -9967,6 +9967,119 @@ class Editor:
         )
         return out
 
+    def stabilize_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        replace: bool = True,
+        strength: float = 1.0,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Batch stabilize_clip on selection (ffmpeg deshake).
+
+        video_only skips audio/image tracks. Errors collected per clip.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        done: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, clip = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                media = self.project.media_by_id(clip.media)
+                if media.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": f"media_{media.kind}"})
+                    continue
+                if tr.locked:
+                    errors.append({"clip_id": cid, "error": "track locked"})
+                    continue
+                r = self.stabilize_clip(
+                    cid, replace=replace, strength=float(strength),
+                )
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["clip_id"] = cid
+                done.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(done),
+            "stabilized": done,
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "strength": float(strength),
+            "replace": bool(replace),
+            "agent_note": "deshake re-encode per clip; replace retargets media.",
+        }
+
+    def export_selection_markers_srt(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_markers.srt",
+        cue_seconds: float = 2.0,
+        relative: bool = True,
+    ) -> dict[str, Any]:
+        """Export markers in selection span as SRT under exports/.
+
+        relative=True: times zeroed at selection start (for burn-in on
+        selection export). relative=False: project-absolute times.
+        cue_seconds: duration of each cue when next marker is far / last.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if cue_seconds <= 0:
+            raise ValueError("cue_seconds must be > 0")
+        hits = self.markers_in_selection_span(clip_ids)
+        span = hits.get("span") or self.selection_span(clip_ids)
+        fps = float(self.project.timebase.fps or 30.0)
+        start_f = int(span["start_frame"])
+        end_f = int(span["end_frame"])
+        start_s = start_f / fps
+        end_s = end_f / fps
+        rows = sorted(hits.get("markers") or [], key=lambda x: int(x["frame"]))
+        segments: list[dict[str, Any]] = []
+        for i, row in enumerate(rows):
+            fr = int(row["frame"])
+            t0 = fr / fps
+            if i + 1 < len(rows):
+                t1 = min(int(rows[i + 1]["frame"]) / fps, end_s)
+            else:
+                t1 = min(t0 + float(cue_seconds), end_s)
+            if t1 <= t0:
+                t1 = t0 + 0.04
+            if relative:
+                t0 = max(0.0, t0 - start_s)
+                t1 = max(t0 + 0.04, t1 - start_s)
+            label = (row.get("label") or row.get("marker_id") or "Marker").strip()
+            segments.append(
+                {
+                    "start": t0,
+                    "end": t1,
+                    "text": label,
+                }
+            )
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_markers.srt")
+        path = self.write_srt(out, segments)
+        return {
+            "path": path,
+            "count": len(segments),
+            "relative": bool(relative),
+            "cue_seconds": float(cue_seconds),
+            "span": span,
+            "segments": segments,
+            "agent_note": (
+                "SRT from selection markers. relative=True for selection export burn-in."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

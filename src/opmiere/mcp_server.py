@@ -5695,6 +5695,38 @@ def finish_work_area_delivery(
 
 
 @mcp.tool()
+def stabilize_selection(
+    clip_ids: list[str],
+    replace: bool = True,
+    strength: float = 1.0,
+    video_only: bool = True,
+) -> dict:
+    """Batch deshake stabilize on selection video clips."""
+    return _require_editor().stabilize_selection(
+        clip_ids,
+        replace=replace,
+        strength=strength,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def export_selection_markers_srt(
+    clip_ids: list[str],
+    filename: str = "selection_markers.srt",
+    cue_seconds: float = 2.0,
+    relative: bool = True,
+) -> dict:
+    """Export markers in selection span as SRT under exports/."""
+    return _require_editor().export_selection_markers_srt(
+        clip_ids,
+        filename=filename,
+        cue_seconds=cue_seconds,
+        relative=relative,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

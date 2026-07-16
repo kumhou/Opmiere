@@ -12507,6 +12507,59 @@ async function finishWorkAreaDeliveryUi() {
   }
 }
 
+async function stabilizeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select video clips to stabilize";
+    return;
+  }
+  $("status-msg").textContent = "Stabilizing selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/stabilize_selection", {
+      clip_ids: ids,
+      replace: true,
+      strength: 1.0,
+      video_only: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StabSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+    await refreshTimeline();
+  } catch (e) {
+    setProOut(`StabSel failed: ${e}`);
+    $("status-msg").textContent = `StabSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionMarkersSrtUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for marker SRT export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection markers SRT…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+    }>("/api/edit/export_selection_markers_srt", {
+      clip_ids: ids,
+      filename: "selection_markers.srt",
+      relative: true,
+      cue_seconds: 2.0,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkrSRT · n=${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`MkrSRT failed: ${e}`);
+    $("status-msg").textContent = `MkrSRT failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16528,6 +16581,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-wa-webm-def", () => void exportWorkAreaWebmDefaultUi());
   proBind("btn-wa-gif-def", () => void exportWorkAreaGifDefaultUi());
   proBind("btn-finish-wa", () => void finishWorkAreaDeliveryUi());
+  proBind("btn-stab-sel", () => void stabilizeSelectionUi());
+  proBind("btn-mkr-srt-sel", () => void exportSelectionMarkersSrtUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
