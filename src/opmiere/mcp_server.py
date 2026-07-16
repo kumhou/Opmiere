@@ -1265,6 +1265,29 @@ def split_at_beats(
 
 
 @mcp.tool()
+def markers_from_beats(
+    media_id: str | None = None,
+    path: str | None = None,
+    max_markers: int = 128,
+    label_prefix: str = "Beat",
+    color: str = "#e91e63",
+    clear_existing_prefix: bool = False,
+) -> dict:
+    """Place timeline markers at detected beat frames (music grid, no razor).
+
+    Use split_at_markers afterward if you want cuts on the beat grid.
+    """
+    return _require_editor().markers_from_beats(
+        media_id,
+        path=path,
+        max_markers=max_markers,
+        label_prefix=label_prefix,
+        color=color,
+        clear_existing_prefix=clear_existing_prefix,
+    )
+
+
+@mcp.tool()
 def quantize_clips(
     clip_ids: list[str],
     grid_frames: int,

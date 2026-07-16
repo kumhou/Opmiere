@@ -3431,6 +3431,33 @@ def split_at_beats_api(body: SplitAtBeatsBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MarkersFromBeatsBody(BaseModel):
+    media_id: str | None = None
+    path: str | None = None
+    max_markers: int = 128
+    label_prefix: str = "Beat"
+    color: str = "#e91e63"
+    clear_existing_prefix: bool = False
+
+
+@app.post("/api/markers/from_beats")
+def markers_from_beats_api(body: MarkersFromBeatsBody | None = None) -> dict[str, Any]:
+    """Place timeline markers on detected music beats (no razor)."""
+    body = body or MarkersFromBeatsBody()
+    ed = _ed()
+    try:
+        return ed.markers_from_beats(
+            body.media_id,
+            path=body.path,
+            max_markers=body.max_markers,
+            label_prefix=body.label_prefix,
+            color=body.color,
+            clear_existing_prefix=body.clear_existing_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"markers_from_beats failed: {e}") from e
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)

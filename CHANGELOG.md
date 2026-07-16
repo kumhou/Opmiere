@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.46 — 2026-07-17
+
+### Added
+- `markers_from_beats` + `POST /api/markers/from_beats` + MCP + desktop **BeatM**
+- OpenShot path-C **adapter v11**: `shape_mask` → crop stand-in
+- FCPXML export/import carries timeline **markers**
 ## 0.5.45 — 2026-07-17
 
 ### Added
@@ -1377,6 +1383,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

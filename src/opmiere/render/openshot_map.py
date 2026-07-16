@@ -23,6 +23,7 @@ Mapped for path-C frame grab (incremental):
   - glow amount/intensity → soft blur + brightness stand-in
   - cross_dissolve / fade transitions → alpha ramps on cut neighbors
   - curves presets → brightness stand-in (path-C stills)
+  - shape_mask circle/rect → crop fractions stand-in
 
 Still unsupported (listed in plan): complex grade FX
 (lut/text/…), audio effects, non-dissolve transitions, base-track position.
@@ -50,17 +51,18 @@ _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
+    "shape_mask",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
     "gain", "text",
     "lut3d",
-    "shape_mask", "subtitles", "compression", "noise_reduction",
+    "subtitles", "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 10
+ADAPTER_VERSION = 11
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -99,6 +101,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "glow": "soft Blur + Brightness stand-in",
             "transition_dissolve": "cross_dissolve → fade_in/out on neighbors",
             "curves": "preset → brightness stand-in only",
+            "shape_mask": "circle/rect → crop fractions (no feather)",
         },
     }
 
@@ -227,6 +230,36 @@ def clip_visual_props(
                 mapped.append("curves")
             else:
                 unmapped.append("curves")
+        elif et == "shape_mask":
+            # Approximate mask window as crop box (ignores feather/alpha edge).
+            try:
+                shape = str(e.get("shape") or "circle").lower()
+                cx = float(e.get("cx", 0.5))
+                cy = float(e.get("cy", 0.5))
+                if shape == "rect":
+                    w_f = float(e.get("width", 0.5))
+                    h_f = float(e.get("height", 0.5))
+                else:
+                    size = float(e.get("size", 0.5))
+                    w_f = size
+                    h_f = size
+                w_f = max(0.05, min(1.0, w_f))
+                h_f = max(0.05, min(1.0, h_f))
+                left = max(0.0, min(1.0, cx - w_f / 2.0))
+                top = max(0.0, min(1.0, cy - h_f / 2.0))
+                right = max(0.0, min(1.0, 1.0 - (cx + w_f / 2.0)))
+                bottom = max(0.0, min(1.0, 1.0 - (cy + h_f / 2.0)))
+                # Prefer shape_mask crop unless a real crop already set.
+                if crop is None:
+                    crop = {
+                        "left": left,
+                        "top": top,
+                        "right": right,
+                        "bottom": bottom,
+                    }
+                mapped.append("shape_mask")
+            except (TypeError, ValueError):
+                unmapped.append("shape_mask")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)

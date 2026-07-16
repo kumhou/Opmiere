@@ -5773,6 +5773,36 @@ async function splitAtBeatsUi() {
   }
 }
 
+async function markersFromBeatsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const c = ids.length ? state.clips.get(ids[0]) : null;
+  $("status-msg").textContent = "Placing beat markers…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      bpm_estimate?: number;
+      agent_note?: string;
+    }>("/api/markers/from_beats", {
+      media_id: c?.mediaId || state.binMediaId || null,
+      max_markers: 128,
+      label_prefix: "Beat",
+      clear_existing_prefix: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    await refreshMarkers();
+    $("status-msg").textContent =
+      `Beat markers · ${r.count ?? 0}` +
+      (r.bpm_estimate != null ? ` · ~${Math.round(Number(r.bpm_estimate))} bpm` : "");
+  } catch (e) {
+    setProOut(`Beat markers failed: ${e}`);
+    $("status-msg").textContent = `Beat markers failed: ${e}`;
+  }
+}
+
 async function showSnapPoints() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9133,6 +9163,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-del-trk", () => void deleteTrackOfSelection());
   proBind("btn-hard-cut", () => void hardCutAllUi());
   proBind("btn-beats", () => void splitAtBeatsUi());
+  proBind("btn-beat-mkr", () => void markersFromBeatsUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());
   proBind("btn-recent-clr", () => void clearRecentUi());

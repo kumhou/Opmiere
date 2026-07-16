@@ -6207,6 +6207,106 @@ class Editor:
                 "start": {"from": old, "to": clip.start},
             }
 
+    def _beat_frames_from_media(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        max_beats: int = 128,
+    ) -> dict[str, Any]:
+        """Resolve audio source → beat frames (shared by split/markers)."""
+        if media_id is None and path is None:
+            audio_media = [m for m in self.project.media if m.kind == "audio"]
+            if not audio_media:
+                # fall back to first video with audio
+                av = [
+                    m for m in self.project.media
+                    if m.kind == "video" and getattr(m, "has_audio", False)
+                ]
+                if not av:
+                    raise ValueError("pass media_id or path, or import audio first")
+                media_id = av[0].id
+            else:
+                media_id = audio_media[0].id
+        if path is not None:
+            src = Path(path)
+            mid = None
+        else:
+            media = self.project.media_by_id(media_id)  # type: ignore[arg-type]
+            src = self.bundle.media_path(media.path)
+            mid = media.id
+        if not src.exists():
+            raise FileNotFoundError(str(src))
+        beats = _detect_beats(src)
+        fps = float(self.project.timebase.fps or 30.0)
+        times = list(beats.get("beat_times") or [])
+        frames = sorted({
+            int(round(float(s) * fps)) for s in times if float(s) > 0
+        })[: max(0, int(max_beats))]
+        return {
+            "media_id": mid,
+            "path": str(src),
+            "frames": frames,
+            "beat_times": times[: len(frames)],
+            "bpm_estimate": beats.get("bpm_estimate"),
+            "fps": fps,
+        }
+
+    def markers_from_beats(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        max_markers: int = 128,
+        label_prefix: str = "Beat",
+        color: str = "#e91e63",
+        clear_existing_prefix: bool = False,
+    ) -> dict[str, Any]:
+        """Detect beats and place timeline markers (music cut layout). One undo.
+
+        Prefer this over split_at_beats when agents want chapter/beat grid without
+        razoring clips. media_id/path optional — first audio (or A/V) in bin.
+        """
+        info = self._beat_frames_from_media(
+            media_id, path=path, max_beats=max_markers,
+        )
+        frames: list[int] = list(info["frames"])
+        if not frames:
+            return {
+                "count": 0,
+                "markers": [],
+                "frames": [],
+                "bpm_estimate": info.get("bpm_estimate"),
+                "media_id": info.get("media_id"),
+                "agent_note": "No beat frames detected.",
+            }
+        with self._mutate():
+            if clear_existing_prefix:
+                pref = label_prefix.strip().lower()
+                self.project.markers = [
+                    m for m in self.project.markers
+                    if not (m.label or "").lower().startswith(pref)
+                ]
+            added: list[dict[str, Any]] = []
+            existing = {int(m.frame) for m in self.project.markers}
+            for i, fr in enumerate(frames, start=1):
+                if fr in existing:
+                    continue
+                m = self.project.add_marker(
+                    fr, label=f"{label_prefix} {i}", color=color,
+                )
+                existing.add(fr)
+                added.append(m.to_dict())
+            return {
+                "count": len(added),
+                "markers": added,
+                "frames": frames,
+                "bpm_estimate": info.get("bpm_estimate"),
+                "media_id": info.get("media_id"),
+                "path": info.get("path"),
+                "agent_note": "Beat markers placed; use split_at_markers to razor.",
+            }
+
     def split_at_beats(
         self,
         track_id: str,
@@ -6219,32 +6319,17 @@ class Editor:
 
         Provide media_id (project media) or path to an audio/video file.
         """
-        if media_id is None and path is None:
-            # use first audio media in project
-            audio_media = [m for m in self.project.media if m.kind == "audio"]
-            if not audio_media:
-                raise ValueError("pass media_id or path, or import audio first")
-            media_id = audio_media[0].id
-        if path is not None:
-            src = Path(path)
-        else:
-            media = self.project.media_by_id(media_id)  # type: ignore[arg-type]
-            src = self.bundle.media_path(media.path)
-        if not src.exists():
-            raise FileNotFoundError(str(src))
-        beats = _detect_beats(src)
-        fps = float(self.project.timebase.fps or 30.0)
-        times = list(beats.get("beat_times") or [])
-        frames = sorted({
-            int(round(float(s) * fps)) for s in times if float(s) > 0
-        })[: max(0, int(max_splits))]
+        info = self._beat_frames_from_media(
+            media_id, path=path, max_beats=max_splits,
+        )
+        frames = list(info["frames"])
         if not frames:
             return {
                 "track_id": track_id,
                 "frames": [],
                 "splits": [],
                 "count": 0,
-                "bpm_estimate": beats.get("bpm_estimate"),
+                "bpm_estimate": info.get("bpm_estimate"),
                 "agent_note": "No beat frames detected.",
             }
         with self._mutate():
@@ -6266,7 +6351,8 @@ class Editor:
                 "frames": frames,
                 "splits": splits,
                 "count": len(splits),
-                "source": str(src),
+                "source": info.get("path"),
+                "bpm_estimate": info.get("bpm_estimate"),
             }
 
     def quantize_clips(
@@ -6905,6 +6991,21 @@ class Editor:
                         spine[0] = "\n".join(
                             [open_tag, "          <spine>", *extras, "          </spine>", "        </asset-clip>"]
                         )
+        marker_lines: list[str] = []
+        for mk in sorted(self.project.markers, key=lambda m: m.frame):
+            lab = (mk.label or mk.id).replace('"', "&quot;").replace("<", "")
+            col = (mk.color or "#7c9cff").replace('"', "")
+            marker_lines.append(
+                f'            <marker start="{int(mk.frame)}/{fps_i}s" '
+                f'duration="1/{fps_i}s" value="{lab}" note="{col}"/>'
+            )
+        seq_inner = [
+            "          <spine>",
+            *spine,
+            "          </spine>",
+        ]
+        if marker_lines:
+            seq_inner.extend(marker_lines)
         body = "\n".join([
             '<?xml version="1.0" encoding="UTF-8"?>',
             "<!DOCTYPE fcpxml>",
@@ -6919,9 +7020,7 @@ class Editor:
             f'      <project name="{name}">',
             f'        <sequence format="r0" tcStart="0s" tcFormat="NDF" '
             f'duration="{self.duration_frames()}/{fps_i}s">',
-            "          <spine>",
-            *spine,
-            "          </spine>",
+            *seq_inner,
             "        </sequence>",
             "      </project>",
             "    </event>",
@@ -6938,12 +7037,14 @@ class Editor:
         return {
             "count": count,
             "video_tracks": track_count,
+            "marker_count": len(marker_lines),
             "path": written,
             "body": body,
             "fps": fps,
             "agent_note": (
                 "FCPXML 1.9: base track on spine; extra video tracks as nested "
-                "storyline under first clip when present. Verify in target NLE."
+                "storyline under first clip when present; markers as <marker>. "
+                "Verify in target NLE."
             ),
         }
 
@@ -6954,7 +7055,7 @@ class Editor:
                 {"id": "otio", "api": "POST /api/export/otio", "mcp": "export_otio_json",
                  "ext": [".json", ".otio"], "markers": True, "multi_track": True},
                 {"id": "fcpxml", "api": "POST /api/export/fcpxml", "mcp": "export_fcpxml",
-                 "ext": [".fcpxml"], "markers": False, "multi_track": True},
+                 "ext": [".fcpxml"], "markers": True, "multi_track": True},
                 {"id": "edl", "api": "POST /api/export/edl", "mcp": "export_edl",
                  "ext": [".edl"], "markers": False, "multi_track": False},
                 {"id": "cutlist", "api": "POST /api/export/cutlist", "mcp": "export_cutlist",
@@ -6966,7 +7067,7 @@ class Editor:
                 {"id": "otio", "api": "POST /api/import/otio", "mcp": "import_otio_json",
                  "ext": [".json", ".otio"], "markers": True, "media_auto_import": True},
                 {"id": "fcpxml", "api": "POST /api/import/fcpxml", "mcp": "import_fcpxml",
-                 "ext": [".fcpxml", ".xml"], "markers": False, "media_auto_import": True},
+                 "ext": [".fcpxml", ".xml"], "markers": True, "media_auto_import": True},
                 {"id": "edl", "api": "POST /api/import/edl", "mcp": "import_edl",
                  "ext": [".edl", ".txt"], "markers": False, "media_auto_import": False},
                 {"id": "cutlist", "api": "POST /api/import/cutlist", "mcp": "import_cutlist",
@@ -7061,6 +7162,22 @@ class Editor:
                 "name": name_m.group(1) if name_m else None,
             })
 
+        markers_raw: list[dict[str, Any]] = []
+        for m in re.finditer(
+            r'<marker\s+([^>]+?)/?>',
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            attrs = m.group(1)
+            st_m = re.search(r'\bstart="([^"]+)"', attrs)
+            val_m = re.search(r'\bvalue="([^"]*)"', attrs)
+            note_m = re.search(r'\bnote="([^"]*)"', attrs)
+            markers_raw.append({
+                "frame": _frames(st_m.group(1) if st_m else "0s"),
+                "label": val_m.group(1) if val_m else "",
+                "color": note_m.group(1) if note_m else "#7c9cff",
+            })
+
         def _media_by_path(url: str) -> Any | None:
             p = Path(url)
             name = p.name.lower()
@@ -7130,17 +7247,29 @@ class Editor:
                     "src_out": clip.src_out,
                 })
 
+            markers_in = 0
+            for mk in markers_raw:
+                try:
+                    fr = max(0, int(mk["frame"]))
+                    lab = str(mk.get("label") or f"m{fr}")
+                    col = str(mk.get("color") or "#7c9cff")
+                    self.project.add_marker(fr, label=lab, color=col)
+                    markers_in += 1
+                except Exception as e:
+                    skipped.append({"marker": mk, "reason": str(e)})
+
             return {
                 "track_id": track.id,
                 "placed": placed,
                 "count": len(placed),
+                "markers_imported": markers_in,
                 "skipped": skipped[:40],
                 "skipped_count": len(skipped),
                 "imported_media": imported_media,
                 "imported_media_count": len(imported_media),
                 "clear_track": clear_track,
                 "fps": fps_i,
-                "agent_note": "Minimal FCPXML import (Opmiere export shape).",
+                "agent_note": "Minimal FCPXML import (Opmiere export shape + markers).",
             }
 
     def export_otio_json(
