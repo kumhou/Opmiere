@@ -2855,6 +2855,14 @@ def preview_openshot_plan(height: int = 360) -> dict[str, Any]:
     return _ed().openshot_plan(height=height)
 
 
+@app.get("/api/preview/openshot_effects")
+def preview_openshot_effects() -> dict[str, Any]:
+    """Path-C effect catalog: what adapter maps vs intentionally skips."""
+    from opmiere.render.openshot_map import path_c_effect_catalog
+
+    return path_c_effect_catalog()
+
+
 @app.post("/api/preview/openshot_frame")
 def preview_openshot_frame(body: OpenShotFrameBody) -> dict[str, Any]:
     """Path-C multi-clip frame via OpenShot sidecar."""
@@ -4120,6 +4128,12 @@ def session_summary_api() -> dict[str, Any]:
         enc = ed.encode_status()
     except Exception:
         enc = {}
+    try:
+        from opmiere.render.openshot_map import path_c_effect_catalog
+
+        path_c = path_c_effect_catalog()
+    except Exception:
+        path_c = {}
     return {
         "version": __version__,
         "preflight": pre,
@@ -4128,6 +4142,7 @@ def session_summary_api() -> dict[str, Any]:
         "track_count": len(ed.project.tracks),
         "media_count": len(ed.project.media),
         "marker_count": len(getattr(ed.project, "markers", None) or []),
+        "path_c": path_c,
     }
 
 

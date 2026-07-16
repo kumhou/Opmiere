@@ -517,6 +517,101 @@ for c in plan["clips"]:
                     pass
         except Exception:
             pass
+    # vignette strength → Mask / edge darken when available
+    try:
+        vig = float(c.get("vignette", 0) or 0)
+    except Exception:
+        vig = 0.0
+    if vig > 0.05:
+        try:
+            if hasattr(openshot, "Mask"):
+                # Some builds take (brightness, contrast); treat strength as intensity.
+                me = openshot.Mask(float(max(0.0, min(1.0, vig * 0.35))), 0.0)
+                clip.AddEffect(me)
+                applied.append("vignette")
+            elif hasattr(openshot, "Brightness"):
+                # Soft darken as last-resort vignette stand-in
+                be = openshot.Brightness(float(-min(0.35, vig * 0.12)), 0.0)
+                clip.AddEffect(be)
+                applied.append("vignette")
+        except Exception:
+            pass
+    # sharpen amount
+    try:
+        sh = float(c.get("sharpen", 0) or 0)
+    except Exception:
+        sh = 0.0
+    if sh > 0.05:
+        try:
+            if hasattr(openshot, "Sharpen"):
+                se = openshot.Sharpen(float(sh))
+                clip.AddEffect(se)
+                applied.append("sharpen")
+            elif hasattr(openshot, "Blur"):
+                # Negative-style: tiny blur inverted not available — skip soft fail
+                pass
+        except Exception:
+            pass
+    # white_balance warmth → Hue / Saturation nudge
+    wb = c.get("white_balance") or {{}}
+    if isinstance(wb, dict) and wb:
+        try:
+            warmth = float(wb.get("warmth", 0) or 0)
+            if abs(warmth) > 1e-3:
+                if hasattr(openshot, "Hue"):
+                    he = openshot.Hue(float(warmth * 0.08))
+                    clip.AddEffect(he)
+                    applied.append("white_balance")
+                elif hasattr(openshot, "Saturation"):
+                    # warm → slightly more sat; cool → less
+                    se = openshot.Saturation(1.0 + warmth * 0.15)
+                    clip.AddEffect(se)
+                    applied.append("white_balance")
+        except Exception:
+            pass
+    # ken_burns → scale + location keyframe ramps over clip timeline
+    kb = c.get("ken_burns") or {{}}
+    if isinstance(kb, dict) and kb:
+        try:
+            zs = float(kb.get("zoom_start", 1.0) or 1.0)
+            ze = float(kb.get("zoom_end", 1.2) or 1.2)
+            xs = float(kb.get("x_start", 0.5) or 0.5)
+            ys = float(kb.get("y_start", 0.5) or 0.5)
+            xe = float(kb.get("x_end", 0.5) or 0.5)
+            ye = float(kb.get("y_end", 0.5) or 0.5)
+            zs = max(0.05, min(10.0, zs))
+            ze = max(0.05, min(10.0, ze))
+            tdur = float(c.get("timeline_duration") or 0)
+            if tdur <= 0:
+                tdur = max(0.05, float(c.get("end", 0)) - float(c.get("start", 0)))
+            tf1 = max(2.0, tdur * fps_f + 1.0)
+            # scale keyframes
+            for attr, v0, v1 in (("scale_x", zs, ze), ("scale_y", zs, ze)):
+                kf = getattr(clip, attr, None)
+                if kf is not None and hasattr(kf, "AddPoint"):
+                    try:
+                        kf.AddPoint(1.0, float(v0))
+                        kf.AddPoint(tf1, float(v1))
+                    except Exception:
+                        pass
+            # location from normalized focus point (0..1) → OpenShot center offset
+            def _loc(x, y, sc):
+                lx = (float(x) - 0.5) * 2.0 * max(0.0, sc - 1.0)
+                ly = (float(y) - 0.5) * 2.0 * max(0.0, sc - 1.0)
+                return lx, ly
+            lx0, ly0 = _loc(xs, ys, zs)
+            lx1, ly1 = _loc(xe, ye, ze)
+            for attr, v0, v1 in (("location_x", lx0, lx1), ("location_y", ly0, ly1)):
+                kf = getattr(clip, attr, None)
+                if kf is not None and hasattr(kf, "AddPoint"):
+                    try:
+                        kf.AddPoint(1.0, float(v0))
+                        kf.AddPoint(tf1, float(v1))
+                    except Exception:
+                        pass
+            applied.append("ken_burns")
+        except Exception:
+            pass
     # overlay transform (PiP)
     tf = c.get("transform") or {{}}
     if isinstance(tf, dict) and tf:

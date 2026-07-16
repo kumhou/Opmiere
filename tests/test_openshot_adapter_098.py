@@ -44,19 +44,20 @@ def test_clip_visual_props_and_plan_mapping():
         assert abs(vis["rotation"] - 15) < 1e-6
         assert "opacity" in vis["mapped_effects"]
         assert "rotate" in vis["mapped_effects"]
-        assert "vignette" in vis["unmapped_effects"]
+        # v5+: vignette is mapped for path-C (was unmapped in early adapter)
+        assert "vignette" in vis["mapped_effects"]
 
         plan = build_openshot_plan(ed.project, ed.bundle, height=180)
         assert int(plan.get("adapter_version") or 0) >= 2
         assert "opacity" in plan.get("mapped", [])
         assert "rotate" in plan.get("mapped", [])
         assert "transform" in plan.get("mapped", [])
-        assert "vignette" in plan.get("unsupported", [])
+        assert "vignette" in plan.get("mapped", [])
         overlay = next(c for c in plan["clips"] if c["layer"] == 2)
         assert abs(float(overlay["opacity"]) - 0.7) < 1e-6
         assert abs(float(overlay["rotation"]) - 15) < 1e-6
         assert "transform" in overlay
-        # base clip should not list vignette as mapped
+        assert float(overlay.get("vignette") or 0) > 0
         assert c0.id
     finally:
         shutil.rmtree(root, ignore_errors=True)

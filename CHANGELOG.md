@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.36 — 2026-07-17
+
+### Added
+- OpenShot path-C **adapter v5**: map `vignette`, `sharpen`, `ken_burns`, `white_balance` into plan + runtime best-effort
+- `GET /api/preview/openshot_effects` effect catalog for agents/desktop
+- session summary includes `path_c` adapter catalog
 ## 0.5.35 — 2026-07-17
 
 ### Added
@@ -1326,3 +1332,4 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+

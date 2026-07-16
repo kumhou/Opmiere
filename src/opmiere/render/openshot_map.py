@@ -13,9 +13,13 @@ Mapped for path-C frame grab (incremental):
   - blur amount (Brightness/Blur effects when available)
   - color brightness → approximate alpha/brightness keyframe
   - fade in/out → alpha keyframe ramps (best-effort)
+  - vignette strength (Mask/edge darken when available)
+  - sharpen amount (Sharpen/Convolution when available)
+  - ken_burns → scale + location keyframe ramps
+  - white_balance temperature → Hue/Sat approximation
 
 Still unsupported (listed in plan): transitions, complex grade FX
-(curves/lut/text/…), audio effects, base-track position.
+(curves/lut/text/…), audio effects, chroma/luma key, base-track position.
 """
 
 from __future__ import annotations
@@ -26,17 +30,44 @@ from typing import Any
 from ..bundle import Bundle
 from ..model import Project
 
-__all__ = ["build_openshot_plan", "plan_preview_size", "clip_visual_props"]
+__all__ = [
+    "build_openshot_plan",
+    "plan_preview_size",
+    "clip_visual_props",
+    "path_c_effect_catalog",
+]
 
 # Effect types the OpenShot path-C adapter can approximate for still frames.
-_MAPPED_VISUAL = frozenset({"opacity", "rotate", "crop", "blur", "color", "fade"})
+_MAPPED_VISUAL = frozenset({
+    "opacity", "rotate", "crop", "blur", "color", "fade",
+    "vignette", "sharpen", "ken_burns", "white_balance",
+})
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "gain", "text", "vignette", "chroma_key", "luma_key",
-    "curves", "sharpen", "film_grain", "glow", "lut3d", "ken_burns",
-    "white_balance", "shape_mask", "subtitles", "compression", "noise_reduction",
+    "gain", "text", "chroma_key", "luma_key",
+    "curves", "film_grain", "glow", "lut3d",
+    "shape_mask", "subtitles", "compression", "noise_reduction",
     "audio_eq",
 })
+
+# Current plan schema version (floors only in tests — never pin exact equality).
+ADAPTER_VERSION = 5
+
+
+def path_c_effect_catalog() -> dict[str, Any]:
+    """Agent/desktop catalog of what path-C can approximate vs skip."""
+    return {
+        "adapter_version": ADAPTER_VERSION,
+        "mapped": sorted(_MAPPED_VISUAL),
+        "unmapped": sorted(_UNMAPPED_VISUAL),
+        "notes": {
+            "vignette": "Mask or edge darken best-effort",
+            "sharpen": "Sharpen effect when libopenshot exposes it",
+            "ken_burns": "scale_x/y + location_x/y keyframe ramps",
+            "white_balance": "temperature → hue/sat approximation",
+            "color": "brightness only on still frames",
+        },
+    }
 
 
 def plan_preview_size(
@@ -66,6 +97,10 @@ def clip_visual_props(
     brightness = 0.0
     fade_in = 0
     fade_out = 0
+    vignette = 0.0
+    sharpen = 0.0
+    ken_burns: dict[str, float] | None = None
+    white_balance: dict[str, float] | None = None
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -115,6 +150,52 @@ def clip_visual_props(
                 mapped.append("fade")
             else:
                 unmapped.append("fade")
+        elif et == "vignette":
+            try:
+                vignette = float(e.get("strength", 1.0) or 0)
+            except (TypeError, ValueError):
+                vignette = 0.0
+            if vignette > 0:
+                mapped.append("vignette")
+            else:
+                unmapped.append("vignette")
+        elif et == "sharpen":
+            try:
+                sharpen = float(e.get("amount", 1.0) or 0)
+            except (TypeError, ValueError):
+                sharpen = 0.0
+            if sharpen > 0:
+                mapped.append("sharpen")
+            else:
+                unmapped.append("sharpen")
+        elif et == "ken_burns":
+            try:
+                kb = {
+                    "zoom_start": float(e.get("zoom_start", 1.0)),
+                    "zoom_end": float(e.get("zoom_end", 1.2)),
+                    "x_start": float(e.get("x_start", 0.5)),
+                    "y_start": float(e.get("y_start", 0.5)),
+                    "x_end": float(e.get("x_end", 0.5)),
+                    "y_end": float(e.get("y_end", 0.5)),
+                }
+                ken_burns = kb
+                mapped.append("ken_burns")
+            except (TypeError, ValueError):
+                unmapped.append("ken_burns")
+        elif et == "white_balance":
+            try:
+                temp = float(e.get("temperature", 6500))
+                mix = float(e.get("mix", 1.0))
+                # Normalize Kelvin offset from daylight 6500 → roughly -1..1
+                delta = max(-1.0, min(1.0, (temp - 6500.0) / 3500.0)) * max(0.0, min(1.0, mix))
+                white_balance = {
+                    "temperature": temp,
+                    "mix": max(0.0, min(1.0, mix)),
+                    "warmth": delta,
+                }
+                mapped.append("white_balance")
+            except (TypeError, ValueError):
+                unmapped.append("white_balance")
         elif et == "crop":
             # Opmiere crop is pixel box; convert to fractions of project frame.
             try:
@@ -158,6 +239,10 @@ def clip_visual_props(
         "brightness": brightness,
         "fade_in_frames": fade_in,
         "fade_out_frames": fade_out,
+        "vignette": vignette,
+        "sharpen": sharpen,
+        "ken_burns": ken_burns,
+        "white_balance": white_balance,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -254,9 +339,15 @@ def build_openshot_plan(
                 "brightness": vis.get("brightness") or 0.0,
                 "fade_in_frames": vis.get("fade_in_frames") or 0,
                 "fade_out_frames": vis.get("fade_out_frames") or 0,
+                "vignette": vis.get("vignette") or 0.0,
+                "sharpen": vis.get("sharpen") or 0.0,
             }
             if vis.get("crop"):
                 entry["crop"] = vis["crop"]
+            if vis.get("ken_burns"):
+                entry["ken_burns"] = vis["ken_burns"]
+            if vis.get("white_balance"):
+                entry["white_balance"] = vis["white_balance"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {
@@ -323,5 +414,6 @@ def build_openshot_plan(
         "mapped": mapped_kinds,
         "mapped_detail": mapped_notes[:40],
         "mode": "openshot_project_plan",
-        "adapter_version": 4,
+        "adapter_version": ADAPTER_VERSION,
+        "effect_catalog": path_c_effect_catalog(),
     }
