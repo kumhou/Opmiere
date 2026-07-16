@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.66 — 2026-07-16
+
+### Added
+- Desktop **Del trk** + **Hard cut** (clear transitions)
+
 ## 0.4.65 — 2026-07-16
 
 ### Added
