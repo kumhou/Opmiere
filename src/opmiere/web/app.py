@@ -3875,6 +3875,80 @@ def sequence_from_media_api(body: SequenceFromMediaBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class AssembleUnusedBody(BaseModel):
+    track_id: str
+    kind: str = "video"
+    start_frame: int = 0
+    clear_track: bool = False
+    transition: str | None = None
+    transition_frames: int = 12
+
+
+@app.post("/api/sequence/assemble_unused")
+def assemble_unused_api(body: AssembleUnusedBody) -> dict[str, Any]:
+    """Place all unused bin media of a kind as an assembly cut."""
+    ed = _ed()
+    try:
+        r = ed.assemble_unused_media(
+            body.track_id,
+            kind=body.kind,
+            start_frame=body.start_frame,
+            clear_track=body.clear_track,
+            transition=body.transition,
+            transition_frames=body.transition_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"assemble_unused failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FreezeAtMarkersBody(BaseModel):
+    track_id: str
+    duration_frames: int = 24
+    marker_ids: list[str] | None = None
+    place_track_id: str | None = None
+
+
+@app.post("/api/freeze/at_markers")
+def freeze_at_markers_api(body: FreezeAtMarkersBody) -> dict[str, Any]:
+    """Freeze frame under each marker on a track."""
+    ed = _ed()
+    try:
+        r = ed.freeze_at_markers(
+            body.track_id,
+            duration_frames=body.duration_frames,
+            marker_ids=body.marker_ids,
+            place_track_id=body.place_track_id,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"freeze_at_markers failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class StillsAtMarkersBody(BaseModel):
+    output_dir: str | None = None
+    width: int = 1280
+    marker_ids: list[str] | None = None
+    name_prefix: str = "still"
+
+
+@app.post("/api/export/stills_at_markers")
+def stills_at_markers_api(body: StillsAtMarkersBody | None = None) -> dict[str, Any]:
+    """Export JPG stills at each marker."""
+    body = body or StillsAtMarkersBody()
+    ed = _ed()
+    out = body.output_dir or str(_desktop_export_dir() / "marker_stills")
+    try:
+        return ed.stills_at_markers(
+            out,
+            width=body.width,
+            marker_ids=body.marker_ids,
+            name_prefix=body.name_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"stills_at_markers failed: {e}") from e
+
+
 class TitleCardBody(BaseModel):
     content: str
     track_id: str

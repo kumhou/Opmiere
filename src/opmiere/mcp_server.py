@@ -1610,6 +1610,58 @@ def sequence_from_media(
 
 
 @mcp.tool()
+def assemble_unused_media(
+    track_id: str,
+    kind: str = "video",
+    start_frame: int = 0,
+    clear_track: bool = False,
+    transition: str | None = None,
+    transition_frames: int = 12,
+) -> dict:
+    """Place all unused bin media of a kind as an assembly sequence."""
+    return _require_editor().assemble_unused_media(
+        track_id,
+        kind=kind,
+        start_frame=start_frame,
+        clear_track=clear_track,
+        transition=transition,
+        transition_frames=transition_frames,
+    )
+
+
+@mcp.tool()
+def freeze_at_markers(
+    track_id: str,
+    duration_frames: int = 24,
+    marker_ids: list[str] | None = None,
+    place_track_id: str | None = None,
+) -> dict:
+    """Freeze the clip under each marker as a still hold."""
+    return _require_editor().freeze_at_markers(
+        track_id,
+        duration_frames=duration_frames,
+        marker_ids=marker_ids,
+        place_track_id=place_track_id,
+    )
+
+
+@mcp.tool()
+def stills_at_markers(
+    output_dir: str,
+    width: int = 1280,
+    marker_ids: list[str] | None = None,
+    name_prefix: str = "still",
+) -> dict:
+    """Export a JPG still at each marker frame."""
+    return _require_editor().stills_at_markers(
+        output_dir,
+        width=width,
+        marker_ids=marker_ids,
+        name_prefix=name_prefix,
+    )
+
+
+@mcp.tool()
 def create_title_card(
     content: str,
     track_id: str,

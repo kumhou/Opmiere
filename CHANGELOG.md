@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.60 — 2026-07-17
+
+### Added
+- `assemble_unused_media` + **Asm** (rough cut from unused bin)
+- `freeze_at_markers` + **FrzM**
+- `stills_at_markers` + **StillsM**
 ## 0.5.59 — 2026-07-17
 
 ### Added
@@ -1452,6 +1458,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

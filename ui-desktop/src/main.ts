@@ -5785,6 +5785,109 @@ async function titleCardUi() {
   }
 }
 
+function firstVideoTrackId(): string {
+  const ids = selectionList();
+  let trackId = ids.length ? state.clips.get(ids[0])?.trackId || "" : "";
+  if (!trackId) {
+    const tracks = (state as { tracks?: { id: string; kind?: string }[] }).tracks;
+    const vt = Array.isArray(tracks)
+      ? tracks.find((t) => t.kind === "video") || tracks[0]
+      : null;
+    trackId = vt?.id || "";
+  }
+  return trackId;
+}
+
+async function assembleUnusedUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = firstVideoTrackId();
+  if (!trackId) {
+    $("status-msg").textContent = "Need a video track";
+    return;
+  }
+  $("status-msg").textContent = "Assembling unused bin media…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/sequence/assemble_unused", {
+      track_id: trackId,
+      kind: "video",
+      start_frame: playheadFrame(),
+      clear_track: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Asm · ${r.count ?? 0} unused clips`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Asm failed: ${e}`);
+    $("status-msg").textContent = `Asm failed: ${e}`;
+  }
+}
+
+async function freezeAtMarkersUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = firstVideoTrackId();
+  if (!trackId) {
+    $("status-msg").textContent = "Select a clip on the source track";
+    return;
+  }
+  $("status-msg").textContent = "Freezing at markers…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+    }>("/api/freeze/at_markers", {
+      track_id: trackId,
+      duration_frames: 24,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FrzM · ${r.count ?? 0}` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FrzM failed: ${e}`);
+    $("status-msg").textContent = `FrzM failed: ${e}`;
+  }
+}
+
+async function stillsAtMarkersUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting stills at markers…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/export/stills_at_markers", {
+      width: 1280,
+      name_prefix: "still",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StillsM · ${r.count ?? 0} → ${r.output_dir || "export"}`;
+  } catch (e) {
+    setProOut(`StillsM failed: ${e}`);
+    $("status-msg").textContent = `StillsM failed: ${e}`;
+  }
+}
+
 async function importFcpxmlFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9698,7 +9801,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-bal-gain", () => void balanceGainsUi());
   proBind("btn-match-grade", () => void matchGradeUi());
   proBind("btn-seq-media", () => void sequenceFromMediaUi());
+  proBind("btn-asm-unused", () => void assembleUnusedUi());
   proBind("btn-title-card", () => void titleCardUi());
+  proBind("btn-freeze-mkr", () => void freezeAtMarkersUi());
+  proBind("btn-stills-mkr", () => void stillsAtMarkersUi());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-interchange", () => void interchangeCatalogUi());

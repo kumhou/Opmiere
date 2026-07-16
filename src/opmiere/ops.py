@@ -4159,6 +4159,153 @@ class Editor:
             clip.position = {"x": float(x), "y": float(y), "scale": float(scale)}
             return clip
 
+    def assemble_unused_media(
+        self,
+        track_id: str,
+        *,
+        kind: str = "video",
+        start_frame: int = 0,
+        clear_track: bool = False,
+        transition: str | None = None,
+        transition_frames: int = 12,
+    ) -> dict[str, Any]:
+        """Place all unused bin media of kind end-to-end (rough assembly).
+
+        Uses list_unused_media then sequence_from_media. Kind: video|audio|image.
+        """
+        unused = self.list_unused_media()
+        items = unused.get("media") or []
+        media_ids: list[str] = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            mid = it.get("media_id") or it.get("id")
+            mk = it.get("kind")
+            if mid and (mk is None or mk == kind):
+                media_ids.append(str(mid))
+        if not media_ids:
+            return {
+                "count": 0,
+                "placed": [],
+                "agent_note": "No unused media of that kind.",
+            }
+        result = self.sequence_from_media(
+            media_ids,
+            track_id,
+            start_frame=start_frame,
+            clear_track=clear_track,
+            transition=transition,
+            transition_frames=transition_frames,
+        )
+        result["media_ids"] = media_ids
+        result["kind"] = kind
+        return result
+
+    def freeze_at_markers(
+        self,
+        track_id: str,
+        *,
+        duration_frames: int = 24,
+        marker_ids: list[str] | None = None,
+        place_track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """At each marker, freeze the clip under playhead on track as a still.
+
+        Places stills after the source clip (or on place_track_id at marker time).
+        Music/reaction workflow: markers → freeze_at_markers for hold frames.
+        """
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        marks = sorted(marks, key=lambda m: m.frame)
+        if not marks:
+            raise ValueError("no markers")
+        if duration_frames <= 0:
+            raise ValueError("duration_frames must be positive")
+        track = self.project.track_by_id(track_id)
+        freezes: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for mk in marks:
+            fr = int(mk.frame)
+            # find clip on track containing fr
+            hit = None
+            for c in track.clips_in_order():
+                if c.start <= fr < c.end:
+                    hit = c
+                    break
+            if hit is None:
+                skipped.append({"marker_id": mk.id, "frame": fr, "reason": "no clip"})
+                continue
+            try:
+                r = self.freeze_frame(
+                    hit.id,
+                    at_timeline_frame=fr,
+                    duration_frames=duration_frames,
+                    track_id=place_track_id or track_id,
+                    start=fr if place_track_id else None,
+                )
+                freezes.append({**r, "marker_id": mk.id, "marker_frame": fr})
+            except Exception as e:
+                skipped.append({
+                    "marker_id": mk.id, "frame": fr, "reason": str(e)[:200],
+                })
+        return {
+            "count": len(freezes),
+            "freezes": freezes,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "duration_frames": duration_frames,
+        }
+
+    def stills_at_markers(
+        self,
+        output_dir: str | Path,
+        *,
+        width: int = 1280,
+        marker_ids: list[str] | None = None,
+        name_prefix: str = "still",
+    ) -> dict[str, Any]:
+        """Export a still image at each marker (program frame / contact source)."""
+        import re
+
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        marks = sorted(marks, key=lambda m: m.frame)
+        if not marks:
+            raise ValueError("no markers")
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stills: list[dict[str, Any]] = []
+        for i, mk in enumerate(marks):
+            lab = re.sub(r"[^\w\-]+", "_", (mk.label or f"m{i+1}"))[:32]
+            dest = out_dir / f"{name_prefix}_{i+1:02d}_{lab}_f{mk.frame}.jpg"
+            try:
+                r = self.export_still(dest, int(mk.frame), width=width)
+                stills.append({
+                    "marker_id": mk.id,
+                    "frame": mk.frame,
+                    "label": mk.label,
+                    "path": r.get("path") or str(dest),
+                    "ok": True,
+                })
+            except Exception as e:
+                stills.append({
+                    "marker_id": mk.id,
+                    "frame": mk.frame,
+                    "ok": False,
+                    "error": str(e)[:300],
+                })
+        ok_n = sum(1 for s in stills if s.get("ok"))
+        return {
+            "count": ok_n,
+            "stills": stills,
+            "output_dir": str(out_dir.resolve()),
+            "ok": ok_n == len(stills) and ok_n > 0,
+        }
+
     def sequence_from_media(
         self,
         media_ids: list[str],
