@@ -7329,6 +7329,52 @@ def selection_opacity_api(body: SelectionOpacityBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionToNewTrackBody(BaseModel):
+    clip_ids: list[str]
+    name: str | None = None
+    preserve_starts: bool = True
+    stack_start: int | None = None
+
+
+@app.post("/api/edit/selection_to_new_track")
+def selection_to_new_track_api(body: SelectionToNewTrackBody) -> dict[str, Any]:
+    """Create track and move selection onto it."""
+    ed = _ed()
+    try:
+        r = ed.selection_to_new_track(
+            body.clip_ids,
+            name=body.name,
+            preserve_starts=body.preserve_starts,
+            stack_start=body.stack_start,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_to_new_track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DuplicateSelectionTrackBody(BaseModel):
+    clip_ids: list[str]
+    track_id: str
+    preserve_starts: bool = True
+    start_offset: int = 0
+
+
+@app.post("/api/edit/duplicate_selection_to_track")
+def duplicate_selection_to_track_api(body: DuplicateSelectionTrackBody) -> dict[str, Any]:
+    """Copy selection onto another track."""
+    ed = _ed()
+    try:
+        r = ed.duplicate_selection_to_track(
+            body.clip_ids,
+            body.track_id,
+            preserve_starts=body.preserve_starts,
+            start_offset=body.start_offset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"duplicate_selection_to_track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

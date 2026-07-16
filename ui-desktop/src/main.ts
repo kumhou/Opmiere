@@ -9512,6 +9512,80 @@ async function selectionOpacityUi(amount: number) {
   }
 }
 
+async function selectionToNewTrackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for new track";
+    return;
+  }
+  $("status-msg").textContent = "Moving selection to new track…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      new_track_id?: string;
+      count?: number;
+    }>("/api/edit/selection_to_new_track", {
+      clip_ids: ids,
+      preserve_starts: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `NewTrk · ${r.new_track_id || "ok"} · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`NewTrk failed: ${e}`);
+    $("status-msg").textContent = `NewTrk failed: ${e}`;
+  }
+}
+
+async function duplicateSelectionToNewTrackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to duplicate to track";
+    return;
+  }
+  $("status-msg").textContent = "Duplicating to new track…";
+  try {
+    // create new track by moving a temp approach: selection_to_new_track then
+    // better: add track via API if exists — use selection_to_new_track on
+    // a duplicate first... simplest: call selection_to_new_track after
+    // duplicate_selection. Two steps for reliability.
+    const dup = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      duplicates?: { clip_id?: string }[];
+    }>("/api/edit/duplicate_selection", { clip_ids: ids });
+    const newIds = (dup.duplicates || [])
+      .map((d) => d.clip_id)
+      .filter((x): x is string => Boolean(x));
+    if (!newIds.length) {
+      // fallback: new track from original (moves)
+      await selectionToNewTrackUi();
+      return;
+    }
+    const r = await postJson<{
+      timeline?: TimelineView;
+      new_track_id?: string;
+      count?: number;
+    }>("/api/edit/selection_to_new_track", {
+      clip_ids: newIds,
+      preserve_starts: true,
+      name: "Dup",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify({ dup, move: r }, null, 2));
+    $("status-msg").textContent =
+      `DupTrk · ${r.new_track_id || "ok"} · ${r.count ?? newIds.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`DupTrk failed: ${e}`);
+    $("status-msg").textContent = `DupTrk failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13407,6 +13481,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-iso-sel", () => void isolateSelectionUi());
   proBind("btn-gain-sel", () => void selectionGainUi(-3));
   proBind("btn-opac-sel", () => void selectionOpacityUi(0.7));
+  proBind("btn-new-trk", () => void selectionToNewTrackUi());
+  proBind("btn-dup-trk", () => void duplicateSelectionToNewTrackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

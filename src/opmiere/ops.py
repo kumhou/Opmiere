@@ -5199,6 +5199,112 @@ class Editor:
         """Alias for set_clips_opacity (selection-oriented)."""
         return self.set_clips_opacity(clip_ids, amount)
 
+    def selection_to_new_track(
+        self,
+        clip_ids: list[str],
+        *,
+        name: str | None = None,
+        preserve_starts: bool = True,
+        stack_start: int | None = None,
+    ) -> dict[str, Any]:
+        """Create a new track matching selection kind and move clips there.
+
+        All selected clips must share the same track kind (video or audio).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        kinds: set[str] = set()
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            kinds.add(tr.kind)
+        if len(kinds) != 1:
+            raise ValueError(
+                f"selection must be single kind, got {sorted(kinds)}"
+            )
+        kind = next(iter(kinds))
+        with self._mutate():
+            tr = self.project.add_track(kind)  # type: ignore[arg-type]
+            if name:
+                tr.name = str(name)
+            else:
+                tr.name = f"Sel{kind[:1].upper()}"
+            tid = tr.id
+        r = self.move_selection_to_track(
+            clip_ids,
+            tid,
+            preserve_starts=preserve_starts,
+            stack_start=stack_start,
+        )
+        r["new_track_id"] = tid
+        r["track_name"] = self.project.track_by_id(tid).name
+        r["kind"] = kind
+        r["agent_note"] = "New track created; selection moved onto it."
+        return r
+
+    def duplicate_selection_to_track(
+        self,
+        clip_ids: list[str],
+        track_id: str,
+        *,
+        preserve_starts: bool = True,
+        start_offset: int = 0,
+    ) -> dict[str, Any]:
+        """Copy selection onto another track (source clips stay put)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        dest = self.project.track_by_id(track_id)
+        if dest.locked:
+            raise ValueError(f"track {track_id} is locked")
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            if tr.kind != dest.kind:
+                raise ValueError(
+                    f"clip {cid} is {tr.kind}; dest is {dest.kind}"
+                )
+            items.append((int(clip.start), cid))
+        items.sort(key=lambda x: x[0])
+        created: list[dict[str, Any]] = []
+        with self._mutate():
+            dest = self.project.track_by_id(track_id)
+            for _, cid in items:
+                src_tr, clip = self._find_clip_and_track(cid)
+                media = self.project.media_by_id(clip.media)
+                place = (
+                    int(clip.start) + int(start_offset)
+                    if preserve_starts
+                    else (
+                        max(
+                            (c.end for c in dest.clips_in_order()),
+                            default=0,
+                        )
+                        + int(start_offset)
+                    )
+                )
+                nc = self.project.add_clip(
+                    dest, media, max(0, place), clip.src_in, clip.src_out,
+                )
+                nc.speed = clip.speed
+                nc.effects = [dict(e) for e in (clip.effects or [])]
+                if clip.position:
+                    nc.position = dict(clip.position)
+                if clip.name:
+                    nc.name = clip.name
+                if clip.color:
+                    nc.color = clip.color
+                created.append({
+                    "source_clip_id": cid,
+                    "clip_id": nc.id,
+                    "start": nc.start,
+                    "end": nc.end,
+                })
+        return {
+            "track_id": track_id,
+            "count": len(created),
+            "clips": created,
+            "agent_note": "Copies on dest track; originals unchanged.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

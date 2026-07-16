@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.17 — 2026-07-17
+
+### Added
+- `selection_to_new_track` / `duplicate_selection_to_track` + **NewTrk** / **DupTrk**
+
 ## 0.6.16 — 2026-07-17
 
 ### Added

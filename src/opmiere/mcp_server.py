@@ -4422,6 +4422,38 @@ def set_selection_opacity(clip_ids: list[str], amount: float) -> dict:
 
 
 @mcp.tool()
+def selection_to_new_track(
+    clip_ids: list[str],
+    name: str | None = None,
+    preserve_starts: bool = True,
+    stack_start: int | None = None,
+) -> dict:
+    """Create a new track and move selection onto it."""
+    return _require_editor().selection_to_new_track(
+        clip_ids,
+        name=name,
+        preserve_starts=preserve_starts,
+        stack_start=stack_start,
+    )
+
+
+@mcp.tool()
+def duplicate_selection_to_track(
+    clip_ids: list[str],
+    track_id: str,
+    preserve_starts: bool = True,
+    start_offset: int = 0,
+) -> dict:
+    """Copy selection onto track_id (originals stay)."""
+    return _require_editor().duplicate_selection_to_track(
+        clip_ids,
+        track_id,
+        preserve_starts=preserve_starts,
+        start_offset=start_offset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
