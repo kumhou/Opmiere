@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.51 — 2026-07-17
+
+### Added
+- `export_selection_preview` / `prepare_selection_export` + **PrevSel** / **PrepSel**
+
 ## 0.6.50 — 2026-07-17
 
 ### Added

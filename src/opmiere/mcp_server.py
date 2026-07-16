@@ -5391,6 +5391,37 @@ def selection_clip_durations(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def export_selection_preview(
+    clip_ids: list[str],
+    output_path: str | None = None,
+    height: int = 360,
+    fps: float = 12.0,
+) -> dict:
+    """Low-res preview of selection union (not delivery)."""
+    return _require_editor().export_selection_preview(
+        clip_ids, output_path=output_path, height=height, fps=fps,
+    )
+
+
+@mcp.tool()
+def prepare_selection_export(
+    clip_ids: list[str],
+    unlock_tracks: bool = True,
+    set_work_area: bool = True,
+    pack_gaps: bool = False,
+    gap_frames: int = 0,
+) -> dict:
+    """Unlock/pack/work-area + preflight before exporting selection."""
+    return _require_editor().prepare_selection_export(
+        clip_ids,
+        unlock_tracks=unlock_tracks,
+        set_work_area=set_work_area,
+        pack_gaps=pack_gaps,
+        gap_frames=gap_frames,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

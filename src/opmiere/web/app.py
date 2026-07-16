@@ -9160,6 +9160,53 @@ def selection_clip_durations_api(body: SelectionClipDurationsBody) -> dict[str, 
         raise HTTPException(400, f"selection_clip_durations failed: {e}") from e
 
 
+class ExportSelectionPreviewBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    height: int = 360
+    fps: float = 12.0
+
+
+@app.post("/api/edit/export_selection_preview")
+def export_selection_preview_api(body: ExportSelectionPreviewBody) -> dict[str, Any]:
+    """Low-res selection span preview."""
+    ed = _ed()
+    try:
+        return ed.export_selection_preview(
+            body.clip_ids,
+            output_path=body.output_path,
+            height=body.height,
+            fps=body.fps,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_preview failed: {e}") from e
+
+
+class PrepareSelectionExportBody(BaseModel):
+    clip_ids: list[str]
+    unlock_tracks: bool = True
+    set_work_area: bool = True
+    pack_gaps: bool = False
+    gap_frames: int = 0
+
+
+@app.post("/api/edit/prepare_selection_export")
+def prepare_selection_export_api(body: PrepareSelectionExportBody) -> dict[str, Any]:
+    """Unlock/pack/work-area + preflight for selection export."""
+    ed = _ed()
+    try:
+        r = ed.prepare_selection_export(
+            body.clip_ids,
+            unlock_tracks=body.unlock_tracks,
+            set_work_area=body.set_work_area,
+            pack_gaps=body.pack_gaps,
+            gap_frames=body.gap_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"prepare_selection_export failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

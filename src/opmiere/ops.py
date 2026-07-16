@@ -9086,6 +9086,129 @@ class Editor:
             "agent_note": "sum_timeline may exceed union if clips overlap tracks.",
         }
 
+    def export_selection_preview(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path | None = None,
+        *,
+        height: int = 360,
+        fps: float = 12.0,
+    ) -> dict[str, Any]:
+        """Low-res preview of selection union span (not delivery quality).
+
+        Temporarily lowers project resolution, exports range, restores.
+        """
+        import subprocess
+
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if height < 72 or height > 2160:
+            raise ValueError("height must be in [72, 2160]")
+        if fps <= 0 or fps > 60:
+            raise ValueError("fps must be in (0, 60]")
+        span = self.selection_span(list(dict.fromkeys(clip_ids)))
+        start_s = float(span["start_seconds"])
+        end_s = float(span["end_seconds"])
+        if end_s <= start_s:
+            raise ValueError("selection has empty span")
+        if output_path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            output_path = out_dir / "selection_preview.mp4"
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        old_w, old_h = self.project.resolution.w, self.project.resolution.h
+        aspect = old_w / max(old_h, 1)
+        new_h = int(height) // 2 * 2
+        new_w = max(2, int(round(new_h * aspect)) // 2 * 2)
+        enc_preset = "ultrafast" if new_h <= 240 else "veryfast"
+        enc_crf = "30" if new_h <= 240 else "28"
+        import os
+        import tempfile
+
+        fd, raw = tempfile.mkstemp(prefix="opmiere_sel_prev_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        try:
+            self.project.resolution.w = new_w
+            self.project.resolution.h = new_h
+            try:
+                self.export(full, normalize_preset=None)
+            finally:
+                self.project.resolution.w = old_w
+                self.project.resolution.h = old_h
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-ss", f"{start_s:.3f}",
+                    "-to", f"{end_s:.3f}",
+                    "-i", str(full),
+                    "-vf", f"fps={float(fps)}",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-preset", enc_preset, "-crf", enc_crf,
+                    "-an",
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode != 0 or not output_path.exists():
+                raise RuntimeError(
+                    f"export_selection_preview failed:\n{(proc.stderr or '')[-2000:]}"
+                )
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return {
+            "path": str(output_path.resolve()),
+            "height": new_h,
+            "width": new_w,
+            "fps": float(fps),
+            "selection_span": span,
+            "project_resolution": {"w": old_w, "h": old_h},
+            "agent_note": "Scrub/review only — not for delivery. Full encode then trim.",
+        }
+
+    def prepare_selection_export(
+        self,
+        clip_ids: list[str],
+        *,
+        unlock_tracks: bool = True,
+        set_work_area: bool = True,
+        pack_gaps: bool = False,
+        gap_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Prepare selection for export: unlock, optional pack, work area, preflight."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        steps: list[dict[str, Any]] = []
+        if unlock_tracks:
+            steps.append(
+                {"step": "unlock_selection_tracks", **self.unlock_selection_tracks(ids)}
+            )
+        if pack_gaps and len(ids) >= 2:
+            steps.append(
+                {
+                    "step": "pack_selection",
+                    **self.pack_selection(ids, gap_frames=int(gap_frames)),
+                }
+            )
+        pre = self.selection_export_preflight(
+            ids, set_work_area=bool(set_work_area),
+        )
+        return {
+            "steps": steps,
+            "preflight": pre,
+            "soft_ready": bool(pre.get("soft_ready")),
+            "span": pre.get("span"),
+            "agent_note": (
+                "Mutations done before preflight. soft_ready ignores path-C unmapped."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
