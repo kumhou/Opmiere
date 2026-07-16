@@ -2784,6 +2784,40 @@ def place_split_screen(
 
 
 @mcp.tool()
+def add_intro_card(
+    content: str = "Title",
+    duration_frames: int = 90,
+    track_id: str | None = None,
+    size: int = 56,
+    fade_out_frames: int = 12,
+    ripple_all_tracks: bool = True,
+) -> dict:
+    """Prepend a title intro card at frame 0 (ripples later clips by default)."""
+    return _require_editor().add_intro_card(
+        content,
+        duration_frames=duration_frames,
+        track_id=track_id,
+        size=size,
+        fade_out_frames=fade_out_frames,
+        ripple_all_tracks=ripple_all_tracks,
+    )
+
+
+@mcp.tool()
+def place_quad_screen(
+    media_ids: list[str],
+    start: int = 0,
+    duration_frames: int | None = None,
+) -> dict:
+    """Place four media_ids in a 2×2 grid (TL/TR/BL/BR)."""
+    return _require_editor().place_quad_screen(
+        media_ids,
+        start=start,
+        duration_frames=duration_frames,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

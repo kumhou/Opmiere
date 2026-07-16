@@ -3463,6 +3463,79 @@ async function splitScreenUi() {
   }
 }
 
+async function introCardUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const text = window.prompt("Intro title", "Title");
+  if (text == null) return;
+  $("status-msg").textContent = "Adding intro card…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/edit/intro_card", {
+      content: (text || "Title").trim() || "Title",
+      duration_frames: 90,
+      size: 56,
+      fade_out_frames: 12,
+      ripple_all_tracks: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Intro · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Intro failed: ${e}`);
+    $("status-msg").textContent = `Intro failed: ${e}`;
+  }
+}
+
+async function quadScreenUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select TL media in bin first";
+    return;
+  }
+  const rest = window.prompt(
+    "Three more media_ids (comma-separated: TR,BL,BR)",
+    "",
+  );
+  if (rest == null || !rest.trim()) return;
+  const parts = rest
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length < 3) {
+    $("status-msg").textContent = "Need 3 more media ids";
+    return;
+  }
+  const mediaIds = [state.binMediaId, parts[0], parts[1], parts[2]];
+  $("status-msg").textContent = "Placing quad grid…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/quad_screen", {
+      media_ids: mediaIds,
+      start: playheadFrame(),
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Quad · ${r.count ?? 4} clips`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Quad failed: ${e}`);
+    $("status-msg").textContent = `Quad failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11973,6 +12046,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnSplit.addEventListener("click", () => {
       stopPlay();
       void splitScreenUi();
+    });
+  }
+  const btnIntro = document.getElementById("btn-intro");
+  if (btnIntro) {
+    btnIntro.addEventListener("click", () => {
+      stopPlay();
+      void introCardUi();
+    });
+  }
+  const btnQuad = document.getElementById("btn-quad");
+  if (btnQuad) {
+    btnQuad.addEventListener("click", () => {
+      stopPlay();
+      void quadScreenUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

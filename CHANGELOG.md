@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.92 — 2026-07-17
+
+### Added
+- `add_intro_card` (ripple prepend title) + **Intro**
+- `place_quad_screen` (2×2 grid) + **Quad**
+
 ## 0.5.91 — 2026-07-17
 
 ### Added

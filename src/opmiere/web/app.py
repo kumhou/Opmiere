@@ -4656,6 +4656,54 @@ def split_screen_api(body: SplitScreenBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class IntroCardBody(BaseModel):
+    content: str = "Title"
+    duration_frames: int = 90
+    track_id: str | None = None
+    size: int = 56
+    fade_out_frames: int = 12
+    ripple_all_tracks: bool = True
+
+
+@app.post("/api/edit/intro_card")
+def intro_card_api(body: IntroCardBody) -> dict[str, Any]:
+    """Prepend intro title card at frame 0 (ripple optional)."""
+    ed = _ed()
+    try:
+        r = ed.add_intro_card(
+            body.content,
+            duration_frames=body.duration_frames,
+            track_id=body.track_id,
+            size=body.size,
+            fade_out_frames=body.fade_out_frames,
+            ripple_all_tracks=body.ripple_all_tracks,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"intro_card failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class QuadScreenBody(BaseModel):
+    media_ids: list[str]
+    start: int = 0
+    duration_frames: int | None = None
+
+
+@app.post("/api/edit/quad_screen")
+def quad_screen_api(body: QuadScreenBody) -> dict[str, Any]:
+    """Place four media in a 2×2 grid."""
+    ed = _ed()
+    try:
+        r = ed.place_quad_screen(
+            body.media_ids,
+            start=body.start,
+            duration_frames=body.duration_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"quad_screen failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

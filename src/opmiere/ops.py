@@ -5324,6 +5324,144 @@ class Editor:
                 ),
             }
 
+    def add_intro_card(
+        self,
+        content: str = "Title",
+        *,
+        duration_frames: int = 90,
+        track_id: str | None = None,
+        size: int = 56,
+        fade_out_frames: int = 12,
+        ripple_all_tracks: bool = True,
+    ) -> dict[str, Any]:
+        """Prepend a title card at frame 0 (optionally ripple all tracks right)."""
+        content = (content or "").strip() or "Title"
+        dur = max(1, int(duration_frames))
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is None:
+            if not vids:
+                with self._mutate():
+                    track_id = self.project.add_track("video").id
+            else:
+                track_id = vids[0].id
+
+        moved_total = 0
+        if ripple_all_tracks:
+            for tr in list(self.project.tracks):
+                if tr.locked:
+                    continue
+                try:
+                    m = self.insert_time(tr.id, 0, dur)
+                    moved_total += int(m.get("count") or 0)
+                except Exception:
+                    pass
+            try:
+                if self.project.markers:
+                    self.shift_markers(dur)
+            except Exception:
+                pass
+        else:
+            try:
+                m = self.insert_time(track_id, 0, dur)
+                moved_total = int(m.get("count") or 0)
+            except Exception:
+                pass
+
+        r = self.create_title_card(
+            content,
+            track_id,
+            0,
+            duration_frames=dur,
+            position="center",
+            size=int(size),
+        )
+        if fade_out_frames > 0:
+            try:
+                self.apply_edge_fades(
+                    clip_ids=[r["clip_id"]],
+                    fade_in_frames=0,
+                    fade_out_frames=int(fade_out_frames),
+                )
+            except Exception:
+                pass
+        r["ripple_moved"] = moved_total
+        r["agent_note"] = (
+            "Intro card at 0; later clips shifted when ripple_all_tracks=True."
+        )
+        return r
+
+    def place_quad_screen(
+        self,
+        media_ids: list[str],
+        *,
+        start: int = 0,
+        duration_frames: int | None = None,
+    ) -> dict[str, Any]:
+        """Place four media in a 2×2 grid (TL/TR/BL/BR via scale 0.5 corners).
+
+        media_ids must have length 4. Creates overlay video tracks as needed.
+        """
+        if not isinstance(media_ids, (list, tuple)) or len(media_ids) != 4:
+            raise ValueError("media_ids must be a list of exactly 4 media ids")
+        medias = []
+        for i, mid in enumerate(media_ids):
+            m = self.project.media_by_id(str(mid))
+            if m.kind == "audio":
+                raise ValueError(f"media[{i}] must be video/image")
+            medias.append(m)
+
+        start_f = max(0, int(start))
+        if duration_frames is None:
+            durs = [max(1, int(m.duration_frames or 1)) for m in medias]
+            dur = min(durs)
+        else:
+            dur = max(1, int(duration_frames))
+
+        # corners: TL TR BL BR — normalized position scale 0.5
+        corners = [
+            {"x": 0.0, "y": 0.0, "scale": 0.5},
+            {"x": 1.0, "y": 0.0, "scale": 0.5},
+            {"x": 0.0, "y": 1.0, "scale": 0.5},
+            {"x": 1.0, "y": 1.0, "scale": 0.5},
+        ]
+        labels = ("TL", "TR", "BL", "BR")
+
+        with self._mutate():
+            vids = [t for t in self.project.tracks if t.kind == "video"]
+            while len(vids) < 4:
+                tr = self.project.add_track("video")
+                tr.name = f"Quad{len(vids)}"
+                vids = [t for t in self.project.tracks if t.kind == "video"]
+            tracks = vids[:4]
+            for tr in tracks:
+                if tr.locked:
+                    raise ValueError(f"track {tr.id} is locked")
+
+            placed: list[dict[str, Any]] = []
+            for i, (media, pos, lab) in enumerate(zip(medias, corners, labels)):
+                tr = tracks[i]
+                src_out = min(dur, max(1, int(media.duration_frames or 1)))
+                clip = self.project.add_clip(tr, media, start_f, 0, src_out)
+                clip.name = (media.path and Path(media.path).stem) or lab
+                clip.position = dict(pos)
+                placed.append({
+                    "clip_id": clip.id,
+                    "track_id": tr.id,
+                    "media_id": media.id,
+                    "slot": lab,
+                    "position": dict(pos),
+                })
+            return {
+                "clips": placed,
+                "start": start_f,
+                "duration_frames": dur,
+                "count": len(placed),
+                "agent_note": (
+                    "2×2 grid via scale=0.5 corner positions. "
+                    "Tweak position per clip for framing."
+                ),
+            }
+
     def assemble_unused_media(
         self,
         track_id: str,
