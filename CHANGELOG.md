@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.67 — 2026-07-16
+
+### Added
+- Desktop **Beats** + **Snaps** inventory
+
 ## 0.4.66 — 2026-07-16
 
 ### Added
