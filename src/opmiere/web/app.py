@@ -3639,6 +3639,61 @@ def place_at_markers_api(body: PlaceAtMarkersBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FitToMarkersBody(BaseModel):
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+    method: str = "speed"
+    max_start_delta: int = 8
+    clamp: bool = True
+    marker_ids: list[str] | None = None
+
+
+@app.post("/api/clips/fit_to_markers")
+def fit_to_markers_api(body: FitToMarkersBody) -> dict[str, Any]:
+    """Stretch/trim clips to fill marker slots."""
+    ed = _ed()
+    try:
+        r = ed.fit_clips_to_markers(
+            body.clip_ids,
+            body.track_id,
+            method=body.method,
+            max_start_delta=body.max_start_delta,
+            clamp=body.clamp,
+            marker_ids=body.marker_ids,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"fit_to_markers failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MarkersFromSrtBody(BaseModel):
+    path: str | None = None
+    text: str | None = None
+    label_from_text: bool = True
+    max_label_len: int = 48
+    color: str = "#4caf50"
+    clear_existing: bool = False
+    prefix: str = ""
+
+
+@app.post("/api/markers/from_srt")
+def markers_from_srt_api(body: MarkersFromSrtBody) -> dict[str, Any]:
+    """Import SRT cue starts as timeline markers."""
+    ed = _ed()
+    try:
+        return ed.markers_from_srt(
+            body.path,
+            text=body.text,
+            label_from_text=body.label_from_text,
+            max_label_len=body.max_label_len,
+            color=body.color,
+            clear_existing=body.clear_existing,
+            prefix=body.prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"markers_from_srt failed: {e}") from e
+
+
 class ExportMarkerSegmentsBody(BaseModel):
     output_dir: str | None = None
     name_prefix: str = "seg"

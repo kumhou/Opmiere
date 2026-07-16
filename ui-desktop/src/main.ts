@@ -6019,6 +6019,78 @@ async function placeAtMarkersUi() {
   }
 }
 
+async function fitToMarkersUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const body: Record<string, unknown> = {
+    method: "speed",
+    max_start_delta: 8,
+    clamp: true,
+  };
+  if (ids.length) {
+    body.clip_ids = ids;
+  } else {
+    const c0 = [...state.clips.values()][0];
+    if (!c0?.trackId) {
+      $("status-msg").textContent = "Select clips or have clips on a track";
+      return;
+    }
+    body.track_id = c0.trackId;
+  }
+  $("status-msg").textContent = "Fitting clips to marker slots…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+    }>("/api/clips/fit_to_markers", body);
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FitM · ${r.count ?? 0}` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FitM failed: ${e}`);
+    $("status-msg").textContent = `FitM failed: ${e}`;
+  }
+}
+
+async function importSrtMarkersUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const picked = await pickImportFile({
+    title: "Import SRT as markers",
+    extensions: ["srt"],
+  });
+  if (!picked) return;
+  $("status-msg").textContent = "Importing SRT markers…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      cue_count?: number;
+    }>("/api/markers/from_srt", {
+      path: picked.path || null,
+      text: picked.text || null,
+      label_from_text: true,
+      clear_existing: false,
+    });
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ImpSRT · ${r.count ?? 0} markers (of ${r.cue_count ?? "?"} cues)`;
+  } catch (e) {
+    setProOut(`ImpSRT failed: ${e}`);
+    $("status-msg").textContent = `ImpSRT failed: ${e}`;
+  }
+}
+
 async function showSnapPoints() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9385,6 +9457,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-scene-grid", () => void sceneGridUi());
   proBind("btn-x-near-mkr", () => void transitionsNearMarkersUi());
   proBind("btn-place-mkr", () => void placeAtMarkersUi());
+  proBind("btn-fit-mkr", () => void fitToMarkersUi());
+  proBind("btn-srt-mkr", () => void importSrtMarkersUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());
   proBind("btn-recent-clr", () => void clearRecentUi());

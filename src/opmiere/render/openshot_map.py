@@ -51,18 +51,18 @@ _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
-    "shape_mask",
+    "shape_mask", "text",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "gain", "text",
+    "gain",
     "lut3d",
     "subtitles", "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 13
+ADAPTER_VERSION = 14
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -108,6 +108,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "transition_wipe": "wipe_* → fade ramps + wipe direction tag",
             "curves": "preset → brightness stand-in only",
             "shape_mask": "circle/rect → crop fractions (no feather)",
+            "text": "title card props in plan (still frames may not paint glyphs)",
         },
     }
 
@@ -194,6 +195,7 @@ def clip_visual_props(
     luma_key: dict[str, float] | None = None
     ken_burns: dict[str, float] | None = None
     white_balance: dict[str, float] | None = None
+    text_overlay: dict[str, Any] | None = None
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -266,6 +268,25 @@ def clip_visual_props(
                 mapped.append("shape_mask")
             except (TypeError, ValueError):
                 unmapped.append("shape_mask")
+        elif et == "text":
+            # Carry title props in plan for agents; still paint is best-effort.
+            content = str(e.get("content") or "").strip()
+            if content:
+                try:
+                    size = int(e.get("size") or 48)
+                except (TypeError, ValueError):
+                    size = 48
+                text_overlay = {
+                    "content": content[:200],
+                    "position": str(e.get("position") or "bottom"),
+                    "size": max(8, min(200, size)),
+                    "border_width": int(e.get("border_width") or 2)
+                    if isinstance(e.get("border_width", 2), (int, float))
+                    else 2,
+                }
+                mapped.append("text")
+            else:
+                unmapped.append("text")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)
@@ -424,6 +445,7 @@ def clip_visual_props(
         "luma_key": luma_key,
         "ken_burns": ken_burns,
         "white_balance": white_balance,
+        "text": text_overlay,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -586,6 +608,8 @@ def build_openshot_plan(
                 entry["luma_key"] = vis["luma_key"]
             if vis.get("glow"):
                 entry["glow"] = vis["glow"]
+            if vis.get("text"):
+                entry["text"] = vis["text"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {

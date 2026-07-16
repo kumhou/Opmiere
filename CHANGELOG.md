@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.53 — 2026-07-17
+
+### Added
+- `fit_clips_to_markers` (speed/trim fill marker slots) + **FitM**
+- `markers_from_srt` (captions → chapter markers) + **ImpSRT**
+- OpenShot path-C **adapter v14**: `text` title props in plan
 ## 0.5.52 — 2026-07-17
 
 ### Added
@@ -1411,6 +1417,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

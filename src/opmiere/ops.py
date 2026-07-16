@@ -6669,6 +6669,231 @@ class Editor:
                 "agent_note": "Media laid on marker grid; adjust trims with slip/roll.",
             }
 
+    def fit_clips_to_markers(
+        self,
+        clip_ids: list[str] | None = None,
+        track_id: str | None = None,
+        *,
+        method: str = "speed",
+        max_start_delta: int = 8,
+        clamp: bool = True,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Rate-stretch or trim each clip so it fills to the next marker.
+
+        Clip start must be within max_start_delta of some marker. End target is
+        the next later marker (or project end if last).
+        method: speed (fit_to_fill style) | trim (shorten src_out at 1x only).
+        Music B-roll: place_media_at_markers → fit_clips_to_markers.
+        """
+        if method not in ("speed", "trim"):
+            raise ValueError("method must be speed|trim")
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        mark_frames = sorted({int(m.frame) for m in marks})
+        if not mark_frames:
+            raise ValueError("no markers — add markers first")
+
+        # collect targets
+        targets: list[str] = []
+        if clip_ids is not None:
+            targets = list(dict.fromkeys(clip_ids))
+        elif track_id is not None:
+            track = self.project.track_by_id(track_id)
+            targets = [c.id for c in track.clips_in_order()]
+        else:
+            raise ValueError("pass clip_ids or track_id")
+
+        proj_end = max(1, int(self.duration_frames()))
+        # ensure last slot can extend to project end
+        if mark_frames[-1] < proj_end:
+            end_candidates = mark_frames + [proj_end]
+        else:
+            end_candidates = mark_frames
+
+        def _slot_for(start: int) -> tuple[int, int] | None:
+            # nearest marker at or before start within delta
+            before = [f for f in mark_frames if f <= start + max_start_delta]
+            if not before:
+                return None
+            slot_start = before[-1]
+            if abs(slot_start - start) > max_start_delta:
+                return None
+            after = [f for f in end_candidates if f > slot_start]
+            if not after:
+                return None
+            return slot_start, after[0]
+
+        with self._mutate():
+            fitted: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            for cid in targets:
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                slot = _slot_for(int(clip.start))
+                if slot is None:
+                    skipped.append({"clip_id": cid, "reason": "start not near a marker"})
+                    continue
+                slot_start, slot_end = slot
+                target_dur = slot_end - slot_start
+                if target_dur <= 0:
+                    skipped.append({"clip_id": cid, "reason": "empty marker slot"})
+                    continue
+                old_start = clip.start
+                old_speed = clip.speed
+                old_src_out = clip.src_out
+                # snap start to marker if slightly off
+                if clip.start != slot_start:
+                    clip.start = slot_start
+                if method == "speed":
+                    src_len = clip.duration_frames
+                    if src_len <= 0:
+                        skipped.append({"clip_id": cid, "reason": "empty source"})
+                        continue
+                    raw = src_len / float(target_dur)
+                    speed = raw
+                    clamped = False
+                    if clamp:
+                        if speed < 0.25:
+                            speed, clamped = 0.25, True
+                        elif speed > 4.0:
+                            speed, clamped = 4.0, True
+                    elif speed < 0.25 or speed > 4.0:
+                        skipped.append({
+                            "clip_id": cid,
+                            "reason": f"speed {raw:.3f} outside [0.25,4]",
+                        })
+                        continue
+                    clip.speed = float(speed)
+                    fitted.append({
+                        "clip_id": cid,
+                        "method": "speed",
+                        "slot": [slot_start, slot_end],
+                        "start": {"from": old_start, "to": clip.start},
+                        "speed": {"from": old_speed, "to": clip.speed},
+                        "end": clip.end,
+                        "raw_speed": round(raw, 6),
+                        "clamped": clamped,
+                    })
+                else:
+                    # trim: force speed 1 and set src_out = src_in + target_dur
+                    clip.speed = 1.0
+                    need = target_dur
+                    max_out = max(clip.src_in + 1, min(
+                        # media duration
+                        self.project.media_by_id(clip.media).duration_frames,
+                        clip.src_in + need,
+                    ))
+                    if max_out <= clip.src_in:
+                        skipped.append({"clip_id": cid, "reason": "cannot trim"})
+                        continue
+                    clip.src_out = max_out
+                    # if media shorter than slot, leave short (don't invent frames)
+                    fitted.append({
+                        "clip_id": cid,
+                        "method": "trim",
+                        "slot": [slot_start, slot_end],
+                        "start": {"from": old_start, "to": clip.start},
+                        "src_out": {"from": old_src_out, "to": clip.src_out},
+                        "end": clip.end,
+                        "filled": clip.timeline_duration_frames >= target_dur,
+                    })
+            return {
+                "method": method,
+                "count": len(fitted),
+                "fitted": fitted,
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+                "marker_count": len(mark_frames),
+                "agent_note": "Clips fill marker slots; check clamped speeds before export.",
+            }
+
+    def markers_from_srt(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        label_from_text: bool = True,
+        max_label_len: int = 48,
+        color: str = "#4caf50",
+        clear_existing: bool = False,
+        prefix: str = "",
+    ) -> dict[str, Any]:
+        """Import SRT cues as timeline markers at each cue start. One undo.
+
+        Labels use cue text (truncated) when label_from_text, else cue index.
+        """
+        import re
+
+        if text is None and path is None:
+            raise ValueError("pass text= or path=")
+        if text is None:
+            text = Path(path).read_text(encoding="utf-8-sig")
+        assert text is not None
+
+        # SRT: index \n start --> end \n text...
+        block_re = re.compile(
+            r"(?m)^\s*(\d+)\s*\n"
+            r"(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*"
+            r"(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*\n"
+            r"([\s\S]*?)(?=\n\s*\d+\s*\n|\Z)",
+        )
+        tc_re = re.compile(r"(\d{2}):(\d{2}):(\d{2})[,.](\d{3})")
+
+        def _tc_to_frame(tc: str) -> int:
+            m = tc_re.match(tc.strip())
+            if not m:
+                return 0
+            h, mi, s, ms = (int(m.group(i)) for i in range(1, 5))
+            sec = h * 3600 + mi * 60 + s + ms / 1000.0
+            fps = float(self.project.timebase.fps or 30.0)
+            return max(0, int(round(sec * fps)))
+
+        cues: list[dict[str, Any]] = []
+        for m in block_re.finditer(text.replace("\r\n", "\n")):
+            body = re.sub(r"<[^>]+>", "", m.group(4)).strip()
+            body = " ".join(body.split())
+            cues.append({
+                "index": int(m.group(1)),
+                "start_tc": m.group(2),
+                "end_tc": m.group(3),
+                "frame": _tc_to_frame(m.group(2)),
+                "text": body,
+            })
+        if not cues:
+            return {
+                "count": 0,
+                "markers": [],
+                "agent_note": "No SRT cues parsed.",
+            }
+
+        with self._mutate():
+            if clear_existing:
+                self.project.markers.clear()
+            added: list[dict[str, Any]] = []
+            existing = {int(m.frame) for m in self.project.markers}
+            for cue in cues:
+                fr = int(cue["frame"])
+                if fr in existing:
+                    continue
+                if label_from_text and cue["text"]:
+                    lab = cue["text"][: max(1, int(max_label_len))]
+                else:
+                    lab = f"Cue {cue['index']}"
+                if prefix:
+                    lab = f"{prefix}{lab}"
+                mkr = self.project.add_marker(fr, label=lab, color=color)
+                existing.add(fr)
+                added.append({**mkr.to_dict(), "srt_index": cue["index"]})
+            return {
+                "count": len(added),
+                "markers": added,
+                "cue_count": len(cues),
+                "agent_note": "SRT → markers at cue starts; use export_markers youtube for chapters.",
+            }
+
     def apply_transitions_near_markers(
         self,
         track_id: str,

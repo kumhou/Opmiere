@@ -1420,6 +1420,51 @@ def place_media_at_markers(
 
 
 @mcp.tool()
+def fit_clips_to_markers(
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+    method: str = "speed",
+    max_start_delta: int = 8,
+    clamp: bool = True,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Stretch/trim clips so each fills to the next marker slot.
+
+    method: speed | trim. Clip starts must be near a marker.
+    """
+    return _require_editor().fit_clips_to_markers(
+        clip_ids,
+        track_id,
+        method=method,
+        max_start_delta=max_start_delta,
+        clamp=clamp,
+        marker_ids=marker_ids,
+    )
+
+
+@mcp.tool()
+def markers_from_srt(
+    path: str | None = None,
+    text: str | None = None,
+    label_from_text: bool = True,
+    max_label_len: int = 48,
+    color: str = "#4caf50",
+    clear_existing: bool = False,
+    prefix: str = "",
+) -> dict:
+    """Import SRT cue starts as timeline markers (captions → chapters)."""
+    return _require_editor().markers_from_srt(
+        path,
+        text=text,
+        label_from_text=label_from_text,
+        max_label_len=max_label_len,
+        color=color,
+        clear_existing=clear_existing,
+        prefix=prefix,
+    )
+
+
+@mcp.tool()
 def export_marker_segments(
     output_dir: str,
     name_prefix: str = "seg",
