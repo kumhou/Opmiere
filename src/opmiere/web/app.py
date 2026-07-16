@@ -3501,6 +3501,49 @@ def export_handoff_api(body: HandoffPackageBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_handoff failed: {e}") from e
 
 
+class CollectBundleBody(BaseModel):
+    dest_path: str
+    used_only: bool = True
+    conform: bool = True
+
+
+@app.post("/api/export/collect_bundle")
+def collect_bundle_api(body: CollectBundleBody) -> dict[str, Any]:
+    """NLE Collect Files: new self-contained .opm with media re-imported."""
+    ed = _ed()
+    try:
+        return ed.collect_to_bundle(
+            body.dest_path,
+            used_only=body.used_only,
+            conform=body.conform,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"collect_bundle failed: {e}") from e
+
+
+class ReplaceMediaEverywhereBody(BaseModel):
+    old_media_id: str
+    new_media_id: str
+    keep_source_range: bool = True
+    track_id: str | None = None
+
+
+@app.post("/api/media/replace_everywhere")
+def replace_media_everywhere_api(body: ReplaceMediaEverywhereBody) -> dict[str, Any]:
+    """Retarget all clips using old media → new media."""
+    ed = _ed()
+    try:
+        r = ed.replace_media_everywhere(
+            body.old_media_id,
+            body.new_media_id,
+            keep_source_range=body.keep_source_range,
+            track_id=body.track_id,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"replace_everywhere failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/import/otio")
 def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
     """Import simplified OTIO-like JSON (pair of export_otio)."""

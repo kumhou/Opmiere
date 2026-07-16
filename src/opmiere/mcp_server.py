@@ -2097,6 +2097,34 @@ def export_handoff_package(
 
 
 @mcp.tool()
+def collect_to_bundle(
+    dest_path: str,
+    used_only: bool = True,
+    conform: bool = True,
+) -> dict:
+    """NLE Collect Files: create self-contained .opm with media re-imported."""
+    return _require_editor().collect_to_bundle(
+        dest_path, used_only=used_only, conform=conform,
+    )
+
+
+@mcp.tool()
+def replace_media_everywhere(
+    old_media_id: str,
+    new_media_id: str,
+    keep_source_range: bool = True,
+    track_id: str | None = None,
+) -> dict:
+    """Retarget every clip using old_media_id → new_media_id."""
+    return _require_editor().replace_media_everywhere(
+        old_media_id,
+        new_media_id,
+        keep_source_range=keep_source_range,
+        track_id=track_id,
+    )
+
+
+@mcp.tool()
 def import_otio_json(
     path: str | None = None,
     text: str | None = None,

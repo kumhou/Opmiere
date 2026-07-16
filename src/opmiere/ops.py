@@ -9829,6 +9829,148 @@ class Editor:
             "agent_note": "Handoff package written. Pair with import_edit_manifest to rehydrate layout.",
         }
 
+    def collect_to_bundle(
+        self,
+        dest_path: str | Path,
+        *,
+        used_only: bool = True,
+        conform: bool = True,
+    ) -> dict[str, Any]:
+        """Create a self-contained .opm with media re-imported (NLE Collect Files).
+
+        export_edit_manifest → new Editor → import_edit_manifest. Destination
+        owns copies under media/. Offline sources are skipped (see import).
+        Does not mutate the open project.
+        """
+        dest = Path(dest_path)
+        if dest.exists():
+            raise FileExistsError(f"destination already exists: {dest}")
+
+        man = self.export_edit_manifest()
+        try:
+            doc = json.loads(man["body"])
+        except json.JSONDecodeError as e:
+            raise ValueError(f"internal manifest invalid: {e}") from e
+
+        used_ids: set[str] = set()
+        for trow in doc.get("tracks") or []:
+            if not isinstance(trow, dict):
+                continue
+            for crow in trow.get("clips") or []:
+                if isinstance(crow, dict) and crow.get("media_id"):
+                    used_ids.add(str(crow["media_id"]))
+
+        media_rows = [m for m in (doc.get("media") or []) if isinstance(m, dict)]
+        if used_only:
+            media_rows = [m for m in media_rows if str(m.get("id")) in used_ids]
+            doc["media"] = media_rows
+
+        fps = float(self.project.timebase.fps or 30.0)
+        w = int(self.project.resolution.w)
+        h = int(self.project.resolution.h)
+        other = Editor.create(dest, fps=fps, width=w, height=h)
+        if self.project.notes:
+            other.project.notes = self.project.notes
+            other.save()
+
+        imported = other.import_edit_manifest(
+            text=json.dumps(doc, ensure_ascii=False),
+            clear=True,
+            import_missing_media=True,
+            conform=conform,
+        )
+        other.save()
+
+        return {
+            "path": str(dest.resolve()),
+            "used_only": used_only,
+            "conform": conform,
+            "source_media_count": len(media_rows),
+            "source_used_ids": len(used_ids),
+            "import": imported,
+            "clip_count": imported.get("count"),
+            "imported_media_count": imported.get("imported_media_count"),
+            "skipped_count": imported.get("skipped_count"),
+            "agent_note": (
+                "Collected into new .opm. Open dest path to continue; "
+                "offline sources remain skipped until relink_offline_media."
+            ),
+        }
+
+    def replace_media_everywhere(
+        self,
+        old_media_id: str,
+        new_media_id: str,
+        *,
+        keep_source_range: bool = True,
+        track_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Retarget every clip using old_media_id → new_media_id. One undo."""
+        if old_media_id == new_media_id:
+            raise ValueError("old_media_id and new_media_id are the same")
+        new_media = self.project.media_by_id(new_media_id)
+        try:
+            self.project.media_by_id(old_media_id)
+        except KeyError as e:
+            raise ValueError(f"unknown old media: {old_media_id}") from e
+
+        with self._mutate():
+            changed: list[dict[str, Any]] = []
+            tracks = (
+                [self.project.track_by_id(track_id)]
+                if track_id is not None
+                else list(self.project.tracks)
+            )
+            for tr in tracks:
+                if tr.locked:
+                    continue
+                for clip in tr.clips:
+                    if clip.media != old_media_id:
+                        continue
+                    if tr.kind == "video" and new_media.kind == "audio":
+                        raise ValueError(
+                            f"{clip.id}: cannot replace video-track media with audio"
+                        )
+                    if tr.kind == "audio" and new_media.kind == "image":
+                        raise ValueError(
+                            f"{clip.id}: cannot replace audio-track media with image"
+                        )
+                    old_range = {
+                        "media": clip.media,
+                        "src_in": clip.src_in,
+                        "src_out": clip.src_out,
+                    }
+                    if not keep_source_range:
+                        clip.media = new_media.id
+                        clip.src_in = 0
+                        clip.src_out = max(1, new_media.duration_frames)
+                    else:
+                        clip.media = new_media.id
+                        max_out = max(1, new_media.duration_frames)
+                        if clip.src_out > max_out:
+                            clip.src_out = max_out
+                        if clip.src_in >= clip.src_out:
+                            clip.src_in = 0
+                            clip.src_out = max_out
+                    changed.append({
+                        "clip_id": clip.id,
+                        "track_id": tr.id,
+                        "from": old_range,
+                        "to": {
+                            "media": clip.media,
+                            "src_in": clip.src_in,
+                            "src_out": clip.src_out,
+                        },
+                    })
+            return {
+                "count": len(changed),
+                "changed": changed,
+                "old_media_id": old_media_id,
+                "new_media_id": new_media_id,
+                "keep_source_range": keep_source_range,
+                "agent_note": "All matching clips retargeted; re-export proxies if needed.",
+            }
+
     def agent_preflight(self) -> dict[str, Any]:
         """Single agent call: media + validate + proxy + duration + next steps.
 

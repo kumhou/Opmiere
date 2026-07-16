@@ -6178,6 +6178,39 @@ async function exportHandoffUi() {
   }
 }
 
+async function collectBundleUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dest = await pickNewProjectPath({
+    title: "Collect Files — new .opm path",
+    defaultPath: "collected.opm",
+  });
+  if (!dest) return;
+  $("status-msg").textContent = "Collecting media into new bundle…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      clip_count?: number;
+      imported_media_count?: number;
+      skipped_count?: number;
+    }>("/api/export/collect_bundle", {
+      dest_path: dest,
+      used_only: true,
+      conform: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Collect · ${r.clip_count ?? "?"} clips · med ${r.imported_media_count ?? "?"}` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "") +
+      ` → ${r.path ?? dest}`;
+  } catch (e) {
+    setProOut(`Collect failed: ${e}`);
+    $("status-msg").textContent = `Collect failed: ${e}`;
+  }
+}
+
 async function importOtioFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -10055,6 +10088,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-proxies-all2", () => void ensureAllProxiesUi());
   proBind("btn-relink-off", () => void relinkOfflineUi());
   proBind("btn-handoff", () => void exportHandoffUi());
+  proBind("btn-collect", () => void collectBundleUi());
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());

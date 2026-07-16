@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.65 — 2026-07-17
+
+### Added
+- `collect_to_bundle` (NLE Collect Files → new self-contained .opm) + API/MCP/desktop **Collect**
+- `replace_media_everywhere` (retarget all clips of a media id) + API/MCP
+
 ## 0.5.64 — 2026-07-17
 
 ### Added
