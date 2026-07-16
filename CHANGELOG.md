@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.72 — 2026-07-16
+
+### Added
+- Desktop **DetBeat** / **Mix?** (detect_beats + suggest_mix)
+
 ## 0.4.71 — 2026-07-16
 
 ### Added
