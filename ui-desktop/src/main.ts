@@ -2196,6 +2196,33 @@ async function rotateSelection(degrees: number) {
   }
 }
 
+async function flipSelection(axis: "h" | "v") {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to flip";
+    return;
+  }
+  $("status-msg").textContent = `Flip${axis.toUpperCase()} ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/flip", {
+        clip_id: id,
+        toggle_h: axis === "h",
+        toggle_v: axis === "v",
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Flip${axis.toUpperCase()} ×${ids.length}`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Flip failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10370,6 +10397,20 @@ window.addEventListener("DOMContentLoaded", () => {
     stopPlay();
     void swapSelection();
   });
+  const btnFlipH = document.getElementById("btn-fliph");
+  if (btnFlipH) {
+    btnFlipH.addEventListener("click", () => {
+      stopPlay();
+      void flipSelection("h");
+    });
+  }
+  const btnFlipV = document.getElementById("btn-flipv");
+  if (btnFlipV) {
+    btnFlipV.addEventListener("click", () => {
+      stopPlay();
+      void flipSelection("v");
+    });
+  }
   $("btn-snap-prev").addEventListener("click", () => {
     void snapSelection("prev_end");
   });

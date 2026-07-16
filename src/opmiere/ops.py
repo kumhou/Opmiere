@@ -4056,6 +4056,10 @@ class Editor:
             degrees = effect.get("degrees")
             if not isinstance(degrees, (int, float)):
                 raise ValueError("rotate effect requires a numeric 'degrees'")
+        elif etype in ("hflip", "vflip"):
+            # Flag effects — no required fields. enabled=False is a no-op skip.
+            if effect.get("enabled") is False:
+                return clip
         clip.effects.append(dict(effect))
         return clip
 
@@ -10855,6 +10859,55 @@ class Editor:
                 "degrees": {"from": old, "to": degrees if abs(degrees) > 1e-6 else 0.0},
             }
 
+    def set_clip_flip(
+        self,
+        clip_id: str,
+        *,
+        horizontal: bool | None = None,
+        vertical: bool | None = None,
+        toggle_h: bool = False,
+        toggle_v: bool = False,
+    ) -> dict[str, Any]:
+        """Set or toggle hflip/vflip effects on a clip. One undo.
+
+        horizontal/vertical: True=on, False=off, None=leave (unless toggle_*).
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            had_h = any(
+                isinstance(e, dict) and e.get("type") == "hflip"
+                for e in (clip.effects or [])
+            )
+            had_v = any(
+                isinstance(e, dict) and e.get("type") == "vflip"
+                for e in (clip.effects or [])
+            )
+            want_h = had_h
+            want_v = had_v
+            if toggle_h:
+                want_h = not had_h
+            elif horizontal is not None:
+                want_h = bool(horizontal)
+            if toggle_v:
+                want_v = not had_v
+            elif vertical is not None:
+                want_v = bool(vertical)
+            clip.effects = [
+                e for e in (clip.effects or [])
+                if not (isinstance(e, dict) and e.get("type") in ("hflip", "vflip"))
+            ]
+            if want_h:
+                self._apply_effect_unlocked(clip_id, {"type": "hflip"})
+            if want_v:
+                self._apply_effect_unlocked(clip_id, {"type": "vflip"})
+            return {
+                "clip_id": clip_id,
+                "hflip": {"from": had_h, "to": want_h},
+                "vflip": {"from": had_v, "to": want_v},
+                "agent_note": "Mirror via ffmpeg hflip/vflip; path-C plan scale_x/y=-1.",
+            }
+
     def reset_clip_transform(
         self,
         clip_id: str,
@@ -10863,8 +10916,9 @@ class Editor:
         crop: bool = True,
         rotate: bool = True,
         opacity: bool = True,
+        flip: bool = True,
     ) -> dict[str, Any]:
-        """Clear layout/transform FX: PiP position, crop, rotate, opacity.
+        """Clear layout/transform FX: PiP position, crop, rotate, opacity, flip.
 
         Does not touch grade/look effects (color, curves, lut, gain, …).
         """
@@ -10876,6 +10930,9 @@ class Editor:
             drop.add("rotate")
         if opacity:
             drop.add("opacity")
+        if flip:
+            drop.add("hflip")
+            drop.add("vflip")
         with self._mutate():
             clip = self._find_clip(clip_id)
             cleared: list[str] = []

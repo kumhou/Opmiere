@@ -1005,6 +1005,30 @@ def clip_rotate(body: RotateBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FlipBody(BaseModel):
+    clip_id: str
+    horizontal: bool | None = None
+    vertical: bool | None = None
+    toggle_h: bool = False
+    toggle_v: bool = False
+
+
+@app.post("/api/clip/flip")
+def clip_flip(body: FlipBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.set_clip_flip(
+            body.clip_id,
+            horizontal=body.horizontal,
+            vertical=body.vertical,
+            toggle_h=body.toggle_h,
+            toggle_v=body.toggle_v,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"flip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/clip/reset_transform")
 def clip_reset_transform(body: ResetTransformBody) -> dict[str, Any]:
     ed = _ed()

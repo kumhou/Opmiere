@@ -53,12 +53,13 @@ _MAPPED_VISUAL = frozenset({
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
     "shape_mask", "text", "subtitles", "gain", "lut3d",
     "compression", "noise_reduction", "audio_eq",
+    "hflip", "vflip",
 })
 # Known effects intentionally without visual still approximation.
 _UNMAPPED_VISUAL = frozenset()
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 19
+ADAPTER_VERSION = 20
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -112,6 +113,8 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "compression": "ratio/threshold recorded for export mix",
             "noise_reduction": "amount recorded for export mix",
             "audio_eq": "frequency/gain/q recorded for export mix",
+            "hflip": "scale_x=-1 (mirror horizontal)",
+            "vflip": "scale_y=-1 (mirror vertical)",
         },
     }
 
@@ -205,6 +208,8 @@ def clip_visual_props(
     compression: dict[str, float] | None = None
     noise_reduction: float = 0.0
     audio_eq: dict[str, float] | None = None
+    flip_h = False
+    flip_v = False
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -224,6 +229,12 @@ def clip_visual_props(
             except (TypeError, ValueError):
                 rotation = 0.0
             mapped.append("rotate")
+        elif et == "hflip":
+            flip_h = True
+            mapped.append("hflip")
+        elif et == "vflip":
+            flip_v = True
+            mapped.append("vflip")
         elif et == "blur":
             try:
                 blur = float(e.get("amount", 0) or 0)
@@ -515,6 +526,8 @@ def clip_visual_props(
         "compression": compression,
         "noise_reduction": noise_reduction,
         "audio_eq": audio_eq,
+        "flip_h": flip_h,
+        "flip_v": flip_v,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -675,11 +688,17 @@ def build_openshot_plan(
                 "gain_db": vis.get("gain_db") or 0.0,
                 "reversed": is_reverse,
                 "freeze_still": is_freeze,
+                "flip_h": bool(vis.get("flip_h")),
+                "flip_v": bool(vis.get("flip_v")),
             }
             if is_reverse:
                 mapped_notes.append(f"reverse:{clip.id}")
             if is_freeze:
                 mapped_notes.append(f"freeze:{clip.id}")
+            if vis.get("flip_h"):
+                mapped_notes.append(f"hflip:{clip.id}")
+            if vis.get("flip_v"):
+                mapped_notes.append(f"vflip:{clip.id}")
             if dip_color:
                 entry["dip_in"] = dip_color
             if wipe_dir:

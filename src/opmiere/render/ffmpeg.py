@@ -269,6 +269,15 @@ def _effect_filters(
             # rotation works in most simple video editors, and keeps every
             # clip's frame size predictable for the scale/pad step after it.
             parts.append(f"rotate={degrees}*PI/180:fillcolor={fill}")
+        elif etype == "hflip":
+            if stream != "video":
+                continue
+            # Flag effect — presence enables horizontal mirror (ffmpeg hflip).
+            parts.append("hflip")
+        elif etype == "vflip":
+            if stream != "video":
+                continue
+            parts.append("vflip")
         elif etype == "sharpen":
             if stream != "video":
                 continue

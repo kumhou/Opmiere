@@ -2416,6 +2416,24 @@ def set_clip_rotate(clip_id: str, degrees: float) -> dict:
 
 
 @mcp.tool()
+def set_clip_flip(
+    clip_id: str,
+    horizontal: bool | None = None,
+    vertical: bool | None = None,
+    toggle_h: bool = False,
+    toggle_v: bool = False,
+) -> dict:
+    """Set or toggle hflip/vflip (mirror) on a clip."""
+    return _require_editor().set_clip_flip(
+        clip_id,
+        horizontal=horizontal,
+        vertical=vertical,
+        toggle_h=toggle_h,
+        toggle_v=toggle_v,
+    )
+
+
+@mcp.tool()
 def reset_clip_transform(
     clip_id: str,
     position: bool = True,

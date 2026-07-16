@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.69 — 2026-07-17
+
+### Added
+- `hflip` / `vflip` effects (ffmpeg + path-C **adapter v20** scale_x/y=-1)
+- `set_clip_flip` + API/MCP/desktop **FlipH** / **FlipV**
+
 ## 0.5.68 — 2026-07-17
 
 ### Added

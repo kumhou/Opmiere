@@ -475,6 +475,20 @@ for c in plan["clips"]:
     if abs(rot) > 1e-3:
         if _kf_set(clip, "rotation", rot):
             applied.append("rotate")
+    # mirror: negative scale on X/Y (libopenshot convention)
+    if c.get("flip_h"):
+        try:
+            # preserve magnitude of existing scale if already set
+            if _kf_set(clip, "scale_x", -1.0):
+                applied.append("hflip")
+        except Exception:
+            pass
+    if c.get("flip_v"):
+        try:
+            if _kf_set(clip, "scale_y", -1.0):
+                applied.append("vflip")
+        except Exception:
+            pass
     # crop fractions (left/top/right/bottom) via Crop effect if available
     crop = c.get("crop") or {{}}
     if isinstance(crop, dict) and crop:
