@@ -8838,6 +8838,54 @@ def export_selection_fcpxml_api(body: ExportSelectionFcpxmlBody) -> dict[str, An
         raise HTTPException(400, f"export_selection_fcpxml failed: {e}") from e
 
 
+class SelectionExportPreflightBody(BaseModel):
+    clip_ids: list[str]
+    set_work_area: bool = True
+
+
+@app.post("/api/edit/selection_export_preflight")
+def selection_export_preflight_api(
+    body: SelectionExportPreflightBody,
+) -> dict[str, Any]:
+    """Preflight selection before export."""
+    ed = _ed()
+    try:
+        r = ed.selection_export_preflight(
+            body.clip_ids, set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_export_preflight failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionOfflineMediaBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_offline_media")
+def selection_offline_media_api(body: SelectionOfflineMediaBody) -> dict[str, Any]:
+    """List offline media in selection."""
+    ed = _ed()
+    try:
+        return ed.selection_offline_media(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_offline_media failed: {e}") from e
+
+
+class SelectionLockedTracksBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_locked_tracks")
+def selection_locked_tracks_api(body: SelectionLockedTracksBody) -> dict[str, Any]:
+    """List locked tracks touched by selection."""
+    ed = _ed()
+    try:
+        return ed.selection_locked_tracks(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_locked_tracks failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

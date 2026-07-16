@@ -5218,6 +5218,29 @@ def export_selection_fcpxml(
 
 
 @mcp.tool()
+def selection_export_preflight(
+    clip_ids: list[str],
+    set_work_area: bool = True,
+) -> dict:
+    """Preflight selection: offline/gaps/path-C/proxy + optional work area."""
+    return _require_editor().selection_export_preflight(
+        clip_ids, set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_offline_media(clip_ids: list[str]) -> dict:
+    """List offline media used by selection."""
+    return _require_editor().selection_offline_media(clip_ids)
+
+
+@mcp.tool()
+def selection_locked_tracks(clip_ids: list[str]) -> dict:
+    """List locked tracks touched by selection."""
+    return _require_editor().selection_locked_tracks(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

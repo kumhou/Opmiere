@@ -8188,6 +8188,152 @@ class Editor:
         out = out_dir / (filename or "selection.fcpxml")
         return self.export_selection_fcpxml(clip_ids, path=out, title=title)
 
+    def selection_export_preflight(
+        self,
+        clip_ids: list[str],
+        *,
+        set_work_area: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot preflight before exporting selection.
+
+        Aggregates span, diagnostics, gaps, path-C readiness, proxy readiness.
+        Optionally sets work area to selection union.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        diag = self.selection_diagnostics(ids)
+        gaps = self.selection_gaps(ids) if len(ids) >= 2 else {
+            "count": 0, "gaps": [], "agent_note": "single clip",
+        }
+        path_c = self.selection_path_c_report(ids)
+        proxies = self.selection_proxy_report(ids)
+        work = None
+        if set_work_area:
+            work = self.work_area_from_selection(ids)
+        offline = int(
+            diag.get("offline_count")
+            if diag.get("offline_count") is not None
+            else sum(
+                1
+                for c in (diag.get("clips") or [])
+                if not c.get("media_online", True)
+            )
+        )
+        locked = int(
+            diag.get("locked_track_count")
+            if diag.get("locked_track_count") is not None
+            else sum(
+                1 for c in (diag.get("clips") or []) if c.get("track_locked")
+            )
+        )
+        gap_n = int(gaps.get("count") or 0)
+        overlaps = sum(
+            1 for g in (gaps.get("gaps") or []) if g.get("overlap")
+        )
+        # path_c unmapped is soft (still ffmpeg export ok)
+        soft_ready = offline == 0 and locked == 0 and overlaps == 0
+        return {
+            "soft_ready": soft_ready,
+            "path_c_ready": bool(path_c.get("path_c_ready")),
+            "offline_count": offline,
+            "locked_count": locked,
+            "gap_count": gap_n,
+            "overlap_count": overlaps,
+            "span": span,
+            "diagnostics": diag,
+            "gaps": gaps,
+            "path_c": {
+                "path_c_ready": path_c.get("path_c_ready"),
+                "not_ready_count": path_c.get("not_ready_count"),
+                "adapter_version": path_c.get("adapter_version"),
+            },
+            "proxies": {
+                "count": proxies.get("count"),
+                "proxy_ready_count": proxies.get("proxy_ready_count"),
+                "proxy_missing_count": proxies.get("proxy_missing_count"),
+            },
+            "work_area": work,
+            "agent_note": (
+                "soft_ready ignores path-C unmapped FX (ffmpeg still exports). "
+                "adapter_version is floor not pin."
+            ),
+        }
+
+    def selection_offline_media(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """List offline media references used by selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        offline: list[dict[str, Any]] = []
+        online = 0
+        wanted = set(dict.fromkeys(clip_ids))
+        media_to_clips: dict[str, list[str]] = {}
+        for cid in wanted:
+            _tr, clip = self._find_clip_and_track(cid)
+            media_to_clips.setdefault(clip.media, []).append(cid)
+        for mid, cids in media_to_clips.items():
+            media = self.project.media_by_id(mid)
+            try:
+                mpath = self.bundle.media_path(media.path)
+                exists = mpath.exists()
+                abs_path = str(mpath)
+            except Exception as e:
+                exists = False
+                abs_path = f"<error:{e}>"
+            if exists:
+                online += 1
+            else:
+                offline.append(
+                    {
+                        "media_id": media.id,
+                        "path": media.path,
+                        "abs_path": abs_path,
+                        "kind": media.kind,
+                        "clip_ids": cids,
+                    }
+                )
+        return {
+            "offline_count": len(offline),
+            "online_count": online,
+            "offline": offline,
+            "ok": len(offline) == 0,
+            "agent_note": "Relink offline media before export/proxy.",
+        }
+
+    def selection_locked_tracks(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Tracks touched by selection that are locked."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        locked: list[dict[str, Any]] = []
+        unlocked: list[str] = []
+        seen: set[str] = set()
+        for cid in dict.fromkeys(clip_ids):
+            tr, _clip = self._find_clip_and_track(cid)
+            if tr.id in seen:
+                continue
+            seen.add(tr.id)
+            if tr.locked:
+                locked.append(
+                    {"track_id": tr.id, "kind": tr.kind, "name": tr.name}
+                )
+            else:
+                unlocked.append(tr.id)
+        return {
+            "locked_count": len(locked),
+            "unlocked_count": len(unlocked),
+            "locked": locked,
+            "unlocked_track_ids": unlocked,
+            "ok": len(locked) == 0,
+            "agent_note": "Unlock tracks before mutate ops on selection.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

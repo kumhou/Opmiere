@@ -11587,6 +11587,77 @@ async function exportSelectionFcpxmlUi() {
   }
 }
 
+async function selectionExportPreflightUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for preflight";
+    return;
+  }
+  $("status-msg").textContent = "Selection preflight…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      soft_ready?: boolean;
+      path_c_ready?: boolean;
+      offline_count?: number;
+      gap_count?: number;
+    }>("/api/edit/selection_export_preflight", {
+      clip_ids: ids,
+      set_work_area: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Preflight · soft ${r.soft_ready ? "ok" : "no"} pathC ${r.path_c_ready ? "ok" : "warn"} off ${r.offline_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Preflight failed: ${e}`);
+    $("status-msg").textContent = `Preflight failed: ${e}`;
+  }
+}
+
+async function selectionOfflineMediaUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for offline check";
+    return;
+  }
+  $("status-msg").textContent = "Checking offline media…";
+  try {
+    const r = await postJson<{
+      offline_count?: number;
+      ok?: boolean;
+    }>("/api/edit/selection_offline_media", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Offline? · ${r.offline_count ?? 0} ${r.ok ? "ok" : "MISSING"}`;
+  } catch (e) {
+    setProOut(`Offline? failed: ${e}`);
+    $("status-msg").textContent = `Offline? failed: ${e}`;
+  }
+}
+
+async function selectionLockedTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for lock check";
+    return;
+  }
+  $("status-msg").textContent = "Checking locked tracks…";
+  try {
+    const r = await postJson<{
+      locked_count?: number;
+      ok?: boolean;
+    }>("/api/edit/selection_locked_tracks", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Locked? · ${r.locked_count ?? 0} ${r.ok ? "ok" : "LOCKED"}`;
+  } catch (e) {
+    setProOut(`Locked? failed: ${e}`);
+    $("status-msg").textContent = `Locked? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15570,6 +15641,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-edl-def-sel", () => void exportSelectionEdlDefaultUi());
   proBind("btn-cutlist-def-sel", () => void exportSelectionCutlistDefaultUi());
   proBind("btn-fcpxml-sel", () => void exportSelectionFcpxmlUi());
+  proBind("btn-preflight-sel", () => void selectionExportPreflightUi());
+  proBind("btn-offline-sel", () => void selectionOfflineMediaUi());
+  proBind("btn-locked-sel", () => void selectionLockedTracksUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

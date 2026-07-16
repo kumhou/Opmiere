@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.44 — 2026-07-17
+
+### Added
+- `selection_export_preflight` / `selection_offline_media` / `selection_locked_tracks` + **Preflight** / **Offline?** / **Locked?**
+
 ## 0.6.43 — 2026-07-17
 
 ### Added
