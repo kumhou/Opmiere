@@ -6072,6 +6072,159 @@ class Editor:
         r["agent_note"] = "Selection unlinked; peers no longer expand together."
         return r
 
+    def rate_stretch_selection(
+        self,
+        clip_ids: list[str],
+        target_duration_frames: int,
+    ) -> dict[str, Any]:
+        """Set each clip's speed so timeline duration equals target_duration_frames.
+
+        speed = source_duration / target. Clamped to [0.25, 4.0]. Starts fixed.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        target = int(target_duration_frames)
+        if target <= 0:
+            raise ValueError("target_duration_frames must be > 0")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            errors: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                try:
+                    track, clip = self._find_clip_and_track(cid)
+                    if track.locked:
+                        raise ValueError(f"track {track.id} is locked")
+                    src_dur = int(clip.duration_frames)
+                    if src_dur <= 0:
+                        raise ValueError("clip has zero source duration")
+                    raw = float(src_dur) / float(target)
+                    speed = max(0.25, min(4.0, raw))
+                    old = float(clip.speed)
+                    clip.speed = speed
+                    out.append(
+                        {
+                            "clip_id": cid,
+                            "speed": {"from": old, "to": speed},
+                            "target": target,
+                            "timeline_duration": int(clip.timeline_duration_frames),
+                            "clamped": abs(speed - raw) > 1e-9,
+                        }
+                    )
+                except Exception as e:
+                    errors.append({"clip_id": cid, "error": str(e)[:200]})
+            return {
+                "target_duration_frames": target,
+                "count": len(out),
+                "stretched": out,
+                "errors": errors,
+                "error_count": len(errors),
+                "agent_note": "Starts fixed; speed clamped [0.25,4].",
+            }
+
+    def trim_selection_edges(
+        self,
+        clip_ids: list[str],
+        *,
+        head_frames: int = 0,
+        tail_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Trim timeline frames from head and/or tail of each selected clip.
+
+        head: advances start and src_in (end stays put).
+        tail: shortens src_out (start stays put).
+        Both use source-frame conversion via clip.speed.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        hf = max(0, int(head_frames))
+        tf = max(0, int(tail_frames))
+        if hf == 0 and tf == 0:
+            raise ValueError("head_frames or tail_frames must be > 0")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            errors: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                try:
+                    track, clip = self._find_clip_and_track(cid)
+                    if track.locked:
+                        raise ValueError(f"track {track.id} is locked")
+                    spd = float(clip.speed) if float(clip.speed) > 0 else 1.0
+                    head_src = round(hf * spd) if hf else 0
+                    tail_src = round(tf * spd) if tf else 0
+                    new_in = int(clip.src_in) + head_src
+                    new_out = int(clip.src_out) - tail_src
+                    if new_out <= new_in:
+                        raise ValueError(
+                            f"trim would empty clip (src {new_in}..{new_out})"
+                        )
+                    old = {
+                        "start": int(clip.start),
+                        "src_in": int(clip.src_in),
+                        "src_out": int(clip.src_out),
+                    }
+                    if head_src:
+                        clip.start = int(clip.start) + hf
+                        clip.src_in = new_in
+                    if tail_src:
+                        clip.src_out = new_out
+                    out.append(
+                        {
+                            "clip_id": cid,
+                            "from": old,
+                            "to": {
+                                "start": int(clip.start),
+                                "src_in": int(clip.src_in),
+                                "src_out": int(clip.src_out),
+                            },
+                        }
+                    )
+                except Exception as e:
+                    errors.append({"clip_id": cid, "error": str(e)[:200]})
+            return {
+                "head_frames": hf,
+                "tail_frames": tf,
+                "count": len(out),
+                "trimmed": out,
+                "errors": errors,
+                "error_count": len(errors),
+                "agent_note": "Non-ripple edge trim; neighbors not shifted.",
+            }
+
+    def selection_gaps(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Report internal gaps between selected clips (per track, start-sorted)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        by_track: dict[str, list[Any]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            track, clip = self._find_clip_and_track(cid)
+            by_track.setdefault(track.id, []).append(clip)
+        gaps: list[dict[str, Any]] = []
+        for tid, clips in by_track.items():
+            ordered = sorted(clips, key=lambda c: (int(c.start), c.id))
+            for a, b in zip(ordered, ordered[1:]):
+                gap = int(b.start) - int(a.end)
+                if gap != 0:
+                    gaps.append(
+                        {
+                            "track_id": tid,
+                            "left_id": a.id,
+                            "right_id": b.id,
+                            "left_end": int(a.end),
+                            "right_start": int(b.start),
+                            "gap_frames": gap,
+                            "overlap": gap < 0,
+                        }
+                    )
+        return {
+            "count": len(gaps),
+            "gaps": gaps,
+            "tracks": list(by_track.keys()),
+            "agent_note": "gap_frames>0 hole; <0 overlap. Use pack_selection to close.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

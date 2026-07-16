@@ -7778,6 +7778,60 @@ def unlink_selection_api(body: UnlinkSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RateStretchSelectionBody(BaseModel):
+    clip_ids: list[str]
+    target_duration_frames: int
+
+
+@app.post("/api/edit/rate_stretch_selection")
+def rate_stretch_selection_api(body: RateStretchSelectionBody) -> dict[str, Any]:
+    """Rate-stretch selection to target timeline duration."""
+    ed = _ed()
+    try:
+        r = ed.rate_stretch_selection(
+            body.clip_ids, body.target_duration_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rate_stretch_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class TrimSelectionEdgesBody(BaseModel):
+    clip_ids: list[str]
+    head_frames: int = 0
+    tail_frames: int = 0
+
+
+@app.post("/api/edit/trim_selection_edges")
+def trim_selection_edges_api(body: TrimSelectionEdgesBody) -> dict[str, Any]:
+    """Trim head/tail of selection."""
+    ed = _ed()
+    try:
+        r = ed.trim_selection_edges(
+            body.clip_ids,
+            head_frames=body.head_frames,
+            tail_frames=body.tail_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"trim_selection_edges failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionGapsBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_gaps")
+def selection_gaps_api(body: SelectionGapsBody) -> dict[str, Any]:
+    """Report gaps/overlaps between selected clips."""
+    ed = _ed()
+    try:
+        r = ed.selection_gaps(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_gaps failed: {e}") from e
+    return r
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

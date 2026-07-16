@@ -4654,6 +4654,35 @@ def unlink_selection(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def rate_stretch_selection(
+    clip_ids: list[str],
+    target_duration_frames: int,
+) -> dict:
+    """Rate-stretch each selected clip to target timeline duration."""
+    return _require_editor().rate_stretch_selection(
+        clip_ids, target_duration_frames,
+    )
+
+
+@mcp.tool()
+def trim_selection_edges(
+    clip_ids: list[str],
+    head_frames: int = 0,
+    tail_frames: int = 0,
+) -> dict:
+    """Trim timeline frames from head and/or tail of selection."""
+    return _require_editor().trim_selection_edges(
+        clip_ids, head_frames=head_frames, tail_frames=tail_frames,
+    )
+
+
+@mcp.tool()
+def selection_gaps(clip_ids: list[str]) -> dict:
+    """Report internal gaps/overlaps between selected clips per track."""
+    return _require_editor().selection_gaps(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.25 — 2026-07-17
+
+### Added
+- `rate_stretch_selection` / `trim_selection_edges` / `selection_gaps` + **Stretch30** / **TrimH+5** / **TrimT+5** / **Gaps?**
+
 ## 0.6.24 — 2026-07-17
 
 ### Added

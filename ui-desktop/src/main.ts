@@ -10131,6 +10131,83 @@ async function unlinkSelectionUi() {
   }
 }
 
+async function rateStretchSelectionUi(target: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to rate-stretch";
+    return;
+  }
+  $("status-msg").textContent = `Rate-stretch to ${target}f…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/rate_stretch_selection", {
+      clip_ids: ids,
+      target_duration_frames: target,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Stretch${target} · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Stretch failed: ${e}`);
+    $("status-msg").textContent = `Stretch failed: ${e}`;
+  }
+}
+
+async function trimSelectionEdgesUi(head: number, tail: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to trim";
+    return;
+  }
+  $("status-msg").textContent = "Trimming selection edges…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/trim_selection_edges", {
+      clip_ids: ids,
+      head_frames: head,
+      tail_frames: tail,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Trim · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Trim edges failed: ${e}`);
+    $("status-msg").textContent = `Trim edges failed: ${e}`;
+  }
+}
+
+async function selectionGapsUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips for gap report";
+    return;
+  }
+  $("status-msg").textContent = "Selection gaps…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      gaps?: unknown[];
+    }>("/api/edit/selection_gaps", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Gaps? · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`Gaps? failed: ${e}`);
+    $("status-msg").textContent = `Gaps? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14052,6 +14129,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rev-ord-sel", () => void reverseSelectionOrderUi());
   proBind("btn-link-sel", () => void linkSelectionUi());
   proBind("btn-unlink-sel", () => void unlinkSelectionUi());
+  proBind("btn-stretch-sel", () => void rateStretchSelectionUi(30));
+  proBind("btn-trim-h-sel", () => void trimSelectionEdgesUi(5, 0));
+  proBind("btn-trim-t-sel", () => void trimSelectionEdgesUi(0, 5));
+  proBind("btn-gaps-sel", () => void selectionGapsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
