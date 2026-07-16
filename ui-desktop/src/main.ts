@@ -12560,6 +12560,56 @@ async function exportSelectionMarkersSrtUi() {
   }
 }
 
+async function ensureSelectionProxiesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for proxy build";
+    return;
+  }
+  $("status-msg").textContent = "Ensuring selection proxies…";
+  try {
+    const r = await postJson<{
+      ensured_count?: number;
+      error_count?: number;
+      media_count?: number;
+    }>("/api/edit/ensure_selection_proxies", {
+      clip_ids: ids,
+      height: 360,
+      force: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PxSel · media=${r.media_count ?? "?"} ok=${r.ensured_count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`PxSel failed: ${e}`);
+    $("status-msg").textContent = `PxSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionContactSheetDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for contact sheet";
+    return;
+  }
+  $("status-msg").textContent = "Building contact sheet…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      tile_count?: number;
+    }>("/api/edit/export_selection_contact_sheet_default", {
+      clip_ids: ids,
+      filename: "selection_contact.jpg",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SheetDef · tiles=${r.tile_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SheetDef failed: ${e}`);
+    $("status-msg").textContent = `SheetDef failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16583,6 +16633,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-finish-wa", () => void finishWorkAreaDeliveryUi());
   proBind("btn-stab-sel", () => void stabilizeSelectionUi());
   proBind("btn-mkr-srt-sel", () => void exportSelectionMarkersSrtUi());
+  proBind("btn-proxy-sel", () => void ensureSelectionProxiesUi());
+  proBind("btn-cs-def-sel", () => void exportSelectionContactSheetDefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

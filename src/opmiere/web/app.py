@@ -9689,6 +9689,60 @@ def export_selection_markers_srt_api(
         ) from e
 
 
+class EnsureSelectionProxiesBody(BaseModel):
+    clip_ids: list[str]
+    height: int = 360
+    force: bool = False
+
+
+@app.post("/api/edit/ensure_selection_proxies")
+def ensure_selection_proxies_api(
+    body: EnsureSelectionProxiesBody,
+) -> dict[str, Any]:
+    """Build media proxies for assets used by selection."""
+    ed = _ed()
+    try:
+        return ed.ensure_selection_proxies(
+            body.clip_ids,
+            height=body.height,
+            force=body.force,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"ensure_selection_proxies failed: {e}",
+        ) from e
+
+
+class ExportSelectionContactSheetDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_contact.jpg"
+    max_tiles: int = 12
+    tile_width: int = 160
+    tile_height: int = 90
+    cols: int | None = None
+
+
+@app.post("/api/edit/export_selection_contact_sheet_default")
+def export_selection_contact_sheet_default_api(
+    body: ExportSelectionContactSheetDefaultBody,
+) -> dict[str, Any]:
+    """Write selection contact sheet under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_contact_sheet_default(
+            body.clip_ids,
+            filename=body.filename,
+            max_tiles=body.max_tiles,
+            tile_width=body.tile_width,
+            tile_height=body.tile_height,
+            cols=body.cols,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_contact_sheet_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

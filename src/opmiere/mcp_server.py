@@ -5727,6 +5727,40 @@ def export_selection_markers_srt(
 
 
 @mcp.tool()
+def ensure_selection_proxies(
+    clip_ids: list[str],
+    height: int = 360,
+    force: bool = False,
+) -> dict:
+    """Build media proxies for unique assets used by selection."""
+    return _require_editor().ensure_selection_proxies(
+        clip_ids,
+        height=height,
+        force=force,
+    )
+
+
+@mcp.tool()
+def export_selection_contact_sheet_default(
+    clip_ids: list[str],
+    filename: str = "selection_contact.jpg",
+    max_tiles: int = 12,
+    tile_width: int = 160,
+    tile_height: int = 90,
+    cols: int | None = None,
+) -> dict:
+    """Write selection contact sheet under project exports/."""
+    return _require_editor().export_selection_contact_sheet_default(
+        clip_ids,
+        filename=filename,
+        max_tiles=max_tiles,
+        tile_width=tile_width,
+        tile_height=tile_height,
+        cols=cols,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

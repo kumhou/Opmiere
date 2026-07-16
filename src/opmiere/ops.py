@@ -10080,6 +10080,94 @@ class Editor:
             ),
         }
 
+    def ensure_selection_proxies(
+        self,
+        clip_ids: list[str],
+        *,
+        height: int = 360,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """ensure_media_proxy for every unique media used by selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        media_ids: list[str] = []
+        media_to_clips: dict[str, list[str]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            mid = clip.media
+            media_to_clips.setdefault(mid, []).append(cid)
+            if mid not in media_ids:
+                media_ids.append(mid)
+        done: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for mid in media_ids:
+            try:
+                media = self.project.media_by_id(mid)
+                if media.kind in ("image", "audio"):
+                    skipped.append(
+                        {
+                            "media_id": mid,
+                            "reason": media.kind,
+                            "clip_ids": media_to_clips[mid],
+                        }
+                    )
+                    continue
+                r = self.ensure_media_proxy(
+                    mid, height=int(height), force=bool(force),
+                )
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["media_id"] = mid
+                    r["clip_ids"] = media_to_clips[mid]
+                done.append(r if isinstance(r, dict) else {"media_id": mid})
+            except Exception as e:
+                errors.append(
+                    {
+                        "media_id": mid,
+                        "clip_ids": media_to_clips.get(mid, []),
+                        "error": str(e)[:200],
+                    }
+                )
+        report = self.selection_proxy_report(list(dict.fromkeys(clip_ids)))
+        return {
+            "media_count": len(media_ids),
+            "ensured": done,
+            "ensured_count": len(done),
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "proxy_report": report,
+            "height": int(height),
+            "force": bool(force),
+            "agent_note": "Unique media proxies for selection scrub/export prep.",
+        }
+
+    def export_selection_contact_sheet_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_contact.jpg",
+        max_tiles: int = 12,
+        tile_width: int = 160,
+        tile_height: int = 90,
+        cols: int | None = None,
+    ) -> dict[str, Any]:
+        """make_selection_contact_sheet into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_contact.jpg")
+        return self.make_selection_contact_sheet(
+            clip_ids,
+            output_path=out,
+            max_tiles=int(max_tiles),
+            tile_width=int(tile_width),
+            tile_height=int(tile_height),
+            cols=cols,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

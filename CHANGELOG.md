@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.61 — 2026-07-17
+
+### Added
+- `ensure_selection_proxies` / `export_selection_contact_sheet_default` + **PxSel** / **SheetDef**
+
 ## 0.6.60 — 2026-07-17
 
 ### Added
