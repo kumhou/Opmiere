@@ -11517,6 +11517,76 @@ async function exportSelectionOtioUi() {
   }
 }
 
+async function exportSelectionEdlDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for EDL export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection EDL…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+    }>("/api/edit/export_selection_edl_default", {
+      clip_ids: ids,
+      filename: "selection.edl",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `EdlSel · ${r.count ?? 0} → ${r.path ?? "?"}`;
+  } catch (e) {
+    setProOut(`EdlSel failed: ${e}`);
+    $("status-msg").textContent = `EdlSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionCutlistDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for cutlist export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection cutlist…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+    }>("/api/edit/export_selection_cutlist_default", {
+      clip_ids: ids,
+      filename: "selection_cutlist.csv",
+      format: "csv",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CutSel · ${r.count ?? 0} → ${r.path ?? "?"}`;
+  } catch (e) {
+    setProOut(`CutSel failed: ${e}`);
+    $("status-msg").textContent = `CutSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionFcpxmlUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for FCPXML export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection FCPXML…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+    }>("/api/edit/export_selection_fcpxml", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FCPSel · ${r.count ?? 0} → ${r.path ?? "?"}`;
+  } catch (e) {
+    setProOut(`FCPSel failed: ${e}`);
+    $("status-msg").textContent = `FCPSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15497,6 +15567,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-mkr-in-sel", () => void markersInSelectionSpanUi());
   proBind("btn-clr-mkr-sel", () => void clearMarkersInSelectionSpanUi());
   proBind("btn-otio-sel", () => void exportSelectionOtioUi());
+  proBind("btn-edl-def-sel", () => void exportSelectionEdlDefaultUi());
+  proBind("btn-cutlist-def-sel", () => void exportSelectionCutlistDefaultUi());
+  proBind("btn-fcpxml-sel", () => void exportSelectionFcpxmlUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

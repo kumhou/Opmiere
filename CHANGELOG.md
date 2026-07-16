@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.43 — 2026-07-17
+
+### Added
+- `export_selection_edl_default` / `export_selection_cutlist_default` / `export_selection_fcpxml` + **EdlSel** / **CutSel** / **FCPSel**
+
 ## 0.6.42 — 2026-07-17
 
 ### Added

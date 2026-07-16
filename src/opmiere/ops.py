@@ -8022,6 +8022,172 @@ class Editor:
             result["path"] = str(out.resolve())
         return result
 
+    def export_selection_edl_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection.edl",
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """export_selection_edl into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection.edl")
+        return self.export_selection_edl(clip_ids, path=out, title=title)
+
+    def export_selection_cutlist_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_cutlist.csv",
+        format: str = "csv",
+    ) -> dict[str, Any]:
+        """export_selection_cutlist into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_cutlist.csv")
+        return self.export_selection_cutlist(clip_ids, path=out, format=format)
+
+    def export_selection_fcpxml(
+        self,
+        clip_ids: list[str],
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Minimal FCPXML 1.9 spine of selected video clips (timeline order).
+
+        Not a full Final Cut round-trip — selection interchange starter.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        items: list[tuple[int, Any, Any]] = []
+        media_ids: list[str] = []
+        for cid in ids:
+            tr, clip = self._find_clip_and_track(cid)
+            if tr.kind != "video":
+                continue
+            items.append((int(clip.start), tr, clip))
+            if clip.media not in media_ids:
+                media_ids.append(clip.media)
+        if not items:
+            raise ValueError("no video clips in selection")
+        items.sort(key=lambda x: (x[0], x[2].id))
+        fps = float(self.project.timebase.fps or 30.0)
+        fps_i = max(1, int(round(fps)))
+        w = int(self.project.resolution.w)
+        h = int(self.project.resolution.h)
+        name = (title or "selection").replace("<", "").replace(">", "")
+        res_lines: list[str] = []
+        media_to_r: dict[str, str] = {}
+        for i, mid in enumerate(media_ids, start=1):
+            media = self.project.media_by_id(mid)
+            rid = f"r{i}"
+            media_to_r[mid] = rid
+            try:
+                abs_src = str(self.bundle.media_path(media.path).resolve())
+            except Exception:
+                abs_src = media.path
+            if not Path(abs_src).is_file():
+                abs_src = media.path
+            src = abs_src.replace("\\", "/").replace("&", "&amp;").replace('"', "&quot;")
+            dur = max(1, int(media.duration_frames))
+            res_lines.append(
+                f'    <asset id="{rid}" name="{Path(media.path).name}" '
+                f'src="file:///{src}" start="0s" '
+                f'duration="{dur}/{fps_i}s" hasVideo="1" hasAudio="'
+                f'{"1" if media.has_audio or media.kind == "audio" else "0"}"/>'
+            )
+        spine: list[str] = []
+        for _, _tr, clip in items:
+            rid = media_to_r.get(clip.media, "r1")
+            dur = int(clip.timeline_duration_frames)
+            offset = int(clip.start)
+            cname = (clip.name or clip.id).replace('"', "&quot;").replace("<", "")
+            spine.append(
+                f'        <asset-clip ref="{rid}" '
+                f'offset="{offset}/{fps_i}s" '
+                f'name="{cname}" '
+                f'duration="{dur}/{fps_i}s" '
+                f'start="{int(clip.src_in)}/{fps_i}s" '
+                f'tcFormat="NDF"/>'
+            )
+        span = self.selection_span(ids)
+        marker_lines: list[str] = []
+        a, b = int(span["start_frame"]), int(span["end_frame"])
+        for mk in sorted(self.project.markers, key=lambda m: m.frame):
+            fr = int(mk.frame)
+            if not (a <= fr < b):
+                continue
+            lab = (mk.label or mk.id).replace('"', "&quot;").replace("<", "")
+            col = (mk.color or "#7c9cff").replace('"', "")
+            marker_lines.append(
+                f'            <marker start="{fr}/{fps_i}s" '
+                f'duration="1/{fps_i}s" value="{lab}" note="{col}"/>'
+            )
+        body = "\n".join(
+            [
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                "<!DOCTYPE fcpxml>",
+                '<fcpxml version="1.9">',
+                "  <resources>",
+                f'    <format id="r0" name="FFVideoFormat{h}p{fps_i}" '
+                f'frameDuration="1/{fps_i}s" width="{w}" height="{h}"/>',
+                *res_lines,
+                "  </resources>",
+                "  <library>",
+                "    <event name=\"Opmiere Selection\">",
+                f'      <project name="{name}">',
+                f'        <sequence format="r0" '
+                f'duration="{int(span["duration_frames"])}/{fps_i}s" '
+                f'tcStart="0s" tcFormat="NDF">',
+                "          <spine>",
+                *spine,
+                "          </spine>",
+                *marker_lines,
+                "        </sequence>",
+                "      </project>",
+                "    </event>",
+                "  </library>",
+                "</fcpxml>",
+                "",
+            ]
+        )
+        result: dict[str, Any] = {
+            "count": len(spine),
+            "media_count": len(media_ids),
+            "body": body if path is None else None,
+            "selection_span": span,
+            "agent_note": "Minimal selection FCPXML spine; not full FCP round-trip.",
+        }
+        if path is not None:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(body, encoding="utf-8")
+            result["path"] = str(out.resolve())
+            result["body"] = None
+        return result
+
+    def export_selection_fcpxml_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection.fcpxml",
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """export_selection_fcpxml into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection.fcpxml")
+        return self.export_selection_fcpxml(clip_ids, path=out, title=title)
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

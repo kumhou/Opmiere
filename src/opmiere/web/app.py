@@ -8772,6 +8772,72 @@ def export_selection_otio_api(body: ExportSelectionOtioBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_selection_otio failed: {e}") from e
 
 
+class ExportSelectionEdlDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection.edl"
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_edl_default")
+def export_selection_edl_default_api(
+    body: ExportSelectionEdlDefaultBody,
+) -> dict[str, Any]:
+    """Export selection EDL to exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_edl_default(
+            body.clip_ids, filename=body.filename, title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_edl_default failed: {e}") from e
+
+
+class ExportSelectionCutlistDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_cutlist.csv"
+    format: str = "csv"
+
+
+@app.post("/api/edit/export_selection_cutlist_default")
+def export_selection_cutlist_default_api(
+    body: ExportSelectionCutlistDefaultBody,
+) -> dict[str, Any]:
+    """Export selection cutlist to exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_cutlist_default(
+            body.clip_ids, filename=body.filename, format=body.format,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_cutlist_default failed: {e}") from e
+
+
+class ExportSelectionFcpxmlBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_fcpxml")
+def export_selection_fcpxml_api(body: ExportSelectionFcpxmlBody) -> dict[str, Any]:
+    """Export selection FCPXML to exports/ by default."""
+    ed = _ed()
+    out = body.output_path
+    if out is None:
+        try:
+            return ed.export_selection_fcpxml_default(
+                body.clip_ids, title=body.title,
+            )
+        except Exception as e:
+            raise HTTPException(400, f"export_selection_fcpxml failed: {e}") from e
+    try:
+        return ed.export_selection_fcpxml(
+            body.clip_ids, path=out, title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_fcpxml failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

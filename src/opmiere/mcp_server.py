@@ -5181,6 +5181,43 @@ def export_selection_otio_json(
 
 
 @mcp.tool()
+def export_selection_edl_default(
+    clip_ids: list[str],
+    filename: str = "selection.edl",
+    title: str | None = None,
+) -> dict:
+    """Export selection CMX-style EDL under project exports/."""
+    return _require_editor().export_selection_edl_default(
+        clip_ids, filename=filename, title=title,
+    )
+
+
+@mcp.tool()
+def export_selection_cutlist_default(
+    clip_ids: list[str],
+    filename: str = "selection_cutlist.csv",
+    format: str = "csv",
+) -> dict:
+    """Export selection cutlist under project exports/."""
+    return _require_editor().export_selection_cutlist_default(
+        clip_ids, filename=filename, format=format,
+    )
+
+
+@mcp.tool()
+def export_selection_fcpxml(
+    clip_ids: list[str],
+    path: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Export minimal FCPXML spine for selected video clips."""
+    ed = _require_editor()
+    if path is None:
+        return ed.export_selection_fcpxml_default(clip_ids, title=title)
+    return ed.export_selection_fcpxml(clip_ids, path=path, title=title)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
