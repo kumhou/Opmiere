@@ -1754,6 +1754,74 @@ def insert_time_api(body: InsertTimeBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class InsertEditBody(BaseModel):
+    media_id: str
+    track_id: str | None = None
+    at_frame: int
+    src_in: int = 0
+    src_out: int | None = None
+    ripple: bool = True
+    name: str | None = None
+
+
+@app.post("/api/edit/insert")
+def insert_edit_api(body: InsertEditBody) -> dict[str, Any]:
+    """Classic insert edit (ripple place)."""
+    ed = _ed()
+    tid = body.track_id
+    if not tid:
+        vids = [t for t in ed.project.tracks if t.kind == "video"]
+        if not vids:
+            raise HTTPException(400, "no video track")
+        tid = vids[0].id
+    try:
+        r = ed.insert_edit(
+            body.media_id,
+            tid,
+            body.at_frame,
+            src_in=body.src_in,
+            src_out=body.src_out,
+            ripple=body.ripple,
+            name=body.name,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"insert_edit failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class OverwriteEditBody(BaseModel):
+    media_id: str
+    track_id: str | None = None
+    at_frame: int
+    src_in: int = 0
+    src_out: int | None = None
+    name: str | None = None
+
+
+@app.post("/api/edit/overwrite")
+def overwrite_edit_api(body: OverwriteEditBody) -> dict[str, Any]:
+    """Classic overwrite edit (lift window then place)."""
+    ed = _ed()
+    tid = body.track_id
+    if not tid:
+        vids = [t for t in ed.project.tracks if t.kind == "video"]
+        if not vids:
+            raise HTTPException(400, "no video track")
+        tid = vids[0].id
+    try:
+        r = ed.overwrite_edit(
+            body.media_id,
+            tid,
+            body.at_frame,
+            src_in=body.src_in,
+            src_out=body.src_out,
+            name=body.name,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"overwrite_edit failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/extract_time")
 def extract_time_api(body: ExtractTimeBody) -> dict[str, Any]:
     ed = _ed()

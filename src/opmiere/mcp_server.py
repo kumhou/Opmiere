@@ -649,6 +649,48 @@ def insert_time(track_id: str, at_frame: int, frames: int) -> dict:
 
 
 @mcp.tool()
+def insert_edit(
+    media_id: str,
+    track_id: str,
+    at_frame: int,
+    src_in: int = 0,
+    src_out: int | None = None,
+    ripple: bool = True,
+    name: str | None = None,
+) -> dict:
+    """Classic insert edit: place media and ripple later clips right."""
+    return _require_editor().insert_edit(
+        media_id,
+        track_id,
+        at_frame,
+        src_in=src_in,
+        src_out=src_out,
+        ripple=ripple,
+        name=name,
+    )
+
+
+@mcp.tool()
+def overwrite_edit(
+    media_id: str,
+    track_id: str,
+    at_frame: int,
+    src_in: int = 0,
+    src_out: int | None = None,
+    name: str | None = None,
+) -> dict:
+    """Classic overwrite: lift [at, at+dur) then place media."""
+    return _require_editor().overwrite_edit(
+        media_id,
+        track_id,
+        at_frame,
+        src_in=src_in,
+        src_out=src_out,
+        name=name,
+    )
+
+
+@mcp.tool()
 def extract_time(
     track_id: str,
     start_frame: int,

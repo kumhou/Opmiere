@@ -2315,6 +2315,77 @@ async function projectHealthUi() {
   }
 }
 
+async function insertEditAtPlayhead() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  const at = playheadFrame();
+  $("status-msg").textContent = `Insert ${state.binMediaId} @ f${at}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/edit/insert",
+      {
+        media_id: state.binMediaId,
+        track_id: trackId,
+        at_frame: at,
+        ripple: true,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Insert · ${r.clip_id || "ok"} @ f${at}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Insert failed: ${e}`);
+    $("status-msg").textContent = `Insert failed: ${e}`;
+  }
+}
+
+async function overwriteEditAtPlayhead() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  const at = playheadFrame();
+  $("status-msg").textContent = `Overwrite ${state.binMediaId} @ f${at}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; clip_id?: string }>(
+      "/api/edit/overwrite",
+      {
+        media_id: state.binMediaId,
+        track_id: trackId,
+        at_frame: at,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Overwr · ${r.clip_id || "ok"} @ f${at}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Overwr failed: ${e}`);
+    $("status-msg").textContent = `Overwr failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10555,6 +10626,20 @@ window.addEventListener("DOMContentLoaded", () => {
   if (btnHealth) {
     btnHealth.addEventListener("click", () => {
       void projectHealthUi();
+    });
+  }
+  const btnInsertEd = document.getElementById("btn-insert-ed");
+  if (btnInsertEd) {
+    btnInsertEd.addEventListener("click", () => {
+      stopPlay();
+      void insertEditAtPlayhead();
+    });
+  }
+  const btnOverEd = document.getElementById("btn-over-ed");
+  if (btnOverEd) {
+    btnOverEd.addEventListener("click", () => {
+      stopPlay();
+      void overwriteEditAtPlayhead();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

@@ -1740,6 +1740,131 @@ class Editor:
                 "agent_note": "Gap opened; call fill_track_gaps(mode=slug) for black/silence pads.",
             }
 
+    def insert_edit(
+        self,
+        media_id: str,
+        track_id: str,
+        at_frame: int,
+        *,
+        src_in: int = 0,
+        src_out: int | None = None,
+        ripple: bool = True,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Classic insert edit: place media at at_frame; ripple shifts later clips.
+
+        Duration = src_out - src_in (defaults full media). One undo.
+        """
+        if not isinstance(at_frame, int) or at_frame < 0:
+            raise ValueError("at_frame must be >= 0")
+        media = self.project.media_by_id(media_id)
+        track = self.project.track_by_id(track_id)
+        if track.locked:
+            raise ValueError(f"track {track.id} is locked")
+        if track.kind == "video" and media.kind == "audio":
+            raise ValueError("cannot place audio media on video track")
+        if track.kind == "audio" and media.kind == "image":
+            raise ValueError("cannot place image media on audio track")
+        sin = max(0, int(src_in))
+        sout = int(src_out) if src_out is not None else int(media.duration_frames)
+        sout = max(sin + 1, min(sout, media.duration_frames or (sin + 1)))
+        dur = sout - sin
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            if ripple:
+                for c in track.clips_in_order():
+                    if c.start >= at_frame:
+                        old = c.start
+                        c.start = old + dur
+                        if c.transition_in is not None:
+                            c.transition_in = None
+                        moved.append({"clip_id": c.id, "from": old, "to": c.start})
+                    elif c.start < at_frame < c.end:
+                        # razor then push right half
+                        left, right = self._split_clip_unlocked(c.id, at_frame)
+                        old = right.start
+                        right.start = at_frame + dur
+                        if right.transition_in is not None:
+                            right.transition_in = None
+                        moved.append({
+                            "clip_id": right.id,
+                            "from": old,
+                            "to": right.start,
+                            "split_from": left.id,
+                        })
+            clip = self.project.add_clip(track, media, at_frame, sin, sout)
+            if name:
+                clip.name = name
+            elif media.path:
+                clip.name = Path(media.path).stem
+            return {
+                "clip_id": clip.id,
+                "track_id": track_id,
+                "media_id": media_id,
+                "at_frame": at_frame,
+                "duration_frames": dur,
+                "src_in": sin,
+                "src_out": sout,
+                "ripple": ripple,
+                "moved": moved,
+                "moved_count": len(moved),
+                "agent_note": (
+                    "Insert edit placed. ripple=False leaves a gap/overlap risk — "
+                    "prefer ripple=True on base tracks."
+                ),
+            }
+
+    def overwrite_edit(
+        self,
+        media_id: str,
+        track_id: str,
+        at_frame: int,
+        *,
+        src_in: int = 0,
+        src_out: int | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Classic overwrite: lift [at, at+dur) then place media (no ripple).
+
+        One undo. Neighbors outside the window stay put.
+        """
+        if not isinstance(at_frame, int) or at_frame < 0:
+            raise ValueError("at_frame must be >= 0")
+        media = self.project.media_by_id(media_id)
+        track = self.project.track_by_id(track_id)
+        if track.locked:
+            raise ValueError(f"track {track.id} is locked")
+        if track.kind == "video" and media.kind == "audio":
+            raise ValueError("cannot place audio media on video track")
+        if track.kind == "audio" and media.kind == "image":
+            raise ValueError("cannot place image media on audio track")
+        sin = max(0, int(src_in))
+        sout = int(src_out) if src_out is not None else int(media.duration_frames)
+        sout = max(sin + 1, min(sout, media.duration_frames or (sin + 1)))
+        dur = sout - sin
+        end_frame = at_frame + dur
+        with self._mutate():
+            lifted = self._extract_time_unlocked(
+                track_id, at_frame, end_frame, ripple=False,
+            )
+            clip = self.project.add_clip(track, media, at_frame, sin, sout)
+            if name:
+                clip.name = name
+            elif media.path:
+                clip.name = Path(media.path).stem
+            return {
+                "clip_id": clip.id,
+                "track_id": track_id,
+                "media_id": media_id,
+                "at_frame": at_frame,
+                "end_frame": end_frame,
+                "duration_frames": dur,
+                "src_in": sin,
+                "src_out": sout,
+                "lift": lifted,
+                "agent_note": "Overwrite edit: hole lifted then filled (no ripple).",
+            }
+
     def _extract_time_unlocked(
         self,
         track_id: str,

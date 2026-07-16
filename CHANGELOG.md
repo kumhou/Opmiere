@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.73 — 2026-07-17
+
+### Added
+- `insert_edit` / `overwrite_edit` (classic NLE insert & overwrite) + API/MCP/desktop **Insert** / **Overwr**
+
 ## 0.5.72 — 2026-07-17
 
 ### Added
