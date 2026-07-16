@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.94 — 2026-07-17
+
+### Added
+- Timeline clip **tooltips**: name, TC range, speed/gain/opacity
+
 ## 0.4.93 — 2026-07-17
 
 ### Added
