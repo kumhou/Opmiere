@@ -10678,6 +10678,82 @@ async function razorSelectionAtUi() {
   }
 }
 
+async function flipSelectionHUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to flip";
+    return;
+  }
+  $("status-msg").textContent = "Flipping selection H…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/flip_selection", {
+      clip_ids: ids,
+      horizontal: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FlipH · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FlipH failed: ${e}`);
+    $("status-msg").textContent = `FlipH failed: ${e}`;
+  }
+}
+
+async function rotateSelectionUi(degrees: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to rotate";
+    return;
+  }
+  $("status-msg").textContent = `Rotating ${degrees}°…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/rotate_selection", {
+      clip_ids: ids,
+      degrees,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Rot${degrees} · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Rot failed: ${e}`);
+    $("status-msg").textContent = `Rot failed: ${e}`;
+  }
+}
+
+async function selectionCutReportUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips for cut report";
+    return;
+  }
+  $("status-msg").textContent = "Selection cuts…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      by_kind?: Record<string, number>;
+    }>("/api/edit/selection_cut_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    const bk = r.by_kind || {};
+    $("status-msg").textContent =
+      `Cuts? · ${r.count ?? 0} (${Object.entries(bk).map(([k, v]) => `${k}:${v}`).join(" ")})`;
+  } catch (e) {
+    setProOut(`Cuts? failed: ${e}`);
+    $("status-msg").textContent = `Cuts? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14625,6 +14701,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rnudge-sel-m", () => void rippleNudgeSelectionUi(-5));
   proBind("btn-rnudge-sel-p", () => void rippleNudgeSelectionUi(5));
   proBind("btn-razor-sel-at", () => void razorSelectionAtUi());
+  proBind("btn-flip-h-sel", () => void flipSelectionHUi());
+  proBind("btn-rot90-sel", () => void rotateSelectionUi(90));
+  proBind("btn-cuts-sel", () => void selectionCutReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

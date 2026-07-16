@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.32 — 2026-07-17
+
+### Added
+- `flip_selection` / `rotate_selection` / `selection_cut_report` + **FlipH** / **Rot90** / **Cuts?**
+
 ## 0.6.31 — 2026-07-17
 
 ### Added

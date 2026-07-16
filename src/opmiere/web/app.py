@@ -8164,6 +8164,61 @@ def razor_selection_at_api(body: RazorSelectionAtBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FlipSelectionBody(BaseModel):
+    clip_ids: list[str]
+    horizontal: bool | None = None
+    vertical: bool | None = None
+    toggle_h: bool = False
+    toggle_v: bool = False
+
+
+@app.post("/api/edit/flip_selection")
+def flip_selection_api(body: FlipSelectionBody) -> dict[str, Any]:
+    """Flip selection H/V."""
+    ed = _ed()
+    try:
+        r = ed.flip_selection(
+            body.clip_ids,
+            horizontal=body.horizontal,
+            vertical=body.vertical,
+            toggle_h=body.toggle_h,
+            toggle_v=body.toggle_v,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"flip_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RotateSelectionBody(BaseModel):
+    clip_ids: list[str]
+    degrees: float = 90.0
+
+
+@app.post("/api/edit/rotate_selection")
+def rotate_selection_api(body: RotateSelectionBody) -> dict[str, Any]:
+    """Rotate selection by degrees."""
+    ed = _ed()
+    try:
+        r = ed.rotate_selection(body.clip_ids, body.degrees)
+    except Exception as e:
+        raise HTTPException(400, f"rotate_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionCutReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_cut_report")
+def selection_cut_report_api(body: SelectionCutReportBody) -> dict[str, Any]:
+    """Adjacent cut/gap report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_cut_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_cut_report failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

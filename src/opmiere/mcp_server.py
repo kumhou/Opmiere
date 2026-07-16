@@ -4856,6 +4856,36 @@ def razor_selection_at(clip_ids: list[str], at_frame: int) -> dict:
 
 
 @mcp.tool()
+def flip_selection(
+    clip_ids: list[str],
+    horizontal: bool | None = None,
+    vertical: bool | None = None,
+    toggle_h: bool = False,
+    toggle_v: bool = False,
+) -> dict:
+    """Apply hflip/vflip to selection."""
+    return _require_editor().flip_selection(
+        clip_ids,
+        horizontal=horizontal,
+        vertical=vertical,
+        toggle_h=toggle_h,
+        toggle_v=toggle_v,
+    )
+
+
+@mcp.tool()
+def rotate_selection(clip_ids: list[str], degrees: float = 90.0) -> dict:
+    """Set rotate effect on selection (0 clears)."""
+    return _require_editor().rotate_selection(clip_ids, degrees)
+
+
+@mcp.tool()
+def selection_cut_report(clip_ids: list[str]) -> dict:
+    """Report hard_cut/transition/gap/overlap pairs within selection."""
+    return _require_editor().selection_cut_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

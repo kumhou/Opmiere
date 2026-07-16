@@ -6842,6 +6842,103 @@ class Editor:
         r["agent_note"] = "Razor selection at frame; non-spanning clips skipped."
         return r
 
+    def flip_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        horizontal: bool | None = None,
+        vertical: bool | None = None,
+        toggle_h: bool = False,
+        toggle_v: bool = False,
+    ) -> dict[str, Any]:
+        """hflip/vflip on selection (batch set_clip_flip)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        r = self.set_clips_flip(
+            list(dict.fromkeys(clip_ids)),
+            horizontal=horizontal,
+            vertical=vertical,
+            toggle_h=toggle_h,
+            toggle_v=toggle_v,
+        )
+        if isinstance(r, dict):
+            r["agent_note"] = "Flip effects on selection; path-C maps hflip/vflip."
+        return r
+
+    def rotate_selection(
+        self,
+        clip_ids: list[str],
+        degrees: float,
+    ) -> dict[str, Any]:
+        """Set rotate effect on every selected clip (degrees=0 clears)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.set_clip_rotate(cid, float(degrees))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "degrees": float(degrees),
+            "count": len(out),
+            "rotated": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Rotate effect; 0 removes rotate.",
+        }
+
+    def selection_cut_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Report adjacent pairs within selection: hard_cut / transition / gap / overlap."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        by_track: dict[str, list[Any]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            by_track.setdefault(tr.id, []).append(clip)
+        pairs: list[dict[str, Any]] = []
+        for tid, clips in by_track.items():
+            ordered = sorted(clips, key=lambda c: (int(c.start), c.id))
+            for a, b in zip(ordered, ordered[1:]):
+                gap = int(b.start) - int(a.end)
+                if gap == 0:
+                    kind = "transition" if b.transition_in else "hard_cut"
+                elif gap > 0:
+                    kind = "gap"
+                else:
+                    kind = "overlap"
+                pairs.append(
+                    {
+                        "track_id": tid,
+                        "left_id": a.id,
+                        "right_id": b.id,
+                        "left_end": int(a.end),
+                        "right_start": int(b.start),
+                        "gap_frames": gap,
+                        "kind": kind,
+                        "transition_in": (
+                            dict(b.transition_in)
+                            if isinstance(b.transition_in, dict)
+                            else b.transition_in
+                        ),
+                    }
+                )
+        counts: dict[str, int] = {}
+        for p in pairs:
+            counts[p["kind"]] = counts.get(p["kind"], 0) + 1
+        return {
+            "count": len(pairs),
+            "pairs": pairs,
+            "by_kind": counts,
+            "tracks": list(by_track.keys()),
+            "agent_note": "Selection adjacency map for dissolve/pack decisions.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
