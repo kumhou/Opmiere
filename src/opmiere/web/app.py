@@ -9129,6 +9129,37 @@ def analyze_selection_audio_api(body: AnalyzeSelectionAudioBody) -> dict[str, An
         raise HTTPException(400, f"analyze_selection_audio failed: {e}") from e
 
 
+class ReviewSelectionBody(BaseModel):
+    clip_ids: list[str]
+    min_clip_seconds: float = 0.4
+
+
+@app.post("/api/edit/review_selection")
+def review_selection_api(body: ReviewSelectionBody) -> dict[str, Any]:
+    """Craft review scoped to selection."""
+    ed = _ed()
+    try:
+        return ed.review_selection(
+            body.clip_ids, min_clip_seconds=body.min_clip_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"review_selection failed: {e}") from e
+
+
+class SelectionClipDurationsBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_clip_durations")
+def selection_clip_durations_api(body: SelectionClipDurationsBody) -> dict[str, Any]:
+    """Per-clip durations for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_clip_durations(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_clip_durations failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

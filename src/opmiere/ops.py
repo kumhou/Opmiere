@@ -8930,6 +8930,162 @@ class Editor:
             )
         return r if isinstance(r, dict) else {"result": r, "path": path}
 
+    def review_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        min_clip_seconds: float = 0.4,
+    ) -> dict[str, Any]:
+        """Craft review scoped to selection: short clips, gaps, offline, locks.
+
+        Lighter than full review_cut — no whole-timeline brightness scan.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        fps = float(self.project.timebase.fps or 30.0)
+        min_frames = max(1, int(round(float(min_clip_seconds) * fps)))
+        issues: list[dict[str, Any]] = []
+        short: list[dict[str, Any]] = []
+        for cid in ids:
+            tr, clip = self._find_clip_and_track(cid)
+            dur = int(clip.timeline_duration_frames)
+            if dur < min_frames:
+                short.append(
+                    {
+                        "clip_id": cid,
+                        "track_id": tr.id,
+                        "duration_frames": dur,
+                        "duration_seconds": round(dur / fps, 3),
+                    }
+                )
+                issues.append(
+                    {
+                        "code": "short_clip",
+                        "clip_id": cid,
+                        "detail": f"duration {dur}f < {min_frames}f",
+                    }
+                )
+        gaps = self.selection_gaps(ids) if len(ids) >= 2 else {"count": 0, "gaps": []}
+        for g in gaps.get("gaps") or []:
+            if g.get("overlap"):
+                issues.append(
+                    {
+                        "code": "overlap",
+                        "left_id": g.get("left_id"),
+                        "right_id": g.get("right_id"),
+                        "gap_frames": g.get("gap_frames"),
+                    }
+                )
+            elif int(g.get("gap_frames") or 0) > 0:
+                issues.append(
+                    {
+                        "code": "gap",
+                        "left_id": g.get("left_id"),
+                        "right_id": g.get("right_id"),
+                        "gap_frames": g.get("gap_frames"),
+                    }
+                )
+        off = self.selection_offline_media(ids)
+        for row in off.get("offline") or []:
+            issues.append(
+                {
+                    "code": "offline_media",
+                    "media_id": row.get("media_id"),
+                    "path": row.get("path"),
+                }
+            )
+        locked = self.selection_locked_tracks(ids)
+        for row in locked.get("locked") or []:
+            issues.append(
+                {
+                    "code": "locked_track",
+                    "track_id": row.get("track_id"),
+                }
+            )
+        cuts = self.selection_cut_report(ids) if len(ids) >= 2 else {
+            "count": 0, "by_kind": {},
+        }
+        path_c = self.selection_path_c_report(ids)
+        if not path_c.get("path_c_ready"):
+            issues.append(
+                {
+                    "code": "path_c_unmapped",
+                    "not_ready_count": path_c.get("not_ready_count"),
+                    "detail": "unmapped FX may approximate on path-C preview",
+                }
+            )
+        severity = {
+            "errors": sum(
+                1
+                for i in issues
+                if i["code"] in ("offline_media", "overlap", "locked_track")
+            ),
+            "warnings": sum(
+                1
+                for i in issues
+                if i["code"] in ("short_clip", "gap", "path_c_unmapped")
+            ),
+        }
+        return {
+            "ok": severity["errors"] == 0,
+            "issue_count": len(issues),
+            "issues": issues,
+            "short_clips": short,
+            "gaps": gaps,
+            "cuts": {"count": cuts.get("count"), "by_kind": cuts.get("by_kind")},
+            "offline": off,
+            "locked": locked,
+            "path_c": {
+                "path_c_ready": path_c.get("path_c_ready"),
+                "not_ready_count": path_c.get("not_ready_count"),
+                "adapter_version": path_c.get("adapter_version"),
+            },
+            "span": self.selection_span(ids),
+            "severity": severity,
+            "agent_note": (
+                "Selection-scoped craft review. ok=False means hard blockers. "
+                "adapter_version is floor not pin."
+            ),
+        }
+
+    def selection_clip_durations(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Per-clip timeline/source durations for selection (agent pacing)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        fps = float(self.project.timebase.fps or 30.0)
+        rows: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            tdur = int(clip.timeline_duration_frames)
+            sdur = int(clip.duration_frames)
+            rows.append(
+                {
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "track_kind": tr.kind,
+                    "start": int(clip.start),
+                    "end": int(clip.end),
+                    "timeline_duration_frames": tdur,
+                    "timeline_duration_seconds": round(tdur / fps, 4),
+                    "source_duration_frames": sdur,
+                    "speed": float(clip.speed or 1.0),
+                    "name": clip.name,
+                }
+            )
+        total_t = sum(r["timeline_duration_frames"] for r in rows)
+        return {
+            "count": len(rows),
+            "clips": rows,
+            "sum_timeline_frames": total_t,
+            "sum_timeline_seconds": round(total_t / fps, 4),
+            "union_span": self.selection_span(list(dict.fromkeys(clip_ids))),
+            "agent_note": "sum_timeline may exceed union if clips overlap tracks.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

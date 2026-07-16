@@ -5374,6 +5374,23 @@ def analyze_selection_audio(
 
 
 @mcp.tool()
+def review_selection(
+    clip_ids: list[str],
+    min_clip_seconds: float = 0.4,
+) -> dict:
+    """Craft review for selection: short clips, gaps, offline, locks, path-C."""
+    return _require_editor().review_selection(
+        clip_ids, min_clip_seconds=min_clip_seconds,
+    )
+
+
+@mcp.tool()
+def selection_clip_durations(clip_ids: list[str]) -> dict:
+    """Per-clip timeline/source durations for selection pacing."""
+    return _require_editor().selection_clip_durations(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

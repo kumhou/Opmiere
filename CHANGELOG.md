@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.50 — 2026-07-17
+
+### Added
+- `review_selection` / `selection_clip_durations` + **ReviewSel** / **Durs?**
+
 ## 0.6.49 — 2026-07-17
 
 ### Added

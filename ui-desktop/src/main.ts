@@ -11976,6 +11976,53 @@ async function analyzeSelectionAudioUi() {
   }
 }
 
+async function reviewSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to review";
+    return;
+  }
+  $("status-msg").textContent = "Reviewing selection…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      issue_count?: number;
+      severity?: { errors?: number; warnings?: number };
+    }>("/api/edit/review_selection", {
+      clip_ids: ids,
+      min_clip_seconds: 0.4,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    const sev = r.severity || {};
+    $("status-msg").textContent =
+      `ReviewSel · ${r.ok ? "ok" : "issues"} n=${r.issue_count ?? 0} err ${sev.errors ?? 0} warn ${sev.warnings ?? 0}`;
+  } catch (e) {
+    setProOut(`ReviewSel failed: ${e}`);
+    $("status-msg").textContent = `ReviewSel failed: ${e}`;
+  }
+}
+
+async function selectionClipDurationsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for durations";
+    return;
+  }
+  $("status-msg").textContent = "Selection durations…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      sum_timeline_seconds?: number;
+    }>("/api/edit/selection_clip_durations", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Durs? · ${r.count ?? 0} sum ${r.sum_timeline_seconds ?? "?"}s`;
+  } catch (e) {
+    setProOut(`Durs? failed: ${e}`);
+    $("status-msg").textContent = `Durs? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15976,6 +16023,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pathc-stills-sel", () => void selectionPathCStillsPlanUi());
   proBind("btn-cs-sel", () => void makeSelectionContactSheetUi());
   proBind("btn-ana-aud-sel", () => void analyzeSelectionAudioUi());
+  proBind("btn-review-sel", () => void reviewSelectionUi());
+  proBind("btn-durs-sel", () => void selectionClipDurationsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
