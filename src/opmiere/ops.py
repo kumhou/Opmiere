@@ -9504,6 +9504,107 @@ class Editor:
             include_audio=bool(include_audio),
         )
 
+    def finish_selection_delivery(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_delivery.mp4",
+        prepare: bool = True,
+        unlock_tracks: bool = True,
+        set_work_area: bool = True,
+        pack_gaps: bool = False,
+        run_review: bool = True,
+        write_manifest: bool = True,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+    ) -> dict[str, Any]:
+        """Canonical selection finish: prepare → review → export+delivery_check.
+
+        Mirrors agent_finish_session scoped to clip selection. Does not mutate
+        the full timeline (no prepare_for_export / finish_delivery).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "filename": filename,
+            "steps": [],
+            "ok": False,
+            "delivery_ok": False,
+        }
+        if prepare:
+            try:
+                prep = self.prepare_selection_export(
+                    ids,
+                    unlock_tracks=unlock_tracks,
+                    set_work_area=set_work_area,
+                    pack_gaps=pack_gaps,
+                )
+                out["prepare"] = prep
+                out["steps"].append("prepare_selection_export")
+            except Exception as e:
+                out["prepare"] = {"error": str(e)[:400]}
+                out["steps"].append("prepare_selection_export:error")
+        if run_review:
+            try:
+                out["review"] = self.review_selection(ids)
+                out["steps"].append("review_selection")
+            except Exception as e:
+                out["review"] = {"error": str(e)[:400]}
+                out["steps"].append("review_selection:error")
+        if write_manifest:
+            try:
+                man_dir = Path(self.bundle.root) / "exports"
+                man_dir.mkdir(parents=True, exist_ok=True)
+                man_path = man_dir / "selection_finish_manifest.json"
+                out["manifest"] = self.export_selection_manifest(ids, path=man_path)
+                out["steps"].append("export_selection_manifest")
+            except Exception as e:
+                out["manifest"] = {"error": str(e)[:400]}
+                out["steps"].append("export_selection_manifest:error")
+        try:
+            check = self.delivery_check_selection(
+                ids,
+                filename=filename,
+                preset=delivery_preset,
+                normalize_preset=normalize_preset,
+            )
+            out["delivery"] = check
+            out["steps"].append("delivery_check_selection")
+            if isinstance(check, dict):
+                out["export_path"] = check.get("export_path")
+                out["selection_span"] = check.get("selection_span")
+                out["delivery_ok"] = bool(check.get("ok"))
+                ep = check.get("export_path")
+                if ep and Path(str(ep)).is_file() and Path(str(ep)).stat().st_size > 500:
+                    out["ok"] = True
+                elif check.get("ok") is True:
+                    out["ok"] = True
+        except Exception as e:
+            out["delivery"] = {"error": str(e)[:400]}
+            out["steps"].append("delivery_check_selection:error")
+        out["agent_note"] = (
+            "Selection-scoped finish. ok=export file present; "
+            "delivery_ok=full delivery_check. Not path-C preview."
+        )
+        return out
+
+    def export_selection_otio_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection.otio.json",
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """export_selection_otio_json into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection.otio.json")
+        return self.export_selection_otio_json(clip_ids, path=out, title=title)
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

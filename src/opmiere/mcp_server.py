@@ -5531,6 +5531,48 @@ def export_selection_path_c_plan_default(
 
 
 @mcp.tool()
+def finish_selection_delivery(
+    clip_ids: list[str],
+    filename: str = "selection_delivery.mp4",
+    prepare: bool = True,
+    unlock_tracks: bool = True,
+    set_work_area: bool = True,
+    pack_gaps: bool = False,
+    run_review: bool = True,
+    write_manifest: bool = True,
+    normalize_preset: str | None = "streaming",
+    delivery_preset: str = "streaming",
+) -> dict:
+    """Canonical selection finish: prepare → review → export + delivery_check."""
+    return _require_editor().finish_selection_delivery(
+        clip_ids,
+        filename=filename,
+        prepare=prepare,
+        unlock_tracks=unlock_tracks,
+        set_work_area=set_work_area,
+        pack_gaps=pack_gaps,
+        run_review=run_review,
+        write_manifest=write_manifest,
+        normalize_preset=normalize_preset,
+        delivery_preset=delivery_preset,
+    )
+
+
+@mcp.tool()
+def export_selection_otio_default(
+    clip_ids: list[str],
+    filename: str = "selection.otio.json",
+    title: str | None = None,
+) -> dict:
+    """Write OTIO-like selection JSON under project exports/."""
+    return _require_editor().export_selection_otio_default(
+        clip_ids,
+        filename=filename,
+        title=title,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

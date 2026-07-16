@@ -9376,6 +9376,68 @@ def export_selection_path_c_plan_default_api(
         ) from e
 
 
+class FinishSelectionDeliveryBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_delivery.mp4"
+    prepare: bool = True
+    unlock_tracks: bool = True
+    set_work_area: bool = True
+    pack_gaps: bool = False
+    run_review: bool = True
+    write_manifest: bool = True
+    normalize_preset: str | None = "streaming"
+    delivery_preset: str = "streaming"
+
+
+@app.post("/api/edit/finish_selection_delivery")
+def finish_selection_delivery_api(
+    body: FinishSelectionDeliveryBody,
+) -> dict[str, Any]:
+    """Prepare + review + export selection with delivery gates."""
+    ed = _ed()
+    try:
+        return ed.finish_selection_delivery(
+            body.clip_ids,
+            filename=body.filename,
+            prepare=body.prepare,
+            unlock_tracks=body.unlock_tracks,
+            set_work_area=body.set_work_area,
+            pack_gaps=body.pack_gaps,
+            run_review=body.run_review,
+            write_manifest=body.write_manifest,
+            normalize_preset=body.normalize_preset,
+            delivery_preset=body.delivery_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_delivery failed: {e}",
+        ) from e
+
+
+class ExportSelectionOtioDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection.otio.json"
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_otio_default")
+def export_selection_otio_default_api(
+    body: ExportSelectionOtioDefaultBody,
+) -> dict[str, Any]:
+    """Write selection OTIO-like JSON under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_otio_default(
+            body.clip_ids,
+            filename=body.filename,
+            title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_otio_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

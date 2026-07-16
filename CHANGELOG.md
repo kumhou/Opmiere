@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.55 — 2026-07-17
+
+### Added
+- `finish_selection_delivery` / `export_selection_otio_default` + **FinishSel** / **OTIOSel2**
+
 ## 0.6.54 — 2026-07-17
 
 ### Added

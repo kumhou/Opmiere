@@ -12252,6 +12252,61 @@ async function exportSelectionPathCPlanDefaultUi() {
   }
 }
 
+async function finishSelectionDeliveryUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for finish selection delivery";
+    return;
+  }
+  $("status-msg").textContent = "Finish selection delivery…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      delivery_ok?: boolean;
+      export_path?: string;
+      steps?: string[];
+    }>("/api/edit/finish_selection_delivery", {
+      clip_ids: ids,
+      filename: "selection_delivery.mp4",
+      prepare: true,
+      run_review: true,
+      write_manifest: true,
+      delivery_preset: "streaming",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinishSel · ok=${r.ok ?? "?"} deliv=${r.delivery_ok ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`FinishSel failed: ${e}`);
+    $("status-msg").textContent = `FinishSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionOtioDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for OTIO export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection OTIO…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      clip_count?: number;
+      track_count?: number;
+    }>("/api/edit/export_selection_otio_default", {
+      clip_ids: ids,
+      filename: "selection.otio.json",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `OTIOSel2 · clips=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`OTIOSel2 failed: ${e}`);
+    $("status-msg").textContent = `OTIOSel2 failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16263,6 +16318,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-sil-dry-sel", () => void applySilenceSelectionDryUi());
   proBind("btn-deliv-sel", () => void deliveryCheckSelectionUi());
   proBind("btn-pathc-json-sel", () => void exportSelectionPathCPlanDefaultUi());
+  proBind("btn-finish-sel", () => void finishSelectionDeliveryUi());
+  proBind("btn-otio-sel", () => void exportSelectionOtioDefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
