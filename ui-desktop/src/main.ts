@@ -3333,6 +3333,67 @@ async function matchDurationUi() {
   }
 }
 
+async function placePipUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin first";
+    return;
+  }
+  $("status-msg").textContent = "Placing PiP…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+      track_id?: string;
+    }>("/api/edit/place_pip", {
+      media_id: state.binMediaId,
+      corner: "bottom_right",
+      scale: 0.28,
+      start: playheadFrame(),
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `PiP · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`PiP failed: ${e}`);
+    $("status-msg").textContent = `PiP failed: ${e}`;
+  }
+}
+
+async function lowerThirdUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const text = window.prompt("Lower-third text", "Speaker Name");
+  if (text == null || !text.trim()) return;
+  $("status-msg").textContent = "Adding lower-third…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/edit/lower_third", {
+      content: text.trim(),
+      start_frame: playheadFrame(),
+      duration_frames: 90,
+      size: 42,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `L3 · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`L3 failed: ${e}`);
+    $("status-msg").textContent = `L3 failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11815,6 +11876,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnMatchDur.addEventListener("click", () => {
       stopPlay();
       void matchDurationUi();
+    });
+  }
+  const btnPip = document.getElementById("btn-pip");
+  if (btnPip) {
+    btnPip.addEventListener("click", () => {
+      stopPlay();
+      void placePipUi();
+    });
+  }
+  const btnL3 = document.getElementById("btn-l3");
+  if (btnL3) {
+    btnL3.addEventListener("click", () => {
+      stopPlay();
+      void lowerThirdUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

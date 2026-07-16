@@ -5021,6 +5021,177 @@ class Editor:
             clip.position = {"x": float(x), "y": float(y), "scale": float(scale)}
             return clip
 
+    # Corner → (x, y) for set_position (top-left of PiP room)
+    PIP_CORNERS: dict[str, tuple[float, float]] = {
+        "top_left": (0.0, 0.0),
+        "tl": (0.0, 0.0),
+        "top_right": (1.0, 0.0),
+        "tr": (1.0, 0.0),
+        "bottom_left": (0.0, 1.0),
+        "bl": (0.0, 1.0),
+        "bottom_right": (1.0, 1.0),
+        "br": (1.0, 1.0),
+        "center": (0.5, 0.5),
+    }
+
+    def set_pip_corner(
+        self,
+        clip_id: str,
+        corner: str = "bottom_right",
+        *,
+        scale: float = 0.28,
+    ) -> dict[str, Any]:
+        """Set PiP position from a named corner (overlay tracks only)."""
+        key = str(corner).strip().lower().replace("-", "_").replace(" ", "_")
+        if key not in self.PIP_CORNERS:
+            raise ValueError(
+                f"unknown corner {corner!r}; known: {sorted(self.PIP_CORNERS)}"
+            )
+        x, y = self.PIP_CORNERS[key]
+        self.set_position(clip_id, x, y, scale)
+        return {
+            "clip_id": clip_id,
+            "corner": key,
+            "x": x,
+            "y": y,
+            "scale": float(scale),
+            "agent_note": "PiP on overlay video track only (not base track).",
+        }
+
+    def place_pip(
+        self,
+        media_id: str,
+        *,
+        corner: str = "bottom_right",
+        scale: float = 0.28,
+        start: int | None = None,
+        duration_frames: int | None = None,
+        track_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Place media as picture-in-picture on an overlay video track.
+
+        Creates an overlay track if needed (second+ video track). start defaults
+        to 0; duration defaults to full media length (speed=1).
+        """
+        media = self.project.media_by_id(media_id)
+        if media.kind == "audio":
+            raise ValueError("PiP requires video or image media")
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is not None:
+            tr = self.project.track_by_id(track_id)
+            if tr.kind != "video":
+                raise ValueError("track must be video")
+            # ensure not only base if it's the first video track
+            if vids and tr.id == vids[0].id and len(vids) == 1:
+                # force new overlay
+                with self._mutate():
+                    tr = self.project.add_track("video")
+                    tr.name = "PiP"
+        else:
+            if len(vids) < 2:
+                with self._mutate():
+                    tr = self.project.add_track("video")
+                    tr.name = "PiP"
+            else:
+                tr = vids[-1]
+
+        sin = 0
+        max_out = max(1, int(media.duration_frames or 1))
+        if duration_frames is not None:
+            sout = max(1, min(max_out, int(duration_frames)))
+        else:
+            sout = max_out
+        start_f = 0 if start is None else max(0, int(start))
+
+        with self._mutate():
+            if tr.locked:
+                raise ValueError(f"track {tr.id} is locked")
+            # re-resolve track id if we created outside
+            tr = self.project.track_by_id(tr.id)
+            clip = self.project.add_clip(tr, media, start_f, sin, sout)
+            if name:
+                clip.name = name
+            elif media.path:
+                clip.name = Path(media.path).stem
+            # position inside same undo
+            key = str(corner).strip().lower().replace("-", "_").replace(" ", "_")
+            if key not in self.PIP_CORNERS:
+                raise ValueError(
+                    f"unknown corner {corner!r}; known: {sorted(self.PIP_CORNERS)}"
+                )
+            x, y = self.PIP_CORNERS[key]
+            if not (0.0 < float(scale) <= 1.0):
+                raise ValueError("scale must be in (0, 1]")
+            clip.position = {"x": float(x), "y": float(y), "scale": float(scale)}
+            return {
+                "clip_id": clip.id,
+                "track_id": tr.id,
+                "media_id": media_id,
+                "start": clip.start,
+                "end": clip.end,
+                "corner": key,
+                "scale": float(scale),
+                "position": dict(clip.position),
+                "agent_note": (
+                    "PiP overlay placed. Base track stays full-frame underneath."
+                ),
+            }
+
+    def add_lower_third(
+        self,
+        content: str,
+        *,
+        start_frame: int | None = None,
+        duration_frames: int = 90,
+        track_id: str | None = None,
+        size: int = 42,
+        color: str = "#ffd60a",
+    ) -> dict[str, Any]:
+        """Add a lower-third title on an overlay (or given) video track.
+
+        Uses create_title_card with position=bottom. start defaults to playhead
+        equivalent: last video clip start, or 0.
+        """
+        content = (content or "").strip()
+        if not content:
+            raise ValueError("content is empty")
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is not None:
+            tid = track_id
+        elif len(vids) >= 2:
+            tid = vids[-1].id
+        elif vids:
+            # create overlay for titles
+            with self._mutate():
+                tr = self.project.add_track("video")
+                tr.name = "Titles"
+                tid = tr.id
+        else:
+            with self._mutate():
+                self.project.add_track("video")  # base
+                tr = self.project.add_track("video")
+                tr.name = "Titles"
+                tid = tr.id
+
+        if start_frame is None:
+            base = vids[0] if vids else self.project.track_by_id(tid)
+            clips = base.clips_in_order() if base.kind == "video" else []
+            start_frame = int(clips[0].start) if clips else 0
+
+        r = self.create_title_card(
+            content,
+            tid,
+            int(start_frame),
+            duration_frames=int(duration_frames),
+            position="bottom",
+            size=int(size),
+            color=color,
+        )
+        r["track_id"] = tid
+        r["agent_note"] = "Lower-third on black slug overlay; edit text via effects."
+        return r
+
     def assemble_unused_media(
         self,
         track_id: str,

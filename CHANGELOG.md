@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.90 — 2026-07-17
+
+### Added
+- `place_pip` / `set_pip_corner` picture-in-picture + **PiP**
+- `add_lower_third` title helper + **L3**
+
 ## 0.5.89 — 2026-07-17
 
 ### Added

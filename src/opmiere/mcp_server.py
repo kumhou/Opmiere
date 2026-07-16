@@ -2696,6 +2696,58 @@ def match_clip_duration(
 
 
 @mcp.tool()
+def set_pip_corner(
+    clip_id: str,
+    corner: str = "bottom_right",
+    scale: float = 0.28,
+) -> dict:
+    """Set picture-in-picture corner on an overlay clip."""
+    return _require_editor().set_pip_corner(clip_id, corner, scale=scale)
+
+
+@mcp.tool()
+def place_pip(
+    media_id: str,
+    corner: str = "bottom_right",
+    scale: float = 0.28,
+    start: int | None = None,
+    duration_frames: int | None = None,
+    track_id: str | None = None,
+    name: str | None = None,
+) -> dict:
+    """Place media as PiP on an overlay video track."""
+    return _require_editor().place_pip(
+        media_id,
+        corner=corner,
+        scale=scale,
+        start=start,
+        duration_frames=duration_frames,
+        track_id=track_id,
+        name=name,
+    )
+
+
+@mcp.tool()
+def add_lower_third(
+    content: str,
+    start_frame: int | None = None,
+    duration_frames: int = 90,
+    track_id: str | None = None,
+    size: int = 42,
+    color: str = "#ffd60a",
+) -> dict:
+    """Add lower-third title (black slug + text) on overlay track."""
+    return _require_editor().add_lower_third(
+        content,
+        start_frame=start_frame,
+        duration_frames=duration_frames,
+        track_id=track_id,
+        size=size,
+        color=color,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

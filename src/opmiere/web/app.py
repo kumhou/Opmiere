@@ -4533,6 +4533,79 @@ def match_duration_api(body: MatchDurationBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class PipCornerBody(BaseModel):
+    clip_id: str
+    corner: str = "bottom_right"
+    scale: float = 0.28
+
+
+@app.post("/api/clip/pip_corner")
+def pip_corner_api(body: PipCornerBody) -> dict[str, Any]:
+    """Set PiP corner position on overlay clip."""
+    ed = _ed()
+    try:
+        r = ed.set_pip_corner(body.clip_id, body.corner, scale=body.scale)
+    except Exception as e:
+        raise HTTPException(400, f"pip_corner failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class PlacePipBody(BaseModel):
+    media_id: str
+    corner: str = "bottom_right"
+    scale: float = 0.28
+    start: int | None = None
+    duration_frames: int | None = None
+    track_id: str | None = None
+    name: str | None = None
+
+
+@app.post("/api/edit/place_pip")
+def place_pip_api(body: PlacePipBody) -> dict[str, Any]:
+    """Place media as picture-in-picture overlay."""
+    ed = _ed()
+    try:
+        r = ed.place_pip(
+            body.media_id,
+            corner=body.corner,
+            scale=body.scale,
+            start=body.start,
+            duration_frames=body.duration_frames,
+            track_id=body.track_id,
+            name=body.name,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"place_pip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LowerThirdBody(BaseModel):
+    content: str
+    start_frame: int | None = None
+    duration_frames: int = 90
+    track_id: str | None = None
+    size: int = 42
+    color: str = "#ffd60a"
+
+
+@app.post("/api/edit/lower_third")
+def lower_third_api(body: LowerThirdBody) -> dict[str, Any]:
+    """Add lower-third title card."""
+    ed = _ed()
+    try:
+        r = ed.add_lower_third(
+            body.content,
+            start_frame=body.start_frame,
+            duration_frames=body.duration_frames,
+            track_id=body.track_id,
+            size=body.size,
+            color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"lower_third failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str
