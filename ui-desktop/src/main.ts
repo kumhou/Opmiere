@@ -2223,6 +2223,39 @@ async function flipSelection(axis: "h" | "v") {
   }
 }
 
+async function exportClipMediaUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Export clip media files to…" });
+  if (!dir) return;
+  const ids = selectionList();
+  $("status-msg").textContent = ids.length
+    ? `Exporting ${ids.length} clip(s)…`
+    : "Exporting all clips…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      path?: string;
+    }>("/api/export/clip_media", {
+      out_dir: dir,
+      clip_ids: ids.length ? ids : null,
+      include_audio: true,
+      container: "mp4",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpClips · ${r.count ?? 0}` +
+      (r.error_count ? ` · err ${r.error_count}` : "") +
+      ` → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`ExpClips failed: ${e}`);
+    $("status-msg").textContent = `ExpClips failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10409,6 +10442,13 @@ window.addEventListener("DOMContentLoaded", () => {
     btnFlipV.addEventListener("click", () => {
       stopPlay();
       void flipSelection("v");
+    });
+  }
+  const btnExpClips = document.getElementById("btn-exp-clips");
+  if (btnExpClips) {
+    btnExpClips.addEventListener("click", () => {
+      stopPlay();
+      void exportClipMediaUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

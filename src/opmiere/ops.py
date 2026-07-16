@@ -8381,6 +8381,127 @@ class Editor:
                 "skipped_count": len(skipped),
             }
 
+    def export_clip_media(
+        self,
+        out_dir: str | Path,
+        clip_ids: list[str] | None = None,
+        *,
+        track_id: str | None = None,
+        include_audio: bool = True,
+        container: str = "mp4",
+    ) -> dict[str, Any]:
+        """Export each clip's source range as a standalone media file (NLE subclip).
+
+        Cuts from original media by src_in/src_out (not re-render of timeline
+        effects). Useful for agent handoff / review bins. container: mp4|mov|mkv.
+        """
+        import re
+        import subprocess
+
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        cont = container.lower().lstrip(".")
+        if cont not in ("mp4", "mov", "mkv", "wav", "m4a"):
+            raise ValueError("container must be mp4|mov|mkv|wav|m4a")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        targets: list[Any] = []
+        if clip_ids is not None:
+            for cid in dict.fromkeys(clip_ids):
+                targets.append(self._find_clip(cid))
+        elif track_id is not None:
+            tr = self.project.track_by_id(track_id)
+            targets = list(tr.clips_in_order())
+        else:
+            for tr in self.project.tracks:
+                targets.extend(tr.clips_in_order())
+
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for i, clip in enumerate(targets):
+            media = self.project.media_by_id(clip.media)
+            src = self.bundle.media_path(media.path)
+            if not src.exists():
+                errors.append({"clip_id": clip.id, "reason": "offline"})
+                continue
+            start_s = float(clip.src_in) / fps
+            # exclusive src_out
+            dur_s = max(1.0 / fps, float(clip.src_out - clip.src_in) / fps)
+            safe = re.sub(r"[^\w\-]+", "_", (clip.name or clip.id))[:40]
+            if cont in ("wav", "m4a") or media.kind == "audio":
+                ext = cont if cont in ("wav", "m4a") else "wav"
+                dest = out / f"{i:03d}_{safe}.{ext}"
+                cmd = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", f"{start_s:.4f}",
+                    "-i", str(src),
+                    "-t", f"{dur_s:.4f}",
+                    "-vn",
+                ]
+                if ext == "wav":
+                    cmd += ["-c:a", "pcm_s16le"]
+                else:
+                    cmd += ["-c:a", "aac", "-b:a", "192k"]
+                cmd.append(str(dest))
+            else:
+                dest = out / f"{i:03d}_{safe}.{cont}"
+                cmd = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", f"{start_s:.4f}",
+                    "-i", str(src),
+                    "-t", f"{dur_s:.4f}",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                ]
+                if include_audio and media.has_audio:
+                    cmd += ["-c:a", "aac", "-b:a", "192k"]
+                else:
+                    cmd += ["-an"]
+                # honor speed != 1 by filter if needed
+                if abs(float(clip.speed) - 1.0) > 1e-3:
+                    sp = float(clip.speed)
+                    if sp <= 0:
+                        errors.append({"clip_id": clip.id, "reason": "invalid speed"})
+                        continue
+                    # setpts for video; atempo chain for audio is complex — video-only when speed
+                    cmd = [
+                        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-ss", f"{start_s:.4f}",
+                        "-i", str(src),
+                        "-t", f"{dur_s:.4f}",
+                        "-filter:v", f"setpts=PTS/{sp}",
+                        "-an",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                        str(dest),
+                    ]
+                else:
+                    cmd.append(str(dest))
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0 or not dest.exists():
+                errors.append({
+                    "clip_id": clip.id,
+                    "reason": (proc.stderr or "encode failed")[-300:],
+                })
+                continue
+            written.append({
+                "clip_id": clip.id,
+                "media_id": media.id,
+                "path": str(dest.resolve()),
+                "src_in": clip.src_in,
+                "src_out": clip.src_out,
+                "speed": clip.speed,
+            })
+        return {
+            "path": str(out.resolve()),
+            "count": len(written),
+            "written": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": (
+                "Source-range subclips (no timeline FX bake). "
+                "For composited look use export_range / export."
+            ),
+        }
+
     def export_audio(
         self,
         output_path: str | Path,

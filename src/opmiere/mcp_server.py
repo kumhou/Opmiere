@@ -2434,6 +2434,24 @@ def set_clip_flip(
 
 
 @mcp.tool()
+def export_clip_media(
+    out_dir: str,
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+    include_audio: bool = True,
+    container: str = "mp4",
+) -> dict:
+    """Export each clip's source range as standalone media (NLE subclip files)."""
+    return _require_editor().export_clip_media(
+        out_dir,
+        clip_ids,
+        track_id=track_id,
+        include_audio=include_audio,
+        container=container,
+    )
+
+
+@mcp.tool()
 def reset_clip_transform(
     clip_id: str,
     position: bool = True,

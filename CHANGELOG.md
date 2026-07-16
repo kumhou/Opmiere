@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.70 — 2026-07-17
+
+### Added
+- `export_clip_media` (source-range subclip files) + API/MCP/desktop **ExpClips**
+
 ## 0.5.69 — 2026-07-17
 
 ### Added

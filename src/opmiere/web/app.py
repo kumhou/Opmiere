@@ -1029,6 +1029,30 @@ def clip_flip(body: FlipBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportClipMediaBody(BaseModel):
+    out_dir: str
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+    include_audio: bool = True
+    container: str = "mp4"
+
+
+@app.post("/api/export/clip_media")
+def export_clip_media_api(body: ExportClipMediaBody) -> dict[str, Any]:
+    """Export each clip source range as standalone file."""
+    ed = _ed()
+    try:
+        return ed.export_clip_media(
+            body.out_dir,
+            body.clip_ids,
+            track_id=body.track_id,
+            include_audio=body.include_audio,
+            container=body.container,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_clip_media failed: {e}") from e
+
+
 @app.post("/api/clip/reset_transform")
 def clip_reset_transform(body: ResetTransformBody) -> dict[str, Any]:
     ed = _ed()
