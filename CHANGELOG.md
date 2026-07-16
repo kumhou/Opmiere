@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.18 — 2026-07-17
+
+### Added
+- Timeline header **ph-tc-float** follows playhead
+
 ## 0.5.17 — 2026-07-17
 
 ### Added
