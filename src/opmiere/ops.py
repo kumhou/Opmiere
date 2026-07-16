@@ -4821,6 +4821,100 @@ class Editor:
                 ),
             }
 
+    def apply_luma_key(
+        self,
+        clip_id: str,
+        *,
+        threshold: float = 0.1,
+        tolerance: float = 0.1,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply luma_key (brightness key) for overlay compositing."""
+        self._assert_clip_track_unlocked(clip_id)
+        thr = float(threshold)
+        tol = float(tolerance)
+        if not (0.0 <= thr <= 1.0):
+            raise ValueError("threshold must be in [0, 1]")
+        if not (0.0 <= tol <= 1.0):
+            raise ValueError("tolerance must be in [0, 1]")
+        fx = {
+            "type": "luma_key",
+            "threshold": thr,
+            "tolerance": tol,
+        }
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "luma_key"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Luma key by brightness; use on overlay for matte titles.",
+            }
+
+    def apply_white_balance(
+        self,
+        clip_id: str,
+        *,
+        temperature: float = 6500.0,
+        mix: float = 1.0,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply white_balance color temperature to a clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        temp = float(temperature)
+        mx = float(mix)
+        if not (1000.0 <= temp <= 40000.0):
+            raise ValueError("temperature must be in [1000, 40000] Kelvin")
+        if not (0.0 <= mx <= 1.0):
+            raise ValueError("mix must be in [0, 1]")
+        fx = {
+            "type": "white_balance",
+            "temperature": temp,
+            "mix": mx,
+        }
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if e.get("type") != "white_balance"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "White balance Kelvin; mix=1 full strength.",
+            }
+
+    def export_work_area_webm(
+        self,
+        output_path: str | Path,
+        *,
+        crf: int = 32,
+        width: int | None = None,
+    ) -> dict[str, Any]:
+        """Export in/out work area as WebM. Requires set_in/out points."""
+        io = self.get_in_out()
+        if not io.get("ready"):
+            raise ValueError("set in and out points first (set_in_point / set_out_point)")
+        fps_tb = float(self.project.timebase.fps or 30.0)
+        start_s = float(io["in_frame"]) / fps_tb
+        end_s = float(io["out_frame"]) / fps_tb
+        r = self.export_webm(
+            output_path,
+            start_seconds=start_s,
+            end_seconds=end_s,
+            crf=crf,
+            width=width,
+        )
+        r["in_frame"] = io["in_frame"]
+        r["out_frame"] = io["out_frame"]
+        return r
+
     def export_webm(
         self,
         output_path: str | Path,

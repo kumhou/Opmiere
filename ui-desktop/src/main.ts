@@ -8093,6 +8093,79 @@ async function chromaKeyUi() {
   }
 }
 
+async function lumaKeyUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip for luma key";
+    return;
+  }
+  $("status-msg").textContent = "Applying luma key…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/luma_key", {
+      clip_id: ids[0],
+      threshold: 0.1,
+      tolerance: 0.1,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `LKey · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`LKey failed: ${e}`);
+    $("status-msg").textContent = `LKey failed: ${e}`;
+  }
+}
+
+async function whiteBalanceUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip for white balance";
+    return;
+  }
+  $("status-msg").textContent = "Applying white balance…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/white_balance", {
+      clip_id: ids[0],
+      temperature: 5600,
+      mix: 1.0,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WB · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`WB failed: ${e}`);
+    $("status-msg").textContent = `WB failed: ${e}`;
+  }
+}
+
+async function exportWorkAreaWebmUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting work-area WebM…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/work_area_webm", {
+      crf: 32,
+      width: 720,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WA-WebM → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`WA-WebM failed: ${e}`);
+    $("status-msg").textContent = `WA-WebM failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -11928,8 +12001,11 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-sharp", () => void sharpenUi());
   proBind("btn-glow", () => void glowUi());
   proBind("btn-ckey", () => void chromaKeyUi());
+  proBind("btn-lkey", () => void lumaKeyUi());
+  proBind("btn-wb", () => void whiteBalanceUi());
   proBind("btn-clip-gif", () => void exportClipGifUi());
   proBind("btn-webm", () => void exportWebmUi());
+  proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
   proBind("btn-del-trk", () => void deleteTrackOfSelection());
   proBind("btn-hard-cut", () => void hardCutAllUi());

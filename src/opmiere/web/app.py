@@ -6142,6 +6142,71 @@ def chroma_key_api(body: ChromaKeyBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class LumaKeyBody(BaseModel):
+    clip_id: str
+    threshold: float = 0.1
+    tolerance: float = 0.1
+    replace: bool = True
+
+
+@app.post("/api/clip/luma_key")
+def luma_key_api(body: LumaKeyBody) -> dict[str, Any]:
+    """Apply luma key to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_luma_key(
+            body.clip_id,
+            threshold=body.threshold,
+            tolerance=body.tolerance,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"luma_key failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class WhiteBalanceBody(BaseModel):
+    clip_id: str
+    temperature: float = 6500.0
+    mix: float = 1.0
+    replace: bool = True
+
+
+@app.post("/api/clip/white_balance")
+def white_balance_api(body: WhiteBalanceBody) -> dict[str, Any]:
+    """Apply white balance to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_white_balance(
+            body.clip_id,
+            temperature=body.temperature,
+            mix=body.mix,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"white_balance failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportWorkAreaWebmBody(BaseModel):
+    output_path: str | None = None
+    crf: int = 32
+    width: int | None = None
+
+
+@app.post("/api/export/work_area_webm")
+def export_work_area_webm_api(body: ExportWorkAreaWebmBody) -> dict[str, Any]:
+    """Export in/out work area as WebM."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "work_area.webm")
+    try:
+        return ed.export_work_area_webm(
+            out, crf=body.crf, width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"work_area_webm failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

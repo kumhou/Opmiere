@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.98 — 2026-07-17
+
+### Added
+- `apply_luma_key` / `apply_white_balance` + **LKey** / **WB**
+- `export_work_area_webm` + **WA-WebM**
+
 ## 0.5.97 — 2026-07-17
 
 ### Added

@@ -3697,6 +3697,50 @@ def apply_chroma_key(
 
 
 @mcp.tool()
+def apply_luma_key(
+    clip_id: str,
+    threshold: float = 0.1,
+    tolerance: float = 0.1,
+    replace: bool = True,
+) -> dict:
+    """Apply luma key (brightness matte) for overlay compositing."""
+    return _require_editor().apply_luma_key(
+        clip_id,
+        threshold=threshold,
+        tolerance=tolerance,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_white_balance(
+    clip_id: str,
+    temperature: float = 6500.0,
+    mix: float = 1.0,
+    replace: bool = True,
+) -> dict:
+    """Apply white balance (Kelvin temperature) to a clip."""
+    return _require_editor().apply_white_balance(
+        clip_id,
+        temperature=temperature,
+        mix=mix,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def export_work_area_webm(
+    output_path: str,
+    crf: int = 32,
+    width: int | None = None,
+) -> dict:
+    """Export the in/out work area as WebM (VP9+Opus)."""
+    return _require_editor().export_work_area_webm(
+        output_path, crf=crf, width=width,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
