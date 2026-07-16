@@ -4503,6 +4503,97 @@ class Editor:
                 "count": len(applied),
             }
 
+    def apply_effects_to_track(
+        self,
+        track_id: str,
+        effects: list[dict[str, Any]],
+        *,
+        replace_types: bool = True,
+    ) -> dict[str, Any]:
+        """Apply one or more effects to every clip on a track (one undo).
+
+        replace_types=True removes existing effects of the same type before
+        appending (so re-running grade does not stack eq/color).
+        """
+        if not effects:
+            raise ValueError("effects is empty")
+        track = self.project.track_by_id(track_id)
+        if track.locked:
+            raise ValueError(f"track {track.id} is locked")
+        fx_list = [dict(e) for e in effects if isinstance(e, dict) and e.get("type")]
+        if not fx_list:
+            raise ValueError("no valid effect dicts")
+        types = {str(e.get("type")) for e in fx_list}
+        with self._mutate():
+            applied: list[dict[str, Any]] = []
+            for clip in track.clips_in_order():
+                if replace_types:
+                    clip.effects = [
+                        e for e in (clip.effects or [])
+                        if not (isinstance(e, dict) and e.get("type") in types)
+                    ]
+                for fx in fx_list:
+                    self._apply_effect_unlocked(clip.id, dict(fx))
+                applied.append({
+                    "clip_id": clip.id,
+                    "effects_len": len(clip.effects or []),
+                })
+            return {
+                "track_id": track_id,
+                "types": sorted(types),
+                "count": len(applied),
+                "clips": applied,
+                "replace_types": replace_types,
+                "agent_note": "Track-wide FX applied. Use bake_clip to freeze pixels.",
+            }
+
+    def clear_effects(
+        self,
+        clip_ids: list[str] | None = None,
+        *,
+        track_id: str | None = None,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Remove effects from clips (selection or whole track). One undo.
+
+        types=None removes all effects; else only those types.
+        """
+        if not clip_ids and not track_id:
+            raise ValueError("pass clip_ids or track_id")
+        type_set = set(types) if types else None
+        targets: list[str] = []
+        if clip_ids:
+            targets = list(dict.fromkeys(clip_ids))
+        else:
+            assert track_id is not None
+            tr = self.project.track_by_id(track_id)
+            targets = [c.id for c in tr.clips_in_order()]
+        with self._mutate():
+            cleared: list[dict[str, Any]] = []
+            for cid in targets:
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                before = len(clip.effects or [])
+                if type_set is None:
+                    clip.effects = []
+                else:
+                    clip.effects = [
+                        e for e in (clip.effects or [])
+                        if not (isinstance(e, dict) and e.get("type") in type_set)
+                    ]
+                after = len(clip.effects or [])
+                cleared.append({
+                    "clip_id": cid,
+                    "removed": before - after,
+                    "remaining": after,
+                })
+            return {
+                "count": len(cleared),
+                "clips": cleared,
+                "types": sorted(type_set) if type_set else None,
+                "agent_note": "Effects cleared; transform/grade may need re-apply.",
+            }
+
     def set_clip_crop(
         self,
         clip_id: str,

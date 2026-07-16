@@ -719,6 +719,30 @@ def media_usage_report() -> dict:
 
 
 @mcp.tool()
+def apply_effects_to_track(
+    track_id: str,
+    effects: list[dict],
+    replace_types: bool = True,
+) -> dict:
+    """Apply one or more effects to every clip on a track."""
+    return _require_editor().apply_effects_to_track(
+        track_id, effects, replace_types=replace_types,
+    )
+
+
+@mcp.tool()
+def clear_effects(
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+    types: list[str] | None = None,
+) -> dict:
+    """Clear effects on clip selection or whole track."""
+    return _require_editor().clear_effects(
+        clip_ids, track_id=track_id, types=types,
+    )
+
+
+@mcp.tool()
 def extract_time(
     track_id: str,
     start_frame: int,

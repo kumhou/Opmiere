@@ -1891,6 +1891,48 @@ def media_usage_api() -> dict[str, Any]:
     return _ed().media_usage_report()
 
 
+class ApplyEffectsTrackBody(BaseModel):
+    track_id: str
+    effects: list[dict[str, Any]]
+    replace_types: bool = True
+
+
+@app.post("/api/track/apply_effects")
+def apply_effects_track_api(body: ApplyEffectsTrackBody) -> dict[str, Any]:
+    """Apply effects to every clip on a track."""
+    ed = _ed()
+    try:
+        r = ed.apply_effects_to_track(
+            body.track_id,
+            body.effects,
+            replace_types=body.replace_types,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_effects_to_track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearEffectsBody(BaseModel):
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+    types: list[str] | None = None
+
+
+@app.post("/api/effects/clear")
+def clear_effects_api(body: ClearEffectsBody) -> dict[str, Any]:
+    """Clear effects on selection or track."""
+    ed = _ed()
+    try:
+        r = ed.clear_effects(
+            body.clip_ids,
+            track_id=body.track_id,
+            types=body.types,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clear_effects failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/extract_time")
 def extract_time_api(body: ExtractTimeBody) -> dict[str, Any]:
     ed = _ed()

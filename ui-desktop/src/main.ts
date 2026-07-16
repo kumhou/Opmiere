@@ -2481,6 +2481,74 @@ async function mediaUsageUi() {
   }
 }
 
+async function applyEffectsTrackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  $("status-msg").textContent = "Applying track effects…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      types?: string[];
+    }>("/api/track/apply_effects", {
+      track_id: trackId,
+      replace_types: true,
+      effects: [
+        { type: "color", brightness: 0.03, contrast: 1.06, saturation: 1.04 },
+      ],
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FxTrk · ${r.count ?? 0} clips · ${(r.types || []).join(",") || "fx"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FxTrk failed: ${e}`);
+    $("status-msg").textContent = `FxTrk failed: ${e}`;
+  }
+}
+
+async function clearEffectsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const body: { clip_ids?: string[] | null; track_id?: string | null } = {};
+  if (ids.length) {
+    body.clip_ids = ids;
+  } else {
+    body.track_id = trackForKind("video");
+    if (!body.track_id) {
+      $("status-msg").textContent = "Select clips or open a video track";
+      return;
+    }
+  }
+  $("status-msg").textContent = "Clearing effects…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/effects/clear",
+      body,
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClrFx · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ClrFx failed: ${e}`);
+    $("status-msg").textContent = `ClrFx failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10755,6 +10823,20 @@ window.addEventListener("DOMContentLoaded", () => {
   if (btnUsage) {
     btnUsage.addEventListener("click", () => {
       void mediaUsageUi();
+    });
+  }
+  const btnFxTrk = document.getElementById("btn-fx-track");
+  if (btnFxTrk) {
+    btnFxTrk.addEventListener("click", () => {
+      stopPlay();
+      void applyEffectsTrackUi();
+    });
+  }
+  const btnClrFx = document.getElementById("btn-clr-fx");
+  if (btnClrFx) {
+    btnClrFx.addEventListener("click", () => {
+      stopPlay();
+      void clearEffectsUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

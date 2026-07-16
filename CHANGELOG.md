@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.76 — 2026-07-17
+
+### Added
+- `apply_effects_to_track` / `clear_effects` (batch grade) + API/MCP/desktop **FxTrk** / **ClrFx**
+
 ## 0.5.75 — 2026-07-17
 
 ### Added
