@@ -2580,6 +2580,62 @@ async function exportStoryboardUi() {
   }
 }
 
+async function exportSocialPackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Social pack output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting social pack (full renders)…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      path?: string;
+    }>("/api/export/social_pack", {
+      out_dir: dir,
+      variants: ["youtube", "reels", "square"],
+      name_prefix: "export",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Social · ${r.count ?? 0}` +
+      (r.error_count ? ` · err ${r.error_count}` : "") +
+      ` → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`Social failed: ${e}`);
+    $("status-msg").textContent = `Social failed: ${e}`;
+  }
+}
+
+async function reframeSelectionUi(aspect = "9:16") {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to reframe";
+    return;
+  }
+  $("status-msg").textContent = `Reframe ${aspect} ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/reframe", {
+        clip_id: id,
+        aspect,
+        anchor: "center",
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Reframe ${aspect} ×${ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Reframe failed: ${e}`);
+    $("status-msg").textContent = `Reframe failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10875,6 +10931,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnStory.addEventListener("click", () => {
       stopPlay();
       void exportStoryboardUi();
+    });
+  }
+  const btnSocial = document.getElementById("btn-social");
+  if (btnSocial) {
+    btnSocial.addEventListener("click", () => {
+      stopPlay();
+      void exportSocialPackUi();
+    });
+  }
+  const btnReframe = document.getElementById("btn-reframe");
+  if (btnReframe) {
+    btnReframe.addEventListener("click", () => {
+      stopPlay();
+      void reframeSelectionUi("9:16");
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

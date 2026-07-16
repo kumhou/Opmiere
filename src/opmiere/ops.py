@@ -14023,6 +14023,218 @@ class Editor:
             return Path(loud_path)
         return written
 
+    def export_to_size(
+        self,
+        output_path: str | Path,
+        width: int,
+        height: int,
+        *,
+        fit: str = "cover",
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export timeline then scale to width×height (social / alternate canvas).
+
+        fit:
+          - cover: crop-fill (no letterbox, may crop edges)
+          - contain: letterbox/pillarbox with black
+          - stretch: ignore aspect
+        Does not mutate project resolution.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        if fit not in ("cover", "contain", "stretch"):
+            raise ValueError("fit must be cover|contain|stretch")
+        if not isinstance(width, int) or width < 16:
+            raise ValueError("width must be int >= 16")
+        if not isinstance(height, int) or height < 16:
+            raise ValueError("height must be int >= 16")
+        # even dims for yuv420p
+        width = width - (width % 2)
+        height = height - (height % 2)
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fd, raw = tempfile.mkstemp(prefix="opmiere_full_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        try:
+            self.export(full, normalize_preset=None)
+            if fit == "stretch":
+                vf = f"scale={width}:{height}"
+            elif fit == "contain":
+                vf = (
+                    f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
+                )
+            else:
+                vf = (
+                    f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height}"
+                )
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", str(full),
+                    "-vf", vf,
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k",
+                    str(out),
+                ],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0 or not out.exists():
+                raise RuntimeError(
+                    f"export_to_size scale failed:\n{(proc.stderr or '')[-1500:]}"
+                )
+            final = out
+            if normalize_preset:
+                loud = out.with_name(out.stem + "_loud" + out.suffix)
+                self.normalize_loudness(out, loud, preset=normalize_preset)
+                final = loud
+            return {
+                "path": str(final.resolve()),
+                "width": width,
+                "height": height,
+                "fit": fit,
+                "normalize_preset": normalize_preset,
+                "source_resolution": {
+                    "w": self.project.resolution.w,
+                    "h": self.project.resolution.h,
+                },
+                "agent_note": "Alternate canvas export; project resolution unchanged.",
+            }
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    # Named social canvases (w, h, default fit)
+    SOCIAL_PRESETS: dict[str, dict[str, Any]] = {
+        "youtube": {"width": 1920, "height": 1080, "fit": "contain"},
+        "landscape": {"width": 1920, "height": 1080, "fit": "contain"},
+        "reels": {"width": 1080, "height": 1920, "fit": "cover"},
+        "tiktok": {"width": 1080, "height": 1920, "fit": "cover"},
+        "shorts": {"width": 1080, "height": 1920, "fit": "cover"},
+        "square": {"width": 1080, "height": 1080, "fit": "cover"},
+        "ig_feed": {"width": 1080, "height": 1350, "fit": "cover"},
+    }
+
+    def export_social_pack(
+        self,
+        out_dir: str | Path,
+        *,
+        variants: list[str] | None = None,
+        normalize_preset: str | None = None,
+        name_prefix: str = "export",
+    ) -> dict[str, Any]:
+        """Export multiple social canvases from one timeline (youtube/reels/square).
+
+        variants default: youtube, reels, square. Names from SOCIAL_PRESETS.
+        """
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        names = variants or ["youtube", "reels", "square"]
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for name in names:
+            key = str(name).lower().strip()
+            cfg = self.SOCIAL_PRESETS.get(key)
+            if not cfg:
+                errors.append({"variant": name, "reason": f"unknown preset {name!r}"})
+                continue
+            dest = out / f"{name_prefix}_{key}_{cfg['width']}x{cfg['height']}.mp4"
+            try:
+                r = self.export_to_size(
+                    dest,
+                    int(cfg["width"]),
+                    int(cfg["height"]),
+                    fit=str(cfg.get("fit") or "cover"),
+                    normalize_preset=normalize_preset,
+                )
+                written.append({"variant": key, **r})
+            except Exception as e:
+                errors.append({"variant": key, "reason": str(e)[:300]})
+        return {
+            "path": str(out.resolve()),
+            "count": len(written),
+            "written": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "variants": names,
+            "agent_note": (
+                "Social pack ready. cover crops for vertical; contain letterboxes landscape."
+            ),
+        }
+
+    def reframe_clip(
+        self,
+        clip_id: str,
+        aspect: str = "9:16",
+        *,
+        anchor: str = "center",
+    ) -> dict[str, Any]:
+        """Center-crop clip to a target aspect ratio via crop effect.
+
+        aspect: \"9:16\", \"1:1\", \"16:9\", or float width/height.
+        anchor: center|left|right|top|bottom (crop window placement).
+        Uses project resolution as source frame size.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        W = int(self.project.resolution.w)
+        H = int(self.project.resolution.h)
+        if ":" in str(aspect):
+            a, b = str(aspect).split(":", 1)
+            ar = float(a) / float(b)
+        else:
+            ar = float(aspect)
+        if ar <= 0:
+            raise ValueError("aspect must be positive")
+        if anchor not in ("center", "left", "right", "top", "bottom"):
+            raise ValueError("anchor must be center|left|right|top|bottom")
+
+        # target crop box inside WxH with aspect ar
+        src_ar = W / float(H)
+        if src_ar > ar:
+            # source wider → crop width
+            ch = H
+            cw = max(2, int(round(H * ar)))
+            cw = cw - (cw % 2)
+        else:
+            cw = W
+            ch = max(2, int(round(W / ar)))
+            ch = ch - (ch % 2)
+        cw = min(cw, W)
+        ch = min(ch, H)
+
+        if anchor in ("center", "top", "bottom"):
+            x = (W - cw) // 2
+        elif anchor == "left":
+            x = 0
+        else:
+            x = W - cw
+        if anchor in ("center", "left", "right"):
+            y = (H - ch) // 2
+        elif anchor == "top":
+            y = 0
+        else:
+            y = H - ch
+
+        r = self.set_clip_crop(clip_id, cw, ch, x=x, y=y)
+        return {
+            **r,
+            "aspect": aspect,
+            "anchor": anchor,
+            "crop_box": {"width": cw, "height": ch, "x": x, "y": y},
+            "canvas": {"w": W, "h": H},
+            "agent_note": (
+                "Crop effect applied for reframe. For full vertical deliverable "
+                "use export_to_size / export_social_pack."
+            ),
+        }
+
     def export_marker_segments(
         self,
         output_dir: str | Path,

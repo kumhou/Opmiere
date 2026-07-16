@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.78 — 2026-07-17
+
+### Added
+- `export_to_size` / `export_social_pack` (youtube/reels/square canvases) + **Social**
+- `reframe_clip` (center crop to aspect) + **9:16**
+
 ## 0.5.77 — 2026-07-17
 
 ### Added

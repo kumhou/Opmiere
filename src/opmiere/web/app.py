@@ -3833,6 +3833,69 @@ def export_storyboard_api(body: StoryboardBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_storyboard failed: {e}") from e
 
 
+class ExportToSizeBody(BaseModel):
+    path: str
+    width: int
+    height: int
+    fit: str = "cover"
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/to_size")
+def export_to_size_api(body: ExportToSizeBody) -> dict[str, Any]:
+    """Export then scale to width×height (cover/contain/stretch)."""
+    ed = _ed()
+    try:
+        return ed.export_to_size(
+            body.path,
+            body.width,
+            body.height,
+            fit=body.fit,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_to_size failed: {e}") from e
+
+
+class SocialPackBody(BaseModel):
+    out_dir: str
+    variants: list[str] | None = None
+    normalize_preset: str | None = None
+    name_prefix: str = "export"
+
+
+@app.post("/api/export/social_pack")
+def export_social_pack_api(body: SocialPackBody) -> dict[str, Any]:
+    """Export youtube/reels/square (etc.) from one timeline."""
+    ed = _ed()
+    try:
+        return ed.export_social_pack(
+            body.out_dir,
+            variants=body.variants,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_social_pack failed: {e}") from e
+
+
+class ReframeBody(BaseModel):
+    clip_id: str
+    aspect: str = "9:16"
+    anchor: str = "center"
+
+
+@app.post("/api/clip/reframe")
+def reframe_clip_api(body: ReframeBody) -> dict[str, Any]:
+    """Center-crop clip to aspect ratio."""
+    ed = _ed()
+    try:
+        r = ed.reframe_clip(body.clip_id, body.aspect, anchor=body.anchor)
+    except Exception as e:
+        raise HTTPException(400, f"reframe failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

@@ -2247,6 +2247,46 @@ def export_storyboard(
 
 
 @mcp.tool()
+def export_to_size(
+    path: str,
+    width: int,
+    height: int,
+    fit: str = "cover",
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export timeline scaled to width×height (cover|contain|stretch)."""
+    return _require_editor().export_to_size(
+        path, width, height, fit=fit, normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
+def export_social_pack(
+    out_dir: str,
+    variants: list[str] | None = None,
+    normalize_preset: str | None = None,
+    name_prefix: str = "export",
+) -> dict:
+    """Export youtube/reels/square (etc.) social canvases."""
+    return _require_editor().export_social_pack(
+        out_dir,
+        variants=variants,
+        normalize_preset=normalize_preset,
+        name_prefix=name_prefix,
+    )
+
+
+@mcp.tool()
+def reframe_clip(
+    clip_id: str,
+    aspect: str = "9:16",
+    anchor: str = "center",
+) -> dict:
+    """Crop clip to aspect ratio (9:16, 1:1, …) for vertical/social reframes."""
+    return _require_editor().reframe_clip(clip_id, aspect, anchor=anchor)
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,
