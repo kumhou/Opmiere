@@ -6039,6 +6039,67 @@ def vignette_api(body: VignetteBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FilmGrainBody(BaseModel):
+    clip_id: str
+    amount: float = 12.0
+    replace: bool = True
+
+
+@app.post("/api/clip/film_grain")
+def film_grain_api(body: FilmGrainBody) -> dict[str, Any]:
+    """Apply film grain to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_film_grain(
+            body.clip_id, amount=body.amount, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"film_grain failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class BlurBody(BaseModel):
+    clip_id: str
+    amount: float = 5.0
+    replace: bool = True
+
+
+@app.post("/api/clip/blur")
+def blur_api(body: BlurBody) -> dict[str, Any]:
+    """Apply blur to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_blur(body.clip_id, amount=body.amount, replace=body.replace)
+    except Exception as e:
+        raise HTTPException(400, f"blur failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportWebmBody(BaseModel):
+    output_path: str | None = None
+    start_seconds: float = 0.0
+    end_seconds: float | None = None
+    crf: int = 32
+    width: int | None = None
+
+
+@app.post("/api/export/webm")
+def export_webm_api(body: ExportWebmBody) -> dict[str, Any]:
+    """Export timeline range as WebM (VP9+Opus)."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "out.webm")
+    try:
+        return ed.export_webm(
+            out,
+            start_seconds=body.start_seconds,
+            end_seconds=body.end_seconds,
+            crf=body.crf,
+            width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"export_webm failed: {e}") from e
+
+
 class ExportClipGifBody(BaseModel):
     clip_id: str
     output_path: str | None = None

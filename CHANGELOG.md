@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.96 — 2026-07-17
+
+### Added
+- `apply_film_grain` / `apply_blur` + **Grain** / **Blur**
+- `export_webm` (VP9+Opus) + **WebM**
+
 ## 0.5.95 — 2026-07-17
 
 ### Added

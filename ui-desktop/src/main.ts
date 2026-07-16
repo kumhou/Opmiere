@@ -7960,6 +7960,77 @@ async function exportClipGifUi() {
   }
 }
 
+async function filmGrainUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for film grain";
+    return;
+  }
+  $("status-msg").textContent = "Applying film grain…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/film_grain", {
+      clip_id: ids[0],
+      amount: 12,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Grain · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Grain failed: ${e}`);
+    $("status-msg").textContent = `Grain failed: ${e}`;
+  }
+}
+
+async function blurUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for blur";
+    return;
+  }
+  $("status-msg").textContent = "Applying blur…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/blur", {
+      clip_id: ids[0],
+      amount: 5,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Blur · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Blur failed: ${e}`);
+    $("status-msg").textContent = `Blur failed: ${e}`;
+  }
+}
+
+async function exportWebmUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting WebM…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/webm", {
+      crf: 32,
+      width: 720,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WebM → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`WebM failed: ${e}`);
+    $("status-msg").textContent = `WebM failed: ${e}`;
+  }
+}
+
 async function exportAudioUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -11771,7 +11842,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-kb", () => void kenBurnsUi());
   proBind("btn-kb-img", () => void kenBurnsImagesUi());
   proBind("btn-vig", () => void vignetteUi());
+  proBind("btn-grain", () => void filmGrainUi());
+  proBind("btn-blur", () => void blurUi());
   proBind("btn-clip-gif", () => void exportClipGifUi());
+  proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
   proBind("btn-del-trk", () => void deleteTrackOfSelection());
   proBind("btn-hard-cut", () => void hardCutAllUi());

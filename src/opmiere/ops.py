@@ -4674,6 +4674,137 @@ class Editor:
                 "agent_note": "Vignette strength applied (ffmpeg vignette).",
             }
 
+    def apply_film_grain(
+        self,
+        clip_id: str,
+        *,
+        amount: float = 12.0,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply film_grain effect to a clip (amount 0–100)."""
+        self._assert_clip_track_unlocked(clip_id)
+        amt = float(amount)
+        if not (0.0 < amt <= 100.0):
+            raise ValueError("amount must be in (0, 100]")
+        fx = {"type": "film_grain", "amount": amt}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "film_grain"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Film grain applied (ffmpeg noise).",
+            }
+
+    def apply_blur(
+        self,
+        clip_id: str,
+        *,
+        amount: float = 5.0,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply blur effect to a clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        amt = float(amount)
+        if amt <= 0:
+            raise ValueError("amount must be positive")
+        fx = {"type": "blur", "amount": amt}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "blur"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Blur applied (ffmpeg boxblur/gblur).",
+            }
+
+    def export_webm(
+        self,
+        output_path: str | Path,
+        *,
+        start_seconds: float = 0.0,
+        end_seconds: float | None = None,
+        crf: int = 32,
+        width: int | None = None,
+    ) -> dict[str, Any]:
+        """Export timeline range as WebM (VP9 + Opus) for web delivery.
+
+        Full render then re-encode/trim. crf higher = smaller file.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        start = max(0.0, float(start_seconds))
+        total = float(self.duration_frames()) / float(self.project.timebase.fps or 30)
+        end = float(end_seconds) if end_seconds is not None else total
+        end = min(end, total)
+        if end <= start:
+            raise ValueError("end must be > start")
+        if not (4 <= int(crf) <= 63):
+            raise ValueError("crf must be in [4, 63]")
+
+        output_path = Path(output_path)
+        if output_path.suffix.lower() != ".webm":
+            output_path = output_path.with_suffix(".webm")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        fd, raw = tempfile.mkstemp(prefix="opmiere_webm_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        try:
+            self.export(full, normalize_preset=None)
+            vf_parts: list[str] = []
+            if width is not None:
+                w = int(width)
+                if not (64 <= w <= 3840):
+                    raise ValueError("width must be in [64, 3840]")
+                vf_parts.append(f"scale={w}:-2:flags=lanczos")
+            cmd = [
+                "ffmpeg", "-y", "-hide_banner",
+                "-ss", f"{start:.3f}",
+                "-to", f"{end:.3f}",
+                "-i", str(full),
+                "-c:v", "libvpx-vp9",
+                "-b:v", "0",
+                "-crf", str(int(crf)),
+                "-row-mt", "1",
+                "-c:a", "libopus",
+                "-b:a", "96k",
+            ]
+            if vf_parts:
+                cmd += ["-vf", ",".join(vf_parts)]
+            cmd.append(str(output_path))
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0 or not output_path.exists():
+                raise RuntimeError(
+                    f"export_webm failed:\n{(proc.stderr or '')[-2000:]}"
+                )
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+        size_b = output_path.stat().st_size if output_path.exists() else 0
+        return {
+            "path": str(output_path.resolve()),
+            "start_seconds": start,
+            "end_seconds": end,
+            "duration_seconds": round(end - start, 3),
+            "crf": int(crf),
+            "width": width,
+            "bytes": size_b,
+            "agent_note": "WebM VP9+Opus for web embeds; raise crf for smaller files.",
+        }
+
     def export_clip_gif(
         self,
         clip_id: str,

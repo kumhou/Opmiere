@@ -3630,6 +3630,48 @@ def apply_vignette(
 
 
 @mcp.tool()
+def apply_film_grain(
+    clip_id: str,
+    amount: float = 12.0,
+    replace: bool = True,
+) -> dict:
+    """Apply film grain to a clip (amount in (0, 100])."""
+    return _require_editor().apply_film_grain(
+        clip_id, amount=amount, replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_blur(
+    clip_id: str,
+    amount: float = 5.0,
+    replace: bool = True,
+) -> dict:
+    """Apply blur to a clip."""
+    return _require_editor().apply_blur(
+        clip_id, amount=amount, replace=replace,
+    )
+
+
+@mcp.tool()
+def export_webm(
+    output_path: str,
+    start_seconds: float = 0.0,
+    end_seconds: float | None = None,
+    crf: int = 32,
+    width: int | None = None,
+) -> dict:
+    """Export timeline range as WebM (VP9 + Opus)."""
+    return _require_editor().export_webm(
+        output_path,
+        start_seconds=start_seconds,
+        end_seconds=end_seconds,
+        crf=crf,
+        width=width,
+    )
+
+
+@mcp.tool()
 def export_clip_gif(
     clip_id: str,
     output_path: str,
