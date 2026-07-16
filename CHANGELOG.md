@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.84 — 2026-07-17
+
+### Added
+- Desktop **RipRng** — ripple_delete_range on work I/O
+
 ## 0.4.83 — 2026-07-17
 
 ### Added
