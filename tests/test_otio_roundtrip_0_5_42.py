@@ -95,3 +95,27 @@ def test_ship_wiring_0_5_42():
     assert "def import_otio_json" in mcp
     assert 'id="btn-import-otio"' in html
     assert "importOtioFile" in ts
+
+
+def test_otio_markers_roundtrip():
+    root = Path(tempfile.mkdtemp(prefix="opmiere_otio_m_"))
+    try:
+        v = root / "a.mp4"
+        _vid(v, "navy")
+        ed = Editor.create(root / "p.opm", fps=30, width=320, height=180)
+        tr = ed.add_track("video")
+        ed.place_from_file(v, "video", tr.id, 0)
+        ed.add_marker(frame=15, label="beat", color="#ff0000")
+        body = ed.export_otio_json()["body"]
+        doc = json.loads(body)
+        assert len(doc.get("markers") or []) == 1
+        assert doc["markers"][0]["name"] == "beat"
+
+        ed2 = Editor.create(root / "p2.opm", fps=30, width=320, height=180)
+        r = ed2.import_otio_json(text=body, import_missing_media=True)
+        assert r["count"] == 1
+        assert r.get("markers_imported", 0) == 1
+        assert any(m.label == "beat" for m in ed2.project.markers)
+        assert ed2.project.markers[0].frame == 15
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

@@ -7153,6 +7153,24 @@ class Editor:
                 "children": children,
                 "metadata": {"opmiere": {"track_id": tr.id}},
             })
+        markers_out: list[dict[str, Any]] = []
+        for mk in getattr(self.project, "markers", None) or []:
+            markers_out.append({
+                "OTIO_SCHEMA": "Marker.1",
+                "name": getattr(mk, "label", None) or mk.id,
+                "marked_range": {
+                    "start_time": {"value": int(getattr(mk, "frame", 0) or 0), "rate": fps},
+                    "duration": {"value": 0, "rate": fps},
+                },
+                "color": getattr(mk, "color", None),
+                "metadata": {
+                    "opmiere": {
+                        "marker_id": mk.id,
+                        "frame": int(getattr(mk, "frame", 0) or 0),
+                        "label": getattr(mk, "label", None),
+                    }
+                },
+            })
         doc = {
             "OTIO_SCHEMA": "Timeline.1",
             "name": title or self.project.id,
@@ -7161,6 +7179,7 @@ class Editor:
                 "OTIO_SCHEMA": "Stack.1",
                 "children": tracks_out,
             },
+            "markers": markers_out,
             "metadata": {
                 "opmiere": {
                     "project_id": self.project.id,
@@ -7179,6 +7198,7 @@ class Editor:
             written = str(p.resolve())
         return {
             "count": sum(len(t["children"]) for t in tracks_out),
+            "marker_count": len(markers_out),
             "path": written,
             "body": body,
             "agent_note": "Simplified OTIO-like JSON; not guaranteed OpenTimelineIO load.",
@@ -7371,9 +7391,42 @@ class Editor:
                     })
                     cursor = max(cursor, clip.end)
 
+            markers_in = 0
+            for mnode in doc.get("markers") or []:
+                if not isinstance(mnode, dict):
+                    continue
+                meta = (mnode.get("metadata") or {}).get("opmiere") or {}
+                frame = meta.get("frame")
+                if frame is None:
+                    mr = mnode.get("marked_range") or {}
+                    st = mr.get("start_time") or {}
+                    try:
+                        frame = int(st.get("value") or 0)
+                    except (TypeError, ValueError):
+                        frame = 0
+                try:
+                    frame_i = max(0, int(frame))
+                except (TypeError, ValueError):
+                    continue
+                label = (
+                    mnode.get("name")
+                    or meta.get("label")
+                    or meta.get("marker_id")
+                    or f"m{frame_i}"
+                )
+                color = mnode.get("color") or meta.get("color") or "#7c9cff"
+                try:
+                    self.project.add_marker(
+                        frame_i, label=str(label), color=str(color),
+                    )
+                    markers_in += 1
+                except Exception as e:
+                    skipped.append({"marker": label, "reason": f"add_marker failed: {e}"})
+
             return {
                 "placed": placed,
                 "count": len(placed),
+                "markers_imported": markers_in,
                 "skipped": skipped[:40],
                 "skipped_count": len(skipped),
                 "imported_media": imported_media,

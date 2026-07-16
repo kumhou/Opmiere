@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.44 — 2026-07-17
+
+### Added
+- OTIO export/import carries timeline **markers** (label/frame/color)
 ## 0.5.43 — 2026-07-17
 
 ### Added
@@ -1368,6 +1372,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
