@@ -6434,6 +6434,27 @@ async function sessionSummaryUi() {
   }
 }
 
+async function pathCReportUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      path_c_ready?: boolean;
+      not_ready_count?: number;
+      clips_with_effects?: number;
+      adapter_version?: number;
+    }>("/api/project/path_c");
+    setProOut(JSON.stringify(r, null, 2));
+    const ready = r.path_c_ready ? "ready" : `${r.not_ready_count ?? "?"} export-only`;
+    $("status-msg").textContent =
+      `path-C v${r.adapter_version ?? "?"} · ${r.clips_with_effects ?? 0} FX clips · ${ready}`;
+  } catch (e) {
+    $("status-msg").textContent = `path-C report failed: ${e}`;
+  }
+}
+
 async function copyBundlePath() {
   const p = state.bundlePath;
   if (!p) {
@@ -9068,6 +9089,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-prep-exp2", () => void prepareForExportUi());
   proBind("btn-filler-sug", () => void suggestFillerUi());
   proBind("btn-sess-sum", () => void sessionSummaryUi());
+  proBind("btn-pathc-report", () => void pathCReportUi());
   proBind("btn-copy-bundle", () => void copyBundlePath());
   proBind("btn-pro-toggle", () => {
     const body = document.getElementById("pro-body");

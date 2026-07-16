@@ -2873,6 +2873,14 @@ def clip_path_c(clip_id: str) -> dict[str, Any]:
     return clip_path_c_support(clip)
 
 
+@app.get("/api/project/path_c")
+def project_path_c() -> dict[str, Any]:
+    """Project-wide path-C readiness report (which clips skip still-preview FX)."""
+    from opmiere.render.openshot_map import project_path_c_report
+
+    return project_path_c_report(_ed().project)
+
+
 @app.post("/api/preview/openshot_frame")
 def preview_openshot_frame(body: OpenShotFrameBody) -> dict[str, Any]:
     """Path-C multi-clip frame via OpenShot sidecar."""

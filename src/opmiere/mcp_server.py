@@ -3203,6 +3203,14 @@ def clip_path_c(clip_id: str) -> dict:
 
 
 @mcp.tool()
+def project_path_c() -> dict:
+    """Project-wide path-C readiness: which clips have export-only FX."""
+    from .render.openshot_map import project_path_c_report
+
+    return project_path_c_report(_require_editor().project)
+
+
+@mcp.tool()
 def frame_at(
     time_seconds: float,
     output_path: str,

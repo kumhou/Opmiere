@@ -39,6 +39,7 @@ __all__ = [
     "clip_visual_props",
     "path_c_effect_catalog",
     "clip_path_c_support",
+    "project_path_c_report",
 ]
 
 # Effect types the OpenShot path-C adapter can approximate for still frames.
@@ -94,6 +95,34 @@ def clip_path_c_support(clip: Any) -> dict[str, Any]:
         "mapped": mapped,
         "unmapped": unmapped,
         "path_c_ready": len(unmapped) == 0,
+    }
+
+
+def project_path_c_report(project: Project) -> dict[str, Any]:
+    """Project-wide path-C readiness for all video clips with effects."""
+    clips: list[dict[str, Any]] = []
+    not_ready = 0
+    with_fx = 0
+    for track in project.tracks:
+        if getattr(track, "kind", None) != "video":
+            continue
+        for clip in track.clips:
+            effects = [e for e in (clip.effects or []) if isinstance(e, dict)]
+            if not effects:
+                continue
+            with_fx += 1
+            row = clip_path_c_support(clip)
+            row["track_id"] = getattr(track, "id", None)
+            clips.append(row)
+            if not row.get("path_c_ready"):
+                not_ready += 1
+    return {
+        "adapter_version": ADAPTER_VERSION,
+        "clips_with_effects": with_fx,
+        "not_ready_count": not_ready,
+        "path_c_ready": not_ready == 0,
+        "clips": clips,
+        "catalog": path_c_effect_catalog(),
     }
 
 

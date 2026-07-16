@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.40 — 2026-07-17
+
+### Added
+- `GET /api/project/path_c` + MCP `project_path_c` project-wide readiness
+- Desktop Pro **path-C?** button for dual-surface effect report
 ## 0.5.39 — 2026-07-17
 
 ### Added
@@ -1347,6 +1352,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
