@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.20 — 2026-07-17
+
+### Added
+- `startHealthHeartbeat` polls `/api/health` while visible
+
 ## 0.5.19 — 2026-07-17
 
 ### Added
