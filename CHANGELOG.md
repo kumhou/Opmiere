@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.28 — 2026-07-17
+
+### Added
+- Guard `/api/session/summary` + Sess button
+
 ## 0.5.27 — 2026-07-17
 
 ### Added

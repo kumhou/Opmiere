@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "opmiere"
-version = "0.5.27"
+version = "0.5.28"
 description = "Open Premiere — an open-source, agent-native video editor for Windows"
 readme = "README.md"
 requires-python = ">=3.10"
