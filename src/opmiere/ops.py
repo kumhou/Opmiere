@@ -8497,6 +8497,198 @@ class Editor:
                 "skipped_count": len(skipped),
             }
 
+    def bake_clip(
+        self,
+        clip_id: str,
+        *,
+        replace: bool = True,
+        clear_effects: bool = True,
+        include_audio: bool = True,
+    ) -> dict[str, Any]:
+        """Render-and-replace: encode source range + clip effects into new media.
+
+        Bakes visual/audio FX (via ffmpeg effect vocabulary) into a new bin
+        asset. replace=True retargets the clip to the baked media with full
+        source range; clear_effects strips FX from the clip after bake.
+        Complex multi-pad FX (e.g. glow) may fall back to source-only encode.
+        """
+        import subprocess
+        import tempfile
+        import uuid
+
+        from .render.ffmpeg import _effect_filters, _speed_filter
+
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip.media)
+        src = self.bundle.media_path(media.path)
+        if not src.exists():
+            raise FileNotFoundError(f"offline media: {media.path}")
+        if media.kind == "image" and not (clip.effects or []):
+            raise ValueError("still with no effects — nothing to bake")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        W = int(self.project.resolution.w)
+        H = int(self.project.resolution.h)
+        start_s = float(clip.src_in) / fps
+        # source span (pre-speed); speed applied in filter
+        src_span = max(1, int(clip.src_out) - int(clip.src_in))
+        dur_s = max(1.0 / fps, src_span / fps)
+        effects = [dict(e) for e in (clip.effects or []) if isinstance(e, dict)]
+
+        tmp = Path(tempfile.mkdtemp(prefix="opmiere_bake_"))
+        text_dir = tmp / "text"
+        text_dir.mkdir()
+        out_path = tmp / f"bake_{uuid.uuid4().hex[:8]}.mp4"
+        baked_with_fx = True
+        note_bits: list[str] = []
+
+        try:
+            cmd: list[str] = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", f"{start_s:.4f}",
+                "-i", str(src),
+                "-t", f"{dur_s:.4f}",
+            ]
+            if media.kind == "audio":
+                af = _effect_filters(
+                    effects, clip.timeline_duration_frames, fps, "audio", text_dir,
+                )
+                sp = _speed_filter(float(clip.speed), "audio")
+                if sp:
+                    af = [sp] + af
+                if af:
+                    cmd += ["-af", ",".join(af)]
+                cmd += ["-vn", "-c:a", "aac", "-b:a", "192k", str(out_path)]
+            else:
+                try:
+                    vf = _effect_filters(
+                        effects,
+                        clip.timeline_duration_frames,
+                        fps,
+                        "video",
+                        text_dir,
+                        out_w=W,
+                        out_h=H,
+                    )
+                except ValueError as e:
+                    # glow etc. need multi-pad graph — bake grade-less source
+                    baked_with_fx = False
+                    note_bits.append(f"fx_fallback:{e}")
+                    vf = []
+                sp = _speed_filter(float(clip.speed), "video")
+                head = [sp or "setpts=PTS-STARTPTS"]
+                tail = [
+                    f"scale={W}:{H}:force_original_aspect_ratio=decrease",
+                    f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black",
+                    "setsar=1",
+                    f"fps={fps}",
+                ]
+                vchain = ",".join(head + vf + tail)
+                cmd += ["-vf", vchain]
+                if include_audio and media.has_audio and media.kind == "video":
+                    af = []
+                    try:
+                        af = _effect_filters(
+                            effects,
+                            clip.timeline_duration_frames,
+                            fps,
+                            "audio",
+                            text_dir,
+                        )
+                    except ValueError:
+                        af = []
+                    asp = _speed_filter(float(clip.speed), "audio")
+                    if asp:
+                        af = [asp] + af
+                    if af:
+                        cmd += ["-af", ",".join(af), "-c:a", "aac", "-b:a", "192k"]
+                    else:
+                        cmd += ["-c:a", "aac", "-b:a", "192k"]
+                else:
+                    cmd += ["-an"]
+                cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", str(out_path)]
+
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0 or not out_path.exists():
+                raise RuntimeError(
+                    f"bake_clip encode failed:\n{(proc.stderr or '')[-1500:]}"
+                )
+
+            new_media = self.import_media(
+                out_path,
+                "audio" if media.kind == "audio" else "video",
+                conform=True,
+                origin={
+                    "baked_from_clip": clip_id,
+                    "baked_from_media": media.id,
+                    "effects_baked": baked_with_fx,
+                    "effect_types": [e.get("type") for e in effects],
+                },
+            )
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        result: dict[str, Any] = {
+            "clip_id": clip_id,
+            "media_id": new_media.id,
+            "path": new_media.path,
+            "duration_frames": new_media.duration_frames,
+            "baked_with_fx": baked_with_fx,
+            "replaced": False,
+            "effects_cleared": False,
+        }
+        if replace:
+            with self._mutate():
+                clip = self._find_clip(clip_id)
+                old_media = clip.media
+                clip.media = new_media.id
+                clip.src_in = 0
+                clip.src_out = max(1, new_media.duration_frames)
+                clip.speed = 1.0
+                if clear_effects:
+                    clip.effects = []
+                    result["effects_cleared"] = True
+                result["replaced"] = True
+                result["from_media"] = old_media
+        result["agent_note"] = (
+            "Baked to new media. "
+            + ("Effects cleared on clip. " if result["effects_cleared"] else "")
+            + (" ".join(note_bits) if note_bits else "")
+        ).strip()
+        return result
+
+    def project_health_report(self) -> dict[str, Any]:
+        """Single read-only snapshot: preflight + gaps + unused + path-C + stats.
+
+        Preferred agent diagnostic before big edit batches or export.
+        """
+        from .render.openshot_map import project_path_c_report
+
+        pre = self.agent_preflight()
+        gaps = self.find_gaps()
+        unused = self.list_unused_media()
+        try:
+            path_c = project_path_c_report(self.project)
+        except Exception as e:
+            path_c = {"error": str(e)[:200]}
+        stats = self.project_stats()
+        media = self.list_media_status()
+        return {
+            "ready": bool(pre.get("ready")),
+            "preflight": pre,
+            "gaps": gaps,
+            "unused": unused,
+            "media": media,
+            "path_c": path_c,
+            "stats": stats,
+            "agent_note": (
+                "ready from preflight. Fix offline/gaps before export; "
+                "path_c_ready for OpenShot still preview depth."
+            ),
+        }
+
     def export_clip_media(
         self,
         out_dir: str | Path,

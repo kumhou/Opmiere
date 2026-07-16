@@ -2256,6 +2256,65 @@ async function exportClipMediaUi() {
   }
 }
 
+async function bakeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to bake";
+    return;
+  }
+  $("status-msg").textContent = `Baking ${ids.length} clip(s)…`;
+  try {
+    let last: TimelineView | undefined;
+    let n = 0;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView; replaced?: boolean }>(
+        "/api/clip/bake",
+        {
+          clip_id: id,
+          replace: true,
+          clear_effects: true,
+          include_audio: true,
+        },
+      );
+      if (r.timeline) last = r.timeline;
+      if (r.replaced) n += 1;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    await refreshMediaBin();
+    $("status-msg").textContent = `Bake · ${n}/${ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Bake failed: ${e}`);
+    $("status-msg").textContent = `Bake failed: ${e}`;
+  }
+}
+
+async function projectHealthUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Health report…";
+  try {
+    const r = await getJson<{
+      ready?: boolean;
+      gaps?: { total_gaps?: number };
+      unused?: { count?: number };
+      path_c?: { path_c_ready?: boolean };
+    }>("/api/project/health");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Health · ready=${r.ready ? "yes" : "no"}` +
+      ` · gaps ${r.gaps?.total_gaps ?? "?"}` +
+      ` · unused ${r.unused?.count ?? "?"}` +
+      ` · pathC ${r.path_c?.path_c_ready === true ? "ok" : "…"}`;
+  } catch (e) {
+    setProOut(`Health failed: ${e}`);
+    $("status-msg").textContent = `Health failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10483,6 +10542,19 @@ window.addEventListener("DOMContentLoaded", () => {
     btnExpClips.addEventListener("click", () => {
       stopPlay();
       void exportClipMediaUi();
+    });
+  }
+  const btnBake = document.getElementById("btn-bake");
+  if (btnBake) {
+    btnBake.addEventListener("click", () => {
+      stopPlay();
+      void bakeSelectionUi();
+    });
+  }
+  const btnHealth = document.getElementById("btn-health");
+  if (btnHealth) {
+    btnHealth.addEventListener("click", () => {
+      void projectHealthUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

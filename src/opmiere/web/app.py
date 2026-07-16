@@ -1053,6 +1053,35 @@ def export_clip_media_api(body: ExportClipMediaBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_clip_media failed: {e}") from e
 
 
+class BakeClipBody(BaseModel):
+    clip_id: str
+    replace: bool = True
+    clear_effects: bool = True
+    include_audio: bool = True
+
+
+@app.post("/api/clip/bake")
+def bake_clip_api(body: BakeClipBody) -> dict[str, Any]:
+    """Render-and-replace: bake clip effects into new media."""
+    ed = _ed()
+    try:
+        r = ed.bake_clip(
+            body.clip_id,
+            replace=body.replace,
+            clear_effects=body.clear_effects,
+            include_audio=body.include_audio,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"bake_clip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/project/health")
+def project_health_api() -> dict[str, Any]:
+    """Read-only project health: preflight + gaps + unused + path-C."""
+    return _ed().project_health_report()
+
+
 @app.post("/api/clip/reset_transform")
 def clip_reset_transform(body: ResetTransformBody) -> dict[str, Any]:
     ed = _ed()

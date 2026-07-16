@@ -2478,6 +2478,28 @@ def export_clip_media(
 
 
 @mcp.tool()
+def bake_clip(
+    clip_id: str,
+    replace: bool = True,
+    clear_effects: bool = True,
+    include_audio: bool = True,
+) -> dict:
+    """Render-and-replace: bake clip effects into new media."""
+    return _require_editor().bake_clip(
+        clip_id,
+        replace=replace,
+        clear_effects=clear_effects,
+        include_audio=include_audio,
+    )
+
+
+@mcp.tool()
+def project_health_report() -> dict:
+    """Read-only health: preflight + gaps + unused + path-C + stats."""
+    return _require_editor().project_health_report()
+
+
+@mcp.tool()
 def reset_clip_transform(
     clip_id: str,
     position: bool = True,

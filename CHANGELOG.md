@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.72 — 2026-07-17
+
+### Added
+- `bake_clip` (render-and-replace FX into new media) + API/MCP/desktop **Bake**
+- `project_health_report` (preflight+gaps+unused+path-C) + **Health**
+
 ## 0.5.71 — 2026-07-17
 
 ### Added
