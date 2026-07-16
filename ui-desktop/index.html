@@ -44,6 +44,8 @@
         <button type="button" id="btn-import-edl" title="Import CMX EDL (media must be in bin)">Imp EDL</button>
         <button type="button" id="btn-import-cutlist" title="Import cutlist CSV/JSON">Imp CSV</button>
         <button type="button" id="btn-proxy" title="Ensure preview proxy">Proxy</button>
+        <button type="button" id="btn-proxy-refresh" title="Quick rebuild scrub proxy if stale">Px↻</button>
+        <button type="button" id="btn-project-state" title="Dump project state (describe)">State</button>
         <button type="button" id="btn-refresh">Refresh</button>
         <button type="button" id="btn-open-probe">HTML probe</button>
       </header>
@@ -272,6 +274,15 @@
               <button type="button" id="btn-paste-fx" class="btn-mini" title="Paste effects">Paste FX</button>
               <button type="button" id="btn-copy-attr" class="btn-mini" title="Copy attributes">Copy attr</button>
               <button type="button" id="btn-paste-attr" class="btn-mini" title="Paste attributes">Paste attr</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" class="btn-mini" data-fx="bright" title="Color brightness +0.08">+Br</button>
+              <button type="button" class="btn-mini" data-fx="contrast" title="Color contrast 1.12">+Ct</button>
+              <button type="button" class="btn-mini" data-fx="sat" title="Color saturation 1.15">+Sat</button>
+              <button type="button" class="btn-mini" data-fx="vignette" title="Vignette">Vig</button>
+              <button type="button" class="btn-mini" data-fx="blur" title="Soft blur">Blur</button>
+              <button type="button" class="btn-mini" data-fx="grain" title="Film grain">Grain</button>
+              <button type="button" class="btn-mini" data-fx="vintage" title="Curves vintage preset">Vintage</button>
             </div>
             <div id="effects-list" class="effects-list muted">No selection</div>
             <h2 class="subh">Review</h2>

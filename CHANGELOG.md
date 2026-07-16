@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.55 — 2026-07-16
+
+### Added
+- **Grade FX** row: +Br / +Ct / +Sat / Vig / Blur / Grain / Vintage via `/api/clips/effect`
+- **Px↻** quick `preview/refresh` (Shift = full rebuild)
+- **State** dumps `/api/project/state` into Review
+- Go-to TC uses core `/api/tc/parse` + `/api/tc/format` (local fallback)
+- Test: `tests/test_desktop_grade_tc_095.py`
+
 ## 0.4.54 — 2026-07-16
 
 ### Added

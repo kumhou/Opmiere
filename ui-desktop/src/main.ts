@@ -272,6 +272,37 @@ async function jumpToTimecode() {
   const cur = framesToTc(Math.round(state.t * state.fps), state.fps);
   const raw = window.prompt("Go to timecode (HH:MM:SS:FF or seconds)", cur);
   if (raw == null) return;
+  // Prefer core /api/tc/parse for project fps parity; local fallback offline.
+  try {
+    const r = await postJson<{
+      frame?: number;
+      fps?: number;
+      seconds?: number;
+      tc?: string;
+    }>("/api/tc/parse", { tc: raw.trim() });
+    const fps = Number(r.fps) || state.fps;
+    const sec =
+      typeof r.seconds === "number"
+        ? r.seconds
+        : typeof r.frame === "number"
+          ? r.frame / Math.max(1, fps)
+          : null;
+    if (sec == null || !Number.isFinite(sec)) throw new Error("no frame");
+    await seekTo(Math.max(0, sec));
+    let label = framesToTc(Math.round(state.t * state.fps), state.fps);
+    try {
+      const fmt = await postJson<{ tc?: string }>("/api/tc/format", {
+        frame: Math.round(state.t * state.fps),
+      });
+      if (fmt.tc) label = fmt.tc;
+    } catch {
+      /* local label ok */
+    }
+    $("status-msg").textContent = `Playhead → ${label}`;
+    return;
+  } catch {
+    /* fall through local */
+  }
   const sec = parseTcToSeconds(raw, state.fps);
   if (sec == null) {
     $("status-msg").textContent = `Bad timecode: ${raw}`;
@@ -4786,6 +4817,106 @@ async function workAreaFromSelection() {
   }
 }
 
+/** Quick rebuild scrub proxy when stale (post-drag snappiness). */
+async function refreshPreviewProxy(quick = true) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = quick
+    ? "Quick proxy refresh…"
+    : "Full proxy refresh…";
+  try {
+    const r = await postJson<{
+      fresh?: boolean;
+      path?: string;
+      rebuilt?: boolean;
+      cache_hit?: boolean;
+    }>("/api/preview/refresh", { quick, force: false });
+    state.proxyFresh = !!r.fresh;
+    $("status-msg").textContent = r.fresh
+      ? `Proxy ${quick ? "quick" : "full"} ready`
+      : `Proxy refresh: ${JSON.stringify(r).slice(0, 100)}`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Proxy refresh failed: ${e}`;
+  }
+}
+
+/** Dump core project.describe() into Review panel. */
+async function showProjectState() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/project/state");
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 6000);
+    }
+    const tracks = Array.isArray(r.tracks) ? r.tracks.length : "?";
+    $("status-msg").textContent = `Project state · tracks=${tracks}`;
+  } catch (e) {
+    $("status-msg").textContent = `Project state failed: ${e}`;
+  }
+}
+
+/** Append a known effect to selection via /api/clips/effect. */
+async function applyFxPreset(kind: string) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for grade FX";
+    return;
+  }
+  const effects: Record<string, Record<string, unknown>> = {
+    bright: {
+      type: "color",
+      brightness: 0.08,
+      contrast: 1.0,
+      saturation: 1.0,
+    },
+    contrast: {
+      type: "color",
+      brightness: 0.0,
+      contrast: 1.12,
+      saturation: 1.0,
+    },
+    sat: {
+      type: "color",
+      brightness: 0.0,
+      contrast: 1.0,
+      saturation: 1.15,
+    },
+    vignette: { type: "vignette", strength: 0.55 },
+    blur: { type: "blur", amount: 2.5 },
+    grain: { type: "film_grain", amount: 18 },
+    vintage: { type: "curves", preset: "vintage" },
+  };
+  const effect = effects[kind];
+  if (!effect) {
+    $("status-msg").textContent = `Unknown FX preset: ${kind}`;
+    return;
+  }
+  $("status-msg").textContent = `FX ${kind} ×${ids.length}…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/clips/effect",
+      { clip_ids: ids, effect },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    void refreshEffectsList();
+    $("status-msg").textContent = `FX ${kind} on ${ids.length} clip(s)`;
+    void seekTo(state.t);
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `FX ${kind} failed: ${e}`;
+  }
+}
+
 async function ensureProxy() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -6955,6 +7086,22 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-proxy").addEventListener("click", () => {
     void ensureProxy();
+  });
+  $("btn-proxy-refresh").addEventListener("click", (ev) => {
+    const full = (ev as MouseEvent).shiftKey;
+    void refreshPreviewProxy(!full);
+  });
+  $("btn-project-state").addEventListener("click", () => {
+    void showProjectState();
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const kind = b.dataset.fx || "";
+      if (kind) {
+        stopPlay();
+        void applyFxPreset(kind);
+      }
+    });
   });
   $("btn-link").addEventListener("click", () => {
     void linkSelection();
