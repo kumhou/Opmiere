@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.95 — 2026-07-17
+
+### Added
+- Desktop **SelShare** — select all clips on same media_id
+
 ## 0.4.94 — 2026-07-17
 
 ### Added
