@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.73 — 2026-07-16
+
+### Added
+- Desktop **ClrMatch** — grade selection toward first selected clip
+
 ## 0.4.72 — 2026-07-16
 
 ### Added
