@@ -6395,6 +6395,88 @@ class Editor:
                 "clips": out,
             }
 
+    def snap_clips_to_markers(
+        self,
+        clip_ids: list[str],
+        *,
+        edge: str = "start",
+        max_delta_frames: int | None = None,
+        prefer: str = "nearest",
+    ) -> dict[str, Any]:
+        """Snap clip start/end to nearest timeline marker. One undo.
+
+        edge: start | end
+        prefer: nearest | prev | next (direction relative to current edge frame)
+        max_delta_frames: ignore markers farther than this (None = unlimited)
+        Typical music workflow: markers_from_beats → snap_clips_to_markers.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if edge not in ("start", "end"):
+            raise ValueError("edge must be start|end")
+        if prefer not in ("nearest", "prev", "next"):
+            raise ValueError("prefer must be nearest|prev|next")
+        marks = sorted({int(m.frame) for m in self.project.markers})
+        if not marks:
+            raise ValueError("no markers on timeline — add markers or markers_from_beats first")
+
+        def _pick(frame: int) -> int | None:
+            candidates = marks
+            if prefer == "prev":
+                candidates = [f for f in marks if f <= frame]
+                if not candidates:
+                    return None
+                target = candidates[-1]
+            elif prefer == "next":
+                candidates = [f for f in marks if f >= frame]
+                if not candidates:
+                    return None
+                target = candidates[0]
+            else:
+                target = min(marks, key=lambda f: abs(f - frame))
+            if max_delta_frames is not None and abs(target - frame) > int(max_delta_frames):
+                return None
+            return target
+
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                old = clip.start
+                if edge == "start":
+                    ref = clip.start
+                    tgt = _pick(ref)
+                    if tgt is None:
+                        skipped.append({"clip_id": cid, "reason": "no marker in range"})
+                        continue
+                    clip.start = max(0, int(tgt))
+                else:
+                    ref = clip.end
+                    tgt = _pick(ref)
+                    if tgt is None:
+                        skipped.append({"clip_id": cid, "reason": "no marker in range"})
+                        continue
+                    clip.start = max(0, int(tgt) - clip.timeline_duration_frames)
+                if clip.transition_in is not None and clip.start != old:
+                    clip.transition_in = None
+                out.append({
+                    "clip_id": cid,
+                    "marker_frame": tgt,
+                    "start": {"from": old, "to": clip.start},
+                })
+            return {
+                "edge": edge,
+                "prefer": prefer,
+                "max_delta_frames": max_delta_frames,
+                "marker_count": len(marks),
+                "count": len(out),
+                "clips": out,
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+            }
+
     def export_audio(
         self,
         output_path: str | Path,

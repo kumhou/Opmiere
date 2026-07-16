@@ -2437,6 +2437,29 @@ def quantize_api(body: QuantizeBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SnapToMarkersBody(BaseModel):
+    clip_ids: list[str]
+    edge: str = "start"
+    max_delta_frames: int | None = None
+    prefer: str = "nearest"
+
+
+@app.post("/api/clips/snap_to_markers")
+def snap_to_markers_api(body: SnapToMarkersBody) -> dict[str, Any]:
+    """Snap clip starts/ends to nearest timeline markers."""
+    ed = _ed()
+    try:
+        r = ed.snap_clips_to_markers(
+            body.clip_ids,
+            edge=body.edge,
+            max_delta_frames=body.max_delta_frames,
+            prefer=body.prefer,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"snap_to_markers failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/import/cutlist")
 def import_cutlist_api(body: ImportCutlistBody) -> dict[str, Any]:
     ed = _ed()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.47 — 2026-07-17
+
+### Added
+- `snap_clips_to_markers` + `POST /api/clips/snap_to_markers` + MCP + desktop **SnapM**
+- Music cut path: markers_from_beats → snap selection to beat markers
 ## 0.5.46 — 2026-07-17
 
 ### Added
@@ -1383,6 +1388,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

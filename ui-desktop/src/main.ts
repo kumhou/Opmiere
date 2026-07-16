@@ -2861,6 +2861,34 @@ async function snapSelection(to: "prev_end" | "next_start" | "zero" = "prev_end"
   }
 }
 
+async function snapSelectionToMarkers() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to snap to markers";
+    return;
+  }
+  $("status-msg").textContent = `Snap ${ids.length} → markers…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+    }>("/api/clips/snap_to_markers", {
+      clip_ids: ids,
+      edge: "start",
+      prefer: "nearest",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent =
+      `Snapped ${r.count ?? 0} to markers` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Snap to markers failed: ${e}`;
+  }
+}
+
 async function quantizeSelection(grid = 10) {
   const ids = selectionList();
   if (!ids.length) {
@@ -9312,6 +9340,12 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-quantize").addEventListener("click", () => {
     void quantizeSelection(10);
   });
+  const btnSnapM = document.getElementById("btn-snap-mkr");
+  if (btnSnapM) {
+    btnSnapM.addEventListener("click", () => {
+      void snapSelectionToMarkers();
+    });
+  }
   $("btn-align-ph").addEventListener("click", () => {
     void alignSelectionToPlayhead();
   });

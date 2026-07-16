@@ -1300,6 +1300,26 @@ def quantize_clips(
 
 
 @mcp.tool()
+def snap_clips_to_markers(
+    clip_ids: list[str],
+    edge: str = "start",
+    max_delta_frames: int | None = None,
+    prefer: str = "nearest",
+) -> dict:
+    """Snap clip starts/ends to nearest timeline markers.
+
+    Music cut workflow: markers_from_beats → snap_clips_to_markers.
+    prefer: nearest|prev|next.
+    """
+    return _require_editor().snap_clips_to_markers(
+        clip_ids,
+        edge=edge,
+        max_delta_frames=max_delta_frames,
+        prefer=prefer,
+    )
+
+
+@mcp.tool()
 def export_audio(
     output_path: str,
     start_frame: int | None = None,
