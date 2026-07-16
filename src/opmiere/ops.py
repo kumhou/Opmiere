@@ -6866,25 +6866,45 @@ class Editor:
                 f'duration="{dur}/{fps_i}s" hasVideo="1" hasAudio="'
                 f'{"1" if media.has_audio or media.kind == "audio" else "0"}"/>'
             )
+        def _asset_clip_line(clip: Any, indent: str) -> str:
+            rid = media_to_r.get(clip.media, "r1")
+            dur = clip.timeline_duration_frames
+            offset = clip.start
+            cname = (clip.name or clip.id).replace('"', "&quot;").replace("<", "")
+            return (
+                f'{indent}<asset-clip ref="{rid}" '
+                f'offset="{offset}/{fps_i}s" '
+                f'name="{cname}" '
+                f'duration="{dur}/{fps_i}s" '
+                f'start="{clip.src_in}/{fps_i}s" '
+                f'tcFormat="NDF"/>'
+            )
+
         spine: list[str] = []
         count = 0
+        track_count = 0
         if video_tracks:
-            for clip in video_tracks[0].clips_in_order():
-                rid = media_to_r.get(clip.media, "r1")
-                dur = clip.timeline_duration_frames
-                offset = clip.start
-                src_dur = clip.duration_frames
-                cname = (clip.name or clip.id).replace('"', "&quot;").replace("<", "")
-                spine.append(
-                    f'        <asset-clip ref="{rid}" '
-                    f'offset="{offset}/{fps_i}s" '
-                    f'name="{cname}" '
-                    f'duration="{dur}/{fps_i}s" '
-                    f'start="{clip.src_in}/{fps_i}s" '
-                    f'tcFormat="NDF"/>'
-                )
+            track_count = len(video_tracks)
+            base = video_tracks[0]
+            for clip in base.clips_in_order():
+                spine.append(_asset_clip_line(clip, "        "))
                 count += 1
-                _ = src_dur
+            # Additional video tracks → secondary storyline attached to first spine item
+            # (FCPXML-friendly overlay sketch; not full multi-lane round-trip).
+            if len(video_tracks) > 1 and spine:
+                extras: list[str] = []
+                for tr in video_tracks[1:]:
+                    for clip in tr.clips_in_order():
+                        extras.append(_asset_clip_line(clip, "          "))
+                        count += 1
+                if extras:
+                    # nest inside first spine clip as connected storyline
+                    first = spine[0]
+                    if first.endswith("/>"):
+                        open_tag = first[:-2] + ">"
+                        spine[0] = "\n".join(
+                            [open_tag, "          <spine>", *extras, "          </spine>", "        </asset-clip>"]
+                        )
         body = "\n".join([
             '<?xml version="1.0" encoding="UTF-8"?>',
             "<!DOCTYPE fcpxml>",
@@ -6917,10 +6937,44 @@ class Editor:
             written = str(p.resolve())
         return {
             "count": count,
+            "video_tracks": track_count,
             "path": written,
             "body": body,
             "fps": fps,
-            "agent_note": "Minimal FCPXML 1.9 skeleton — verify in target NLE.",
+            "agent_note": (
+                "FCPXML 1.9: base track on spine; extra video tracks as nested "
+                "storyline under first clip when present. Verify in target NLE."
+            ),
+        }
+
+    def interchange_formats(self) -> dict[str, Any]:
+        """Catalog of interchange import/export surfaces for agents/desktop."""
+        return {
+            "export": [
+                {"id": "otio", "api": "POST /api/export/otio", "mcp": "export_otio_json",
+                 "ext": [".json", ".otio"], "markers": True, "multi_track": True},
+                {"id": "fcpxml", "api": "POST /api/export/fcpxml", "mcp": "export_fcpxml",
+                 "ext": [".fcpxml"], "markers": False, "multi_track": True},
+                {"id": "edl", "api": "POST /api/export/edl", "mcp": "export_edl",
+                 "ext": [".edl"], "markers": False, "multi_track": False},
+                {"id": "cutlist", "api": "POST /api/export/cutlist", "mcp": "export_cutlist",
+                 "ext": [".csv", ".json"], "markers": False, "multi_track": False},
+                {"id": "markers", "api": "POST /api/markers/export", "mcp": "export_markers",
+                 "ext": [".txt", ".csv", ".json"], "formats": ["youtube", "csv", "json"]},
+            ],
+            "import": [
+                {"id": "otio", "api": "POST /api/import/otio", "mcp": "import_otio_json",
+                 "ext": [".json", ".otio"], "markers": True, "media_auto_import": True},
+                {"id": "fcpxml", "api": "POST /api/import/fcpxml", "mcp": "import_fcpxml",
+                 "ext": [".fcpxml", ".xml"], "markers": False, "media_auto_import": True},
+                {"id": "edl", "api": "POST /api/import/edl", "mcp": "import_edl",
+                 "ext": [".edl", ".txt"], "markers": False, "media_auto_import": False},
+                {"id": "cutlist", "api": "POST /api/import/cutlist", "mcp": "import_cutlist",
+                 "ext": [".csv", ".json"], "markers": False, "media_auto_import": False},
+                {"id": "markers", "api": "POST /api/markers/import", "mcp": "import_markers",
+                 "ext": [".txt", ".csv", ".json"], "formats": ["youtube", "csv"]},
+            ],
+            "agent_note": "Prefer OTIO for multi-track + markers; FCPXML for NLE handoff.",
         }
 
     def import_fcpxml(

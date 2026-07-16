@@ -1449,6 +1449,12 @@ def set_marker_color_batch(
 
 
 @mcp.tool()
+def interchange_formats() -> dict:
+    """Catalog of import/export interchange surfaces (OTIO/FCPXML/EDL/…)."""
+    return _require_editor().interchange_formats()
+
+
+@mcp.tool()
 def export_fcpxml(path: str | None = None, title: str | None = None) -> dict:
     """Minimal FCPXML 1.9 of base video track."""
     return _require_editor().export_fcpxml(path, title=title)

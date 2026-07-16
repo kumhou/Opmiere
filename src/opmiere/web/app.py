@@ -3290,6 +3290,12 @@ def detect_scenes_api(body: DetectScenesBody) -> dict[str, Any]:
         raise HTTPException(400, f"detect_scenes failed: {e}") from e
 
 
+@app.get("/api/interchange")
+def interchange_catalog() -> dict[str, Any]:
+    """Import/export format catalog for agents and desktop Pro panel."""
+    return _ed().interchange_formats()
+
+
 @app.post("/api/export/fcpxml")
 def export_fcpxml_api(body: InterchangeExportBody | None = None) -> dict[str, Any]:
     body = body or InterchangeExportBody()

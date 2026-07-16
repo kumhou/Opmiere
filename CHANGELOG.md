@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.45 — 2026-07-17
+
+### Added
+- FCPXML multi-track: extra video tracks as nested storyline
+- `GET /api/interchange` + MCP `interchange_formats` + Pro **Xchg?**
 ## 0.5.44 — 2026-07-17
 
 ### Added
@@ -1372,6 +1377,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

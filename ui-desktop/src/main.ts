@@ -5638,6 +5638,18 @@ async function importOtioFile() {
   }
 }
 
+async function interchangeCatalogUi() {
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/interchange");
+    setProOut(JSON.stringify(r, null, 2));
+    const exp = Array.isArray(r.export) ? r.export.length : "?";
+    const imp = Array.isArray(r.import) ? r.import.length : "?";
+    $("status-msg").textContent = `Interchange · export ${exp} · import ${imp}`;
+  } catch (e) {
+    $("status-msg").textContent = `Interchange catalog failed: ${e}`;
+  }
+}
+
 async function exportStillUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9115,6 +9127,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-import-fcpxml", () => void importFcpxmlFile());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
+  proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());
   proBind("btn-del-trk", () => void deleteTrackOfSelection());
