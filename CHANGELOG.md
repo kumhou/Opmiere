@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.56 — 2026-07-17
+
+### Added
+- `selection_agent_preflight` / `export_selection_manifest_default` + **AgentSel?** / **ManifDef**
+
 ## 0.6.55 — 2026-07-17
 
 ### Added

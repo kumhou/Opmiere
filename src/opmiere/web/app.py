@@ -9438,6 +9438,52 @@ def export_selection_otio_default_api(
         ) from e
 
 
+class SelectionAgentPreflightBody(BaseModel):
+    clip_ids: list[str]
+    set_work_area: bool = False
+    min_clip_seconds: float = 0.4
+
+
+@app.post("/api/edit/selection_agent_preflight")
+def selection_agent_preflight_api(
+    body: SelectionAgentPreflightBody,
+) -> dict[str, Any]:
+    """Agent preflight for selection (read-only by default)."""
+    ed = _ed()
+    try:
+        return ed.selection_agent_preflight(
+            body.clip_ids,
+            set_work_area=body.set_work_area,
+            min_clip_seconds=body.min_clip_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_agent_preflight failed: {e}",
+        ) from e
+
+
+class ExportSelectionManifestDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_manifest.json"
+
+
+@app.post("/api/edit/export_selection_manifest_default")
+def export_selection_manifest_default_api(
+    body: ExportSelectionManifestDefaultBody,
+) -> dict[str, Any]:
+    """Write selection agent manifest under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_manifest_default(
+            body.clip_ids,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_manifest_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

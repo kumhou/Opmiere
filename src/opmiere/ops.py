@@ -9605,6 +9605,109 @@ class Editor:
         out = out_dir / (filename or "selection.otio.json")
         return self.export_selection_otio_json(clip_ids, path=out, title=title)
 
+    def selection_agent_preflight(
+        self,
+        clip_ids: list[str],
+        *,
+        set_work_area: bool = False,
+        min_clip_seconds: float = 0.4,
+    ) -> dict[str, Any]:
+        """Agent entry before selection edit/export.
+
+        Read-only by default (set_work_area=False). Aggregates export preflight,
+        review, path-C floor, and ordered next_steps.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        pre = self.selection_export_preflight(
+            ids, set_work_area=bool(set_work_area),
+        )
+        review = self.review_selection(
+            ids, min_clip_seconds=float(min_clip_seconds),
+        )
+        path_c = self.selection_path_c_report(ids)
+        offline = self.selection_offline_media(ids)
+        locked = self.selection_locked_tracks(ids)
+        next_steps: list[str] = []
+        offline_n = int(
+            offline.get("offline_count")
+            if offline.get("offline_count") is not None
+            else pre.get("offline_count")
+            or 0
+        )
+        locked_n = int(
+            locked.get("locked_count")
+            if locked.get("locked_count") is not None
+            else (
+                len(locked.get("locked") or [])
+                if locked.get("locked") is not None
+                else pre.get("locked_count") or 0
+            )
+        )
+        if offline_n > 0:
+            next_steps.append(
+                "relink offline media (selection_offline_media / relink_offline_media)"
+            )
+        if locked_n > 0:
+            next_steps.append("unlock_selection_tracks before mutate/export")
+        if int(pre.get("overlap_count") or 0) > 0:
+            next_steps.append("resolve track overlaps (pack_selection / trim)")
+        if int(pre.get("gap_count") or 0) > 0:
+            next_steps.append(
+                "optional: pack_selection or fill_selection_gaps for contiguous export"
+            )
+        if int(review.get("issue_count") or 0) > 0 or (
+            isinstance(review.get("issues"), list) and review["issues"]
+        ):
+            next_steps.append("review_selection issues (short clips / craft notes)")
+        if not path_c.get("path_c_ready"):
+            next_steps.append(
+                "path-C soft: selection_path_c_report not ready; ffmpeg export still ok"
+            )
+        soft = bool(pre.get("soft_ready"))
+        if soft and not next_steps:
+            next_steps.append(
+                "ready: finish_selection_delivery(clip_ids) or export_selection_mp4_default"
+            )
+        ready = soft and offline_n == 0
+        return {
+            "ready": ready,
+            "soft_ready": soft,
+            "path_c_ready": bool(path_c.get("path_c_ready")),
+            "adapter_version": int(path_c.get("adapter_version") or 0),
+            "clip_count": len(ids),
+            "span": pre.get("span"),
+            "preflight": pre,
+            "review": review,
+            "offline": offline,
+            "locked": locked,
+            "path_c": {
+                "path_c_ready": path_c.get("path_c_ready"),
+                "not_ready_count": path_c.get("not_ready_count"),
+                "adapter_version": path_c.get("adapter_version"),
+            },
+            "next_steps": next_steps,
+            "agent_note": (
+                "ready=soft_ready+online. Default read-only. "
+                "Finish with finish_selection_delivery."
+            ),
+        }
+
+    def export_selection_manifest_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_manifest.json",
+    ) -> dict[str, Any]:
+        """export_selection_manifest into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_manifest.json")
+        return self.export_selection_manifest(clip_ids, path=out)
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

@@ -12307,6 +12307,56 @@ async function exportSelectionOtioDefaultUi() {
   }
 }
 
+async function selectionAgentPreflightUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for agent preflight";
+    return;
+  }
+  $("status-msg").textContent = "Selection agent preflight…";
+  try {
+    const r = await postJson<{
+      ready?: boolean;
+      soft_ready?: boolean;
+      path_c_ready?: boolean;
+      next_steps?: string[];
+    }>("/api/edit/selection_agent_preflight", {
+      clip_ids: ids,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AgentSel? · ready=${r.ready ?? "?"} soft=${r.soft_ready ?? "?"} pathC=${r.path_c_ready ?? "?"}`;
+  } catch (e) {
+    setProOut(`AgentSel? failed: ${e}`);
+    $("status-msg").textContent = `AgentSel? failed: ${e}`;
+  }
+}
+
+async function exportSelectionManifestDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for manifest export";
+    return;
+  }
+  $("status-msg").textContent = "Writing selection manifest…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_manifest_default", {
+      clip_ids: ids,
+      filename: "selection_manifest.json",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ManifDef · clips=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ManifDef failed: ${e}`);
+    $("status-msg").textContent = `ManifDef failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16320,6 +16370,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pathc-json-sel", () => void exportSelectionPathCPlanDefaultUi());
   proBind("btn-finish-sel", () => void finishSelectionDeliveryUi());
   proBind("btn-otio-sel", () => void exportSelectionOtioDefaultUi());
+  proBind("btn-agent-pre-sel", () => void selectionAgentPreflightUi());
+  proBind("btn-manif-def-sel", () => void exportSelectionManifestDefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

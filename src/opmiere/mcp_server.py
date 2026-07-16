@@ -5573,6 +5573,32 @@ def export_selection_otio_default(
 
 
 @mcp.tool()
+def selection_agent_preflight(
+    clip_ids: list[str],
+    set_work_area: bool = False,
+    min_clip_seconds: float = 0.4,
+) -> dict:
+    """Agent preflight for selection before edit/export (read-only default)."""
+    return _require_editor().selection_agent_preflight(
+        clip_ids,
+        set_work_area=set_work_area,
+        min_clip_seconds=min_clip_seconds,
+    )
+
+
+@mcp.tool()
+def export_selection_manifest_default(
+    clip_ids: list[str],
+    filename: str = "selection_manifest.json",
+) -> dict:
+    """Write selection agent manifest JSON under project exports/."""
+    return _require_editor().export_selection_manifest_default(
+        clip_ids,
+        filename=filename,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
