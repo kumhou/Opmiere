@@ -2547,6 +2547,64 @@ def markers_from_blackdetect(
 
 
 @mcp.tool()
+def markers_from_silencedetect(
+    media_id: str | None = None,
+    path: str | None = None,
+    clip_id: str | None = None,
+    noise_db: float = -30.0,
+    min_duration: float = 0.25,
+    mark: str = "start",
+    prefix: str = "Silence ",
+    clear_existing: bool = False,
+    color: str = "#5c7cfa",
+    max_markers: int = 80,
+) -> dict:
+    """ffmpeg silencedetect → markers at silence start/end."""
+    return _require_editor().markers_from_silencedetect(
+        media_id,
+        path=path,
+        clip_id=clip_id,
+        noise_db=noise_db,
+        min_duration=min_duration,
+        mark=mark,
+        prefix=prefix,
+        clear_existing=clear_existing,
+        color=color,
+        max_markers=max_markers,
+    )
+
+
+@mcp.tool()
+def split_at_silences(
+    clip_id: str,
+    noise_db: float = -30.0,
+    min_duration: float = 0.25,
+    max_splits: int = 40,
+    mark: str = "start",
+) -> dict:
+    """Razor a clip at silence starts or ends."""
+    return _require_editor().split_at_silences(
+        clip_id,
+        noise_db=noise_db,
+        min_duration=min_duration,
+        max_splits=max_splits,
+        mark=mark,
+    )
+
+
+@mcp.tool()
+def set_project_fps(fps: float) -> dict:
+    """Change project timebase fps (frame counts kept)."""
+    return _require_editor().set_project_fps(fps)
+
+
+@mcp.tool()
+def apply_gain_to_track(track_id: str, db: float) -> dict:
+    """Set gain dB on every clip of a track."""
+    return _require_editor().apply_gain_to_track(track_id, db)
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

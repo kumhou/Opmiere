@@ -4306,6 +4306,97 @@ def markers_from_blackdetect_api(body: BlackdetectBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SilencedetectBody(BaseModel):
+    media_id: str | None = None
+    path: str | None = None
+    clip_id: str | None = None
+    noise_db: float = -30.0
+    min_duration: float = 0.25
+    mark: str = "start"
+    prefix: str = "Silence "
+    clear_existing: bool = False
+    color: str = "#5c7cfa"
+    max_markers: int = 80
+
+
+@app.post("/api/markers/from_silencedetect")
+def markers_from_silencedetect_api(body: SilencedetectBody) -> dict[str, Any]:
+    """Detect silence; mark starts/ends."""
+    ed = _ed()
+    try:
+        r = ed.markers_from_silencedetect(
+            body.media_id,
+            path=body.path,
+            clip_id=body.clip_id,
+            noise_db=body.noise_db,
+            min_duration=body.min_duration,
+            mark=body.mark,
+            prefix=body.prefix,
+            clear_existing=body.clear_existing,
+            color=body.color,
+            max_markers=body.max_markers,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"silencedetect failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SplitAtSilencesBody(BaseModel):
+    clip_id: str
+    noise_db: float = -30.0
+    min_duration: float = 0.25
+    max_splits: int = 40
+    mark: str = "start"
+
+
+@app.post("/api/edit/split_at_silences")
+def split_at_silences_api(body: SplitAtSilencesBody) -> dict[str, Any]:
+    """Razor clip at silence edges."""
+    ed = _ed()
+    try:
+        r = ed.split_at_silences(
+            body.clip_id,
+            noise_db=body.noise_db,
+            min_duration=body.min_duration,
+            max_splits=body.max_splits,
+            mark=body.mark,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"split_at_silences failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ProjectFpsBody(BaseModel):
+    fps: float
+
+
+@app.post("/api/project/fps")
+def project_fps_api(body: ProjectFpsBody) -> dict[str, Any]:
+    """Change project timebase fps."""
+    ed = _ed()
+    try:
+        r = ed.set_project_fps(body.fps)
+    except Exception as e:
+        raise HTTPException(400, f"set_project_fps failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class GainTrackBody(BaseModel):
+    track_id: str
+    db: float
+
+
+@app.post("/api/track/gain")
+def track_gain_api(body: GainTrackBody) -> dict[str, Any]:
+    """Set gain on every clip of a track."""
+    ed = _ed()
+    try:
+        r = ed.apply_gain_to_track(body.track_id, body.db)
+    except Exception as e:
+        raise HTTPException(400, f"track_gain failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

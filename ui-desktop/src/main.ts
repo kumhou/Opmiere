@@ -3078,6 +3078,94 @@ async function setResolutionUi(w: number, h: number) {
   }
 }
 
+async function silencedetectUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for silencedetect";
+    return;
+  }
+  $("status-msg").textContent = "Silencedetect…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      detected?: number;
+    }>("/api/markers/from_silencedetect", {
+      clip_id: ids[0],
+      noise_db: -30,
+      min_duration: 0.2,
+      mark: "start",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Sil? · ${r.count ?? 0} mkr · det ${r.detected ?? "?"}`;
+  } catch (e) {
+    setProOut(`Sil? failed: ${e}`);
+    $("status-msg").textContent = `Sil? failed: ${e}`;
+  }
+}
+
+async function splitAtSilencesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to razor at silence";
+    return;
+  }
+  $("status-msg").textContent = "Razor at silences…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/split_at_silences", {
+      clip_id: ids[0],
+      noise_db: -30,
+      min_duration: 0.2,
+      mark: "start",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RzrSil · ${r.count ?? 0} splits`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RzrSil failed: ${e}`);
+    $("status-msg").textContent = `RzrSil failed: ${e}`;
+  }
+}
+
+async function gainTrackUi(db: number) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("audio") || trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No track";
+    return;
+  }
+  $("status-msg").textContent = `Track gain ${db} dB…`;
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/track/gain",
+      { track_id: trackId, db },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Gain · ${db} dB ×${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Gain failed: ${e}`);
+    $("status-msg").textContent = `Gain failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11498,6 +11586,27 @@ window.addEventListener("DOMContentLoaded", () => {
     btnResVert.addEventListener("click", () => {
       stopPlay();
       void setResolutionUi(1080, 1920);
+    });
+  }
+  const btnSilence = document.getElementById("btn-silence");
+  if (btnSilence) {
+    btnSilence.addEventListener("click", () => {
+      stopPlay();
+      void silencedetectUi();
+    });
+  }
+  const btnSplitSil = document.getElementById("btn-split-sil");
+  if (btnSplitSil) {
+    btnSplitSil.addEventListener("click", () => {
+      stopPlay();
+      void splitAtSilencesUi();
+    });
+  }
+  const btnGainTrk = document.getElementById("btn-gain-trk");
+  if (btnGainTrk) {
+    btnGainTrk.addEventListener("click", () => {
+      stopPlay();
+      void gainTrackUi(-3);
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

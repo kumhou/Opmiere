@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.86 — 2026-07-17
+
+### Added
+- `markers_from_silencedetect` / `split_at_silences` + **Sil?** / **RzrSil**
+- `set_project_fps` + `apply_gain_to_track` + **Gain−3**
+
 ## 0.5.85 — 2026-07-17
 
 ### Added

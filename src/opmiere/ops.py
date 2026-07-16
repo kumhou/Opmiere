@@ -9899,6 +9899,217 @@ class Editor:
                 ),
             }
 
+    def markers_from_silencedetect(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        clip_id: str | None = None,
+        noise_db: float = -30.0,
+        min_duration: float = 0.25,
+        mark: str = "start",
+        prefix: str = "Silence ",
+        clear_existing: bool = False,
+        color: str = "#5c7cfa",
+        max_markers: int = 80,
+    ) -> dict[str, Any]:
+        """Detect silence via ffmpeg silencedetect; mark start and/or end.
+
+        mark: start | end | both. Timeline mapping same as blackdetect
+        (clip_id offsets by clip.start - clip.src_in).
+        """
+        import re
+        import subprocess
+
+        if mark not in ("start", "end", "both"):
+            raise ValueError("mark must be start|end|both")
+        offset = 0
+        src: Path | None = None
+        if clip_id is not None:
+            clip = self._find_clip(clip_id)
+            media = self.project.media_by_id(clip.media)
+            src = self.bundle.media_path(media.path)
+            offset = int(clip.start - clip.src_in)
+            media_id = media.id
+        elif media_id is not None:
+            media = self.project.media_by_id(media_id)
+            src = self.bundle.media_path(media.path)
+        elif path is not None:
+            src = Path(path)
+        else:
+            raise ValueError("pass media_id, path, or clip_id")
+        if src is None or not src.exists():
+            raise FileNotFoundError(f"media not found: {src}")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        noise = float(noise_db)
+        # silencedetect expects e.g. -30dB
+        noise_s = f"{noise}dB" if not str(noise).endswith("dB") else str(noise)
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-hide_banner",
+                "-i", str(src),
+                "-af", f"silencedetect=noise={noise_s}:d={float(min_duration)}",
+                "-vn", "-f", "null", "-",
+            ],
+            capture_output=True, text=True,
+        )
+        text = proc.stderr or ""
+        events: list[tuple[str, float]] = []
+        for m in re.finditer(r"silence_start:\s*([0-9.]+)", text):
+            if mark in ("start", "both"):
+                events.append(("start", float(m.group(1))))
+        for m in re.finditer(r"silence_end:\s*([0-9.]+)", text):
+            if mark in ("end", "both"):
+                events.append(("end", float(m.group(1))))
+        events.sort(key=lambda x: x[1])
+        events = events[: max(1, int(max_markers))]
+
+        with self._mutate():
+            if clear_existing:
+                self.project.markers.clear()
+            existing = {int(m.frame) for m in self.project.markers}
+            added: list[dict[str, Any]] = []
+            for i, (kind, t) in enumerate(events):
+                fr = max(0, int(round(t * fps)) + offset)
+                if fr in existing:
+                    continue
+                lab = f"{prefix}{i + 1}-{kind}"
+                mk = self.project.add_marker(fr, label=lab, color=color)
+                existing.add(fr)
+                added.append({**mk.to_dict(), "silence_sec": t, "edge": kind})
+            return {
+                "count": len(added),
+                "markers": added,
+                "detected": len(events),
+                "media_id": media_id,
+                "path": str(src),
+                "offset_frames": offset,
+                "noise_db": noise,
+                "mark": mark,
+                "agent_note": (
+                    "Silencedetect → markers for dialogue trim. "
+                    "Next: split_at_markers or apply_silence_to_clip."
+                ),
+            }
+
+    def split_at_silences(
+        self,
+        clip_id: str,
+        *,
+        noise_db: float = -30.0,
+        min_duration: float = 0.25,
+        max_splits: int = 40,
+        mark: str = "start",
+    ) -> dict[str, Any]:
+        """Razor a clip at silence starts (or ends). One undo.
+
+        Uses silencedetect on the clip's media; frames mapped with
+        clip.start - clip.src_in offset.
+        """
+        import re
+        import subprocess
+
+        if mark not in ("start", "end"):
+            raise ValueError("mark must be start|end for split")
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip.media)
+        src = self.bundle.media_path(media.path)
+        if not src.exists():
+            raise FileNotFoundError(f"offline media: {media.path}")
+        fps = float(self.project.timebase.fps or 30.0)
+        offset = int(clip.start - clip.src_in)
+        noise_s = f"{float(noise_db)}dB"
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-hide_banner",
+                "-i", str(src),
+                "-af", f"silencedetect=noise={noise_s}:d={float(min_duration)}",
+                "-vn", "-f", "null", "-",
+            ],
+            capture_output=True, text=True,
+        )
+        text = proc.stderr or ""
+        key = "silence_start" if mark == "start" else "silence_end"
+        times = [
+            float(m.group(1))
+            for m in re.finditer(rf"{key}:\s*([0-9.]+)", text)
+        ][: max(1, int(max_splits))]
+        frames = sorted({
+            max(0, int(round(t * fps)) + offset)
+            for t in times
+            if clip.start < (int(round(t * fps)) + offset) < clip.end
+        })
+        if not frames:
+            return {
+                "clip_id": clip_id,
+                "splits": [],
+                "count": 0,
+                "agent_note": "No silence edges inside clip range.",
+            }
+        with self._mutate():
+            splits: list[dict[str, Any]] = []
+            # split from right to left so earlier frames stay valid
+            for fr in reversed(frames):
+                # find whichever piece contains fr after prior splits
+                target = None
+                for c in track.clips:
+                    if c.start < fr < c.end:
+                        target = c.id
+                        break
+                if target is None:
+                    continue
+                left, right = self._split_clip_unlocked(target, fr)
+                splits.append({
+                    "at": fr,
+                    "left_id": left.id,
+                    "right_id": right.id,
+                })
+            splits.reverse()
+            return {
+                "clip_id": clip_id,
+                "splits": splits,
+                "count": len(splits),
+                "frames": frames,
+                "mark": mark,
+                "agent_note": "Razor at silence. Ripple-delete silence pieces next.",
+            }
+
+    def set_project_fps(self, fps: float) -> dict[str, Any]:
+        """Change project timebase fps (frame counts unchanged; wall-clock shifts).
+
+        Does not retime media. Prefer set before heavy assembly. One undo.
+        """
+        if not isinstance(fps, (int, float)) or not (1.0 <= float(fps) <= 120.0):
+            raise ValueError("fps must be in [1, 120]")
+        with self._mutate():
+            old = float(self.project.timebase.fps or 30.0)
+            self.project.timebase.fps = float(fps)
+            return {
+                "from": old,
+                "to": float(fps),
+                "agent_note": (
+                    "FPS changed; clip frame numbers kept. Duration in seconds changes. "
+                    "Re-export proxies."
+                ),
+            }
+
+    def apply_gain_to_track(
+        self,
+        track_id: str,
+        db: float,
+    ) -> dict[str, Any]:
+        """Set gain dB on every clip of a track (one undo)."""
+        tr = self.project.track_by_id(track_id)
+        ids = [c.id for c in tr.clips_in_order()]
+        if not ids:
+            return {"track_id": track_id, "count": 0, "gain_db": float(db)}
+        r = self.set_clips_gain(ids, db)
+        r["track_id"] = track_id
+        r["agent_note"] = "Track gain via clip gain effects; use ducking for VO/music."
+        return r
+
     def set_clips_color_cycle(
         self,
         clip_ids: list[str] | None = None,
