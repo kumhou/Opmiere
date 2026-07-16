@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.80 — 2026-07-16
+
+### Added
+- Desktop **Lnk±** offset_linked audio peers; **Asset** analyze_asset card
+- Milestone **0.4.80**: craft/mix/delivery dual-surface complete
+
 ## 0.4.79 — 2026-07-16
 
 ### Added
