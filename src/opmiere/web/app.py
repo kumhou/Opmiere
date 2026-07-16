@@ -6474,6 +6474,72 @@ def freeze_clip_mid_api(body: FreezeClipMidBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportClipsPackBody(BaseModel):
+    clip_ids: list[str]
+    output_dir: str | None = None
+    prefix: str = "clip"
+
+
+@app.post("/api/export/clips_pack")
+def export_clips_pack_api(body: ExportClipsPackBody) -> dict[str, Any]:
+    """Export each clip as MP4 into a folder."""
+    ed = _ed()
+    out = body.output_dir or str(_desktop_export_dir() / "clips_pack")
+    try:
+        return ed.export_clips_pack(
+            body.clip_ids, out, prefix=body.prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clips_pack failed: {e}") from e
+
+
+class SlateBody(BaseModel):
+    title: str = "SLATE"
+    subtitle: str | None = None
+    duration_frames: int = 90
+    track_id: str | None = None
+    size: int = 64
+    ripple_all_tracks: bool = True
+    append: bool = False
+
+
+@app.post("/api/edit/slate")
+def slate_api(body: SlateBody) -> dict[str, Any]:
+    """Add production slate title card."""
+    ed = _ed()
+    try:
+        r = ed.add_slate(
+            body.title,
+            subtitle=body.subtitle,
+            duration_frames=body.duration_frames,
+            track_id=body.track_id,
+            size=body.size,
+            ripple_all_tracks=body.ripple_all_tracks,
+            append=body.append,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"slate failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CloseGapsAllBody(BaseModel):
+    from_frame: int = 0
+    kind: str | None = None
+
+
+@app.post("/api/edit/close_gaps_all")
+def close_gaps_all_api(body: CloseGapsAllBody) -> dict[str, Any]:
+    """Close gaps on all unlocked tracks."""
+    ed = _ed()
+    try:
+        r = ed.close_gaps_all_tracks(
+            from_frame=body.from_frame, kind=body.kind,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"close_gaps_all failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

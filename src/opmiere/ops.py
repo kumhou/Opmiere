@@ -5917,6 +5917,145 @@ class Editor:
         r["at_frame"] = mid
         return r
 
+    def export_clips_pack(
+        self,
+        clip_ids: list[str],
+        output_dir: str | Path,
+        *,
+        prefix: str = "clip",
+    ) -> dict[str, Any]:
+        """Export each clip span as MP4 into output_dir (social cut pack)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        items: list[dict[str, Any]] = []
+        for i, cid in enumerate(dict.fromkeys(clip_ids)):
+            clip = self._find_clip(cid)
+            name = (clip.name or cid)[:40]
+            safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
+            dest = out_dir / f"{prefix}_{i + 1:02d}_{safe}.mp4"
+            try:
+                r = self.export_clip_mp4(cid, dest)
+                items.append({
+                    "clip_id": cid,
+                    "path": r.get("path") or str(dest),
+                    "ok": True,
+                })
+            except Exception as e:
+                items.append({
+                    "clip_id": cid,
+                    "ok": False,
+                    "error": str(e)[:300],
+                })
+        ok_n = sum(1 for x in items if x.get("ok"))
+        return {
+            "count": ok_n,
+            "total": len(items),
+            "clips": items,
+            "output_dir": str(out_dir.resolve()),
+            "ok": ok_n == len(items) and ok_n > 0,
+            "agent_note": "Per-clip MP4 pack; each file is full-render+trim cost.",
+        }
+
+    def add_slate(
+        self,
+        title: str = "SLATE",
+        *,
+        subtitle: str | None = None,
+        duration_frames: int = 90,
+        track_id: str | None = None,
+        size: int = 64,
+        ripple_all_tracks: bool = True,
+        append: bool = False,
+    ) -> dict[str, Any]:
+        """Production slate title card (prepend by default, or append).
+
+        subtitle joins with newline under title when given.
+        """
+        title = (title or "SLATE").strip() or "SLATE"
+        content = title
+        if subtitle and str(subtitle).strip():
+            content = f"{title}\n{str(subtitle).strip()}"
+        dur = max(1, int(duration_frames))
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is None:
+            if not vids:
+                with self._mutate():
+                    track_id = self.project.add_track("video").id
+            else:
+                track_id = vids[0].id
+
+        if append:
+            start_f = int(self.duration_frames())
+            r = self.create_title_card(
+                content, track_id, start_f, duration_frames=dur,
+                position="center", size=int(size),
+            )
+            r["mode"] = "append"
+            r["agent_note"] = "Slate appended after sequence."
+            return r
+
+        # prepend with ripple (reuse intro card path)
+        moved_total = 0
+        if ripple_all_tracks:
+            for tr in list(self.project.tracks):
+                if tr.locked:
+                    continue
+                try:
+                    m = self.insert_time(tr.id, 0, dur)
+                    moved_total += int(m.get("count") or 0)
+                except Exception:
+                    pass
+            try:
+                if self.project.markers:
+                    self.shift_markers(dur)
+            except Exception:
+                pass
+        else:
+            try:
+                m = self.insert_time(track_id, 0, dur)
+                moved_total = int(m.get("count") or 0)
+            except Exception:
+                pass
+        r = self.create_title_card(
+            content, track_id, 0, duration_frames=dur,
+            position="center", size=int(size),
+        )
+        r["ripple_moved"] = moved_total
+        r["mode"] = "prepend"
+        r["agent_note"] = "Slate at head; content shifted when ripple on."
+        return r
+
+    def close_gaps_all_tracks(
+        self,
+        *,
+        from_frame: int = 0,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """close_gaps on every unlocked track (optional kind filter)."""
+        results: list[dict[str, Any]] = []
+        for tr in list(self.project.tracks):
+            if tr.locked:
+                continue
+            if kind is not None and tr.kind != kind:
+                continue
+            try:
+                r = self.close_gaps(tr.id, from_frame=from_frame)
+                results.append(r)
+            except Exception as e:
+                results.append({
+                    "track_id": tr.id,
+                    "ok": False,
+                    "error": str(e)[:200],
+                })
+        return {
+            "count": len(results),
+            "tracks": results,
+            "from_frame": int(from_frame),
+            "agent_note": "Per-track pack; does not align multi-track sync.",
+        }
+
     def stretch_to(
         self,
         clip_id: str,

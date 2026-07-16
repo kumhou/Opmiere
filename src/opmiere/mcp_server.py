@@ -3919,6 +3919,51 @@ def freeze_clip_mid(
 
 
 @mcp.tool()
+def export_clips_pack(
+    clip_ids: list[str],
+    output_dir: str,
+    prefix: str = "clip",
+) -> dict:
+    """Export each clip span as MP4 into output_dir."""
+    return _require_editor().export_clips_pack(
+        clip_ids, output_dir, prefix=prefix,
+    )
+
+
+@mcp.tool()
+def add_slate(
+    title: str = "SLATE",
+    subtitle: str | None = None,
+    duration_frames: int = 90,
+    track_id: str | None = None,
+    size: int = 64,
+    ripple_all_tracks: bool = True,
+    append: bool = False,
+) -> dict:
+    """Add a production slate title card (prepend by default)."""
+    return _require_editor().add_slate(
+        title,
+        subtitle=subtitle,
+        duration_frames=duration_frames,
+        track_id=track_id,
+        size=size,
+        ripple_all_tracks=ripple_all_tracks,
+        append=append,
+    )
+
+
+@mcp.tool()
+def close_gaps_all_tracks(
+    from_frame: int = 0,
+    kind: str | None = None,
+) -> dict:
+    """Close gaps on every unlocked track (optional kind=video|audio)."""
+    return _require_editor().close_gaps_all_tracks(
+        from_frame=from_frame, kind=kind,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

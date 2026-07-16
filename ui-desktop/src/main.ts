@@ -8463,6 +8463,82 @@ async function freezeClipMidUi() {
   }
 }
 
+async function exportClipsPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for Pack export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting clips pack…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clips_pack", {
+      clip_ids: ids,
+      prefix: "clip",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Pack · ${String(r.count ?? 0)}/${String(r.total ?? ids.length)}`;
+  } catch (e) {
+    setProOut(`Pack failed: ${e}`);
+    $("status-msg").textContent = `Pack failed: ${e}`;
+  }
+}
+
+async function slateUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const title = window.prompt("Slate title", "SLATE");
+  if (title == null) return;
+  const subtitle = window.prompt("Subtitle (optional)", "") ?? "";
+  $("status-msg").textContent = "Adding slate…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/edit/slate", {
+      title: title.trim() || "SLATE",
+      subtitle: subtitle.trim() || null,
+      duration_frames: 90,
+      ripple_all_tracks: true,
+      append: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Slate · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Slate failed: ${e}`);
+    $("status-msg").textContent = `Slate failed: ${e}`;
+  }
+}
+
+async function closeGapsAllUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Closing gaps on all tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/close_gaps_all", {
+      from_frame: 0,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `CloseAll · ${r.count ?? 0} tracks`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`CloseAll failed: ${e}`);
+    $("status-msg").textContent = `CloseAll failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12314,6 +12390,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-spd2", () => void speedRippleUi(2.0));
   proBind("btn-clip-still", () => void exportClipStillUi());
   proBind("btn-freeze-mid", () => void freezeClipMidUi());
+  proBind("btn-clips-pack", () => void exportClipsPackUi());
+  proBind("btn-slate", () => void slateUi());
+  proBind("btn-close-all", () => void closeGapsAllUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

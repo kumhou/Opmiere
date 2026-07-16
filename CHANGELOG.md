@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3 — 2026-07-17
+
+### Added
+- `export_clips_pack` (multi-clip MP4) + **Pack**
+- `add_slate` production card + **Slate**
+- `close_gaps_all_tracks` + **CloseAll**
+
 ## 0.6.2 — 2026-07-17
 
 ### Added
