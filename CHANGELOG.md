@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.87 — 2026-07-17
+
+### Added
+- `tighten_silences` (dialogue ripple-remove silence ranges) + API/MCP/desktop **Tighten**
+
 ## 0.5.86 — 2026-07-17
 
 ### Added

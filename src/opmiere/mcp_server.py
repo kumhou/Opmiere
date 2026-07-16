@@ -2593,6 +2593,24 @@ def split_at_silences(
 
 
 @mcp.tool()
+def tighten_silences(
+    clip_id: str,
+    noise_db: float = -30.0,
+    min_duration: float = 0.35,
+    pad_frames: int = 4,
+    max_ranges: int = 40,
+) -> dict:
+    """Ripple-remove interior silence ranges (dialogue tighten)."""
+    return _require_editor().tighten_silences(
+        clip_id,
+        noise_db=noise_db,
+        min_duration=min_duration,
+        pad_frames=pad_frames,
+        max_ranges=max_ranges,
+    )
+
+
+@mcp.tool()
 def set_project_fps(fps: float) -> dict:
     """Change project timebase fps (frame counts kept)."""
     return _require_editor().set_project_fps(fps)

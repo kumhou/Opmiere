@@ -3140,6 +3140,34 @@ async function splitAtSilencesUi() {
   }
 }
 
+async function tightenSilencesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to tighten";
+    return;
+  }
+  $("status-msg").textContent = "Tightening silences…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/tighten_silences", {
+      clip_id: ids[0],
+      noise_db: -30,
+      min_duration: 0.35,
+      pad_frames: 4,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Tighten · removed ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Tighten failed: ${e}`);
+    $("status-msg").textContent = `Tighten failed: ${e}`;
+  }
+}
+
 async function gainTrackUi(db: number) {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -11600,6 +11628,13 @@ window.addEventListener("DOMContentLoaded", () => {
     btnSplitSil.addEventListener("click", () => {
       stopPlay();
       void splitAtSilencesUi();
+    });
+  }
+  const btnTighten = document.getElementById("btn-tighten");
+  if (btnTighten) {
+    btnTighten.addEventListener("click", () => {
+      stopPlay();
+      void tightenSilencesUi();
     });
   }
   const btnGainTrk = document.getElementById("btn-gain-trk");

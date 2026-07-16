@@ -10076,6 +10076,106 @@ class Editor:
                 "agent_note": "Razor at silence. Ripple-delete silence pieces next.",
             }
 
+    def tighten_silences(
+        self,
+        clip_id: str,
+        *,
+        noise_db: float = -30.0,
+        min_duration: float = 0.35,
+        pad_frames: int = 4,
+        max_ranges: int = 40,
+    ) -> dict[str, Any]:
+        """Ripple-remove interior silence ranges on a clip's track (dialogue tighten).
+
+        Detects silence_start/end pairs, extracts each silence (minus pad) with
+        ripple on that track only. One undo. Leaves pad_frames of silence at
+        each edge when possible.
+        """
+        import re
+        import subprocess
+
+        self._assert_clip_track_unlocked(clip_id)
+        track, clip0 = self._find_clip_and_track(clip_id)
+        media = self.project.media_by_id(clip0.media)
+        src = self.bundle.media_path(media.path)
+        if not src.exists():
+            raise FileNotFoundError(f"offline media: {media.path}")
+        fps = float(self.project.timebase.fps or 30.0)
+        offset = int(clip0.start - clip0.src_in)
+        noise_s = f"{float(noise_db)}dB"
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-hide_banner",
+                "-i", str(src),
+                "-af", f"silencedetect=noise={noise_s}:d={float(min_duration)}",
+                "-vn", "-f", "null", "-",
+            ],
+            capture_output=True, text=True,
+        )
+        text = proc.stderr or ""
+        starts = [
+            float(m.group(1))
+            for m in re.finditer(r"silence_start:\s*([0-9.]+)", text)
+        ]
+        ends = [
+            float(m.group(1))
+            for m in re.finditer(r"silence_end:\s*([0-9.]+)", text)
+        ]
+        pairs: list[tuple[float, float]] = []
+        # pair by order; ffmpeg emits start then end
+        si, ei = 0, 0
+        while si < len(starts) and ei < len(ends):
+            if ends[ei] <= starts[si]:
+                ei += 1
+                continue
+            pairs.append((starts[si], ends[ei]))
+            si += 1
+            ei += 1
+        pairs = pairs[: max(1, int(max_ranges))]
+        # map to timeline frames inside original clip span
+        ranges: list[tuple[int, int]] = []
+        clip_start, clip_end = int(clip0.start), int(clip0.end)
+        pad = max(0, int(pad_frames))
+        for s, e in pairs:
+            a = max(0, int(round(s * fps)) + offset + pad)
+            b = max(0, int(round(e * fps)) + offset - pad)
+            if b <= a + 1:
+                continue
+            if b <= clip_start or a >= clip_end:
+                continue
+            a = max(a, clip_start)
+            b = min(b, clip_end)
+            if b > a + 1:
+                ranges.append((a, b))
+        if not ranges:
+            return {
+                "clip_id": clip_id,
+                "removed": [],
+                "count": 0,
+                "agent_note": "No removable silence ranges found.",
+            }
+        # extract right-to-left so earlier ranges stay valid
+        ranges.sort(key=lambda x: x[0], reverse=True)
+        with self._mutate():
+            removed: list[dict[str, Any]] = []
+            for a, b in ranges:
+                r = self._extract_time_unlocked(
+                    track.id, a, b, ripple=True,
+                )
+                removed.append({"start": a, "end": b, "extract": r})
+            removed.reverse()
+            return {
+                "clip_id": clip_id,
+                "track_id": track.id,
+                "removed": removed,
+                "count": len(removed),
+                "pad_frames": pad,
+                "noise_db": float(noise_db),
+                "agent_note": (
+                    "Silence ranges ripple-removed on track. Review cut for breaths."
+                ),
+            }
+
     def set_project_fps(self, fps: float) -> dict[str, Any]:
         """Change project timebase fps (frame counts unchanged; wall-clock shifts).
 

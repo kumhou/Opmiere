@@ -4366,6 +4366,31 @@ def split_at_silences_api(body: SplitAtSilencesBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class TightenSilencesBody(BaseModel):
+    clip_id: str
+    noise_db: float = -30.0
+    min_duration: float = 0.35
+    pad_frames: int = 4
+    max_ranges: int = 40
+
+
+@app.post("/api/edit/tighten_silences")
+def tighten_silences_api(body: TightenSilencesBody) -> dict[str, Any]:
+    """Ripple-remove interior silence ranges (dialogue tighten)."""
+    ed = _ed()
+    try:
+        r = ed.tighten_silences(
+            body.clip_id,
+            noise_db=body.noise_db,
+            min_duration=body.min_duration,
+            pad_frames=body.pad_frames,
+            max_ranges=body.max_ranges,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"tighten_silences failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ProjectFpsBody(BaseModel):
     fps: float
 
