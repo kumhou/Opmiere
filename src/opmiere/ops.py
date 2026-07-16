@@ -6664,6 +6664,81 @@ class Editor:
                 "agent_note": "Names from media stems; does not affect render.",
             }
 
+    def nudge_selection(
+        self,
+        clip_ids: list[str],
+        delta_frames: int,
+        *,
+        follow_links: bool = False,
+    ) -> dict[str, Any]:
+        """Move selection by delta_frames (alias nudge_clips, links off by default)."""
+        r = self.nudge_clips(
+            clip_ids, int(delta_frames), follow_links=follow_links,
+        )
+        r["agent_note"] = "Selection nudge; clamp starts to ≥0."
+        return r
+
+    def move_selection_to_frame(
+        self,
+        clip_ids: list[str],
+        to_frame: int,
+        *,
+        follow_links: bool = False,
+    ) -> dict[str, Any]:
+        """Rigid-move selection so earliest start becomes to_frame (move_block)."""
+        r = self.move_block(
+            clip_ids, int(to_frame), follow_links=follow_links,
+        )
+        r["agent_note"] = "Rigid block move; relative spacing kept."
+        return r
+
+    def insert_time_before_selection(
+        self,
+        clip_ids: list[str],
+        frames: int,
+    ) -> dict[str, Any]:
+        """Ripple-insert empty time before selection on each touched track.
+
+        All clips with start >= earliest selected start on that track shift right.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        gap = int(frames)
+        if gap <= 0:
+            raise ValueError("frames must be > 0")
+        by_track: dict[str, int] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            s = int(clip.start)
+            if tr.id not in by_track or s < by_track[tr.id]:
+                by_track[tr.id] = s
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            for tid, cut in by_track.items():
+                tr = self.project.track_by_id(tid)
+                if tr.locked:
+                    raise ValueError(f"track {tid} is locked")
+                for c in tr.clips_in_order():
+                    if int(c.start) >= cut:
+                        old = int(c.start)
+                        c.start = old + gap
+                        moved.append(
+                            {
+                                "clip_id": c.id,
+                                "track_id": tid,
+                                "from": old,
+                                "to": int(c.start),
+                            }
+                        )
+            return {
+                "frames": gap,
+                "tracks": list(by_track.keys()),
+                "cut_frames": by_track,
+                "count": len(moved),
+                "moved": moved,
+                "agent_note": "Insert time before selection; later clips ripple right.",
+            }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

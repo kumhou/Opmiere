@@ -8053,6 +8053,62 @@ def rename_selection_from_media_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class NudgeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    delta_frames: int
+    follow_links: bool = False
+
+
+@app.post("/api/edit/nudge_selection")
+def nudge_selection_api(body: NudgeSelectionBody) -> dict[str, Any]:
+    """Nudge selection by delta frames."""
+    ed = _ed()
+    try:
+        r = ed.nudge_selection(
+            body.clip_ids, body.delta_frames, follow_links=body.follow_links,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"nudge_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MoveSelectionToFrameBody(BaseModel):
+    clip_ids: list[str]
+    to_frame: int
+    follow_links: bool = False
+
+
+@app.post("/api/edit/move_selection_to_frame")
+def move_selection_to_frame_api(body: MoveSelectionToFrameBody) -> dict[str, Any]:
+    """Move selection block so earliest start = to_frame."""
+    ed = _ed()
+    try:
+        r = ed.move_selection_to_frame(
+            body.clip_ids, body.to_frame, follow_links=body.follow_links,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"move_selection_to_frame failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class InsertTimeBeforeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    frames: int
+
+
+@app.post("/api/edit/insert_time_before_selection")
+def insert_time_before_selection_api(
+    body: InsertTimeBeforeSelectionBody,
+) -> dict[str, Any]:
+    """Ripple-insert empty time before selection."""
+    ed = _ed()
+    try:
+        r = ed.insert_time_before_selection(body.clip_ids, body.frames)
+    except Exception as e:
+        raise HTTPException(400, f"insert_time_before_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

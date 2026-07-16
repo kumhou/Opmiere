@@ -4802,6 +4802,36 @@ def rename_selection_from_media(
 
 
 @mcp.tool()
+def nudge_selection(
+    clip_ids: list[str],
+    delta_frames: int,
+    follow_links: bool = False,
+) -> dict:
+    """Move selection by delta_frames."""
+    return _require_editor().nudge_selection(
+        clip_ids, delta_frames, follow_links=follow_links,
+    )
+
+
+@mcp.tool()
+def move_selection_to_frame(
+    clip_ids: list[str],
+    to_frame: int,
+    follow_links: bool = False,
+) -> dict:
+    """Rigid-move selection so earliest start becomes to_frame."""
+    return _require_editor().move_selection_to_frame(
+        clip_ids, to_frame, follow_links=follow_links,
+    )
+
+
+@mcp.tool()
+def insert_time_before_selection(clip_ids: list[str], frames: int) -> dict:
+    """Ripple-insert empty frames before selection on touched tracks."""
+    return _require_editor().insert_time_before_selection(clip_ids, frames)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

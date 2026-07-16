@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.30 — 2026-07-17
+
+### Added
+- `nudge_selection` / `move_selection_to_frame` / `insert_time_before_selection` + **Nudge±** / **Move@** / **InsTime**
+
 ## 0.6.29 — 2026-07-17
 
 ### Added

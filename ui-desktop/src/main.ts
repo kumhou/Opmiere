@@ -10513,6 +10513,89 @@ async function renameSelectionFromMediaUi() {
   }
 }
 
+async function nudgeSelectionUi(delta: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to nudge";
+    return;
+  }
+  $("status-msg").textContent = `Nudging ${delta}f…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/nudge_selection", {
+      clip_ids: ids,
+      delta_frames: delta,
+      follow_links: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Nudge · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Nudge failed: ${e}`);
+    $("status-msg").textContent = `Nudge failed: ${e}`;
+  }
+}
+
+async function moveSelectionToPlayheadUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to move";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Moving selection to f${ph}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/move_selection_to_frame", {
+      clip_ids: ids,
+      to_frame: ph,
+      follow_links: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Move@ · f${ph}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Move@ failed: ${e}`);
+    $("status-msg").textContent = `Move@ failed: ${e}`;
+  }
+}
+
+async function insertTimeBeforeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for insert time";
+    return;
+  }
+  $("status-msg").textContent = "Inserting time before selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      frames?: number;
+    }>("/api/edit/insert_time_before_selection", {
+      clip_ids: ids,
+      frames: 15,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `InsTime · +${r.frames ?? 15}f moved ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`InsTime failed: ${e}`);
+    $("status-msg").textContent = `InsTime failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14452,6 +14535,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-align-ends-sel", () => void alignSelectionEndsUi());
   proBind("btn-media-sel", () => void selectionMediaReportUi());
   proBind("btn-rename-media-sel", () => void renameSelectionFromMediaUi());
+  proBind("btn-nudge-sel-m", () => void nudgeSelectionUi(-5));
+  proBind("btn-nudge-sel-p", () => void nudgeSelectionUi(5));
+  proBind("btn-move-ph-sel", () => void moveSelectionToPlayheadUi());
+  proBind("btn-ins-time-sel", () => void insertTimeBeforeSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
