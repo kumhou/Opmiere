@@ -10715,6 +10715,115 @@ class Editor:
             return Path(loud_path)
         return written
 
+    def export_marker_segments(
+        self,
+        output_dir: str | Path,
+        *,
+        name_prefix: str = "seg",
+        include_tail: bool = True,
+        min_duration_frames: int = 3,
+        marker_ids: list[str] | None = None,
+        filename_from_label: bool = True,
+    ) -> dict[str, Any]:
+        """Export one MP4 per marker-to-marker range (social cuts / chapters).
+
+        Renders the full timeline once, then ffmpeg-trims each [marker_i,
+        marker_{i+1}) segment into output_dir. include_tail also exports from
+        last marker to project end.
+        """
+        import os
+        import re
+        import subprocess
+        import tempfile
+
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        marks = sorted(marks, key=lambda m: m.frame)
+        if not marks:
+            raise ValueError("no markers — add markers first")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        end_frame = max(1, int(self.duration_frames()))
+        ranges: list[dict[str, Any]] = []
+        for i, mk in enumerate(marks):
+            start_f = int(mk.frame)
+            if i + 1 < len(marks):
+                end_f = int(marks[i + 1].frame)
+            elif include_tail:
+                end_f = end_frame
+            else:
+                continue
+            if end_f - start_f < int(min_duration_frames):
+                continue
+            label = (mk.label or f"m{i+1}").strip()
+            safe = re.sub(r"[^\w\-]+", "_", label)[:40] if filename_from_label else f"{i+1:02d}"
+            ranges.append({
+                "index": i,
+                "marker_id": mk.id,
+                "label": label,
+                "start_frame": start_f,
+                "end_frame": end_f,
+                "start_seconds": start_f / fps,
+                "end_seconds": end_f / fps,
+                "filename": f"{name_prefix}_{i+1:02d}_{safe}.mp4",
+            })
+        if not ranges:
+            return {
+                "count": 0,
+                "segments": [],
+                "output_dir": str(Path(output_dir)),
+                "agent_note": "No segments met min_duration_frames.",
+            }
+
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        fd, raw = tempfile.mkstemp(prefix="opmiere_full_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        segments_out: list[dict[str, Any]] = []
+        try:
+            self.export(full, normalize_preset=None)
+            for seg in ranges:
+                dest = out_dir / seg["filename"]
+                proc = subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-ss", f"{seg['start_seconds']:.3f}",
+                        "-to", f"{seg['end_seconds']:.3f}",
+                        "-i", str(full),
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "192k",
+                        str(dest),
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                ok = proc.returncode == 0 and dest.exists() and dest.stat().st_size > 500
+                segments_out.append({
+                    **seg,
+                    "path": str(dest.resolve()) if ok else None,
+                    "ok": ok,
+                    "size": dest.stat().st_size if dest.exists() else 0,
+                    "error": None if ok else (proc.stderr or "")[-500:],
+                })
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        ok_n = sum(1 for s in segments_out if s.get("ok"))
+        return {
+            "count": ok_n,
+            "segment_count": len(segments_out),
+            "segments": segments_out,
+            "output_dir": str(out_dir.resolve()),
+            "ok": ok_n == len(segments_out) and ok_n > 0,
+            "agent_note": "One full encode + per-marker trims. Paths under output_dir.",
+        }
+
     def export_range(
         self,
         output_path: str | Path,

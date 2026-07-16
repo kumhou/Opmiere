@@ -1420,6 +1420,29 @@ def place_media_at_markers(
 
 
 @mcp.tool()
+def export_marker_segments(
+    output_dir: str,
+    name_prefix: str = "seg",
+    include_tail: bool = True,
+    min_duration_frames: int = 3,
+    marker_ids: list[str] | None = None,
+    filename_from_label: bool = True,
+) -> dict:
+    """Export one MP4 per marker-to-marker range (social chapter cuts).
+
+    One full timeline encode, then ffmpeg trim per segment into output_dir.
+    """
+    return _require_editor().export_marker_segments(
+        output_dir,
+        name_prefix=name_prefix,
+        include_tail=include_tail,
+        min_duration_frames=min_duration_frames,
+        marker_ids=marker_ids,
+        filename_from_label=filename_from_label,
+    )
+
+
+@mcp.tool()
 def quantize_clips(
     clip_ids: list[str],
     grid_frames: int,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.52 — 2026-07-17
+
+### Added
+- `export_marker_segments` — one MP4 per marker range (social/chapter cuts)
+- API/MCP/desktop **MkrSeg**
 ## 0.5.51 — 2026-07-17
 
 ### Added
@@ -1406,6 +1411,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

@@ -5580,6 +5580,31 @@ async function exportFcpxmlUi() {
   }
 }
 
+async function exportMarkerSegmentsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting marker segments (full encode)…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      segment_count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/export/marker_segments", {
+      name_prefix: "seg",
+      include_tail: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkrSeg · ${r.count ?? 0}/${r.segment_count ?? "?"} → ${r.output_dir || "export"}`;
+  } catch (e) {
+    setProOut(`MkrSeg failed: ${e}`);
+    $("status-msg").textContent = `MkrSeg failed: ${e}`;
+  }
+}
+
 async function importFcpxmlFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9346,6 +9371,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-scenes", () => void runDetectScenes());
   proBind("btn-fcpxml", () => void exportFcpxmlUi());
   proBind("btn-import-fcpxml", () => void importFcpxmlFile());
+  proBind("btn-exp-mkr-seg", () => void exportMarkerSegmentsUi());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-interchange", () => void interchangeCatalogUi());

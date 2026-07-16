@@ -3639,6 +3639,34 @@ def place_at_markers_api(body: PlaceAtMarkersBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportMarkerSegmentsBody(BaseModel):
+    output_dir: str | None = None
+    name_prefix: str = "seg"
+    include_tail: bool = True
+    min_duration_frames: int = 3
+    marker_ids: list[str] | None = None
+    filename_from_label: bool = True
+
+
+@app.post("/api/export/marker_segments")
+def export_marker_segments_api(body: ExportMarkerSegmentsBody | None = None) -> dict[str, Any]:
+    """Export one MP4 per marker range (social/chapter cuts)."""
+    body = body or ExportMarkerSegmentsBody()
+    ed = _ed()
+    out_dir = body.output_dir or str(_desktop_export_dir() / "marker_segments")
+    try:
+        return ed.export_marker_segments(
+            out_dir,
+            name_prefix=body.name_prefix,
+            include_tail=body.include_tail,
+            min_duration_frames=body.min_duration_frames,
+            marker_ids=body.marker_ids,
+            filename_from_label=body.filename_from_label,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_marker_segments failed: {e}") from e
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)
