@@ -2623,6 +2623,50 @@ def apply_gain_to_track(track_id: str, db: float) -> dict:
 
 
 @mcp.tool()
+def apply_noise_reduction_to_track(track_id: str, amount: float = 12.0) -> dict:
+    """Apply noise_reduction effect to every clip on a track."""
+    return _require_editor().apply_noise_reduction_to_track(track_id, amount)
+
+
+@mcp.tool()
+def list_silence_ranges(
+    media_id: str | None = None,
+    path: str | None = None,
+    clip_id: str | None = None,
+    noise_db: float = -30.0,
+    min_duration: float = 0.25,
+    pad_frames: int = 0,
+    max_ranges: int = 80,
+) -> dict:
+    """Read-only silence range report (plan before tighten_silences)."""
+    return _require_editor().list_silence_ranges(
+        media_id,
+        path=path,
+        clip_id=clip_id,
+        noise_db=noise_db,
+        min_duration=min_duration,
+        pad_frames=pad_frames,
+        max_ranges=max_ranges,
+    )
+
+
+@mcp.tool()
+def export_project_snapshot(
+    path: str,
+    include_media_status: bool = True,
+    include_preflight: bool = True,
+    include_cuts: bool = True,
+) -> dict:
+    """Write recovery/agent project snapshot JSON (no media files)."""
+    return _require_editor().export_project_snapshot(
+        path,
+        include_media_status=include_media_status,
+        include_preflight=include_preflight,
+        include_cuts=include_cuts,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

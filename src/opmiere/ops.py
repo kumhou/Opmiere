@@ -10210,6 +10210,180 @@ class Editor:
         r["agent_note"] = "Track gain via clip gain effects; use ducking for VO/music."
         return r
 
+    def apply_noise_reduction_to_track(
+        self,
+        track_id: str,
+        amount: float = 12.0,
+    ) -> dict[str, Any]:
+        """Apply noise_reduction effect to every clip on a track (one undo).
+
+        amount: ffmpeg afftdn-style strength window used by SoT (see ops validation).
+        """
+        if not isinstance(amount, (int, float)) or not (0.01 <= float(amount) <= 97):
+            raise ValueError("amount must be in [0.01, 97]")
+        fx = {"type": "noise_reduction", "amount": float(amount)}
+        r = self.apply_effects_to_track(track_id, [fx], replace_types=True)
+        r["amount"] = float(amount)
+        r["agent_note"] = "NR on track; bake_clip or re-export to hear. Reduce if watery."
+        return r
+
+    def list_silence_ranges(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        clip_id: str | None = None,
+        noise_db: float = -30.0,
+        min_duration: float = 0.25,
+        pad_frames: int = 0,
+        max_ranges: int = 80,
+    ) -> dict[str, Any]:
+        """Read-only silence range report (same mapping as tighten_silences).
+
+        Does not mutate. Agent plans dialogue cuts before tighten_silences.
+        """
+        import re
+        import subprocess
+
+        offset = 0
+        clip_start = 0
+        clip_end: int | None = None
+        src: Path | None = None
+        if clip_id is not None:
+            clip = self._find_clip(clip_id)
+            media = self.project.media_by_id(clip.media)
+            src = self.bundle.media_path(media.path)
+            offset = int(clip.start - clip.src_in)
+            clip_start, clip_end = int(clip.start), int(clip.end)
+            media_id = media.id
+        elif media_id is not None:
+            media = self.project.media_by_id(media_id)
+            src = self.bundle.media_path(media.path)
+        elif path is not None:
+            src = Path(path)
+        else:
+            raise ValueError("pass media_id, path, or clip_id")
+        if src is None or not src.exists():
+            raise FileNotFoundError(f"media not found: {src}")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        noise_s = f"{float(noise_db)}dB"
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-hide_banner",
+                "-i", str(src),
+                "-af", f"silencedetect=noise={noise_s}:d={float(min_duration)}",
+                "-vn", "-f", "null", "-",
+            ],
+            capture_output=True, text=True,
+        )
+        text = proc.stderr or ""
+        starts = [
+            float(m.group(1))
+            for m in re.finditer(r"silence_start:\s*([0-9.]+)", text)
+        ]
+        ends = [
+            float(m.group(1))
+            for m in re.finditer(r"silence_end:\s*([0-9.]+)", text)
+        ]
+        pairs: list[tuple[float, float]] = []
+        si, ei = 0, 0
+        while si < len(starts) and ei < len(ends):
+            if ends[ei] <= starts[si]:
+                ei += 1
+                continue
+            pairs.append((starts[si], ends[ei]))
+            si += 1
+            ei += 1
+        pairs = pairs[: max(1, int(max_ranges))]
+        pad = max(0, int(pad_frames))
+        ranges: list[dict[str, Any]] = []
+        for s, e in pairs:
+            a = max(0, int(round(s * fps)) + offset + pad)
+            b = max(0, int(round(e * fps)) + offset - pad)
+            if b <= a + 1:
+                continue
+            if clip_end is not None:
+                if b <= clip_start or a >= clip_end:
+                    continue
+                a = max(a, clip_start)
+                b = min(b, clip_end)
+            if b > a + 1:
+                ranges.append({
+                    "start_frame": a,
+                    "end_frame": b,
+                    "frames": b - a,
+                    "start_sec": round(s, 3),
+                    "end_sec": round(e, 3),
+                })
+        total = sum(r["frames"] for r in ranges)
+        return {
+            "count": len(ranges),
+            "ranges": ranges,
+            "total_silence_frames": total,
+            "media_id": media_id,
+            "path": str(src),
+            "noise_db": float(noise_db),
+            "min_duration": float(min_duration),
+            "pad_frames": pad,
+            "agent_note": (
+                "Dry-run silence map. Call tighten_silences to ripple-remove."
+            ),
+        }
+
+    def export_project_snapshot(
+        self,
+        path: str | Path,
+        *,
+        include_media_status: bool = True,
+        include_preflight: bool = True,
+        include_cuts: bool = True,
+    ) -> dict[str, Any]:
+        """Write recovery/agent snapshot JSON (project + diagnostics, no media files).
+
+        Pair with collect_to_bundle for full media-containing transfer.
+        """
+        try:
+            from opmiere import __version__ as pkg_ver
+        except Exception:
+            pkg_ver = "unknown"
+
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        doc: dict[str, Any] = {
+            "schema": "opmiere.project_snapshot.v1",
+            "opmiere_version": pkg_ver,
+            "project": self.project.to_dict(),
+            "duration_frames": self.duration_frames(),
+            "history": self.history_status(),
+            "stats": self.project_stats(),
+        }
+        if include_media_status:
+            doc["media_status"] = self.list_media_status()
+        if include_preflight:
+            try:
+                doc["preflight"] = self.agent_preflight()
+            except Exception as e:
+                doc["preflight_error"] = str(e)[:200]
+        if include_cuts:
+            try:
+                doc["cuts"] = self.list_cuts(kind="video")
+            except Exception as e:
+                doc["cuts_error"] = str(e)[:200]
+        body = json.dumps(doc, indent=2, ensure_ascii=False)
+        p.write_text(body, encoding="utf-8")
+        return {
+            "path": str(p.resolve()),
+            "bytes": len(body.encode("utf-8")),
+            "duration_frames": doc["duration_frames"],
+            "media_count": len(self.project.media),
+            "clip_count": sum(len(t.clips) for t in self.project.tracks),
+            "agent_note": (
+                "Snapshot is SoT JSON + diagnostics only. "
+                "Use collect_to_bundle for portable media."
+            ),
+        }
+
     def set_clips_color_cycle(
         self,
         clip_ids: list[str] | None = None,

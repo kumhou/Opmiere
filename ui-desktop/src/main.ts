@@ -3194,6 +3194,89 @@ async function gainTrackUi(db: number) {
   }
 }
 
+async function noiseReductionTrackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("audio") || trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No track";
+    return;
+  }
+  $("status-msg").textContent = "Noise reduction…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/track/noise_reduction",
+      { track_id: trackId, amount: 12 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `NR · ×${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`NR failed: ${e}`);
+    $("status-msg").textContent = `NR failed: ${e}`;
+  }
+}
+
+async function silenceMapUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for silence map";
+    return;
+  }
+  $("status-msg").textContent = "Mapping silences…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      total_silence_frames?: number;
+    }>("/api/analyze/silence_ranges", {
+      clip_id: ids[0],
+      noise_db: -30,
+      min_duration: 0.25,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilMap · ${r.count ?? 0} ranges · ${r.total_silence_frames ?? 0}f`;
+  } catch (e) {
+    setProOut(`SilMap failed: ${e}`);
+    $("status-msg").textContent = `SilMap failed: ${e}`;
+  }
+}
+
+async function projectSnapshotUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Snapshot JSON folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Writing snapshot…";
+  try {
+    const r = await postJson<{ path?: string; clip_count?: number }>(
+      "/api/export/project_snapshot",
+      {
+        path: `${dir.replace(/[\\/]+$/, "")}/project_snapshot.json`,
+        include_media_status: true,
+        include_preflight: true,
+        include_cuts: true,
+      },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SnapJSON · clips ${r.clip_count ?? "?"} → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`SnapJSON failed: ${e}`);
+    $("status-msg").textContent = `SnapJSON failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11642,6 +11725,26 @@ window.addEventListener("DOMContentLoaded", () => {
     btnGainTrk.addEventListener("click", () => {
       stopPlay();
       void gainTrackUi(-3);
+    });
+  }
+  const btnNrTrk = document.getElementById("btn-nr-trk");
+  if (btnNrTrk) {
+    btnNrTrk.addEventListener("click", () => {
+      stopPlay();
+      void noiseReductionTrackUi();
+    });
+  }
+  const btnSilMap = document.getElementById("btn-sil-map");
+  if (btnSilMap) {
+    btnSilMap.addEventListener("click", () => {
+      void silenceMapUi();
+    });
+  }
+  const btnSnapshot = document.getElementById("btn-snapshot");
+  if (btnSnapshot) {
+    btnSnapshot.addEventListener("click", () => {
+      stopPlay();
+      void projectSnapshotUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

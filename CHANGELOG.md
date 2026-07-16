@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.88 — 2026-07-17
+
+### Added
+- `list_silence_ranges` dry-run map + **SilMap**
+- `apply_noise_reduction_to_track` + **NR**
+- `export_project_snapshot` (SoT JSON + diagnostics) + **SnapJSON**
+
 ## 0.5.87 — 2026-07-17
 
 ### Added

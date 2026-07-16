@@ -4422,6 +4422,72 @@ def track_gain_api(body: GainTrackBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class NoiseReductionTrackBody(BaseModel):
+    track_id: str
+    amount: float = 12.0
+
+
+@app.post("/api/track/noise_reduction")
+def track_nr_api(body: NoiseReductionTrackBody) -> dict[str, Any]:
+    """Apply noise_reduction to every clip on a track."""
+    ed = _ed()
+    try:
+        r = ed.apply_noise_reduction_to_track(body.track_id, body.amount)
+    except Exception as e:
+        raise HTTPException(400, f"noise_reduction track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SilenceRangesBody(BaseModel):
+    media_id: str | None = None
+    path: str | None = None
+    clip_id: str | None = None
+    noise_db: float = -30.0
+    min_duration: float = 0.25
+    pad_frames: int = 0
+    max_ranges: int = 80
+
+
+@app.post("/api/analyze/silence_ranges")
+def silence_ranges_api(body: SilenceRangesBody) -> dict[str, Any]:
+    """Read-only silence range map (dry-run for tighten)."""
+    ed = _ed()
+    try:
+        return ed.list_silence_ranges(
+            body.media_id,
+            path=body.path,
+            clip_id=body.clip_id,
+            noise_db=body.noise_db,
+            min_duration=body.min_duration,
+            pad_frames=body.pad_frames,
+            max_ranges=body.max_ranges,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"silence_ranges failed: {e}") from e
+
+
+class ProjectSnapshotBody(BaseModel):
+    path: str
+    include_media_status: bool = True
+    include_preflight: bool = True
+    include_cuts: bool = True
+
+
+@app.post("/api/export/project_snapshot")
+def project_snapshot_api(body: ProjectSnapshotBody) -> dict[str, Any]:
+    """Write project snapshot JSON (no media files)."""
+    ed = _ed()
+    try:
+        return ed.export_project_snapshot(
+            body.path,
+            include_media_status=body.include_media_status,
+            include_preflight=body.include_preflight,
+            include_cuts=body.include_cuts,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"project_snapshot failed: {e}") from e
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str
