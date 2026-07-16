@@ -3394,6 +3394,75 @@ async function lowerThirdUi() {
   }
 }
 
+async function endCardUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const text = window.prompt("End-card text", "Thanks for watching");
+  if (text == null) return;
+  $("status-msg").textContent = "Adding end card…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/edit/end_card", {
+      content: (text || "Thanks for watching").trim() || "Thanks for watching",
+      duration_frames: 90,
+      size: 56,
+      fade_in_frames: 12,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `EndCard · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`EndCard failed: ${e}`);
+    $("status-msg").textContent = `EndCard failed: ${e}`;
+  }
+}
+
+async function splitScreenUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select left media in bin first";
+    return;
+  }
+  const rightId = window.prompt(
+    "Right media_id (bin id). Leave empty to cancel.",
+    "",
+  );
+  if (rightId == null || !rightId.trim()) return;
+  const orient =
+    window.prompt("Orientation: lr or tb", "lr")?.trim().toLowerCase() || "lr";
+  $("status-msg").textContent = "Placing split-screen…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      left_clip_id?: string;
+      right_clip_id?: string;
+    }>("/api/edit/split_screen", {
+      media_left_id: state.binMediaId,
+      media_right_id: rightId.trim(),
+      start: playheadFrame(),
+      orientation: orient === "tb" || orient === "top_bottom" ? "tb" : "lr",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Split · ${r.left_clip_id || "?"} / ${r.right_clip_id || "?"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Split failed: ${e}`);
+    $("status-msg").textContent = `Split failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11890,6 +11959,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnL3.addEventListener("click", () => {
       stopPlay();
       void lowerThirdUi();
+    });
+  }
+  const btnEndCard = document.getElementById("btn-endcard");
+  if (btnEndCard) {
+    btnEndCard.addEventListener("click", () => {
+      stopPlay();
+      void endCardUi();
+    });
+  }
+  const btnSplit = document.getElementById("btn-split");
+  if (btnSplit) {
+    btnSplit.addEventListener("click", () => {
+      stopPlay();
+      void splitScreenUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

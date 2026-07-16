@@ -5192,6 +5192,138 @@ class Editor:
         r["agent_note"] = "Lower-third on black slug overlay; edit text via effects."
         return r
 
+    def add_end_card(
+        self,
+        content: str = "Thanks for watching",
+        *,
+        duration_frames: int = 90,
+        track_id: str | None = None,
+        size: int = 56,
+        fade_in_frames: int = 12,
+    ) -> dict[str, Any]:
+        """Append a title card after the sequence end (center text)."""
+        content = (content or "").strip() or "Thanks for watching"
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is None:
+            if not vids:
+                with self._mutate():
+                    track_id = self.project.add_track("video").id
+            else:
+                track_id = vids[0].id
+        end_f = int(self.duration_frames())
+        r = self.create_title_card(
+            content,
+            track_id,
+            end_f,
+            duration_frames=int(duration_frames),
+            position="center",
+            size=int(size),
+        )
+        if fade_in_frames > 0:
+            try:
+                self.apply_edge_fades(
+                    clip_ids=[r["clip_id"]],
+                    fade_in_frames=int(fade_in_frames),
+                    fade_out_frames=0,
+                )
+            except Exception:
+                pass
+        r["agent_note"] = "End card after sequence. Adjust duration_frames as needed."
+        return r
+
+    def place_split_screen(
+        self,
+        media_left_id: str,
+        media_right_id: str,
+        *,
+        start: int = 0,
+        duration_frames: int | None = None,
+        orientation: str = "lr",
+    ) -> dict[str, Any]:
+        """Place two media side-by-side (or top/bottom) for split-screen.
+
+        orientation: lr (left-right) or tb (top-bottom). Left/top on base track
+        with crop to half; right/bottom on overlay with PiP half-scale flush.
+        """
+        if orientation not in ("lr", "tb", "left_right", "top_bottom"):
+            raise ValueError("orientation must be lr|tb")
+        orient = "lr" if orientation in ("lr", "left_right") else "tb"
+        left_m = self.project.media_by_id(media_left_id)
+        right_m = self.project.media_by_id(media_right_id)
+        for m, label in ((left_m, "left"), (right_m, "right")):
+            if m.kind == "audio":
+                raise ValueError(f"{label} media must be video/image")
+
+        W = int(self.project.resolution.w)
+        H = int(self.project.resolution.h)
+        start_f = max(0, int(start))
+        # duration from shorter media unless specified
+        if duration_frames is None:
+            d1 = max(1, int(left_m.duration_frames or 1))
+            d2 = max(1, int(right_m.duration_frames or 1))
+            dur = min(d1, d2)
+        else:
+            dur = max(1, int(duration_frames))
+
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        with self._mutate():
+            if not vids:
+                base = self.project.add_track("video")
+                over = self.project.add_track("video")
+                over.name = "Split"
+            elif len(vids) == 1:
+                base = vids[0]
+                over = self.project.add_track("video")
+                over.name = "Split"
+            else:
+                base, over = vids[0], vids[-1]
+            if base.locked or over.locked:
+                raise ValueError("track locked")
+            c_left = self.project.add_clip(
+                base, left_m, start_f, 0, min(dur, max(1, left_m.duration_frames)),
+            )
+            c_right = self.project.add_clip(
+                over, right_m, start_f, 0, min(dur, max(1, right_m.duration_frames)),
+            )
+            c_left.name = (left_m.path and Path(left_m.path).stem) or "left"
+            c_right.name = (right_m.path and Path(right_m.path).stem) or "right"
+            # crop halves on base; PiP flush for overlay half
+            if orient == "lr":
+                half_w = max(2, (W // 2) - ((W // 2) % 2))
+                # left: keep left half
+                c_left.effects = [
+                    e for e in (c_left.effects or []) if e.get("type") != "crop"
+                ]
+                self._apply_effect_unlocked(
+                    c_left.id,
+                    {"type": "crop", "width": half_w, "height": H, "x": 0, "y": 0},
+                )
+                # right: scale 0.5, flush right (x=1), vertical center
+                c_right.position = {"x": 1.0, "y": 0.5, "scale": 0.5}
+            else:
+                half_h = max(2, (H // 2) - ((H // 2) % 2))
+                c_left.effects = [
+                    e for e in (c_left.effects or []) if e.get("type") != "crop"
+                ]
+                self._apply_effect_unlocked(
+                    c_left.id,
+                    {"type": "crop", "width": W, "height": half_h, "x": 0, "y": 0},
+                )
+                c_right.position = {"x": 0.5, "y": 1.0, "scale": 0.5}
+            return {
+                "left_clip_id": c_left.id,
+                "right_clip_id": c_right.id,
+                "base_track_id": base.id,
+                "overlay_track_id": over.id,
+                "start": start_f,
+                "duration_frames": dur,
+                "orientation": orient,
+                "agent_note": (
+                    "Split-screen: left/top cropped on base; right/bottom PiP overlay. "
+                    "Tweak crop/position for framing."
+                ),
+            }
+
     def assemble_unused_media(
         self,
         track_id: str,

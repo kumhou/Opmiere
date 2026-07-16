@@ -2748,6 +2748,42 @@ def add_lower_third(
 
 
 @mcp.tool()
+def add_end_card(
+    content: str = "Thanks for watching",
+    duration_frames: int = 90,
+    track_id: str | None = None,
+    size: int = 56,
+    fade_in_frames: int = 12,
+) -> dict:
+    """Append a title end-card after the current sequence end."""
+    return _require_editor().add_end_card(
+        content,
+        duration_frames=duration_frames,
+        track_id=track_id,
+        size=size,
+        fade_in_frames=fade_in_frames,
+    )
+
+
+@mcp.tool()
+def place_split_screen(
+    media_left_id: str,
+    media_right_id: str,
+    start: int = 0,
+    duration_frames: int | None = None,
+    orientation: str = "lr",
+) -> dict:
+    """Place two media side-by-side (lr) or top/bottom (tb) split-screen."""
+    return _require_editor().place_split_screen(
+        media_left_id,
+        media_right_id,
+        start=start,
+        duration_frames=duration_frames,
+        orientation=orientation,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

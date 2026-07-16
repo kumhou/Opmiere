@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.91 — 2026-07-17
+
+### Added
+- `place_split_screen` (lr/tb half-frame crop + PiP) + **Split**
+- `add_end_card` sequence-end title helper + **EndCard**
+
 ## 0.5.90 — 2026-07-17
 
 ### Added

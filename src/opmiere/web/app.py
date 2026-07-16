@@ -4606,6 +4606,56 @@ def lower_third_api(body: LowerThirdBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class EndCardBody(BaseModel):
+    content: str = "Thanks for watching"
+    duration_frames: int = 90
+    track_id: str | None = None
+    size: int = 56
+    fade_in_frames: int = 12
+
+
+@app.post("/api/edit/end_card")
+def end_card_api(body: EndCardBody) -> dict[str, Any]:
+    """Append end-card title after sequence end."""
+    ed = _ed()
+    try:
+        r = ed.add_end_card(
+            body.content,
+            duration_frames=body.duration_frames,
+            track_id=body.track_id,
+            size=body.size,
+            fade_in_frames=body.fade_in_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"end_card failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SplitScreenBody(BaseModel):
+    media_left_id: str
+    media_right_id: str
+    start: int = 0
+    duration_frames: int | None = None
+    orientation: str = "lr"
+
+
+@app.post("/api/edit/split_screen")
+def split_screen_api(body: SplitScreenBody) -> dict[str, Any]:
+    """Place two media as left-right or top-bottom split-screen."""
+    ed = _ed()
+    try:
+        r = ed.place_split_screen(
+            body.media_left_id,
+            body.media_right_id,
+            start=body.start,
+            duration_frames=body.duration_frames,
+            orientation=body.orientation,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"split_screen failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str
