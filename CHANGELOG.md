@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.99 — 2026-07-17
+
+### Added
+- **pill.pulse** animation when timeline dirty
+
 ## 0.4.98 — 2026-07-17
 
 ### Added
