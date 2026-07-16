@@ -8940,6 +8940,104 @@ async function selectionSpanUi() {
   }
 }
 
+async function exportSelectionGifUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for SelGIF";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection GIF…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/selection_gif", {
+      clip_ids: ids,
+      fps: 12,
+      width: 480,
+      max_duration_seconds: 10,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SelGIF → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`SelGIF failed: ${e}`);
+    $("status-msg").textContent = `SelGIF failed: ${e}`;
+  }
+}
+
+async function exportSelectionWebmUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for SelWebM";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection WebM…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/selection_webm", {
+      clip_ids: ids,
+      crf: 32,
+      width: 720,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SelWebM → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`SelWebM failed: ${e}`);
+    $("status-msg").textContent = `SelWebM failed: ${e}`;
+  }
+}
+
+async function trimSelectionPlayheadUi(edge: "head" | "tail") {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to trim";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Trimming ${edge} @ f${ph}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/trim_selection_playhead", {
+      clip_ids: ids,
+      playhead_frame: ph,
+      edge,
+      mode: "ripple",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Trim${edge === "head" ? "Q" : "W"} · ${r.count ?? 0} @ f${ph}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Trim failed: ${e}`);
+    $("status-msg").textContent = `Trim failed: ${e}`;
+  }
+}
+
+async function workAreaFromSelectionExportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for WA←Sel";
+    return;
+  }
+  $("status-msg").textContent = "Work area from selection + export…";
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/export/work_area_from_selection",
+      { clip_ids: ids },
+    );
+    if ((r as { timeline?: TimelineView }).timeline) {
+      applyTimelineView((r as { timeline: TimelineView }).timeline);
+    } else {
+      await refresh();
+    }
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WA←Sel → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`WA←Sel failed: ${e}`);
+    $("status-msg").textContent = `WA←Sel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12811,6 +12909,11 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-split-sel", () => void splitSelectionUi());
   proBind("btn-mkr-sel", () => void markersFromSelectionUi());
   proBind("btn-span-sel", () => void selectionSpanUi());
+  proBind("btn-sel-gif", () => void exportSelectionGifUi());
+  proBind("btn-sel-webm", () => void exportSelectionWebmUi());
+  proBind("btn-trim-q", () => void trimSelectionPlayheadUi("head"));
+  proBind("btn-trim-w", () => void trimSelectionPlayheadUi("tail"));
+  proBind("btn-wa-sel", () => void workAreaFromSelectionExportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

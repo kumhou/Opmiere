@@ -6900,6 +6900,94 @@ def selection_span_api(body: SelectionSpanBody) -> dict[str, Any]:
         raise HTTPException(400, f"selection_span failed: {e}") from e
 
 
+class ExportSelectionGifBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 12.0
+
+
+@app.post("/api/export/selection_gif")
+def export_selection_gif_api(body: ExportSelectionGifBody) -> dict[str, Any]:
+    """Export selection span as GIF."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection.gif")
+    try:
+        return ed.export_selection_gif(
+            body.clip_ids,
+            out,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_gif failed: {e}") from e
+
+
+class ExportSelectionWebmBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    crf: int = 32
+    width: int | None = None
+
+
+@app.post("/api/export/selection_webm")
+def export_selection_webm_api(body: ExportSelectionWebmBody) -> dict[str, Any]:
+    """Export selection span as WebM."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection.webm")
+    try:
+        return ed.export_selection_webm(
+            body.clip_ids, out, crf=body.crf, width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_webm failed: {e}") from e
+
+
+class TrimSelectionPlayheadBody(BaseModel):
+    clip_ids: list[str]
+    playhead_frame: int
+    edge: str = "head"
+    mode: str = "ripple"
+
+
+@app.post("/api/edit/trim_selection_playhead")
+def trim_selection_playhead_api(body: TrimSelectionPlayheadBody) -> dict[str, Any]:
+    """Batch trim selection to playhead (Q/W)."""
+    ed = _ed()
+    try:
+        r = ed.trim_selection_to_playhead(
+            body.clip_ids,
+            body.playhead_frame,
+            edge=body.edge,
+            mode=body.mode,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"trim_selection_playhead failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class WorkAreaSelectionExportBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/work_area_from_selection")
+def work_area_from_selection_export_api(body: WorkAreaSelectionExportBody) -> dict[str, Any]:
+    """Set work area from selection and export MP4."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection_wa.mp4")
+    try:
+        r = ed.set_work_area_from_selection_export(
+            body.clip_ids, out, normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"work_area_from_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

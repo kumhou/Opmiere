@@ -4178,6 +4178,62 @@ def selection_span(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def export_selection_gif(
+    clip_ids: list[str],
+    output_path: str,
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 12.0,
+) -> dict:
+    """Export selection union span as animated GIF."""
+    return _require_editor().export_selection_gif(
+        clip_ids,
+        output_path,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
+def export_selection_webm(
+    clip_ids: list[str],
+    output_path: str,
+    crf: int = 32,
+    width: int | None = None,
+) -> dict:
+    """Export selection union span as WebM."""
+    return _require_editor().export_selection_webm(
+        clip_ids, output_path, crf=crf, width=width,
+    )
+
+
+@mcp.tool()
+def trim_selection_to_playhead(
+    clip_ids: list[str],
+    playhead_frame: int,
+    edge: str = "head",
+    mode: str = "ripple",
+) -> dict:
+    """Batch Q/W trim on selection clips spanning playhead."""
+    return _require_editor().trim_selection_to_playhead(
+        clip_ids, playhead_frame, edge=edge, mode=mode,
+    )
+
+
+@mcp.tool()
+def set_work_area_from_selection_export(
+    clip_ids: list[str],
+    output_path: str,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Set work area from selection union and export MP4."""
+    return _require_editor().set_work_area_from_selection_export(
+        clip_ids, output_path, normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

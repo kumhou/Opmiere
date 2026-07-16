@@ -6709,6 +6709,114 @@ class Editor:
         r["agent_note"] = "Union of selection spans; full program composite in range."
         return r
 
+    def export_selection_gif(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path,
+        *,
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 12.0,
+    ) -> dict[str, Any]:
+        """Export selection union span as animated GIF."""
+        span = self.selection_span(clip_ids)
+        r = self.export_gif(
+            output_path,
+            start_seconds=float(span["start_seconds"]),
+            end_seconds=float(span["end_seconds"]),
+            fps=fps,
+            width=width,
+            max_duration_seconds=max_duration_seconds,
+        )
+        r["clip_ids"] = span["clip_ids"]
+        r["start_frame"] = span["start_frame"]
+        r["end_frame"] = span["end_frame"]
+        return r
+
+    def export_selection_webm(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path,
+        *,
+        crf: int = 32,
+        width: int | None = None,
+    ) -> dict[str, Any]:
+        """Export selection union span as WebM (VP9+Opus)."""
+        span = self.selection_span(clip_ids)
+        r = self.export_webm(
+            output_path,
+            start_seconds=float(span["start_seconds"]),
+            end_seconds=float(span["end_seconds"]),
+            crf=crf,
+            width=width,
+        )
+        r["clip_ids"] = span["clip_ids"]
+        r["start_frame"] = span["start_frame"]
+        r["end_frame"] = span["end_frame"]
+        return r
+
+    def trim_selection_to_playhead(
+        self,
+        clip_ids: list[str],
+        playhead_frame: int,
+        *,
+        edge: str = "head",
+        mode: str = "ripple",
+    ) -> dict[str, Any]:
+        """Batch trim_to_playhead for every selected clip that contains playhead.
+
+        edge: head|tail (Q/W). mode: ripple|normal.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ph = int(playhead_frame)
+        results: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            if not (clip.start < ph < clip.end):
+                skipped.append({
+                    "clip_id": cid,
+                    "reason": "playhead outside clip",
+                    "start": clip.start,
+                    "end": clip.end,
+                })
+                continue
+            try:
+                r = self.trim_to_playhead(
+                    cid, ph, edge=edge, mode=mode, follow_links=False,
+                )
+                results.append(r if isinstance(r, dict) else {"clip_id": cid, "ok": True})
+            except Exception as e:
+                skipped.append({"clip_id": cid, "reason": str(e)[:200]})
+        return {
+            "playhead_frame": ph,
+            "edge": edge,
+            "mode": mode,
+            "count": len(results),
+            "trimmed": results,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "agent_note": "Batch Q/W on selection; only clips spanning playhead trimmed.",
+        }
+
+    def set_work_area_from_selection_export(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Set work area to selection union and export that MP4."""
+        io = self.set_work_area_from_selection(clip_ids)
+        r = self.export_work_area_mp4(
+            output_path, normalize_preset=normalize_preset,
+        )
+        r["work_area"] = io
+        r["clip_ids"] = list(dict.fromkeys(clip_ids))
+        r["agent_note"] = "Work area set from selection then exported."
+        return r
+
     def export_work_area_mp4(
         self,
         output_path: str | Path,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.10 — 2026-07-17
+
+### Added
+- `export_selection_gif` / `export_selection_webm` + **SelGIF** / **SelWebM**
+- `trim_selection_to_playhead` (batch Q/W) + **TrimQ** / **TrimW**
+- `set_work_area_from_selection_export` + **WA←Sel**
+
 ## 0.6.9 — 2026-07-17
 
 ### Added
