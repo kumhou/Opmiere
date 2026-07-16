@@ -8720,6 +8720,58 @@ def selection_clipboard_status_api() -> dict[str, Any]:
     return _ed().selection_clipboard_status()
 
 
+class MarkersInSelectionSpanBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/markers_in_selection_span")
+def markers_in_selection_span_api(body: MarkersInSelectionSpanBody) -> dict[str, Any]:
+    """List markers inside selection span."""
+    ed = _ed()
+    try:
+        return ed.markers_in_selection_span(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"markers_in_selection_span failed: {e}") from e
+
+
+class ClearMarkersInSelectionSpanBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/clear_markers_in_selection_span")
+def clear_markers_in_selection_span_api(
+    body: ClearMarkersInSelectionSpanBody,
+) -> dict[str, Any]:
+    """Remove markers inside selection span."""
+    ed = _ed()
+    try:
+        r = ed.clear_markers_in_selection_span(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"clear_markers_in_selection_span failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionOtioBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_otio")
+def export_selection_otio_api(body: ExportSelectionOtioBody) -> dict[str, Any]:
+    """Export selection as OTIO-like JSON."""
+    ed = _ed()
+    out = body.output_path
+    if out is None:
+        out = str(_desktop_export_dir() / "selection.otio.json")
+    try:
+        return ed.export_selection_otio_json(
+            body.clip_ids, path=out, title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_otio failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

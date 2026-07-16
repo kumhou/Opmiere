@@ -5157,6 +5157,30 @@ def selection_clipboard_status() -> dict:
 
 
 @mcp.tool()
+def markers_in_selection_span(clip_ids: list[str]) -> dict:
+    """List markers whose frames fall in selection union span."""
+    return _require_editor().markers_in_selection_span(clip_ids)
+
+
+@mcp.tool()
+def clear_markers_in_selection_span(clip_ids: list[str]) -> dict:
+    """Delete markers inside selection union span."""
+    return _require_editor().clear_markers_in_selection_span(clip_ids)
+
+
+@mcp.tool()
+def export_selection_otio_json(
+    clip_ids: list[str],
+    path: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Export OTIO-like JSON for selection clips only."""
+    return _require_editor().export_selection_otio_json(
+        clip_ids, path=path, title=title,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

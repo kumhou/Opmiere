@@ -7864,6 +7864,164 @@ class Editor:
             "agent_note": "Session only — cleared on process exit.",
         }
 
+    def markers_in_selection_span(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """List project markers whose frames fall in selection union span."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        span = self.selection_span(clip_ids)
+        a, b = int(span["start_frame"]), int(span["end_frame"])
+        hits: list[dict[str, Any]] = []
+        for m in self.project.markers:
+            fr = int(m.frame)
+            if a <= fr < b:
+                hits.append(
+                    {
+                        "marker_id": m.id,
+                        "frame": fr,
+                        "label": m.label,
+                        "color": m.color,
+                    }
+                )
+        hits.sort(key=lambda x: x["frame"])
+        return {
+            "span": span,
+            "count": len(hits),
+            "markers": hits,
+            "agent_note": "Markers with start_frame <= frame < end_frame of selection.",
+        }
+
+    def clear_markers_in_selection_span(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Delete markers that fall inside selection union span. One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        span = self.selection_span(clip_ids)
+        a, b = int(span["start_frame"]), int(span["end_frame"])
+        with self._mutate():
+            keep: list[Any] = []
+            removed: list[dict[str, Any]] = []
+            for m in self.project.markers:
+                fr = int(m.frame)
+                if a <= fr < b:
+                    removed.append(
+                        {
+                            "marker_id": m.id,
+                            "frame": fr,
+                            "label": m.label,
+                        }
+                    )
+                else:
+                    keep.append(m)
+            self.project.markers[:] = keep
+            return {
+                "span": span,
+                "count": len(removed),
+                "removed": removed,
+                "remaining": len(keep),
+                "agent_note": "Markers inside selection span removed.",
+            }
+
+    def export_selection_otio_json(
+        self,
+        clip_ids: list[str],
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Export OTIO-like JSON limited to selected clips (and their tracks)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = set(dict.fromkeys(clip_ids))
+        fps = float(self.project.timebase.fps or 30.0)
+        tracks_out: list[dict[str, Any]] = []
+        for tr in self.project.tracks:
+            children: list[dict[str, Any]] = []
+            for c in tr.clips_in_order():
+                if c.id not in ids:
+                    continue
+                media = self.project.media_by_id(c.media)
+                try:
+                    abs_media = str(self.bundle.media_path(media.path).resolve())
+                except Exception:
+                    abs_media = media.path
+                if not Path(abs_media).is_file():
+                    abs_media = media.path
+                children.append(
+                    {
+                        "OTIO_SCHEMA": "Clip.1",
+                        "name": c.name or c.id,
+                        "source_range": {
+                            "start_time": {"value": c.src_in, "rate": fps},
+                            "duration": {
+                                "value": c.duration_frames,
+                                "rate": fps,
+                            },
+                        },
+                        "media_reference": {
+                            "OTIO_SCHEMA": "ExternalReference.1",
+                            "target_url": abs_media.replace("\\", "/"),
+                            "available_range": {
+                                "start_time": {"value": 0, "rate": fps},
+                                "duration": {
+                                    "value": media.duration_frames,
+                                    "rate": fps,
+                                },
+                            },
+                        },
+                        "metadata": {
+                            "opmiere": {
+                                "clip_id": c.id,
+                                "start": c.start,
+                                "speed": c.speed,
+                                "effects": list(c.effects or []),
+                            }
+                        },
+                    }
+                )
+            if children:
+                tracks_out.append(
+                    {
+                        "OTIO_SCHEMA": "Track.1",
+                        "name": tr.name or tr.id,
+                        "kind": tr.kind,
+                        "children": children,
+                        "metadata": {"opmiere": {"track_id": tr.id}},
+                    }
+                )
+        body: dict[str, Any] = {
+            "OTIO_SCHEMA": "Timeline.1",
+            "name": title or getattr(self.project, "name", None) or "selection",
+            "global_start_time": {"value": 0, "rate": fps},
+            "tracks": tracks_out,
+            "metadata": {
+                "opmiere": {
+                    "selection_clip_ids": sorted(ids),
+                    "selection_span": self.selection_span(list(ids)),
+                    "fps": fps,
+                }
+            },
+        }
+        result: dict[str, Any] = {
+            "timeline": body,
+            "track_count": len(tracks_out),
+            "clip_count": sum(len(t["children"]) for t in tracks_out),
+            "agent_note": "Simplified OTIO-like selection export; not full schema.",
+        }
+        if path is not None:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                json.dumps(body, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            result["path"] = str(out.resolve())
+        return result
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

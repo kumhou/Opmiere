@@ -11453,6 +11453,70 @@ async function selectionClipboardStatusUi() {
   }
 }
 
+async function markersInSelectionSpanUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for marker list";
+    return;
+  }
+  $("status-msg").textContent = "Markers in selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+    }>("/api/edit/markers_in_selection_span", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MkrIn? · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`MkrIn? failed: ${e}`);
+    $("status-msg").textContent = `MkrIn? failed: ${e}`;
+  }
+}
+
+async function clearMarkersInSelectionSpanUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear markers in span";
+    return;
+  }
+  $("status-msg").textContent = "Clearing markers in selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/clear_markers_in_selection_span", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClrMkrSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ClrMkrSel failed: ${e}`);
+    $("status-msg").textContent = `ClrMkrSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionOtioUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for OTIO export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection OTIO…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      clip_count?: number;
+      track_count?: number;
+    }>("/api/edit/export_selection_otio", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `OTIOSel · clips ${r.clip_count ?? 0} → ${r.path ?? "?"}`;
+  } catch (e) {
+    setProOut(`OTIOSel failed: ${e}`);
+    $("status-msg").textContent = `OTIOSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15430,6 +15494,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-copy-sel", () => void copySelectionUi());
   proBind("btn-paste-sel", () => void pasteSelectionAtPlayheadUi());
   proBind("btn-clip-status", () => void selectionClipboardStatusUi());
+  proBind("btn-mkr-in-sel", () => void markersInSelectionSpanUi());
+  proBind("btn-clr-mkr-sel", () => void clearMarkersInSelectionSpanUi());
+  proBind("btn-otio-sel", () => void exportSelectionOtioUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

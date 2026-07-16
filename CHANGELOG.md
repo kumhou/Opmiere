@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.42 — 2026-07-17
+
+### Added
+- `markers_in_selection_span` / `clear_markers_in_selection_span` / `export_selection_otio_json` + **MkrIn?** / **ClrMkrSel** / **OTIOSel**
+
 ## 0.6.41 — 2026-07-17
 
 ### Added
