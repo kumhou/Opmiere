@@ -47,7 +47,7 @@ def test_clip_visual_props_and_plan_mapping():
         assert "vignette" in vis["unmapped_effects"]
 
         plan = build_openshot_plan(ed.project, ed.bundle, height=180)
-        assert plan.get("adapter_version") == 2
+        assert int(plan.get("adapter_version") or 0) >= 2
         assert "opacity" in plan.get("mapped", [])
         assert "rotate" in plan.get("mapped", [])
         assert "transform" in plan.get("mapped", [])

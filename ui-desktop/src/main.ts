@@ -18,7 +18,10 @@ type Health = {
   phase?: string;
 };
 
-type Doctor = { ok?: boolean };
+type Doctor = {
+  ok?: boolean;
+  checks?: Array<{ id?: string; ok?: boolean; detail?: string }>;
+};
 
 type PreviewEngine = {
   active_backend?: string;
@@ -1418,6 +1421,26 @@ function paintMarkerRuler(ruler: HTMLElement) {
   ruler.innerHTML = "";
   const lane = document.createElement("div");
   lane.className = "marker-lane";
+  // TC major ticks (~every 1s, capped)
+  const fps = Math.max(1, state.fps || 30);
+  const step = Math.max(1, Math.round(fps)); // 1 second
+  const maxTicks = 48;
+  const totalSteps = Math.floor(durF / step);
+  const stride = Math.max(1, Math.ceil(totalSteps / maxTicks));
+  for (let i = 0; i <= totalSteps; i += stride) {
+    const f = Math.min(durF, i * step);
+    const tick = document.createElement("div");
+    tick.className = "tc-tick";
+    tick.style.left = `${(f / durF) * 100}%`;
+    tick.title = framesToTc(f, fps);
+    if (i % (stride * 2) === 0 || i === 0) {
+      const lab = document.createElement("span");
+      lab.className = "tc-tick-lab";
+      lab.textContent = framesToTc(f, fps).replace(/^00:/, "");
+      tick.appendChild(lab);
+    }
+    lane.appendChild(tick);
+  }
   // work area range
   const inn = state.workIO.in_frame;
   const out = state.workIO.out_frame;
@@ -5183,6 +5206,9 @@ async function runClipMenuAction(act: string) {
     case "duplicate":
       void duplicateSelection();
       break;
+    case "match":
+      void matchFrameAtPlayhead();
+      break;
     case "delete":
       stopPlay();
       void deleteSelection();
@@ -6834,13 +6860,37 @@ async function refresh() {
     $("core-version").textContent = `core ${health.phase || "?"} · product shell`;
 
     try {
-      const doctor = await getJson<Doctor>("/api/doctor?check_comfy=false");
+      // check_comfy=true so generation pill reflects live ComfyUI reachability
+      const doctor = await getJson<Doctor>("/api/doctor?check_comfy=true");
       $("doctor-ok").textContent = doctor.ok ? "ok" : "issues";
       $("doctor-ok").style.color = doctor.ok
         ? "var(--color-success)"
         : "var(--color-warning)";
+      const comfy = (doctor.checks || []).find((c) => c.id === "comfyui");
+      const pill = document.getElementById("pill-comfy");
+      if (pill) {
+        if (!comfy) {
+          pill.className = "pill";
+          pill.textContent = "comfy —";
+          pill.title = "ComfyUI check missing";
+        } else if (comfy.ok) {
+          pill.className = "pill ok";
+          pill.textContent = "comfy up";
+          pill.title = comfy.detail || "ComfyUI reachable";
+        } else {
+          pill.className = "pill warn";
+          pill.textContent = "comfy off";
+          pill.title =
+            comfy.detail || "ComfyUI not listening — generation disabled";
+        }
+      }
     } catch {
       $("doctor-ok").textContent = "n/a";
+      const pill = document.getElementById("pill-comfy");
+      if (pill) {
+        pill.className = "pill";
+        pill.textContent = "comfy —";
+      }
     }
 
     let preview: PreviewEngine | null = null;

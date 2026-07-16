@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.59 — 2026-07-16
+
+### Added
+- **OpenShot adapter v3**: speed → `time_remap` + speed-aware fallback seek; crop
+  fractions → Crop effect when available
+- Status **comfy** pill from doctor `check_comfy=true`
+- Ruler **TC ticks** (1s major, labels)
+- Clip menu **Match frame**
+- Test: `tests/test_openshot_adapter_v3_099.py`
+
 ## 0.4.58 — 2026-07-16
 
 ### Added

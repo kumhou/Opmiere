@@ -415,6 +415,48 @@ for c in plan["clips"]:
     if abs(rot) > 1e-3:
         if _kf_set(clip, "rotation", rot):
             applied.append("rotate")
+    # crop fractions (left/top/right/bottom) via Crop effect if available
+    crop = c.get("crop") or {{}}
+    if isinstance(crop, dict) and crop:
+        try:
+            left = float(crop.get("left", 0) or 0)
+            top = float(crop.get("top", 0) or 0)
+            right = float(crop.get("right", 0) or 0)
+            bottom = float(crop.get("bottom", 0) or 0)
+            if any(v > 1e-4 for v in (left, top, right, bottom)):
+                if hasattr(openshot, "Crop"):
+                    eff = openshot.Crop(left, top, right, bottom)
+                    clip.AddEffect(eff)
+                    applied.append("crop")
+        except Exception:
+            pass
+    # constant speed via time keyframe (timeline frames → source frames)
+    trm = c.get("time_remap") or {{}}
+    if isinstance(trm, dict) and trm.get("enabled"):
+        try:
+            src0 = float(trm.get("source_start", c.get("start", 0)) or 0)
+            src1 = float(trm.get("source_end", c.get("end", src0 + 0.1)) or (src0 + 0.1))
+            tdur = float(trm.get("timeline_duration") or c.get("timeline_duration") or 0.1)
+            tdur = max(1.0 / max(fps_f, 1.0), tdur)
+            f0 = max(1.0, src0 * fps_f + 1.0)
+            f1 = max(f0 + 1.0, src1 * fps_f + 1.0)
+            tf1 = max(2.0, tdur * fps_f + 1.0)
+            # Place clip for timeline footprint at 1x of timeline_duration
+            clip.End(float(c["start"]) + tdur)
+            if _kf_set(clip, "time", f0):
+                # second point for end of remap
+                try:
+                    kf = getattr(clip, "time", None)
+                    if kf is not None and hasattr(kf, "AddPoint"):
+                        try:
+                            kf.AddPoint(tf1, f1, openshot.BEZIER)
+                        except Exception:
+                            kf.AddPoint(tf1, f1)
+                        applied.append("speed")
+                except Exception:
+                    pass
+        except Exception:
+            pass
     # overlay transform (PiP)
     tf = c.get("transform") or {{}}
     if isinstance(tf, dict) and tf:
@@ -485,11 +527,20 @@ else:
             active = _active_clip_at(plan, t)
             if active:
                 local_t = max(0.0, t - float(active.get("position") or 0))
-                # map wall time into source range
+                # map wall time into source range (honor speed / time_remap)
                 src_start = float(active.get("start") or 0)
+                speed = float(active.get("speed") or 1.0)
+                if speed <= 0:
+                    speed = 1.0
+                trm = active.get("time_remap") or {}
+                if isinstance(trm, dict) and trm.get("enabled"):
+                    src_start = float(trm.get("source_start", src_start) or src_start)
+                    speed = float(trm.get("speed", speed) or speed)
+                    if speed <= 0:
+                        speed = 1.0
                 fb = self.frame_from_media(
                     active["path"],
-                    src_start + local_t,
+                    src_start + local_t * speed,
                     png_path if want_jpg else output_path,
                     fps=float(plan.get("fps") or 30),
                 )

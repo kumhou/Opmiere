@@ -789,6 +789,27 @@ button.btn-muted {
   color: var(--color-destructive);
 }
 
+.tc-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  transform: translateX(-0.5px);
+}
+
+.tc-tick-lab {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
 .sel-card {
   margin: var(--space-sm) 0 var(--space-md);
   padding: var(--space-md);
