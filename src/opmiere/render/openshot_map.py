@@ -51,18 +51,18 @@ _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
-    "shape_mask", "text",
+    "shape_mask", "text", "subtitles",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
     "gain",
     "lut3d",
-    "subtitles", "compression", "noise_reduction",
+    "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 14
+ADAPTER_VERSION = 15
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -109,6 +109,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "curves": "preset → brightness stand-in only",
             "shape_mask": "circle/rect → crop fractions (no feather)",
             "text": "title card props in plan (still frames may not paint glyphs)",
+            "subtitles": "SRT/ASS path recorded in plan for burn-in awareness",
         },
     }
 
@@ -196,6 +197,7 @@ def clip_visual_props(
     ken_burns: dict[str, float] | None = None
     white_balance: dict[str, float] | None = None
     text_overlay: dict[str, Any] | None = None
+    subtitles: dict[str, Any] | None = None
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -287,6 +289,16 @@ def clip_visual_props(
                 mapped.append("text")
             else:
                 unmapped.append("text")
+        elif et == "subtitles":
+            path = str(e.get("path") or "").strip()
+            if path:
+                subtitles = {
+                    "path": path,
+                    "exists": Path(path).is_file(),
+                }
+                mapped.append("subtitles")
+            else:
+                unmapped.append("subtitles")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)
@@ -446,6 +458,7 @@ def clip_visual_props(
         "ken_burns": ken_burns,
         "white_balance": white_balance,
         "text": text_overlay,
+        "subtitles": subtitles,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -610,6 +623,8 @@ def build_openshot_plan(
                 entry["glow"] = vis["glow"]
             if vis.get("text"):
                 entry["text"] = vis["text"]
+            if vis.get("subtitles"):
+                entry["subtitles"] = vis["subtitles"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {

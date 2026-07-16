@@ -6113,6 +6113,23 @@ async function musicBrollUi() {
   }
 }
 
+async function markerSlotsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      count?: number;
+      slots?: unknown[];
+    }>("/api/markers/slots");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Slots? · ${r.count ?? 0} marker ranges`;
+  } catch (e) {
+    $("status-msg").textContent = `Slots failed: ${e}`;
+  }
+}
+
 async function importSrtMarkersUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9512,6 +9529,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-place-mkr", () => void placeAtMarkersUi());
   proBind("btn-fit-mkr", () => void fitToMarkersUi());
   proBind("btn-music-broll", () => void musicBrollUi());
+  proBind("btn-mkr-slots", () => void markerSlotsUi());
   proBind("btn-srt-mkr", () => void importSrtMarkersUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());

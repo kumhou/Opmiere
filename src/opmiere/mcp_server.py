@@ -1474,6 +1474,29 @@ def music_broll(
 
 
 @mcp.tool()
+def list_marker_slots(
+    include_tail: bool = True,
+    min_duration_frames: int = 1,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """List marker-to-marker slots (frames/seconds) for B-roll planning."""
+    return _require_editor().list_marker_slots(
+        marker_ids=marker_ids,
+        include_tail=include_tail,
+        min_duration_frames=min_duration_frames,
+    )
+
+
+@mcp.tool()
+def clear_markers(
+    prefix: str | None = None,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Delete markers: all, by prefix, or by id list."""
+    return _require_editor().clear_markers(prefix=prefix, marker_ids=marker_ids)
+
+
+@mcp.tool()
 def markers_from_srt(
     path: str | None = None,
     text: str | None = None,

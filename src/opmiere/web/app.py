@@ -3701,6 +3701,30 @@ def music_broll_api(body: MusicBrollBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+@app.get("/api/markers/slots")
+def marker_slots_api(
+    include_tail: bool = True,
+    min_duration_frames: int = 1,
+) -> dict[str, Any]:
+    """List marker-to-marker timeline slots."""
+    return _ed().list_marker_slots(
+        include_tail=include_tail,
+        min_duration_frames=min_duration_frames,
+    )
+
+
+class ClearMarkersBody(BaseModel):
+    prefix: str | None = None
+    marker_ids: list[str] | None = None
+
+
+@app.post("/api/markers/clear")
+def clear_markers_api(body: ClearMarkersBody | None = None) -> dict[str, Any]:
+    """Clear markers (all / prefix / ids)."""
+    body = body or ClearMarkersBody()
+    return _ed().clear_markers(prefix=body.prefix, marker_ids=body.marker_ids)
+
+
 class MarkersFromSrtBody(BaseModel):
     path: str | None = None
     text: str | None = None

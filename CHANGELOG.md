@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.55 — 2026-07-17
+
+### Added
+- `list_marker_slots` + `GET /api/markers/slots` + desktop **Slots?**
+- `clear_markers` supports prefix/ids (keeps `cleared` alias)
+- OpenShot path-C **adapter v15**: `subtitles` path in plan
 ## 0.5.54 — 2026-07-17
 
 ### Added
@@ -1421,6 +1427,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

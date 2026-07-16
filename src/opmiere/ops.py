@@ -6669,6 +6669,86 @@ class Editor:
                 "agent_note": "Media laid on marker grid; adjust trims with slip/roll.",
             }
 
+    def list_marker_slots(
+        self,
+        *,
+        marker_ids: list[str] | None = None,
+        include_tail: bool = True,
+        min_duration_frames: int = 1,
+    ) -> dict[str, Any]:
+        """List [marker_i, marker_{i+1}) timeline slots for agents/B-roll.
+
+        Each slot has start/end frames+seconds and duration. Useful before
+        place_media_at_markers or export_marker_segments.
+        """
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        marks = sorted(marks, key=lambda m: m.frame)
+        fps = float(self.project.timebase.fps or 30.0)
+        end_frame = max(1, int(self.duration_frames()))
+        slots: list[dict[str, Any]] = []
+        for i, mk in enumerate(marks):
+            start_f = int(mk.frame)
+            if i + 1 < len(marks):
+                end_f = int(marks[i + 1].frame)
+            elif include_tail:
+                end_f = end_frame
+            else:
+                continue
+            dur = end_f - start_f
+            if dur < int(min_duration_frames):
+                continue
+            slots.append({
+                "index": len(slots),
+                "marker_id": mk.id,
+                "label": mk.label,
+                "start_frame": start_f,
+                "end_frame": end_f,
+                "duration_frames": dur,
+                "start_seconds": round(start_f / fps, 3),
+                "end_seconds": round(end_f / fps, 3),
+                "duration_seconds": round(dur / fps, 3),
+            })
+        return {
+            "count": len(slots),
+            "slots": slots,
+            "marker_count": len(marks),
+            "fps": fps,
+            "project_end_frame": end_frame,
+        }
+
+    def clear_markers(
+        self,
+        *,
+        prefix: str | None = None,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Delete markers (all, by id list, or label prefix). One undo."""
+        with self._mutate():
+            before = len(self.project.markers)
+            if marker_ids is not None:
+                wanted = set(marker_ids)
+                self.project.markers = [
+                    m for m in self.project.markers if m.id not in wanted
+                ]
+            elif prefix is not None:
+                pref = prefix.strip().lower()
+                self.project.markers = [
+                    m for m in self.project.markers
+                    if not (m.label or "").lower().startswith(pref)
+                ]
+            else:
+                self.project.markers.clear()
+            after = len(self.project.markers)
+            return {
+                "deleted": before - after,
+                "cleared": before - after,  # alias for older callers
+                "remaining": after,
+                "prefix": prefix,
+            }
+
     def music_broll(
         self,
         track_id: str,
@@ -7435,13 +7515,6 @@ class Editor:
                     "frame": {"from": old, "to": m.frame},
                 })
             return {"delta_frames": delta_frames, "count": len(moved), "markers": moved}
-
-    def clear_markers(self) -> dict[str, Any]:
-        """Delete all timeline markers. One undo."""
-        with self._mutate():
-            n = len(self.project.markers)
-            self.project.markers.clear()
-            return {"cleared": n}
 
     def ripple_delete_range(
         self,
