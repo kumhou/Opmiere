@@ -8012,6 +8012,87 @@ async function blurUi() {
   }
 }
 
+async function sharpenUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for sharpen";
+    return;
+  }
+  $("status-msg").textContent = "Applying sharpen…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/sharpen", {
+      clip_id: ids[0],
+      amount: 1.0,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Sharp · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Sharp failed: ${e}`);
+    $("status-msg").textContent = `Sharp failed: ${e}`;
+  }
+}
+
+async function glowUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for glow";
+    return;
+  }
+  $("status-msg").textContent = "Applying glow…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/glow", {
+      clip_id: ids[0],
+      amount: 8,
+      intensity: 0.4,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Glow · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Glow failed: ${e}`);
+    $("status-msg").textContent = `Glow failed: ${e}`;
+  }
+}
+
+async function chromaKeyUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select overlay clip for chroma key";
+    return;
+  }
+  $("status-msg").textContent = "Applying chroma key…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/chroma_key", {
+      clip_id: ids[0],
+      color: "green",
+      similarity: 0.15,
+      blend: 0.05,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `CKey · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`CKey failed: ${e}`);
+    $("status-msg").textContent = `CKey failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -11844,6 +11925,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-vig", () => void vignetteUi());
   proBind("btn-grain", () => void filmGrainUi());
   proBind("btn-blur", () => void blurUi());
+  proBind("btn-sharp", () => void sharpenUi());
+  proBind("btn-glow", () => void glowUi());
+  proBind("btn-ckey", () => void chromaKeyUi());
   proBind("btn-clip-gif", () => void exportClipGifUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

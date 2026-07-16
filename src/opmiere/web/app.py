@@ -6075,6 +6075,73 @@ def blur_api(body: BlurBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SharpenBody(BaseModel):
+    clip_id: str
+    amount: float = 1.0
+    replace: bool = True
+
+
+@app.post("/api/clip/sharpen")
+def sharpen_api(body: SharpenBody) -> dict[str, Any]:
+    """Apply sharpen to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_sharpen(
+            body.clip_id, amount=body.amount, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"sharpen failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class GlowBody(BaseModel):
+    clip_id: str
+    amount: float = 8.0
+    intensity: float = 0.4
+    replace: bool = True
+
+
+@app.post("/api/clip/glow")
+def glow_api(body: GlowBody) -> dict[str, Any]:
+    """Apply glow to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_glow(
+            body.clip_id,
+            amount=body.amount,
+            intensity=body.intensity,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"glow failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ChromaKeyBody(BaseModel):
+    clip_id: str
+    color: str = "green"
+    similarity: float = 0.15
+    blend: float = 0.05
+    replace: bool = True
+
+
+@app.post("/api/clip/chroma_key")
+def chroma_key_api(body: ChromaKeyBody) -> dict[str, Any]:
+    """Apply chroma key (green/blue screen) to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_chroma_key(
+            body.clip_id,
+            color=body.color,
+            similarity=body.similarity,
+            blend=body.blend,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"chroma_key failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -3654,6 +3654,49 @@ def apply_blur(
 
 
 @mcp.tool()
+def apply_sharpen(
+    clip_id: str,
+    amount: float = 1.0,
+    replace: bool = True,
+) -> dict:
+    """Apply sharpen to a clip (amount in (0, 5])."""
+    return _require_editor().apply_sharpen(
+        clip_id, amount=amount, replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_glow(
+    clip_id: str,
+    amount: float = 8.0,
+    intensity: float = 0.4,
+    replace: bool = True,
+) -> dict:
+    """Apply glow to a clip."""
+    return _require_editor().apply_glow(
+        clip_id, amount=amount, intensity=intensity, replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_chroma_key(
+    clip_id: str,
+    color: str = "green",
+    similarity: float = 0.15,
+    blend: float = 0.05,
+    replace: bool = True,
+) -> dict:
+    """Apply chroma key (green/blue screen) for overlay compositing."""
+    return _require_editor().apply_chroma_key(
+        clip_id,
+        color=color,
+        similarity=similarity,
+        blend=blend,
+        replace=replace,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

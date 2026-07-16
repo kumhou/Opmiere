@@ -4726,6 +4726,101 @@ class Editor:
                 "agent_note": "Blur applied (ffmpeg boxblur/gblur).",
             }
 
+    def apply_sharpen(
+        self,
+        clip_id: str,
+        *,
+        amount: float = 1.0,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply sharpen effect to a clip (amount in (0, 5])."""
+        self._assert_clip_track_unlocked(clip_id)
+        amt = float(amount)
+        if not (0.0 < amt <= 5.0):
+            raise ValueError("amount must be in (0, 5]")
+        fx = {"type": "sharpen", "amount": amt}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "sharpen"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Sharpen applied (ffmpeg unsharp).",
+            }
+
+    def apply_glow(
+        self,
+        clip_id: str,
+        *,
+        amount: float = 8.0,
+        intensity: float = 0.4,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply glow effect to a clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        amt = float(amount)
+        inten = float(intensity)
+        if not (0.0 < amt <= 50.0):
+            raise ValueError("amount must be in (0, 50]")
+        if not (0.0 < inten <= 1.0):
+            raise ValueError("intensity must be in (0, 1]")
+        fx = {"type": "glow", "amount": amt, "intensity": inten}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "glow"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Glow applied; heavy glow may slow export.",
+            }
+
+    def apply_chroma_key(
+        self,
+        clip_id: str,
+        *,
+        color: str = "green",
+        similarity: float = 0.15,
+        blend: float = 0.05,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply chroma_key for green/blue-screen overlay clips."""
+        self._assert_clip_track_unlocked(clip_id)
+        sim = float(similarity)
+        bl = float(blend)
+        if not (0.0 < sim <= 1.0):
+            raise ValueError("similarity must be in (0, 1]")
+        if not (0.0 <= bl <= 1.0):
+            raise ValueError("blend must be in [0, 1]")
+        fx = {
+            "type": "chroma_key",
+            "color": str(color or "green"),
+            "similarity": sim,
+            "blend": bl,
+        }
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "chroma_key"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": (
+                    "Chroma key on overlay tracks composites over base. "
+                    "Tune similarity/blend for spill."
+                ),
+            }
+
     def export_webm(
         self,
         output_path: str | Path,

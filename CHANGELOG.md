@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.97 — 2026-07-17
+
+### Added
+- `apply_sharpen` / `apply_glow` / `apply_chroma_key` + **Sharp** / **Glow** / **CKey**
+
 ## 0.5.96 — 2026-07-17
 
 ### Added
