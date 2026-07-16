@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.74 — 2026-07-16
+
+### Added
+- Desktop **Sil?** / **Sil✓** — apply_silence_to_clip dry-run / apply
+
 ## 0.4.73 — 2026-07-16
 
 ### Added
