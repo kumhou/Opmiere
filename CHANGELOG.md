@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.87 — 2026-07-17
+
+### Added
+- Desktop **Asset?** — load_asset_analysis cache hit
+
 ## 0.4.86 — 2026-07-17
 
 ### Added
