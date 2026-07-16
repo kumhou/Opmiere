@@ -14424,6 +14424,165 @@ class Editor:
             return Path(loud_path)
         return written
 
+    def export_with_burnins(
+        self,
+        output_path: str | Path,
+        *,
+        timecode: bool = True,
+        safe_area: bool = True,
+        watermark: str | None = None,
+        timecode_start: str = "00:00:00:00",
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export master then burn review overlays (does not mutate timeline FX).
+
+        Post-process drawtext/drawbox: running TC, action/title safe, optional
+        watermark. Ideal for client review masters without permanent effects.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        from .model import DEFAULT_TEXT_FONT
+        from .render.ffmpeg import _escape_filter_path
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fd, raw = tempfile.mkstemp(prefix="opmiere_master_", suffix=".mp4")
+        os.close(fd)
+        master = Path(raw)
+        fps = float(self.project.timebase.fps or 30.0)
+        try:
+            self.export(master, normalize_preset=None)
+            vf: list[str] = []
+            font = DEFAULT_TEXT_FONT
+            if Path(font).exists() and timecode:
+                tc = timecode_start.replace(":", r"\:")
+                vf.append(
+                    f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                    f"timecode='{tc}':r={fps}:"
+                    f"fontcolor=white:fontsize=28:borderw=2:bordercolor=black:"
+                    f"x=w-tw-24:y=h-th-24"
+                )
+            if safe_area:
+                # action 90%, title 80%
+                vf.append(
+                    "drawbox=x=iw*0.05:y=ih*0.05:w=iw*0.90:h=ih*0.90:"
+                    "color=green@0.5:t=2"
+                )
+                vf.append(
+                    "drawbox=x=iw*0.10:y=ih*0.10:w=iw*0.80:h=ih*0.80:"
+                    "color=yellow@0.4:t=2"
+                )
+            if watermark and str(watermark).strip() and Path(font).exists():
+                # escape special for drawtext text=
+                text = (
+                    str(watermark)
+                    .replace("\\", "\\\\")
+                    .replace(":", r"\:")
+                    .replace("'", r"\'")
+                )
+                vf.append(
+                    f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                    f"text='{text}':"
+                    f"fontcolor=white@0.55:fontsize=22:borderw=1:bordercolor=black:"
+                    f"x=(w-tw)/2:y=h-th-48"
+                )
+            if not vf:
+                # nothing to burn — copy/move master
+                import shutil
+                shutil.copy2(master, out)
+            else:
+                proc = subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-i", str(master),
+                        "-vf", ",".join(vf),
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                        "-c:a", "copy",
+                        str(out),
+                    ],
+                    capture_output=True, text=True,
+                )
+                if proc.returncode != 0 or not out.exists():
+                    # audio copy may fail on some masters — retry re-encode audio
+                    proc2 = subprocess.run(
+                        [
+                            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                            "-i", str(master),
+                            "-vf", ",".join(vf),
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                            "-c:a", "aac", "-b:a", "192k",
+                            str(out),
+                        ],
+                        capture_output=True, text=True,
+                    )
+                    if proc2.returncode != 0 or not out.exists():
+                        raise RuntimeError(
+                            f"export_with_burnins failed:\n"
+                            f"{(proc2.stderr or proc.stderr or '')[-1500:]}"
+                        )
+            final = out
+            if normalize_preset:
+                loud = out.with_name(out.stem + "_loud" + out.suffix)
+                self.normalize_loudness(out, loud, preset=normalize_preset)
+                final = loud
+            return {
+                "path": str(final.resolve()),
+                "timecode": timecode,
+                "safe_area": safe_area,
+                "watermark": watermark,
+                "fps": fps,
+                "normalize_preset": normalize_preset,
+                "agent_note": (
+                    "Review master with burn-ins; timeline effects unchanged. "
+                    "Use plain export() for final delivery."
+                ),
+            }
+        finally:
+            try:
+                master.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def rename_clips_sequential(
+        self,
+        track_id: str,
+        *,
+        pattern: str = "Shot {n:03d}",
+        start: int = 1,
+    ) -> dict[str, Any]:
+        """Rename clips on a track in timeline order (one undo).
+
+        pattern uses ``{n}`` for 1-based index (start=) and ``{name}`` for old name.
+        """
+        if "{n" not in pattern and "{n}" not in pattern and "{name}" not in pattern:
+            # allow patterns like "A-roll" without n — still sequential with suffix
+            if "{n}" not in pattern:
+                pattern = pattern + " {n:03d}"
+        with self._mutate():
+            tr = self.project.track_by_id(track_id)
+            if tr.locked:
+                raise ValueError(f"track {tr.id} is locked")
+            renamed: list[dict[str, Any]] = []
+            n = int(start)
+            for c in tr.clips_in_order():
+                old = c.name
+                try:
+                    new = pattern.format(n=n, name=old or c.id)
+                except (KeyError, ValueError):
+                    new = f"{pattern}_{n:03d}"
+                c.name = new
+                renamed.append({"clip_id": c.id, "from": old, "to": new})
+                n += 1
+            return {
+                "track_id": track_id,
+                "count": len(renamed),
+                "clips": renamed,
+                "pattern": pattern,
+                "agent_note": "Sequential rename for assembly / EDL labels.",
+            }
+
     def export_to_size(
         self,
         output_path: str | Path,

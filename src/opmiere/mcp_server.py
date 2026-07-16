@@ -2296,6 +2296,38 @@ def export_to_size(
 
 
 @mcp.tool()
+def export_with_burnins(
+    path: str,
+    timecode: bool = True,
+    safe_area: bool = True,
+    watermark: str | None = None,
+    timecode_start: str = "00:00:00:00",
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export review master with TC/safe/watermark (timeline unchanged)."""
+    return _require_editor().export_with_burnins(
+        path,
+        timecode=timecode,
+        safe_area=safe_area,
+        watermark=watermark,
+        timecode_start=timecode_start,
+        normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
+def rename_clips_sequential(
+    track_id: str,
+    pattern: str = "Shot {n:03d}",
+    start: int = 1,
+) -> dict:
+    """Rename clips on a track in timeline order."""
+    return _require_editor().rename_clips_sequential(
+        track_id, pattern=pattern, start=start,
+    )
+
+
+@mcp.tool()
 def export_social_pack(
     out_dir: str,
     variants: list[str] | None = None,

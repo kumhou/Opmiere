@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.83 — 2026-07-17
+
+### Added
+- `export_with_burnins` (TC + safe + watermark review master, no timeline mutate) + **BurnIn**
+- `rename_clips_sequential` + **Rename#**
+
 ## 0.5.82 — 2026-07-17
 
 ### Added

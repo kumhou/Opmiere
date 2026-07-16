@@ -3910,6 +3910,51 @@ def export_to_size_api(body: ExportToSizeBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_to_size failed: {e}") from e
 
 
+class ExportBurninsBody(BaseModel):
+    path: str
+    timecode: bool = True
+    safe_area: bool = True
+    watermark: str | None = None
+    timecode_start: str = "00:00:00:00"
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/burnins")
+def export_burnins_api(body: ExportBurninsBody) -> dict[str, Any]:
+    """Export review master with TC/safe/watermark burn-ins (no timeline mutate)."""
+    ed = _ed()
+    try:
+        return ed.export_with_burnins(
+            body.path,
+            timecode=body.timecode,
+            safe_area=body.safe_area,
+            watermark=body.watermark,
+            timecode_start=body.timecode_start,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_burnins failed: {e}") from e
+
+
+class RenameClipsBody(BaseModel):
+    track_id: str
+    pattern: str = "Shot {n:03d}"
+    start: int = 1
+
+
+@app.post("/api/track/rename_clips")
+def rename_clips_api(body: RenameClipsBody) -> dict[str, Any]:
+    """Sequential rename clips on a track."""
+    ed = _ed()
+    try:
+        r = ed.rename_clips_sequential(
+            body.track_id, pattern=body.pattern, start=body.start,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rename_clips failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SocialPackBody(BaseModel):
     out_dir: str
     variants: list[str] | None = None

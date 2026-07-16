@@ -2887,6 +2887,55 @@ async function exportCutsReportUi() {
   }
 }
 
+async function exportBurninsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Burn-in master output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting burn-in master…";
+  try {
+    const r = await postJson<{ path?: string }>("/api/export/burnins", {
+      path: `${dir.replace(/[\\/]+$/, "")}/review_burnin.mp4`,
+      timecode: true,
+      safe_area: true,
+      watermark: "© Opmiere REVIEW",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `BurnIn · → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`BurnIn failed: ${e}`);
+    $("status-msg").textContent = `BurnIn failed: ${e}`;
+  }
+}
+
+async function renameClipsSeqUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  $("status-msg").textContent = "Renaming clips…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/track/rename_clips",
+      { track_id: trackId, pattern: "Shot {n:03d}", start: 1 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Rename# · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`Rename# failed: ${e}`);
+    $("status-msg").textContent = `Rename# failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11258,6 +11307,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnCutsExp.addEventListener("click", () => {
       stopPlay();
       void exportCutsReportUi();
+    });
+  }
+  const btnBurnin = document.getElementById("btn-burnin");
+  if (btnBurnin) {
+    btnBurnin.addEventListener("click", () => {
+      stopPlay();
+      void exportBurninsUi();
+    });
+  }
+  const btnRenameSeq = document.getElementById("btn-rename-seq");
+  if (btnRenameSeq) {
+    btnRenameSeq.addEventListener("click", () => {
+      stopPlay();
+      void renameClipsSeqUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {
