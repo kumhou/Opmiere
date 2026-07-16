@@ -6933,6 +6933,14 @@ class Editor:
             children: list[dict[str, Any]] = []
             for c in tr.clips_in_order():
                 media = self.project.media_by_id(c.media)
+                # Prefer absolute path so import can re-ingest into another bundle.
+                try:
+                    abs_media = str(self.bundle.media_path(media.path).resolve())
+                except Exception:
+                    abs_media = media.path
+                if not Path(abs_media).is_file():
+                    # fall back to stored path / original if still absolute elsewhere
+                    abs_media = media.path
                 children.append({
                     "OTIO_SCHEMA": "Clip.1",
                     "name": c.name or c.id,
@@ -6945,7 +6953,7 @@ class Editor:
                     },
                     "media_reference": {
                         "OTIO_SCHEMA": "ExternalReference.1",
-                        "target_url": media.path,
+                        "target_url": abs_media.replace("\\", "/"),
                         "available_range": {
                             "start_time": {"value": 0, "rate": fps},
                             "duration": {
@@ -6961,6 +6969,7 @@ class Editor:
                             "speed": c.speed,
                             "color": c.color,
                             "link_group": c.link_group,
+                            "media_path": media.path,
                         }
                     },
                 })
@@ -7001,6 +7010,207 @@ class Editor:
             "body": body,
             "agent_note": "Simplified OTIO-like JSON; not guaranteed OpenTimelineIO load.",
         }
+
+    def import_otio_json(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        clear_tracks: bool = False,
+        import_missing_media: bool = True,
+        conform: bool = True,
+    ) -> dict[str, Any]:
+        """Import a simplified OTIO-like JSON timeline (pair of export_otio_json).
+
+        Expects our export shape (tracks Stack → Track children → Clip with
+        ExternalReference target_url + optional metadata.opmiere). Media is
+        matched by path/basename; missing files can be imported when present
+        on disk (import_missing_media=True).
+        """
+        if text is None and path is None:
+            raise ValueError("pass text= or path=")
+        if text is None:
+            text = Path(path).read_text(encoding="utf-8")
+        assert text is not None
+        try:
+            doc = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"invalid OTIO JSON: {e}") from e
+        if not isinstance(doc, dict):
+            raise ValueError("OTIO root must be an object")
+
+        stack = doc.get("tracks") or {}
+        track_nodes = stack.get("children") if isinstance(stack, dict) else None
+        if not isinstance(track_nodes, list):
+            # also accept bare list of tracks
+            track_nodes = doc.get("children") if isinstance(doc.get("children"), list) else None
+        if not isinstance(track_nodes, list):
+            raise ValueError("OTIO document has no tracks.children")
+
+        def _media_by_path(url: str) -> Any | None:
+            p = Path(url)
+            name = p.name.lower()
+            resolved = str(p.resolve()) if p.exists() else str(p)
+            for m in self.project.media:
+                mp = Path(m.path)
+                if mp.name.lower() == name:
+                    return m
+                try:
+                    if str(self.bundle.media_path(m.path).resolve()) == resolved:
+                        return m
+                except Exception:
+                    pass
+                if str(m.path).replace("\\", "/") == str(url).replace("\\", "/"):
+                    return m
+            return None
+
+        with self._mutate():
+            if clear_tracks:
+                for tr in list(self.project.tracks):
+                    tr.clips.clear()
+
+            placed: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            imported_media: list[str] = []
+            kind_cursor: dict[str, int] = {"video": 0, "audio": 0}
+
+            for ti, tnode in enumerate(track_nodes):
+                if not isinstance(tnode, dict):
+                    continue
+                kind_raw = str(tnode.get("kind") or "Video").lower()
+                tkind: TrackKind = "audio" if "audio" in kind_raw else "video"
+                kind_tracks = [t for t in self.project.tracks if t.kind == tkind]
+                idx = kind_cursor[tkind]
+                if idx < len(kind_tracks):
+                    track = kind_tracks[idx]
+                else:
+                    track = self.project.add_track(tkind)
+                kind_cursor[tkind] = idx + 1
+                if tnode.get("name") and not track.name:
+                    track.name = str(tnode["name"])
+                if track.locked:
+                    skipped.append({"track": ti, "reason": f"track {track.id} locked"})
+                    continue
+
+                children = tnode.get("children") or []
+                if not isinstance(children, list):
+                    continue
+                cursor = 0
+                for cnode in children:
+                    if not isinstance(cnode, dict):
+                        continue
+                    schema = str(cnode.get("OTIO_SCHEMA") or "")
+                    if schema and "Clip" not in schema and "clip" not in schema.lower():
+                        # skip gaps / transitions for now
+                        if "Gap" in schema:
+                            sr = cnode.get("source_range") or {}
+                            dur_g = sr.get("duration") or {}
+                            try:
+                                cursor += int(dur_g.get("value") or 0)
+                            except (TypeError, ValueError):
+                                pass
+                        continue
+                    ref = cnode.get("media_reference") or {}
+                    url = (
+                        ref.get("target_url")
+                        or ref.get("target_url_1")
+                        or (ref.get("metadata") or {}).get("path")
+                    )
+                    if not url:
+                        skipped.append({"name": cnode.get("name"), "reason": "no media target_url"})
+                        continue
+                    url_s = str(url).replace("file:///", "").replace("file://", "")
+                    media = _media_by_path(url_s)
+                    if media is None and import_missing_media:
+                        src = Path(url_s)
+                        if src.is_file():
+                            mkind = self.guess_media_kind(src)
+                            media = _ffmpeg_import_media(
+                                self.bundle,
+                                self.project,
+                                src,
+                                mkind,
+                                conform=conform,
+                                fit="none",
+                            )
+                            imported_media.append(media.id)
+                        else:
+                            skipped.append({
+                                "name": cnode.get("name"),
+                                "reason": f"media not found: {url_s}",
+                            })
+                            continue
+                    if media is None:
+                        skipped.append({
+                            "name": cnode.get("name"),
+                            "reason": f"no media match for {url_s}",
+                        })
+                        continue
+
+                    meta = (cnode.get("metadata") or {}).get("opmiere") or {}
+                    sr = cnode.get("source_range") or {}
+                    st = sr.get("start_time") or {}
+                    du = sr.get("duration") or {}
+                    try:
+                        src_in = int(st.get("value") or 0)
+                    except (TypeError, ValueError):
+                        src_in = 0
+                    try:
+                        src_dur = int(du.get("value") or 0)
+                    except (TypeError, ValueError):
+                        src_dur = 0
+                    if src_dur <= 0:
+                        src_dur = max(1, media.duration_frames - src_in)
+                    src_out = min(media.duration_frames, src_in + src_dur)
+                    if src_out <= src_in:
+                        src_in = 0
+                        src_out = max(1, min(media.duration_frames, src_dur or media.duration_frames))
+
+                    if "start" in meta:
+                        try:
+                            start = int(meta["start"])
+                        except (TypeError, ValueError):
+                            start = cursor
+                    else:
+                        start = cursor
+
+                    clip = self.project.add_clip(track, media, start, src_in, src_out)
+                    if meta.get("speed") is not None:
+                        try:
+                            sp = float(meta["speed"])
+                            if 0.05 <= sp <= 16.0:
+                                clip.speed = sp
+                        except (TypeError, ValueError):
+                            pass
+                    if cnode.get("name"):
+                        clip.name = str(cnode["name"])
+                    if meta.get("color"):
+                        clip.color = meta["color"]
+                    if meta.get("link_group"):
+                        clip.link_group = meta["link_group"]
+                    placed.append({
+                        "clip_id": clip.id,
+                        "media_id": media.id,
+                        "track_id": track.id,
+                        "start": clip.start,
+                        "src_in": clip.src_in,
+                        "src_out": clip.src_out,
+                    })
+                    cursor = max(cursor, clip.end)
+
+            return {
+                "placed": placed,
+                "count": len(placed),
+                "skipped": skipped[:40],
+                "skipped_count": len(skipped),
+                "imported_media": imported_media,
+                "imported_media_count": len(imported_media),
+                "clear_tracks": clear_tracks,
+                "agent_note": (
+                    "Simplified OTIO import (Opmiere export shape). "
+                    "Gaps skipped except cursor advance; transitions not recreated."
+                ),
+            }
 
     def agent_preflight(self) -> dict[str, Any]:
         """Single agent call: media + validate + proxy + duration + next steps.

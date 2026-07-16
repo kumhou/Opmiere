@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.42 — 2026-07-17
+
+### Added
+- `import_otio_json` + `POST /api/import/otio` + MCP + desktop **Imp OTIO**
+- OTIO export writes absolute media paths for cross-bundle import
+- OpenShot path-C **adapter v9**: `cross_dissolve` → fade ramps on cut neighbors
 ## 0.5.41 — 2026-07-17
 
 ### Added
@@ -1356,6 +1362,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

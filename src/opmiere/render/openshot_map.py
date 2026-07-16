@@ -21,9 +21,10 @@ Mapped for path-C frame grab (incremental):
   - chroma_key color/similarity (ChromaKey when available)
   - luma_key threshold/tolerance (LumaKey when available)
   - glow amount/intensity → soft blur + brightness stand-in
+  - cross_dissolve / fade transitions → alpha ramps on cut neighbors
 
-Still unsupported (listed in plan): transitions, complex grade FX
-(curves/lut/text/…), audio effects, base-track position.
+Still unsupported (listed in plan): complex grade FX
+(curves/lut/text/…), audio effects, non-dissolve transitions, base-track position.
 """
 
 from __future__ import annotations
@@ -58,14 +59,18 @@ _UNMAPPED_VISUAL = frozenset({
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 8
+ADAPTER_VERSION = 9
+
+_DISSOLVE_TYPES = frozenset({
+    "cross_dissolve", "dissolve", "fade", "fade_black", "fade_white",
+})
 
 
 def path_c_effect_catalog() -> dict[str, Any]:
     """Agent/desktop catalog of what path-C can approximate vs skip."""
     return {
         "adapter_version": ADAPTER_VERSION,
-        "mapped": sorted(_MAPPED_VISUAL),
+        "mapped": sorted(_MAPPED_VISUAL | {"transition_dissolve"}),
         "unmapped": sorted(_UNMAPPED_VISUAL),
         "notes": {
             "vignette": "Mask or edge darken best-effort",
@@ -77,6 +82,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "chroma_key": "ChromaKey green/blue key when available",
             "luma_key": "LumaKey threshold/tolerance when available",
             "glow": "soft Blur + Brightness stand-in",
+            "transition_dissolve": "cross_dissolve → fade_in/out on neighbors",
         },
     }
 
@@ -400,6 +406,8 @@ def build_openshot_plan(
     if soloed:
         video_tracks = soloed
 
+    last_entry_by_layer: dict[int, dict[str, Any]] = {}
+
     for track_index, track in enumerate(video_tracks):
         # OpenShot: higher layer draws on top; base = 1, overlays 2+
         layer = track_index + 1
@@ -435,6 +443,33 @@ def build_openshot_plan(
             for me in vis["mapped_effects"]:
                 mapped_notes.append(f"{me}:{clip.id}")
 
+            fade_in = int(vis.get("fade_in_frames") or 0)
+            fade_out = int(vis.get("fade_out_frames") or 0)
+            # cross_dissolve-style transition_in → alpha ramps on this + previous clip
+            if clip.transition_in and isinstance(clip.transition_in, dict):
+                ti = clip.transition_in
+                ttype = str(
+                    ti.get("type") or ti.get("transition_type") or ""
+                ).lower()
+                try:
+                    tdur = int(ti.get("duration_frames") or 0)
+                except (TypeError, ValueError):
+                    tdur = 0
+                if tdur > 0 and (
+                    ttype in _DISSOLVE_TYPES
+                    or "dissolve" in ttype
+                    or ttype.startswith("fade")
+                ):
+                    fade_in = max(fade_in, tdur)
+                    prev = last_entry_by_layer.get(layer)
+                    if prev is not None:
+                        prev["fade_out_frames"] = max(
+                            int(prev.get("fade_out_frames") or 0), tdur
+                        )
+                    mapped_notes.append(f"transition:{clip.id}")
+                else:
+                    unsupported.append(f"transition:{clip.id}")
+
             entry: dict[str, Any] = {
                 "id": clip.id,
                 "path": str(path.resolve()),
@@ -450,8 +485,8 @@ def build_openshot_plan(
                 "rotation": vis["rotation"],
                 "blur": vis.get("blur") or 0.0,
                 "brightness": vis.get("brightness") or 0.0,
-                "fade_in_frames": vis.get("fade_in_frames") or 0,
-                "fade_out_frames": vis.get("fade_out_frames") or 0,
+                "fade_in_frames": fade_in,
+                "fade_out_frames": fade_out,
                 "vignette": vis.get("vignette") or 0.0,
                 "sharpen": vis.get("sharpen") or 0.0,
                 "film_grain": vis.get("film_grain") or 0.0,
@@ -478,8 +513,6 @@ def build_openshot_plan(
                     "speed": speed,
                 }
                 mapped_notes.append(f"speed:{clip.id}")
-            if clip.transition_in:
-                unsupported.append(f"transition:{clip.id}")
             if clip.position and track_index > 0:
                 entry["transform"] = {
                     "x": float(clip.position.get("x", 0.0)),
@@ -490,6 +523,7 @@ def build_openshot_plan(
             elif clip.position and track_index == 0:
                 unsupported.append(f"base_position_ignored:{clip.id}")
             clips_out.append(entry)
+            last_entry_by_layer[layer] = entry
 
     if include_audio:
         # deferred: audio mix in interactive preview is optional for frame grab

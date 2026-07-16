@@ -3146,6 +3146,14 @@ class InterchangeExportBody(BaseModel):
     title: str | None = None
 
 
+class ImportOtioBody(BaseModel):
+    path: str | None = None
+    text: str | None = None
+    clear_tracks: bool = False
+    import_missing_media: bool = True
+    conform: bool = True
+
+
 class ExportStillBody(BaseModel):
     output_path: str | None = None
     frame: int | None = None
@@ -3294,6 +3302,23 @@ def export_otio_api(body: InterchangeExportBody | None = None) -> dict[str, Any]
         return ed.export_otio_json(path, title=body.title)
     except Exception as e:
         raise HTTPException(500, f"export_otio failed: {e}") from e
+
+
+@app.post("/api/import/otio")
+def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
+    """Import simplified OTIO-like JSON (pair of export_otio)."""
+    ed = _ed()
+    try:
+        r = ed.import_otio_json(
+            body.path,
+            text=body.text,
+            clear_tracks=body.clear_tracks,
+            import_missing_media=body.import_missing_media,
+            conform=body.conform,
+        )
+        return {**r, "timeline": ed.timeline_view()}
+    except Exception as e:
+        raise HTTPException(400, f"import_otio failed: {e}") from e
 
 
 @app.post("/api/export/still")

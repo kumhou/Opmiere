@@ -5566,6 +5566,42 @@ async function exportOtioUi() {
   }
 }
 
+async function importOtioFile() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const picked = await pickImportFile({
+    title: "Import OTIO JSON",
+    extensions: ["json", "otio"],
+  });
+  if (!picked) return;
+  $("status-msg").textContent = "Importing OTIO…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+      imported_media_count?: number;
+    }>("/api/import/otio", {
+      path: picked.path || null,
+      text: picked.text || null,
+      clear_tracks: false,
+      import_missing_media: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    $("status-msg").textContent =
+      `OTIO in · ${r.count ?? "?"} clips` +
+      (r.imported_media_count ? ` · +${r.imported_media_count} media` : "") +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `OTIO import failed: ${e}`;
+  }
+}
+
 async function exportStillUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9041,6 +9077,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-scenes", () => void runDetectScenes());
   proBind("btn-fcpxml", () => void exportFcpxmlUi());
   proBind("btn-otio", () => void exportOtioUi());
+  proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());
   proBind("btn-del-trk", () => void deleteTrackOfSelection());

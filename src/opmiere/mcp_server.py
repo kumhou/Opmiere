@@ -1461,6 +1461,27 @@ def export_otio_json(path: str | None = None, title: str | None = None) -> dict:
 
 
 @mcp.tool()
+def import_otio_json(
+    path: str | None = None,
+    text: str | None = None,
+    clear_tracks: bool = False,
+    import_missing_media: bool = True,
+    conform: bool = True,
+) -> dict:
+    """Import simplified OTIO-like JSON (pair of export_otio_json).
+
+    Matches media by path/basename; imports missing files when on disk.
+    """
+    return _require_editor().import_otio_json(
+        path,
+        text=text,
+        clear_tracks=clear_tracks,
+        import_missing_media=import_missing_media,
+        conform=conform,
+    )
+
+
+@mcp.tool()
 def agent_preflight() -> dict:
     """Read-only gate: media + validate + proxy + duration + next_steps.
 
