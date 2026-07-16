@@ -7035,6 +7035,65 @@ def selection_speed_ripple_api(body: SelectionSpeedRippleBody) -> dict[str, Any]
     return {**r, "timeline": ed.timeline_view()}
 
 
+class TransitionsSelectionBody(BaseModel):
+    clip_ids: list[str]
+    transition_type: str = "cross_dissolve"
+    duration_frames: int = 12
+    require_both_selected: bool = True
+
+
+@app.post("/api/edit/transitions_selection")
+def transitions_selection_api(body: TransitionsSelectionBody) -> dict[str, Any]:
+    """Add transitions on hard cuts within selection."""
+    ed = _ed()
+    try:
+        r = ed.add_transitions_to_selection(
+            body.clip_ids,
+            transition_type=body.transition_type,
+            duration_frames=body.duration_frames,
+            require_both_selected=body.require_both_selected,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"transitions_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RemoveTransitionsSelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/remove_transitions_selection")
+def remove_transitions_selection_api(body: RemoveTransitionsSelectionBody) -> dict[str, Any]:
+    """Strip transition_in from selection."""
+    ed = _ed()
+    try:
+        r = ed.remove_transitions_from_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"remove_transitions_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class StaggerSelectionBody(BaseModel):
+    clip_ids: list[str]
+    offset_frames: int = 10
+    from_earliest: bool = True
+
+
+@app.post("/api/edit/stagger_selection")
+def stagger_selection_api(body: StaggerSelectionBody) -> dict[str, Any]:
+    """Stair-step offset selection starts."""
+    ed = _ed()
+    try:
+        r = ed.stagger_selection(
+            body.clip_ids,
+            body.offset_frames,
+            from_earliest=body.from_earliest,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"stagger_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

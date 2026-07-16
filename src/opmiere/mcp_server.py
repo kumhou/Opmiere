@@ -4252,6 +4252,40 @@ def set_selection_speed_ripple(clip_ids: list[str], speed: float) -> dict:
 
 
 @mcp.tool()
+def add_transitions_to_selection(
+    clip_ids: list[str],
+    transition_type: str = "cross_dissolve",
+    duration_frames: int = 12,
+    require_both_selected: bool = True,
+) -> dict:
+    """Add xfade/wipe on hard cuts between selected clips."""
+    return _require_editor().add_transitions_to_selection(
+        clip_ids,
+        transition_type=transition_type,
+        duration_frames=duration_frames,
+        require_both_selected=require_both_selected,
+    )
+
+
+@mcp.tool()
+def remove_transitions_from_selection(clip_ids: list[str]) -> dict:
+    """Remove transition_in from selected clips (hard cuts)."""
+    return _require_editor().remove_transitions_from_selection(clip_ids)
+
+
+@mcp.tool()
+def stagger_selection(
+    clip_ids: list[str],
+    offset_frames: int = 10,
+    from_earliest: bool = True,
+) -> dict:
+    """Stair-step selection starts by i*offset_frames."""
+    return _require_editor().stagger_selection(
+        clip_ids, offset_frames, from_earliest=from_earliest,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

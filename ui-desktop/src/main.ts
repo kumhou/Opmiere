@@ -9113,6 +9113,86 @@ async function selectionSpeedRippleUi(speed: number) {
   }
 }
 
+async function transitionsSelectionUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select 2+ adjacent clips for xfade";
+    return;
+  }
+  $("status-msg").textContent = "Adding selection transitions…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/transitions_selection", {
+      clip_ids: ids,
+      transition_type: "cross_dissolve",
+      duration_frames: 12,
+      require_both_selected: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `XfadeSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`XfadeSel failed: ${e}`);
+    $("status-msg").textContent = `XfadeSel failed: ${e}`;
+  }
+}
+
+async function removeTransitionsSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to hard-cut";
+    return;
+  }
+  $("status-msg").textContent = "Removing transitions…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/remove_transitions_selection", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `HardSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`HardSel failed: ${e}`);
+    $("status-msg").textContent = `HardSel failed: ${e}`;
+  }
+}
+
+async function staggerSelectionUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select 2+ clips to stagger";
+    return;
+  }
+  $("status-msg").textContent = "Staggering selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/stagger_selection", {
+      clip_ids: ids,
+      offset_frames: 10,
+      from_earliest: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Stagger · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Stagger failed: ${e}`);
+    $("status-msg").textContent = `Stagger failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12992,6 +13072,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-ext-next", () => void extendToNextUi());
   proBind("btn-rev-sel", () => void reverseSelectionUi());
   proBind("btn-spd2-sel", () => void selectionSpeedRippleUi(2.0));
+  proBind("btn-xfade-sel", () => void transitionsSelectionUi());
+  proBind("btn-hard-sel", () => void removeTransitionsSelectionUi());
+  proBind("btn-stagger", () => void staggerSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

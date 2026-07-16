@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.12 — 2026-07-17
+
+### Added
+- `add_transitions_to_selection` / `remove_transitions_from_selection` + **XfadeSel** / **HardSel**
+- `stagger_selection` + **Stagger**
+
 ## 0.6.11 — 2026-07-17
 
 ### Added

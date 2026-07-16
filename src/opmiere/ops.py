@@ -3787,6 +3787,162 @@ class Editor:
             "agent_note": "Per-clip speed+ripple, processed right-to-left.",
         }
 
+    def add_transitions_to_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        transition_type: str = "cross_dissolve",
+        duration_frames: int = 12,
+        require_both_selected: bool = True,
+    ) -> dict[str, Any]:
+        """Add transition_in on selected hard cuts.
+
+        For each selected clip with a previous neighbor hard-cut:
+        if require_both_selected, prev must also be in the selection.
+        Skips clips that already have transition_in or lack material.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if transition_type not in KNOWN_TRANSITION_TYPES:
+            raise ValueError(
+                f"unknown transition type {transition_type!r}; "
+                f"supported: {sorted(KNOWN_TRANSITION_TYPES)}"
+            )
+        dur = int(duration_frames)
+        if dur <= 0:
+            raise ValueError("duration_frames must be positive")
+        selected = set(dict.fromkeys(clip_ids))
+        applied: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        # process left-to-right so starts stay consistent
+        items: list[tuple[int, str]] = []
+        for cid in selected:
+            c = self._find_clip(cid)
+            items.append((int(c.start), cid))
+        items.sort(key=lambda x: x[0])
+        for _, cid in items:
+            track, clip = self._find_clip_and_track(cid)
+            if track.locked:
+                skipped.append({"clip_id": cid, "reason": "track locked"})
+                continue
+            if clip.transition_in is not None:
+                skipped.append({"clip_id": cid, "reason": "already has transition"})
+                continue
+            ordered = track.clips_in_order()
+            try:
+                idx = next(i for i, c in enumerate(ordered) if c.id == cid)
+            except StopIteration:
+                skipped.append({"clip_id": cid, "reason": "not on track"})
+                continue
+            if idx == 0:
+                skipped.append({"clip_id": cid, "reason": "first on track"})
+                continue
+            prev = ordered[idx - 1]
+            if require_both_selected and prev.id not in selected:
+                skipped.append({"clip_id": cid, "reason": "previous not in selection"})
+                continue
+            if int(clip.start) != int(prev.end):
+                skipped.append({"clip_id": cid, "reason": "not hard cut"})
+                continue
+            if (
+                prev.timeline_duration_frames <= dur
+                or clip.timeline_duration_frames <= dur
+            ):
+                skipped.append({"clip_id": cid, "reason": "clips too short for duration"})
+                continue
+            try:
+                self.add_transition(cid, transition_type, dur)
+                applied.append({
+                    "clip_id": cid,
+                    "prev_clip_id": prev.id,
+                    "type": transition_type,
+                    "duration_frames": dur,
+                })
+            except Exception as e:
+                skipped.append({"clip_id": cid, "reason": str(e)[:200]})
+        return {
+            "count": len(applied),
+            "applied": applied,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "transition_type": transition_type,
+            "duration_frames": dur,
+            "agent_note": "Xfade on selected hard cuts; timeline shortens by duration each.",
+        }
+
+    def remove_transitions_from_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Remove transition_in from selected clips (restore hard cuts)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        removed: list[str] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            if clip.transition_in is None:
+                skipped.append({"clip_id": cid, "reason": "no transition"})
+                continue
+            try:
+                self.remove_transition(cid)
+                removed.append(cid)
+            except Exception as e:
+                skipped.append({"clip_id": cid, "reason": str(e)[:200]})
+        return {
+            "count": len(removed),
+            "removed": removed,
+            "skipped": skipped,
+            "agent_note": "Hard cuts restored; start pushed right by former duration.",
+        }
+
+    def stagger_selection(
+        self,
+        clip_ids: list[str],
+        offset_frames: int,
+        *,
+        from_earliest: bool = True,
+    ) -> dict[str, Any]:
+        """Offset each selected clip by i*offset_frames (stair-step / peel).
+
+        Sorted by start. from_earliest=True: first stays, later +i*offset.
+        Negative offset peels left (clamped ≥0).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(offset_frames, int) or offset_frames == 0:
+            raise ValueError("offset_frames must be a non-zero int")
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            c = self._find_clip(cid)
+            items.append((int(c.start), cid))
+        items.sort(key=lambda x: x[0])
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            for i, (_, cid) in enumerate(items):
+                if from_earliest and i == 0:
+                    continue
+                step = i if from_earliest else (i + 1)
+                delta = step * int(offset_frames)
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                old = clip.start
+                clip.start = max(0, old + delta)
+                if clip.transition_in is not None and clip.start != old:
+                    clip.transition_in = None
+                moved.append({
+                    "clip_id": cid,
+                    "from": old,
+                    "to": clip.start,
+                    "delta": clip.start - old,
+                })
+            return {
+                "offset_frames": offset_frames,
+                "count": len(moved),
+                "moved": moved,
+                "agent_note": "Staggered selection; check overlaps on freeform tracks.",
+            }
+
     def set_clips_flip(
         self,
         clip_ids: list[str],
