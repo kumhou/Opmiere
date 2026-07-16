@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.85 — 2026-07-17
+
+### Added
+- `set_project_resolution` (canvas size) + desktop **1080×1920**
+- `markers_from_blackdetect` (ffmpeg blackdetect → markers) + **Black?**
+
 ## 0.5.84 — 2026-07-17
 
 ### Added

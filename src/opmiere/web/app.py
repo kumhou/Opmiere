@@ -4255,6 +4255,57 @@ def markers_from_hard_cuts_api(body: MarkersFromCutsBody | None = None) -> dict[
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ProjectResolutionBody(BaseModel):
+    width: int
+    height: int
+
+
+@app.post("/api/project/resolution")
+def project_resolution_api(body: ProjectResolutionBody) -> dict[str, Any]:
+    """Change project canvas resolution."""
+    ed = _ed()
+    try:
+        r = ed.set_project_resolution(body.width, body.height)
+    except Exception as e:
+        raise HTTPException(400, f"set_project_resolution failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class BlackdetectBody(BaseModel):
+    media_id: str | None = None
+    path: str | None = None
+    clip_id: str | None = None
+    pic_th: float = 0.98
+    pix_th: float = 0.10
+    min_duration: float = 0.15
+    prefix: str = "Black "
+    clear_existing: bool = False
+    color: str = "#111111"
+    max_markers: int = 64
+
+
+@app.post("/api/markers/from_blackdetect")
+def markers_from_blackdetect_api(body: BlackdetectBody) -> dict[str, Any]:
+    """Detect black segments; mark starts."""
+    ed = _ed()
+    try:
+        r = ed.markers_from_blackdetect(
+            body.media_id,
+            path=body.path,
+            clip_id=body.clip_id,
+            pic_th=body.pic_th,
+            pix_th=body.pix_th,
+            min_duration=body.min_duration,
+            prefix=body.prefix,
+            clear_existing=body.clear_existing,
+            color=body.color,
+            max_markers=body.max_markers,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"blackdetect failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

@@ -3023,6 +3023,61 @@ async function markersFromHardCutsUi() {
   }
 }
 
+async function blackdetectUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for blackdetect";
+    return;
+  }
+  $("status-msg").textContent = "Blackdetect…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      detected?: number;
+    }>("/api/markers/from_blackdetect", {
+      clip_id: ids[0],
+      min_duration: 0.12,
+      clear_existing: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Black? · ${r.count ?? 0} mkr · det ${r.detected ?? "?"}`;
+  } catch (e) {
+    setProOut(`Black? failed: ${e}`);
+    $("status-msg").textContent = `Black? failed: ${e}`;
+  }
+}
+
+async function setResolutionUi(w: number, h: number) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = `Set canvas ${w}×${h}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      to?: { w?: number; h?: number };
+    }>("/api/project/resolution", { width: w, height: h });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Canvas · ${r.to?.w ?? w}×${r.to?.h ?? h}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Resolution failed: ${e}`);
+    $("status-msg").textContent = `Resolution failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11429,6 +11484,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnMkrCuts.addEventListener("click", () => {
       stopPlay();
       void markersFromHardCutsUi();
+    });
+  }
+  const btnBlack = document.getElementById("btn-black");
+  if (btnBlack) {
+    btnBlack.addEventListener("click", () => {
+      stopPlay();
+      void blackdetectUi();
+    });
+  }
+  const btnResVert = document.getElementById("btn-res-vert");
+  if (btnResVert) {
+    btnResVert.addEventListener("click", () => {
+      stopPlay();
+      void setResolutionUi(1080, 1920);
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

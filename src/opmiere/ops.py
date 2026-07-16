@@ -9777,6 +9777,128 @@ class Editor:
                 "agent_note": "Markers at hard cuts — pair with export_storyboard / chapters.",
             }
 
+    def set_project_resolution(
+        self,
+        width: int,
+        height: int,
+    ) -> dict[str, Any]:
+        """Change timeline canvas size (does not re-encode bin media). One undo.
+
+        Export scales/pads to this canvas. Prefer even dims for yuv420p.
+        """
+        if not isinstance(width, int) or width < 16:
+            raise ValueError("width must be int >= 16")
+        if not isinstance(height, int) or height < 16:
+            raise ValueError("height must be int >= 16")
+        width = width - (width % 2)
+        height = height - (height % 2)
+        with self._mutate():
+            old = {
+                "w": self.project.resolution.w,
+                "h": self.project.resolution.h,
+            }
+            self.project.resolution.w = width
+            self.project.resolution.h = height
+            return {
+                "from": old,
+                "to": {"w": width, "h": height},
+                "agent_note": (
+                    "Canvas changed. Media not re-encoded; export scales. "
+                    "reframe_clip / import fit= for per-clip framing."
+                ),
+            }
+
+    def markers_from_blackdetect(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        clip_id: str | None = None,
+        pic_th: float = 0.98,
+        pix_th: float = 0.10,
+        min_duration: float = 0.15,
+        prefix: str = "Black ",
+        clear_existing: bool = False,
+        color: str = "#111111",
+        max_markers: int = 64,
+    ) -> dict[str, Any]:
+        """Detect black segments via ffmpeg blackdetect; mark start of each.
+
+        Source: media_id, path, or clip_id (uses that clip's media).
+        Timeline frames assume blackdetect times map to media from frame 0
+        (not clip.src_in offset) when marking project timeline at 0.. — for
+        clip_id, offsets by clip.start - clip.src_in for approximate placement.
+        """
+        import re
+        import subprocess
+
+        offset = 0
+        src: Path | None = None
+        if clip_id is not None:
+            clip = self._find_clip(clip_id)
+            media = self.project.media_by_id(clip.media)
+            src = self.bundle.media_path(media.path)
+            # approximate timeline mapping
+            offset = int(clip.start - clip.src_in)
+            media_id = media.id
+        elif media_id is not None:
+            media = self.project.media_by_id(media_id)
+            src = self.bundle.media_path(media.path)
+        elif path is not None:
+            src = Path(path)
+        else:
+            raise ValueError("pass media_id, path, or clip_id")
+        if src is None or not src.exists():
+            raise FileNotFoundError(f"media not found: {src}")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-hide_banner",
+                "-i", str(src),
+                "-vf", (
+                    f"blackdetect=d={float(min_duration)}:"
+                    f"pic_th={float(pic_th)}:pix_th={float(pix_th)}"
+                ),
+                "-an", "-f", "null", "-",
+            ],
+            capture_output=True, text=True,
+        )
+        # blackdetect logs to stderr
+        text = proc.stderr or ""
+        starts: list[float] = []
+        for m in re.finditer(
+            r"black_start:([0-9.]+)",
+            text,
+        ):
+            starts.append(float(m.group(1)))
+        starts = starts[: max(1, int(max_markers))]
+
+        with self._mutate():
+            if clear_existing:
+                self.project.markers.clear()
+            existing = {int(m.frame) for m in self.project.markers}
+            added: list[dict[str, Any]] = []
+            for i, t in enumerate(starts):
+                fr = max(0, int(round(t * fps)) + offset)
+                if fr in existing:
+                    continue
+                lab = f"{prefix}{i + 1}"
+                mk = self.project.add_marker(fr, label=lab, color=color)
+                existing.add(fr)
+                added.append({**mk.to_dict(), "black_start_sec": t})
+            return {
+                "count": len(added),
+                "markers": added,
+                "detected": len(starts),
+                "media_id": media_id,
+                "path": str(src),
+                "offset_frames": offset,
+                "agent_note": (
+                    "Blackdetect → markers. Tune pic_th/pix_th if over/under-detecting."
+                ),
+            }
+
     def set_clips_color_cycle(
         self,
         clip_ids: list[str] | None = None,

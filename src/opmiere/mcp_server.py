@@ -2513,6 +2513,40 @@ def markers_from_hard_cuts(
 
 
 @mcp.tool()
+def set_project_resolution(width: int, height: int) -> dict:
+    """Change timeline canvas size (does not re-encode media)."""
+    return _require_editor().set_project_resolution(width, height)
+
+
+@mcp.tool()
+def markers_from_blackdetect(
+    media_id: str | None = None,
+    path: str | None = None,
+    clip_id: str | None = None,
+    pic_th: float = 0.98,
+    pix_th: float = 0.10,
+    min_duration: float = 0.15,
+    prefix: str = "Black ",
+    clear_existing: bool = False,
+    color: str = "#111111",
+    max_markers: int = 64,
+) -> dict:
+    """ffmpeg blackdetect → markers at black segment starts."""
+    return _require_editor().markers_from_blackdetect(
+        media_id,
+        path=path,
+        clip_id=clip_id,
+        pic_th=pic_th,
+        pix_th=pix_th,
+        min_duration=min_duration,
+        prefix=prefix,
+        clear_existing=clear_existing,
+        color=color,
+        max_markers=max_markers,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,
