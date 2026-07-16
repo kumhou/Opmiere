@@ -3888,6 +3888,37 @@ def add_countdown(
 
 
 @mcp.tool()
+def set_speed_ripple(clip_id: str, speed: float) -> dict:
+    """Set clip speed and ripple later clips on the same track."""
+    return _require_editor().set_speed_ripple(clip_id, speed)
+
+
+@mcp.tool()
+def export_clip_still(
+    clip_id: str,
+    output_path: str,
+    at: str = "mid",
+    width: int = 1280,
+) -> dict:
+    """Export a still from a clip (at=mid|start|end)."""
+    return _require_editor().export_clip_still(
+        clip_id, output_path, at=at, width=width,
+    )
+
+
+@mcp.tool()
+def freeze_clip_mid(
+    clip_id: str,
+    duration_frames: int = 30,
+    insert: bool = True,
+) -> dict:
+    """Freeze mid-frame of a clip; place still after clip when insert=True."""
+    return _require_editor().freeze_clip_mid(
+        clip_id, duration_frames=duration_frames, insert=insert,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

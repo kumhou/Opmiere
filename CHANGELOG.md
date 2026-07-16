@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2 — 2026-07-17
+
+### Added
+- `set_speed_ripple` (speed + track ripple) + **0.5×R** / **2×R**
+- `export_clip_still` / `freeze_clip_mid` + **ClipStill** / **FrzMid**
+
 ## 0.6.1 — 2026-07-17
 
 ### Added

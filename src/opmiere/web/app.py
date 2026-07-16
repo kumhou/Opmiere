@@ -6417,6 +6417,63 @@ def countdown_api(body: CountdownBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SpeedRippleBody(BaseModel):
+    clip_id: str
+    speed: float
+
+
+@app.post("/api/clip/speed_ripple")
+def speed_ripple_api(body: SpeedRippleBody) -> dict[str, Any]:
+    """Set speed and ripple later clips on the same track."""
+    ed = _ed()
+    try:
+        r = ed.set_speed_ripple(body.clip_id, body.speed)
+    except Exception as e:
+        raise HTTPException(400, f"speed_ripple failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportClipStillBody(BaseModel):
+    clip_id: str
+    output_path: str | None = None
+    at: str = "mid"
+    width: int = 1280
+
+
+@app.post("/api/export/clip_still")
+def export_clip_still_api(body: ExportClipStillBody) -> dict[str, Any]:
+    """Export still from clip mid/start/end."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "clip_still.jpg")
+    try:
+        return ed.export_clip_still(
+            body.clip_id, out, at=body.at, width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clip_still failed: {e}") from e
+
+
+class FreezeClipMidBody(BaseModel):
+    clip_id: str
+    duration_frames: int = 30
+    insert: bool = True
+
+
+@app.post("/api/clip/freeze_mid")
+def freeze_clip_mid_api(body: FreezeClipMidBody) -> dict[str, Any]:
+    """Freeze mid-frame of a clip and place still after it."""
+    ed = _ed()
+    try:
+        r = ed.freeze_clip_mid(
+            body.clip_id,
+            duration_frames=body.duration_frames,
+            insert=body.insert,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"freeze_mid failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

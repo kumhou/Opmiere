@@ -8387,6 +8387,82 @@ async function countdownUi() {
   }
 }
 
+async function speedRippleUi(speed: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for speed ripple";
+    return;
+  }
+  $("status-msg").textContent = `Speed ${speed}× + ripple…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+      delta_frames?: number;
+    }>("/api/clip/speed_ripple", {
+      clip_id: ids[0],
+      speed,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `${speed}×R · Δ${r.delta_frames ?? "?"}f · ${r.clip_id || ids[0]}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SpeedR failed: ${e}`);
+    $("status-msg").textContent = `SpeedR failed: ${e}`;
+  }
+}
+
+async function exportClipStillUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for ClipStill";
+    return;
+  }
+  $("status-msg").textContent = "Exporting clip still…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clip_still", {
+      clip_id: ids[0],
+      at: "mid",
+      width: 1280,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClipStill → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`ClipStill failed: ${e}`);
+    $("status-msg").textContent = `ClipStill failed: ${e}`;
+  }
+}
+
+async function freezeClipMidUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for FrzMid";
+    return;
+  }
+  $("status-msg").textContent = "Freezing mid-frame…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/freeze_mid", {
+      clip_id: ids[0],
+      duration_frames: 30,
+      insert: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FrzMid · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FrzMid failed: ${e}`);
+    $("status-msg").textContent = `FrzMid failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12234,6 +12310,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-nr", () => void noiseReductionUi());
   proBind("btn-clip-mp4", () => void exportClipMp4Ui());
   proBind("btn-countdown", () => void countdownUi());
+  proBind("btn-spd05", () => void speedRippleUi(0.5));
+  proBind("btn-spd2", () => void speedRippleUi(2.0));
+  proBind("btn-clip-still", () => void exportClipStillUi());
+  proBind("btn-freeze-mid", () => void freezeClipMidUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

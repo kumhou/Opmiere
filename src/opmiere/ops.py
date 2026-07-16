@@ -5811,6 +5811,112 @@ class Editor:
             clip.speed = float(speed)
             return clip
 
+    def set_speed_ripple(
+        self,
+        clip_id: str,
+        speed: float,
+    ) -> dict[str, Any]:
+        """Change clip speed and shift later clips on the same track by duration delta.
+
+        Positive delta (slow-mo) pushes later clips right; negative (speed-up)
+        pulls them left. Closes/opens the hole on one track only.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        if not isinstance(speed, (int, float)) or speed <= 0:
+            raise ValueError(f"speed must be a positive number, got {speed!r}")
+        if float(speed) < 0.25 or float(speed) > 4.0:
+            raise ValueError("speed must be in [0.25, 4.0]")
+        track, clip = self._find_clip_and_track(clip_id)
+        old_speed = float(clip.speed or 1.0)
+        old_dur = int(clip.timeline_duration_frames)
+        old_end = int(clip.end)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.speed = float(speed)
+            new_dur = int(clip.timeline_duration_frames)
+            delta = new_dur - old_dur
+            shifted: list[dict[str, Any]] = []
+            if delta != 0:
+                tr = self.project.track_by_id(track.id)
+                for c in tr.clips_in_order():
+                    if c.id == clip_id:
+                        continue
+                    if c.start >= old_end:
+                        old_s = c.start
+                        c.start = max(0, old_s + delta)
+                        if c.transition_in is not None:
+                            c.transition_in = None
+                        shifted.append({
+                            "clip_id": c.id,
+                            "from": old_s,
+                            "to": c.start,
+                        })
+            return {
+                "clip_id": clip_id,
+                "track_id": track.id,
+                "speed": {"from": old_speed, "to": float(speed)},
+                "duration_frames": {"from": old_dur, "to": new_dur},
+                "delta_frames": delta,
+                "shifted": shifted,
+                "shifted_count": len(shifted),
+                "agent_note": (
+                    "Speed + ripple on same track. Other tracks unchanged."
+                ),
+            }
+
+    def export_clip_still(
+        self,
+        clip_id: str,
+        output_path: str | Path,
+        *,
+        at: str = "mid",
+        width: int = 1280,
+    ) -> dict[str, Any]:
+        """Export a still from a clip (at: mid|start|end)."""
+        clip = self._find_clip(clip_id)
+        key = str(at or "mid").strip().lower()
+        if key in ("mid", "middle", "center"):
+            frame = clip.start + max(0, clip.timeline_duration_frames // 2)
+        elif key in ("start", "in", "head"):
+            frame = int(clip.start)
+        elif key in ("end", "out", "tail"):
+            frame = max(int(clip.start), int(clip.end) - 1)
+        else:
+            raise ValueError("at must be mid|start|end")
+        r = self.export_still(output_path, frame, width=width)
+        r["clip_id"] = clip_id
+        r["at"] = key if key in ("mid", "start", "end") else "mid"
+        if key in ("middle", "center"):
+            r["at"] = "mid"
+        elif key in ("in", "head"):
+            r["at"] = "start"
+        elif key in ("out", "tail"):
+            r["at"] = "end"
+        return r
+
+    def freeze_clip_mid(
+        self,
+        clip_id: str,
+        *,
+        duration_frames: int = 30,
+        insert: bool = True,
+    ) -> dict[str, Any]:
+        """Freeze mid-frame of clip; optionally insert still after the clip.
+
+        insert=True places freeze at clip.end (default freeze_frame behavior).
+        """
+        clip = self._find_clip(clip_id)
+        mid = clip.start + max(0, clip.timeline_duration_frames // 2)
+        r = self.freeze_frame(
+            clip_id,
+            at_timeline_frame=mid,
+            duration_frames=int(duration_frames),
+            start=int(clip.end) if insert else None,
+        )
+        r["source_clip_id"] = clip_id
+        r["at_frame"] = mid
+        return r
+
     def stretch_to(
         self,
         clip_id: str,
