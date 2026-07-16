@@ -3368,61 +3368,6 @@ class Editor:
             "agent_note": "Mid/start/end stills per clip for storyboard grids.",
         }
 
-    def join_clips(
-        self,
-        left_clip_id: str,
-        right_clip_id: str,
-    ) -> dict[str, Any]:
-        """Join two adjacent clips on the same track into one (same media).
-
-        Requires: same track, same media, speed=1, right starts at left.end,
-        right.src_in == left.src_out (contiguous source). Transitions cleared.
-        """
-        self._assert_clip_track_unlocked(left_clip_id)
-        self._assert_clip_track_unlocked(right_clip_id)
-        with self._mutate():
-            tl, left = self._find_clip_and_track(left_clip_id)
-            tr, right = self._find_clip_and_track(right_clip_id)
-            if tl.id != tr.id:
-                raise ValueError("clips must be on the same track")
-            if left.id == right.id:
-                raise ValueError("clips must be different")
-            # order by start
-            if right.start < left.start:
-                left, right = right, left
-                left_clip_id, right_clip_id = right_clip_id, left_clip_id
-            if left.media != right.media:
-                raise ValueError("clips must share the same media")
-            if float(left.speed or 1.0) != 1.0 or float(right.speed or 1.0) != 1.0:
-                raise ValueError("join_clips requires speed=1.0 on both clips")
-            if int(right.start) != int(left.end):
-                raise ValueError(
-                    f"clips must be adjacent (left.end={left.end}, right.start={right.start})"
-                )
-            if int(right.src_in) != int(left.src_out):
-                raise ValueError(
-                    "source ranges must be contiguous "
-                    f"(left.src_out={left.src_out}, right.src_in={right.src_in})"
-                )
-            new_out = int(right.src_out)
-            old_right = right.id
-            left.src_out = new_out
-            left.transition_in = left.transition_in  # keep left's
-            if right.transition_in is not None:
-                # right's transition becomes meaningless after merge
-                pass
-            tr.clips.remove(right)
-            return {
-                "clip_id": left.id,
-                "removed_clip_id": old_right,
-                "track_id": tl.id,
-                "src_in": left.src_in,
-                "src_out": left.src_out,
-                "start": left.start,
-                "end": left.end,
-                "agent_note": "Joined contiguous same-media clips into one.",
-            }
-
     def paste_position(
         self,
         source_clip_id: str,
@@ -3942,6 +3887,118 @@ class Editor:
                 "moved": moved,
                 "agent_note": "Staggered selection; check overlaps on freeform tracks.",
             }
+
+    def split_selection_evenly(
+        self,
+        clip_ids: list[str],
+        parts: int = 2,
+    ) -> dict[str, Any]:
+        """Split each selected clip into equal timeline parts (razor grid).
+
+        parts must be >= 2. Skips clips shorter than parts frames.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        n = int(parts)
+        if n < 2:
+            raise ValueError("parts must be >= 2")
+        all_splits: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                track, clip = self._find_clip_and_track(cid)
+            except Exception:
+                skipped.append({"clip_id": cid, "reason": "missing"})
+                continue
+            start0 = int(clip.start)
+            end0 = int(clip.end)
+            dur = end0 - start0
+            if dur < n:
+                skipped.append({"clip_id": cid, "reason": "too short", "duration": dur})
+                continue
+            cut_frames = [start0 + (dur * i) // n for i in range(1, n)]
+            # razor high→low so each cut hits the remaining piece on track
+            for fr in sorted(cut_frames, reverse=True):
+                hit = None
+                for c in track.clips_in_order():
+                    if c.start < fr < c.end:
+                        hit = c
+                        break
+                if hit is None:
+                    continue
+                self.split_clip(hit.id, fr)
+            pieces = [
+                c.id for c in track.clips_in_order()
+                if c.start >= start0 and c.end <= end0 + 1  # after splits within range
+                or (c.start >= start0 and c.start < end0)
+            ]
+            # filter pieces that fall in original span
+            pieces = [
+                c.id for c in track.clips_in_order()
+                if c.start >= start0 and c.start < end0
+            ]
+            all_splits.append({
+                "source_clip_id": cid,
+                "piece_ids": pieces,
+                "cut_frames": cut_frames,
+                "parts": n,
+            })
+        return {
+            "parts": n,
+            "count": len(all_splits),
+            "splits": all_splits,
+            "skipped": skipped,
+            "agent_note": "Even razor splits across selection.",
+        }
+
+    def markers_at_selection_mids(
+        self,
+        clip_ids: list[str],
+        *,
+        prefix: str = "Mid ",
+        color: str = "#90be6d",
+    ) -> dict[str, Any]:
+        """Place a marker at the midpoint of each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        with self._mutate():
+            added: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                clip = self._find_clip(cid)
+                mid = int(clip.start) + max(0, int(clip.timeline_duration_frames) // 2)
+                name = (clip.name or cid)[:24]
+                m = self.project.add_marker(
+                    frame=mid, label=f"{prefix}{name}", color=color,
+                )
+                added.append({
+                    "marker_id": m.id,
+                    "frame": m.frame,
+                    "label": m.label,
+                    "clip_id": cid,
+                })
+            return {
+                "count": len(added),
+                "markers": added,
+                "agent_note": "Mid-clip markers for stills/export cues.",
+            }
+
+    def apply_edge_fades_to_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        fade_in_frames: int = 6,
+        fade_out_frames: int = 6,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """apply_edge_fades on selection (clip_ids path)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        return self.apply_edge_fades(
+            clip_ids=list(dict.fromkeys(clip_ids)),
+            fade_in_frames=fade_in_frames,
+            fade_out_frames=fade_out_frames,
+            replace=replace,
+        )
 
     def set_clips_flip(
         self,

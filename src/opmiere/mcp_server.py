@@ -4047,12 +4047,6 @@ def export_clips_stills_pack(
 
 
 @mcp.tool()
-def join_clips(left_clip_id: str, right_clip_id: str) -> dict:
-    """Join two adjacent same-media clips on one track."""
-    return _require_editor().join_clips(left_clip_id, right_clip_id)
-
-
-@mcp.tool()
 def paste_position(
     source_clip_id: str,
     target_clip_ids: list[str],
@@ -4282,6 +4276,40 @@ def stagger_selection(
     """Stair-step selection starts by i*offset_frames."""
     return _require_editor().stagger_selection(
         clip_ids, offset_frames, from_earliest=from_earliest,
+    )
+
+
+@mcp.tool()
+def split_selection_evenly(clip_ids: list[str], parts: int = 2) -> dict:
+    """Split each selected clip into equal timeline parts."""
+    return _require_editor().split_selection_evenly(clip_ids, parts=parts)
+
+
+@mcp.tool()
+def markers_at_selection_mids(
+    clip_ids: list[str],
+    prefix: str = "Mid ",
+    color: str = "#90be6d",
+) -> dict:
+    """Place markers at midpoints of selected clips."""
+    return _require_editor().markers_at_selection_mids(
+        clip_ids, prefix=prefix, color=color,
+    )
+
+
+@mcp.tool()
+def apply_edge_fades_to_selection(
+    clip_ids: list[str],
+    fade_in_frames: int = 6,
+    fade_out_frames: int = 6,
+    replace: bool = True,
+) -> dict:
+    """Apply edge fades to selected clips."""
+    return _require_editor().apply_edge_fades_to_selection(
+        clip_ids,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+        replace=replace,
     )
 
 

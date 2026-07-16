@@ -6681,22 +6681,6 @@ def export_clips_stills_pack_api(body: ExportClipsStillsPackBody) -> dict[str, A
         raise HTTPException(400, f"clips_stills_pack failed: {e}") from e
 
 
-class JoinClipsBody(BaseModel):
-    left_clip_id: str
-    right_clip_id: str
-
-
-@app.post("/api/edit/join_clips")
-def join_clips_api(body: JoinClipsBody) -> dict[str, Any]:
-    """Join two adjacent same-media clips."""
-    ed = _ed()
-    try:
-        r = ed.join_clips(body.left_clip_id, body.right_clip_id)
-    except Exception as e:
-        raise HTTPException(400, f"join_clips failed: {e}") from e
-    return {**r, "timeline": ed.timeline_view()}
-
-
 class PastePositionBody(BaseModel):
     source_clip_id: str
     target_clip_ids: list[str]
@@ -7091,6 +7075,64 @@ def stagger_selection_api(body: StaggerSelectionBody) -> dict[str, Any]:
         )
     except Exception as e:
         raise HTTPException(400, f"stagger_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SplitEvenBody(BaseModel):
+    clip_ids: list[str]
+    parts: int = 2
+
+
+@app.post("/api/edit/split_selection_evenly")
+def split_selection_evenly_api(body: SplitEvenBody) -> dict[str, Any]:
+    """Split each selected clip into equal parts."""
+    ed = _ed()
+    try:
+        r = ed.split_selection_evenly(body.clip_ids, parts=body.parts)
+    except Exception as e:
+        raise HTTPException(400, f"split_selection_evenly failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MarkersMidsBody(BaseModel):
+    clip_ids: list[str]
+    prefix: str = "Mid "
+    color: str = "#90be6d"
+
+
+@app.post("/api/markers/selection_mids")
+def markers_selection_mids_api(body: MarkersMidsBody) -> dict[str, Any]:
+    """Markers at midpoints of selection."""
+    ed = _ed()
+    try:
+        r = ed.markers_at_selection_mids(
+            body.clip_ids, prefix=body.prefix, color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_mids failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class EdgeFadesSelectionBody(BaseModel):
+    clip_ids: list[str]
+    fade_in_frames: int = 6
+    fade_out_frames: int = 6
+    replace: bool = True
+
+
+@app.post("/api/edit/edge_fades_selection")
+def edge_fades_selection_api(body: EdgeFadesSelectionBody) -> dict[str, Any]:
+    """Edge fades on selection."""
+    ed = _ed()
+    try:
+        r = ed.apply_edge_fades_to_selection(
+            body.clip_ids,
+            fade_in_frames=body.fade_in_frames,
+            fade_out_frames=body.fade_out_frames,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"edge_fades_selection failed: {e}") from e
     return {**r, "timeline": ed.timeline_view()}
 
 

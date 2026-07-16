@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.13 — 2026-07-17
+
+### Added
+- `split_selection_evenly` / `markers_at_selection_mids` / `apply_edge_fades_to_selection` + **Split½** / **MidMkr** / **FadeSel**
+- Deduped `join_clips` (single SoT + `/api/clips/join`)
+
 ## 0.6.12 — 2026-07-17
 
 ### Added

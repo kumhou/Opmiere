@@ -8699,9 +8699,9 @@ async function joinClipsUi() {
     const r = await postJson<{
       timeline?: TimelineView;
       clip_id?: string;
-    }>("/api/edit/join_clips", {
-      left_clip_id: ids[0],
-      right_clip_id: ids[1],
+    }>("/api/clips/join", {
+      clip_id_a: ids[0],
+      clip_id_b: ids[1],
     });
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
@@ -9190,6 +9190,84 @@ async function staggerSelectionUi() {
   } catch (e) {
     setProOut(`Stagger failed: ${e}`);
     $("status-msg").textContent = `Stagger failed: ${e}`;
+  }
+}
+
+async function splitSelectionEvenlyUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to split evenly";
+    return;
+  }
+  $("status-msg").textContent = "Splitting evenly…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/split_selection_evenly", {
+      clip_ids: ids,
+      parts: 2,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Split½ · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Split½ failed: ${e}`);
+    $("status-msg").textContent = `Split½ failed: ${e}`;
+  }
+}
+
+async function markersSelectionMidsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for mid markers";
+    return;
+  }
+  $("status-msg").textContent = "Adding mid markers…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/markers/selection_mids", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MidMkr · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`MidMkr failed: ${e}`);
+    $("status-msg").textContent = `MidMkr failed: ${e}`;
+  }
+}
+
+async function edgeFadesSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for edge fades";
+    return;
+  }
+  $("status-msg").textContent = "Applying edge fades…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/edge_fades_selection", {
+      clip_ids: ids,
+      fade_in_frames: 6,
+      fade_out_frames: 6,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FadeSel · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FadeSel failed: ${e}`);
+    $("status-msg").textContent = `FadeSel failed: ${e}`;
   }
 }
 
@@ -13075,6 +13153,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-xfade-sel", () => void transitionsSelectionUi());
   proBind("btn-hard-sel", () => void removeTransitionsSelectionUi());
   proBind("btn-stagger", () => void staggerSelectionUi());
+  proBind("btn-split-even", () => void splitSelectionEvenlyUi());
+  proBind("btn-mkr-mid", () => void markersSelectionMidsUi());
+  proBind("btn-fade-sel", () => void edgeFadesSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
