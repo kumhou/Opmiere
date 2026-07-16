@@ -9586,6 +9586,76 @@ async function duplicateSelectionToNewTrackUi() {
   }
 }
 
+async function bakeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to bake";
+    return;
+  }
+  $("status-msg").textContent = "Baking selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/bake_selection", {
+      clip_ids: ids,
+      replace: true,
+      clear_effects: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BakeSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`BakeSel failed: ${e}`);
+    $("status-msg").textContent = `BakeSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionCutlistUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for cutlist";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection cutlist…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/selection_cutlist", {
+      clip_ids: ids,
+      format: "csv",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Cutlist · ${String(r.count ?? 0)} → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`Cutlist failed: ${e}`);
+    $("status-msg").textContent = `Cutlist failed: ${e}`;
+  }
+}
+
+async function exportSelectionEdlUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for EDL";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection EDL…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/selection_edl", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `EDL · ${String(r.count ?? 0)} → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`EDL failed: ${e}`);
+    $("status-msg").textContent = `EDL failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13483,6 +13553,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-opac-sel", () => void selectionOpacityUi(0.7));
   proBind("btn-new-trk", () => void selectionToNewTrackUi());
   proBind("btn-dup-trk", () => void duplicateSelectionToNewTrackUi());
+  proBind("btn-bake-sel", () => void bakeSelectionUi());
+  proBind("btn-cutlist-sel", () => void exportSelectionCutlistUi());
+  proBind("btn-edl-sel", () => void exportSelectionEdlUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

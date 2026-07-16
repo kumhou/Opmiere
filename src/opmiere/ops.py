@@ -5305,6 +5305,144 @@ class Editor:
             "agent_note": "Copies on dest track; originals unchanged.",
         }
 
+    def bake_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        replace: bool = True,
+        clear_effects: bool = True,
+        include_audio: bool = True,
+    ) -> dict[str, Any]:
+        """bake_clip for each selected clip (render-and-replace FX)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.bake_clip(
+                    cid,
+                    replace=replace,
+                    clear_effects=clear_effects,
+                    include_audio=include_audio,
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:300]})
+        return {
+            "count": len(out),
+            "baked": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Baked FX into media; re-export proxy after large bakes.",
+        }
+
+    def export_selection_cutlist(
+        self,
+        clip_ids: list[str],
+        path: str | Path | None = None,
+        *,
+        format: str = "csv",
+    ) -> dict[str, Any]:
+        """Export cutlist rows only for selected clip ids (timeline order)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if format not in ("csv", "json"):
+            raise ValueError("format must be csv|json")
+        wanted = set(dict.fromkeys(clip_ids))
+        # validate
+        for cid in wanted:
+            self._find_clip(cid)
+        full = self.export_cutlist(path=None, format="json")
+        rows = [
+            row for row in (full.get("rows") or [])
+            if row.get("clip_id") in wanted
+        ]
+        # renumber events
+        for i, row in enumerate(rows, start=1):
+            row["event"] = i
+        if format == "json":
+            body = json.dumps(rows, indent=2, ensure_ascii=False)
+        else:
+            headers = [
+                "event", "track_id", "track_name", "kind", "clip_id", "name",
+                "start_tc", "end_tc", "start_f", "end_f", "src_in", "src_out",
+                "speed", "media", "media_id", "color", "muted",
+            ]
+            lines = [",".join(headers)]
+            for row in rows:
+                lines.append(
+                    ",".join(str(row.get(h, "")).replace(",", ";") for h in headers)
+                )
+            body = "\n".join(lines) + "\n"
+        out_path = None
+        if path is not None:
+            out_path = Path(path)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(body, encoding="utf-8")
+            out_path = str(out_path.resolve())
+        return {
+            "count": len(rows),
+            "format": format,
+            "path": out_path,
+            "body": body if path is None else None,
+            "rows": rows if format == "json" or path is None else None,
+            "agent_note": "Selection cutlist; full project cutlist via export_cutlist.",
+        }
+
+    def export_selection_edl(
+        self,
+        clip_ids: list[str],
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """CMX-style EDL events for selected clips (record times = timeline)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        wanted = list(dict.fromkeys(clip_ids))
+        items: list[tuple[int, Any, Any]] = []  # start, track, clip
+        for cid in wanted:
+            tr, clip = self._find_clip_and_track(cid)
+            items.append((int(clip.start), tr, clip))
+        items.sort(key=lambda x: (x[0], x[1].id))
+        fps = float(self.project.timebase.fps or 30.0)
+
+        def _tc(frames: int) -> str:
+            return self.frames_to_tc(max(0, int(frames)))["tc"]
+
+        lines = [
+            f"TITLE: {(title or self.project.id).replace(chr(10), ' ')}",
+            "FCM: NON-DROP FRAME",
+            "",
+        ]
+        event = 1
+        for _, track, clip in items:
+            media = self.project.media_by_id(clip.media)
+            reel = (media.path.split("/")[-1].split("\\")[-1])[:8].upper()
+            reel = "".join(ch if ch.isalnum() else "_" for ch in reel) or "AX"
+            kind = "V" if track.kind == "video" else "A"
+            lines.append(
+                f"{event:03d}  {reel:8s} {kind}     C        "
+                f"{_tc(clip.src_in)} {_tc(clip.src_out)} "
+                f"{_tc(clip.start)} {_tc(clip.end)}"
+            )
+            event += 1
+        body = "\n".join(lines) + "\n"
+        out_path = None
+        if path is not None:
+            out_path = Path(path)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(body, encoding="utf-8")
+            out_path = str(out_path.resolve())
+        return {
+            "count": event - 1,
+            "path": out_path,
+            "body": body if path is None else None,
+            "fps": fps,
+            "agent_note": "Selection EDL; not full AAF. Base-track-only full EDL: export_edl.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

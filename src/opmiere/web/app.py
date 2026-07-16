@@ -7375,6 +7375,69 @@ def duplicate_selection_to_track_api(body: DuplicateSelectionTrackBody) -> dict[
     return {**r, "timeline": ed.timeline_view()}
 
 
+class BakeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    replace: bool = True
+    clear_effects: bool = True
+    include_audio: bool = True
+
+
+@app.post("/api/edit/bake_selection")
+def bake_selection_api(body: BakeSelectionBody) -> dict[str, Any]:
+    """Bake FX for each selected clip."""
+    ed = _ed()
+    try:
+        r = ed.bake_selection(
+            body.clip_ids,
+            replace=body.replace,
+            clear_effects=body.clear_effects,
+            include_audio=body.include_audio,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"bake_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionCutlistBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    format: str = "csv"
+
+
+@app.post("/api/export/selection_cutlist")
+def export_selection_cutlist_api(body: ExportSelectionCutlistBody) -> dict[str, Any]:
+    """Export cutlist for selected clips only."""
+    ed = _ed()
+    out = body.output_path or str(
+        _desktop_export_dir() / f"selection_cutlist.{body.format}"
+    )
+    try:
+        return ed.export_selection_cutlist(
+            body.clip_ids, out, format=body.format,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_cutlist failed: {e}") from e
+
+
+class ExportSelectionEdlBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    title: str | None = None
+
+
+@app.post("/api/export/selection_edl")
+def export_selection_edl_api(body: ExportSelectionEdlBody) -> dict[str, Any]:
+    """Export CMX EDL for selected clips."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection.edl")
+    try:
+        return ed.export_selection_edl(
+            body.clip_ids, out, title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_edl failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

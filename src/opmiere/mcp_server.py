@@ -4454,6 +4454,46 @@ def duplicate_selection_to_track(
 
 
 @mcp.tool()
+def bake_selection(
+    clip_ids: list[str],
+    replace: bool = True,
+    clear_effects: bool = True,
+    include_audio: bool = True,
+) -> dict:
+    """Bake FX into media for each selected clip."""
+    return _require_editor().bake_selection(
+        clip_ids,
+        replace=replace,
+        clear_effects=clear_effects,
+        include_audio=include_audio,
+    )
+
+
+@mcp.tool()
+def export_selection_cutlist(
+    clip_ids: list[str],
+    path: str | None = None,
+    format: str = "csv",
+) -> dict:
+    """Export cutlist for selected clips only."""
+    return _require_editor().export_selection_cutlist(
+        clip_ids, path, format=format,
+    )
+
+
+@mcp.tool()
+def export_selection_edl(
+    clip_ids: list[str],
+    path: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Export CMX-style EDL for selected clips."""
+    return _require_editor().export_selection_edl(
+        clip_ids, path, title=title,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.18 — 2026-07-17
+
+### Added
+- `bake_selection` / `export_selection_cutlist` / `export_selection_edl` + **BakeSel** / **Cutlist** / **EDL**
+
 ## 0.6.17 — 2026-07-17
 
 ### Added
