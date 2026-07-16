@@ -7043,6 +7043,81 @@ class Editor:
             "agent_note": "FX inventory; adapter_version is floor not pin.",
         }
 
+    def blur_selection(
+        self,
+        clip_ids: list[str],
+        amount: float = 5.0,
+    ) -> dict[str, Any]:
+        """apply_blur on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_blur(cid, amount=float(amount))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "amount": float(amount),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Blur on selection; path-C maps blur when available.",
+        }
+
+    def sharpen_selection(
+        self,
+        clip_ids: list[str],
+        amount: float = 1.0,
+    ) -> dict[str, Any]:
+        """apply_sharpen on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_sharpen(cid, amount=float(amount))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "amount": float(amount),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Sharpen on selection; path-C maps best-effort.",
+        }
+
+    def film_grain_selection(
+        self,
+        clip_ids: list[str],
+        amount: float = 12.0,
+    ) -> dict[str, Any]:
+        """apply_film_grain on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_film_grain(cid, amount=float(amount))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "amount": float(amount),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Film grain on selection; path-C maps best-effort.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

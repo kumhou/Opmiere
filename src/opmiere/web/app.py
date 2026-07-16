@@ -8265,6 +8265,54 @@ def selection_effects_report_api(body: SelectionEffectsReportBody) -> dict[str, 
         raise HTTPException(400, f"selection_effects_report failed: {e}") from e
 
 
+class BlurSelectionBody(BaseModel):
+    clip_ids: list[str]
+    amount: float = 5.0
+
+
+@app.post("/api/edit/blur_selection")
+def blur_selection_api(body: BlurSelectionBody) -> dict[str, Any]:
+    """Blur selection."""
+    ed = _ed()
+    try:
+        r = ed.blur_selection(body.clip_ids, amount=body.amount)
+    except Exception as e:
+        raise HTTPException(400, f"blur_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SharpenSelectionBody(BaseModel):
+    clip_ids: list[str]
+    amount: float = 1.0
+
+
+@app.post("/api/edit/sharpen_selection")
+def sharpen_selection_api(body: SharpenSelectionBody) -> dict[str, Any]:
+    """Sharpen selection."""
+    ed = _ed()
+    try:
+        r = ed.sharpen_selection(body.clip_ids, amount=body.amount)
+    except Exception as e:
+        raise HTTPException(400, f"sharpen_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FilmGrainSelectionBody(BaseModel):
+    clip_ids: list[str]
+    amount: float = 12.0
+
+
+@app.post("/api/edit/film_grain_selection")
+def film_grain_selection_api(body: FilmGrainSelectionBody) -> dict[str, Any]:
+    """Film grain on selection."""
+    ed = _ed()
+    try:
+        r = ed.film_grain_selection(body.clip_ids, amount=body.amount)
+    except Exception as e:
+        raise HTTPException(400, f"film_grain_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

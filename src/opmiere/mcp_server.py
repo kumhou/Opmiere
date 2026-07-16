@@ -4904,6 +4904,24 @@ def selection_effects_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def blur_selection(clip_ids: list[str], amount: float = 5.0) -> dict:
+    """Apply blur to selection."""
+    return _require_editor().blur_selection(clip_ids, amount=amount)
+
+
+@mcp.tool()
+def sharpen_selection(clip_ids: list[str], amount: float = 1.0) -> dict:
+    """Apply sharpen to selection."""
+    return _require_editor().sharpen_selection(clip_ids, amount=amount)
+
+
+@mcp.tool()
+def film_grain_selection(clip_ids: list[str], amount: float = 12.0) -> dict:
+    """Apply film grain to selection."""
+    return _require_editor().film_grain_selection(clip_ids, amount=amount)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

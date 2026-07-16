@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.34 — 2026-07-17
+
+### Added
+- `blur_selection` / `sharpen_selection` / `film_grain_selection` + **BlurSel** / **SharpSel** / **GrainSel**
+
 ## 0.6.33 — 2026-07-17
 
 ### Added

@@ -10833,6 +10833,81 @@ async function selectionEffectsReportUi() {
   }
 }
 
+async function blurSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to blur";
+    return;
+  }
+  $("status-msg").textContent = "Blurring selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/blur_selection", { clip_ids: ids, amount: 5.0 });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BlurSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`BlurSel failed: ${e}`);
+    $("status-msg").textContent = `BlurSel failed: ${e}`;
+  }
+}
+
+async function sharpenSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to sharpen";
+    return;
+  }
+  $("status-msg").textContent = "Sharpening selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/sharpen_selection", { clip_ids: ids, amount: 1.0 });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SharpSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SharpSel failed: ${e}`);
+    $("status-msg").textContent = `SharpSel failed: ${e}`;
+  }
+}
+
+async function filmGrainSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for film grain";
+    return;
+  }
+  $("status-msg").textContent = "Applying film grain…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/film_grain_selection", { clip_ids: ids, amount: 12.0 });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GrainSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`GrainSel failed: ${e}`);
+    $("status-msg").textContent = `GrainSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14786,6 +14861,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-crop-sel", () => void cropSelectionCenterUi());
   proBind("btn-vig-sel", () => void vignetteSelectionUi());
   proBind("btn-fx-sel", () => void selectionEffectsReportUi());
+  proBind("btn-blur-sel", () => void blurSelectionUi());
+  proBind("btn-sharp-sel", () => void sharpenSelectionUi());
+  proBind("btn-grain-sel", () => void filmGrainSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
