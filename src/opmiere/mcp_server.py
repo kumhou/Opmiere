@@ -5307,6 +5307,35 @@ def rename_selection_tracks(
 
 
 @mcp.tool()
+def export_selection_stills(
+    clip_ids: list[str],
+    output_dir: str | None = None,
+    edge: str = "mid",
+    width: int = 640,
+    ext: str = "jpg",
+) -> dict:
+    """Extract stills from each selected video clip (source seek)."""
+    return _require_editor().export_selection_stills(
+        clip_ids,
+        output_dir=output_dir,
+        edge=edge,
+        width=width,
+        ext=ext,
+    )
+
+
+@mcp.tool()
+def selection_path_c_stills_plan(
+    clip_ids: list[str],
+    height: int = 360,
+) -> dict:
+    """path-C plan + readiness for selection stills workflow."""
+    return _require_editor().selection_path_c_stills_plan(
+        clip_ids, height=height,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

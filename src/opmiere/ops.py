@@ -8651,6 +8651,108 @@ class Editor:
                 "agent_note": "Track labels are UI-only; render uses kind/order.",
             }
 
+    def export_selection_stills(
+        self,
+        clip_ids: list[str],
+        output_dir: str | Path | None = None,
+        *,
+        edge: str = "mid",
+        width: int = 640,
+        ext: str = "jpg",
+    ) -> dict[str, Any]:
+        """Extract a still from each selected video clip (source seek).
+
+        edge: start|mid|end — sample point inside the clip source range.
+        Writes under bundle exports/selection_stills/ by default.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if edge not in ("start", "mid", "end"):
+            raise ValueError("edge must be start|mid|end")
+        ext_n = ext.lstrip(".").lower() or "jpg"
+        if ext_n not in ("jpg", "jpeg", "png"):
+            raise ValueError("ext must be jpg|png")
+        out_root = (
+            Path(output_dir)
+            if output_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_stills"
+        )
+        out_root.mkdir(parents=True, exist_ok=True)
+        fps = float(self.project.timebase.fps or 30.0)
+        stills: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for i, cid in enumerate(dict.fromkeys(clip_ids), start=1):
+            try:
+                track, clip = self._find_clip_and_track(cid)
+                media = self.project.media_by_id(clip.media)
+                if media.kind == "audio":
+                    raise ValueError("audio clip has no still")
+                if edge == "start":
+                    src_f = int(clip.src_in)
+                elif edge == "end":
+                    src_f = max(int(clip.src_in), int(clip.src_out) - 1)
+                else:
+                    src_f = int(clip.src_in) + max(
+                        0, int(clip.duration_frames) // 2,
+                    )
+                    src_f = min(src_f, max(int(clip.src_in), int(clip.src_out) - 1))
+                t = src_f / fps
+                src_path = self.bundle.media_path(media.path)
+                safe = (clip.name or cid)[:40]
+                safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in safe)
+                dest = out_root / f"{i:03d}_{safe}.{ext_n}"
+                r = self.extract_frame(src_path, t, dest, width=int(width))
+                stills.append(
+                    {
+                        "clip_id": cid,
+                        "track_id": track.id,
+                        "src_frame": src_f,
+                        "time_seconds": t,
+                        "path": r.get("path") or str(dest.resolve()),
+                        "edge": edge,
+                    }
+                )
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "edge": edge,
+            "width": int(width),
+            "output_dir": str(out_root.resolve()),
+            "count": len(stills),
+            "stills": stills,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Source-frame stills (not full composite). Use frame_at for mix.",
+        }
+
+    def selection_path_c_stills_plan(
+        self,
+        clip_ids: list[str],
+        *,
+        height: int = 360,
+    ) -> dict[str, Any]:
+        """path-C plan + still export hints for selection (adapter floor)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        plan = self.selection_path_c_plan(
+            clip_ids, height=int(height), include_audio=False,
+        )
+        report = self.selection_path_c_report(clip_ids)
+        return {
+            "adapter_version": int(
+                plan.get("adapter_version") or report.get("adapter_version") or 0
+            ),
+            "path_c_ready": bool(report.get("path_c_ready")),
+            "not_ready_count": report.get("not_ready_count"),
+            "plan_clip_count": len(plan.get("clips") or []),
+            "selection_span": plan.get("selection_span"),
+            "plan": plan,
+            "agent_note": (
+                "path-C plan for selection; adapter_version is floor not pin. "
+                "export_selection_stills for source thumbs."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

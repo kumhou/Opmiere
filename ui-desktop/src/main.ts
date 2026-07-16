@@ -11878,6 +11878,58 @@ async function renameSelectionTracksUi() {
   }
 }
 
+async function exportSelectionStillsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for stills";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection stills…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      output_dir?: string;
+    }>("/api/edit/export_selection_stills", {
+      clip_ids: ids,
+      edge: "mid",
+      width: 640,
+      ext: "jpg",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Stills · ${r.count ?? 0} err ${r.error_count ?? 0} → ${r.output_dir ?? "?"}`;
+  } catch (e) {
+    setProOut(`Stills failed: ${e}`);
+    $("status-msg").textContent = `Stills failed: ${e}`;
+  }
+}
+
+async function selectionPathCStillsPlanUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for path-C stills plan";
+    return;
+  }
+  $("status-msg").textContent = "path-C stills plan…";
+  try {
+    const r = await postJson<{
+      path_c_ready?: boolean;
+      plan_clip_count?: number;
+      adapter_version?: number;
+    }>("/api/edit/selection_path_c_stills_plan", {
+      clip_ids: ids,
+      height: 360,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PathCStills · clips ${r.plan_clip_count ?? 0} ready ${r.path_c_ready ? "y" : "n"} ≥${r.adapter_version ?? "?"}`;
+  } catch (e) {
+    setProOut(`PathCStills failed: ${e}`);
+    $("status-msg").textContent = `PathCStills failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15874,6 +15926,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-raise-trk-sel", () => void raiseSelectionTracksUi());
   proBind("btn-lower-trk-sel", () => void lowerSelectionTracksUi());
   proBind("btn-rename-trk-sel", () => void renameSelectionTracksUi());
+  proBind("btn-stills-sel", () => void exportSelectionStillsUi());
+  proBind("btn-pathc-stills-sel", () => void selectionPathCStillsPlanUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

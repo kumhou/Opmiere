@@ -9034,6 +9034,49 @@ def rename_selection_tracks_api(body: RenameSelectionTracksBody) -> dict[str, An
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionStillsBody(BaseModel):
+    clip_ids: list[str]
+    output_dir: str | None = None
+    edge: str = "mid"
+    width: int = 640
+    ext: str = "jpg"
+
+
+@app.post("/api/edit/export_selection_stills")
+def export_selection_stills_api(body: ExportSelectionStillsBody) -> dict[str, Any]:
+    """Export stills from each selected clip."""
+    ed = _ed()
+    try:
+        return ed.export_selection_stills(
+            body.clip_ids,
+            output_dir=body.output_dir,
+            edge=body.edge,
+            width=body.width,
+            ext=body.ext,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_stills failed: {e}") from e
+
+
+class SelectionPathCStillsPlanBody(BaseModel):
+    clip_ids: list[str]
+    height: int = 360
+
+
+@app.post("/api/edit/selection_path_c_stills_plan")
+def selection_path_c_stills_plan_api(
+    body: SelectionPathCStillsPlanBody,
+) -> dict[str, Any]:
+    """path-C plan summary for selection stills workflow."""
+    ed = _ed()
+    try:
+        return ed.selection_path_c_stills_plan(
+            body.clip_ids, height=body.height,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_path_c_stills_plan failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

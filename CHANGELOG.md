@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.48 — 2026-07-17
+
+### Added
+- `export_selection_stills` / `selection_path_c_stills_plan` + **Stills** / **PathCStills**
+
 ## 0.6.47 — 2026-07-17
 
 ### Added
