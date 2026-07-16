@@ -9825,6 +9825,52 @@ class Editor:
             delivery_preset=delivery_preset,
         )
 
+    def export_selection_path_c_stills_plan_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_path_c_stills_plan.json",
+        height: int = 360,
+    ) -> dict[str, Any]:
+        """Write selection_path_c_stills_plan JSON under exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        plan = self.selection_path_c_stills_plan(
+            clip_ids, height=int(height),
+        )
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_path_c_stills_plan.json")
+        out.write_text(
+            json.dumps(plan, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "path": str(out.resolve()),
+            "adapter_version": int(plan.get("adapter_version") or 0),
+            "path_c_ready": bool(plan.get("path_c_ready")),
+            "plan_clip_count": plan.get("plan_clip_count"),
+            "selection_span": plan.get("selection_span"),
+            "agent_note": "path-C stills plan JSON; adapter_version is floor not pin.",
+        }
+
+    def export_work_area_webm_default(
+        self,
+        *,
+        filename: str = "work_area.webm",
+        crf: int = 32,
+        width: int | None = 720,
+    ) -> dict[str, Any]:
+        """export_work_area_webm into project exports/ (requires in/out)."""
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "work_area.webm")
+        return self.export_work_area_webm(
+            out,
+            crf=int(crf),
+            width=width,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

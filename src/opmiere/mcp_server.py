@@ -5629,6 +5629,34 @@ def export_work_area_mp4_default(
 
 
 @mcp.tool()
+def export_selection_path_c_stills_plan_default(
+    clip_ids: list[str],
+    filename: str = "selection_path_c_stills_plan.json",
+    height: int = 360,
+) -> dict:
+    """Write path-C stills plan for selection under exports/."""
+    return _require_editor().export_selection_path_c_stills_plan_default(
+        clip_ids,
+        filename=filename,
+        height=height,
+    )
+
+
+@mcp.tool()
+def export_work_area_webm_default(
+    filename: str = "work_area.webm",
+    crf: int = 32,
+    width: int | None = 720,
+) -> dict:
+    """Export in/out work area WebM under project exports/."""
+    return _require_editor().export_work_area_webm_default(
+        filename=filename,
+        crf=crf,
+        width=width,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -12407,6 +12407,55 @@ async function exportWorkAreaMp4DefaultUi() {
   }
 }
 
+async function exportSelectionPathCStillsPlanDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for path-C stills plan";
+    return;
+  }
+  $("status-msg").textContent = "Writing path-C stills plan…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      adapter_version?: number;
+      plan_clip_count?: number;
+    }>("/api/edit/export_selection_path_c_stills_plan_default", {
+      clip_ids: ids,
+      height: 360,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PathCStills2 · ≥${r.adapter_version ?? "?"} clips=${r.plan_clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`PathCStills2 failed: ${e}`);
+    $("status-msg").textContent = `PathCStills2 failed: ${e}`;
+  }
+}
+
+async function exportWorkAreaWebmDefaultUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting work-area WebM…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+    }>("/api/edit/export_work_area_webm_default", {
+      filename: "work_area.webm",
+      crf: 32,
+      width: 720,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WA-WebM2 → ${r.path || r.output_path || "?"}`;
+  } catch (e) {
+    setProOut(`WA-WebM2 failed: ${e}`);
+    $("status-msg").textContent = `WA-WebM2 failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16424,6 +16473,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-manif-def-sel", () => void exportSelectionManifestDefaultUi());
   proBind("btn-mkr-sel-exp", () => void exportSelectionMarkersDefaultUi());
   proBind("btn-wa-mp4-def", () => void exportWorkAreaMp4DefaultUi());
+  proBind("btn-pathc-stills-json", () => void exportSelectionPathCStillsPlanDefaultUi());
+  proBind("btn-wa-webm-def", () => void exportWorkAreaWebmDefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

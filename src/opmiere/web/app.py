@@ -9534,6 +9534,54 @@ def export_work_area_mp4_default_api(
         ) from e
 
 
+class ExportSelectionPathCStillsPlanDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_path_c_stills_plan.json"
+    height: int = 360
+
+
+@app.post("/api/edit/export_selection_path_c_stills_plan_default")
+def export_selection_path_c_stills_plan_default_api(
+    body: ExportSelectionPathCStillsPlanDefaultBody,
+) -> dict[str, Any]:
+    """Write path-C stills plan for selection under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_path_c_stills_plan_default(
+            body.clip_ids,
+            filename=body.filename,
+            height=body.height,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_path_c_stills_plan_default failed: {e}",
+        ) from e
+
+
+class ExportWorkAreaWebmDefaultBody(BaseModel):
+    filename: str = "work_area.webm"
+    crf: int = 32
+    width: int | None = 720
+
+
+@app.post("/api/edit/export_work_area_webm_default")
+def export_work_area_webm_default_api(
+    body: ExportWorkAreaWebmDefaultBody,
+) -> dict[str, Any]:
+    """Export in/out work area WebM under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_work_area_webm_default(
+            filename=body.filename,
+            crf=body.crf,
+            width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_work_area_webm_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
