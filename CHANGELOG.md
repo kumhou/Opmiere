@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.11 — 2026-07-17
+
+### Added
+- Polish pass **0.5.11**: keep dual-surface green; session continuous ship
+- Verify Pro/Gen wiring still present
+
 ## 0.5.10 — 2026-07-17
 
 ### Added
