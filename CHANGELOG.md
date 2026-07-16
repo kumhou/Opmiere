@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.24 — 2026-07-17
+
+### Added
+- Fill? uses suggest_filler (plan only) alongside existing Filler✓ apply
+
 ## 0.5.23 — 2026-07-17
 
 ### Added
