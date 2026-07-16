@@ -7787,6 +7787,80 @@ async function exportStillUi() {
   }
 }
 
+async function exportGifUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const start = playheadFrame() / Math.max(1, state.fps);
+  $("status-msg").textContent = "Exporting GIF…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/gif", {
+      start_seconds: start,
+      end_seconds: start + 3,
+      fps: 12,
+      width: 480,
+      max_duration_seconds: 6,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `GIF → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`GIF failed: ${e}`);
+    $("status-msg").textContent = `GIF failed: ${e}`;
+  }
+}
+
+async function kenBurnsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for Ken Burns";
+    return;
+  }
+  $("status-msg").textContent = "Applying Ken Burns…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/ken_burns", {
+      clip_id: ids[0],
+      zoom_start: 1.0,
+      zoom_end: 1.15,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `KB · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`KB failed: ${e}`);
+    $("status-msg").textContent = `KB failed: ${e}`;
+  }
+}
+
+async function kenBurnsImagesUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Ken Burns on stills…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/ken_burns_images", {
+      zoom_end: 1.12,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `KB-img · ${r.count ?? 0} stills`;
+  } catch (e) {
+    setProOut(`KB-img failed: ${e}`);
+    $("status-msg").textContent = `KB-img failed: ${e}`;
+  }
+}
+
 async function exportAudioUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -11592,6 +11666,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-ll-cut", () => void jlOffsetUi(15));
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
+  proBind("btn-gif", () => void exportGifUi());
+  proBind("btn-kb", () => void kenBurnsUi());
+  proBind("btn-kb-img", () => void kenBurnsImagesUi());
   proBind("btn-audio-out", () => void exportAudioUi());
   proBind("btn-del-trk", () => void deleteTrackOfSelection());
   proBind("btn-hard-cut", () => void hardCutAllUi());

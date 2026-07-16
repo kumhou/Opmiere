@@ -3538,6 +3538,64 @@ def export_range(
 
 
 @mcp.tool()
+def export_gif(
+    output_path: str,
+    start_seconds: float = 0.0,
+    end_seconds: float | None = None,
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 15.0,
+) -> dict:
+    """Export a timeline range as animated GIF (palettegen)."""
+    return _require_editor().export_gif(
+        output_path,
+        start_seconds=start_seconds,
+        end_seconds=end_seconds,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
+def apply_ken_burns(
+    clip_id: str,
+    zoom_start: float = 1.0,
+    zoom_end: float = 1.15,
+    x_start: float = 0.5,
+    y_start: float = 0.5,
+    x_end: float = 0.5,
+    y_end: float = 0.5,
+    replace: bool = True,
+) -> dict:
+    """Apply Ken Burns zoom/pan effect to a clip."""
+    return _require_editor().apply_ken_burns(
+        clip_id,
+        zoom_start=zoom_start,
+        zoom_end=zoom_end,
+        x_start=x_start,
+        y_start=y_start,
+        x_end=x_end,
+        y_end=y_end,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_ken_burns_to_images(
+    track_id: str | None = None,
+    zoom_end: float = 1.12,
+    replace: bool = True,
+) -> dict:
+    """Apply gentle Ken Burns to all image stills (project or track)."""
+    return _require_editor().apply_ken_burns_to_images(
+        track_id=track_id,
+        zoom_end=zoom_end,
+        replace=replace,
+    )
+
+
+@mcp.tool()
 def doctor(
     check_comfy: bool = True,
     comfy_host: str = "127.0.0.1",

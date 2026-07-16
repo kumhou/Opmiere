@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.93 — 2026-07-17
+
+### Added
+- `export_gif` (palettegen social loop) + **GIF**
+- `apply_ken_burns` / `apply_ken_burns_to_images` + **KB** / **KB-img**
+
 ## 0.5.92 — 2026-07-17
 
 ### Added

@@ -5703,6 +5703,32 @@ class ExportRangeBody(BaseModel):
     run_delivery_check: bool = False
 
 
+class ExportGifBody(BaseModel):
+    output_path: str | None = None
+    start_seconds: float = 0.0
+    end_seconds: float | None = None
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 15.0
+
+
+class KenBurnsBody(BaseModel):
+    clip_id: str
+    zoom_start: float = 1.0
+    zoom_end: float = 1.15
+    x_start: float = 0.5
+    y_start: float = 0.5
+    x_end: float = 0.5
+    y_end: float = 0.5
+    replace: bool = True
+
+
+class KenBurnsImagesBody(BaseModel):
+    track_id: str | None = None
+    zoom_end: float = 1.12
+    replace: bool = True
+
+
 class PreviewRangeBody(BaseModel):
     output_path: str | None = None
     start_seconds: float
@@ -5904,6 +5930,59 @@ def export_range_api(body: ExportRangeBody) -> dict[str, Any]:
         )
     except Exception as e:
         raise HTTPException(500, f"export_range failed: {e}") from e
+
+
+@app.post("/api/export/gif")
+def export_gif_api(body: ExportGifBody) -> dict[str, Any]:
+    """Export timeline range as animated GIF."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "clip.gif")
+    try:
+        return ed.export_gif(
+            out,
+            start_seconds=body.start_seconds,
+            end_seconds=body.end_seconds,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"export_gif failed: {e}") from e
+
+
+@app.post("/api/clip/ken_burns")
+def ken_burns_api(body: KenBurnsBody) -> dict[str, Any]:
+    """Apply Ken Burns zoom/pan to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_ken_burns(
+            body.clip_id,
+            zoom_start=body.zoom_start,
+            zoom_end=body.zoom_end,
+            x_start=body.x_start,
+            y_start=body.y_start,
+            x_end=body.x_end,
+            y_end=body.y_end,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ken_burns failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/edit/ken_burns_images")
+def ken_burns_images_api(body: KenBurnsImagesBody) -> dict[str, Any]:
+    """Apply Ken Burns to all image stills."""
+    ed = _ed()
+    try:
+        r = ed.apply_ken_burns_to_images(
+            track_id=body.track_id,
+            zoom_end=body.zoom_end,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ken_burns_images failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
 
 
 @app.post("/api/preview/range")

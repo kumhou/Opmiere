@@ -4518,6 +4518,72 @@ class Editor:
         with self._mutate():
             return self._apply_effect_unlocked(clip_id, effect)
 
+    def apply_ken_burns(
+        self,
+        clip_id: str,
+        *,
+        zoom_start: float = 1.0,
+        zoom_end: float = 1.15,
+        x_start: float = 0.5,
+        y_start: float = 0.5,
+        x_end: float = 0.5,
+        y_end: float = 0.5,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply ken_burns zoom/pan effect to a clip (stills & B-roll helper)."""
+        self._assert_clip_track_unlocked(clip_id)
+        fx = {
+            "type": "ken_burns",
+            "zoom_start": float(zoom_start),
+            "zoom_end": float(zoom_end),
+            "x_start": float(x_start),
+            "y_start": float(y_start),
+            "x_end": float(x_end),
+            "y_end": float(y_end),
+        }
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "ken_burns"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Ken Burns applied; path-C maps to scale/location keyframes.",
+            }
+
+    def apply_ken_burns_to_images(
+        self,
+        *,
+        track_id: str | None = None,
+        zoom_end: float = 1.12,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply gentle Ken Burns to all image clips (project or one track)."""
+        applied: list[str] = []
+        tracks = (
+            [self.project.track_by_id(track_id)]
+            if track_id
+            else [t for t in self.project.tracks if t.kind == "video"]
+        )
+        for tr in tracks:
+            for c in tr.clips_in_order():
+                media = self.project.media_by_id(c.media)
+                if media.kind != "image":
+                    continue
+                self.apply_ken_burns(
+                    c.id, zoom_end=float(zoom_end), replace=replace,
+                )
+                applied.append(c.id)
+        return {
+            "count": len(applied),
+            "clip_ids": applied,
+            "zoom_end": float(zoom_end),
+            "agent_note": "Ken Burns on stills only; video clips skipped.",
+        }
+
     def apply_effect_to_clips(
         self,
         clip_ids: list[str],
@@ -16246,6 +16312,87 @@ class Editor:
                 written, preset=delivery_preset, match_project=True,
             )
         return result
+
+    def export_gif(
+        self,
+        output_path: str | Path,
+        *,
+        start_seconds: float = 0.0,
+        end_seconds: float | None = None,
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 15.0,
+    ) -> dict[str, Any]:
+        """Export a timeline range as animated GIF (palettegen, social loop).
+
+        Renders full timeline then trims + gif encode. Caps duration for size.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        start = max(0.0, float(start_seconds))
+        total = float(self.duration_frames()) / float(self.project.timebase.fps or 30)
+        end = float(end_seconds) if end_seconds is not None else total
+        end = min(end, total)
+        if end <= start:
+            raise ValueError("end must be > start")
+        if end - start > float(max_duration_seconds):
+            end = start + float(max_duration_seconds)
+        if not (1.0 <= float(fps) <= 30.0):
+            raise ValueError("fps must be in [1, 30]")
+        if not (64 <= int(width) <= 1280):
+            raise ValueError("width must be in [64, 1280]")
+
+        output_path = Path(output_path)
+        if output_path.suffix.lower() != ".gif":
+            output_path = output_path.with_suffix(".gif")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        fd, raw = tempfile.mkstemp(prefix="opmiere_gif_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        try:
+            self.export(full, normalize_preset=None)
+            # two-pass palette for quality
+            vf = (
+                f"fps={float(fps):.3f},scale={int(width)}:-1:flags=lanczos,"
+                f"split[s0][s1];[s0]palettegen=stats_mode=diff[p];"
+                f"[s1][p]paletteuse=dither=bayer:bayer_scale=5"
+            )
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-ss", f"{start:.3f}",
+                    "-to", f"{end:.3f}",
+                    "-i", str(full),
+                    "-an",
+                    "-vf", vf,
+                    "-loop", "0",
+                    str(output_path),
+                ],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0 or not output_path.exists():
+                raise RuntimeError(
+                    f"export_gif failed:\n{(proc.stderr or '')[-2000:]}"
+                )
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+        size_b = output_path.stat().st_size if output_path.exists() else 0
+        return {
+            "path": str(output_path.resolve()),
+            "start_seconds": start,
+            "end_seconds": end,
+            "duration_seconds": round(end - start, 3),
+            "fps": float(fps),
+            "width": int(width),
+            "bytes": size_b,
+            "agent_note": "GIF loop export; keep duration short for chat apps.",
+        }
 
     def export_preview(
         self,
