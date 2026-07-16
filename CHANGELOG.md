@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.79 — 2026-07-16
+
+### Added
+- Desktop **ExpRng** / **PxRng** — export_range + preview_range from I/O
+
 ## 0.4.78 — 2026-07-16
 
 ### Added
