@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.19 — 2026-07-17
+
+### Added
+- Desktop **Path** copies open bundle path to clipboard
+
 ## 0.5.18 — 2026-07-17
 
 ### Added
