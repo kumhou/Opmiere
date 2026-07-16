@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.21 — 2026-07-17
+
+### Added
+- `slip_selection` / `slide_selection` / `snap_selection_to_playhead` + **SlipSel±** / **SlideSel−** / **Snap@**
+
 ## 0.6.20 — 2026-07-17
 
 ### Added

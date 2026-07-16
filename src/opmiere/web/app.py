@@ -7564,6 +7564,61 @@ def retarget_selection_media_api(body: RetargetSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SlipSelectionBody(BaseModel):
+    clip_ids: list[str]
+    delta_src_frames: int
+
+
+@app.post("/api/edit/slip_selection")
+def slip_selection_api(body: SlipSelectionBody) -> dict[str, Any]:
+    """Slip source window on selection."""
+    ed = _ed()
+    try:
+        r = ed.slip_selection(body.clip_ids, body.delta_src_frames)
+    except Exception as e:
+        raise HTTPException(400, f"slip_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SlideSelectionBody(BaseModel):
+    clip_ids: list[str]
+    delta_frames: int
+
+
+@app.post("/api/edit/slide_selection")
+def slide_selection_api(body: SlideSelectionBody) -> dict[str, Any]:
+    """Slide/roll selection clips."""
+    ed = _ed()
+    try:
+        r = ed.slide_selection(body.clip_ids, body.delta_frames)
+    except Exception as e:
+        raise HTTPException(400, f"slide_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SnapSelectionPlayheadBody(BaseModel):
+    clip_ids: list[str]
+    playhead_frame: int
+    edge: str = "start"
+    mode: str = "relative"
+
+
+@app.post("/api/edit/snap_selection_playhead")
+def snap_selection_playhead_api(body: SnapSelectionPlayheadBody) -> dict[str, Any]:
+    """Snap selection group to playhead."""
+    ed = _ed()
+    try:
+        r = ed.snap_selection_to_playhead(
+            body.clip_ids,
+            body.playhead_frame,
+            edge=body.edge,
+            mode=body.mode,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"snap_selection_playhead failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

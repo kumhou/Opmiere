@@ -4564,6 +4564,31 @@ def retarget_selection_media(
 
 
 @mcp.tool()
+def slip_selection(clip_ids: list[str], delta_src_frames: int) -> dict:
+    """Slip source window for each selected clip."""
+    return _require_editor().slip_selection(clip_ids, delta_src_frames)
+
+
+@mcp.tool()
+def slide_selection(clip_ids: list[str], delta_frames: int) -> dict:
+    """Slide/roll each selected clip (right-to-left order)."""
+    return _require_editor().slide_selection(clip_ids, delta_frames)
+
+
+@mcp.tool()
+def snap_selection_to_playhead(
+    clip_ids: list[str],
+    playhead_frame: int,
+    edge: str = "start",
+    mode: str = "relative",
+) -> dict:
+    """Snap selection group so start/end edge meets playhead."""
+    return _require_editor().snap_selection_to_playhead(
+        clip_ids, playhead_frame, edge=edge, mode=mode,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

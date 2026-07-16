@@ -9805,6 +9805,91 @@ async function styleSelectionUi() {
   }
 }
 
+async function slipSelectionBatchUi(delta: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to slip";
+    return;
+  }
+  $("status-msg").textContent = `Slipping selection ${delta}f…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/slip_selection", {
+      clip_ids: ids,
+      delta_src_frames: delta,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SlipSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SlipSel failed: ${e}`);
+    $("status-msg").textContent = `SlipSel failed: ${e}`;
+  }
+}
+
+async function slideSelectionBatchUi(delta: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to slide";
+    return;
+  }
+  $("status-msg").textContent = `Sliding selection ${delta}f…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/slide_selection", {
+      clip_ids: ids,
+      delta_frames: delta,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SlideSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SlideSel failed: ${e}`);
+    $("status-msg").textContent = `SlideSel failed: ${e}`;
+  }
+}
+
+async function snapSelectionPlayheadUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to snap";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Snapping selection to f${ph}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/snap_selection_playhead", {
+      clip_ids: ids,
+      playhead_frame: ph,
+      edge: "start",
+      mode: "relative",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Snap@ · f${ph}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Snap@ failed: ${e}`);
+    $("status-msg").textContent = `Snap@ failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13711,6 +13796,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pathc-sel", () => void selectionPathCUi());
   proBind("btn-look-sel", () => void lookSelectionUi());
   proBind("btn-style-sel", () => void styleSelectionUi());
+  proBind("btn-slip-sel-m", () => void slipSelectionBatchUi(-5));
+  proBind("btn-slip-sel-p", () => void slipSelectionBatchUi(5));
+  proBind("btn-slide-sel-m", () => void slideSelectionBatchUi(-5));
+  proBind("btn-snap-sel", () => void snapSelectionPlayheadUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

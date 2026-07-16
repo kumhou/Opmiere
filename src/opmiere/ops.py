@@ -5691,6 +5691,94 @@ class Editor:
                 "agent_note": "Selection retargeted; re-export proxy after large swaps.",
             }
 
+    def slip_selection(
+        self,
+        clip_ids: list[str],
+        delta_src_frames: int,
+    ) -> dict[str, Any]:
+        """slip_clip for each selected clip (source window slides; timeline fixed)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.slip_clip(cid, int(delta_src_frames))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "delta_src_frames": int(delta_src_frames),
+            "count": len(out),
+            "slipped": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Slip only; timeline starts unchanged.",
+        }
+
+    def slide_selection(
+        self,
+        clip_ids: list[str],
+        delta_frames: int,
+    ) -> dict[str, Any]:
+        """slide_clip for each selected clip (roll neighbors when possible)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        # process right-to-left so neighbor edits don't cascade wrong
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            c = self._find_clip(cid)
+            items.append((int(c.start), cid))
+        items.sort(key=lambda x: x[0], reverse=True)
+        for _, cid in items:
+            try:
+                r = self.slide_clip(cid, int(delta_frames))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "delta_frames": int(delta_frames),
+            "count": len(out),
+            "slid": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Slide/roll on selection; skipped if no room.",
+        }
+
+    def snap_selection_to_playhead(
+        self,
+        clip_ids: list[str],
+        playhead_frame: int,
+        *,
+        edge: str = "start",
+        mode: str = "relative",
+    ) -> dict[str, Any]:
+        """Align selection so earliest start (or each start) meets playhead.
+
+        edge: start|end — which edge of the group snaps.
+        mode: relative (keep spacing) | start (stack all at playhead).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ph = max(0, int(playhead_frame))
+        if mode == "start":
+            return self.align_clips(
+                list(dict.fromkeys(clip_ids)), to_frame=ph, mode="start",
+            )
+        # relative: shift group so edge hits playhead
+        clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+        if edge == "end":
+            ref = max(int(c.end) for c in clips)
+            delta = ph - ref
+        else:
+            ref = min(int(c.start) for c in clips)
+            delta = ph - ref
+        return self.nudge_clips(
+            [c.id for c in clips], delta, follow_links=False,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
