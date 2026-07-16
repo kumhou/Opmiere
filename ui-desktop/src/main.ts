@@ -12080,6 +12080,51 @@ async function prepareSelectionExportUi() {
   }
 }
 
+async function selectionWaveformsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for waveforms";
+    return;
+  }
+  $("status-msg").textContent = "Selection waveforms…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/selection_waveforms", {
+      clip_ids: ids,
+      num_peaks: 200,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WaveSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`WaveSel failed: ${e}`);
+    $("status-msg").textContent = `WaveSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionManifestUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for manifest";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection manifest…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_manifest", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ManifSel · ${r.clip_count ?? ids.length} → ${r.path ?? "?"}`;
+  } catch (e) {
+    setProOut(`ManifSel failed: ${e}`);
+    $("status-msg").textContent = `ManifSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16084,6 +16129,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-durs-sel", () => void selectionClipDurationsUi());
   proBind("btn-prev-sel", () => void exportSelectionPreviewUi());
   proBind("btn-prep-sel", () => void prepareSelectionExportUi());
+  proBind("btn-wave-sel", () => void selectionWaveformsUi());
+  proBind("btn-manif-sel", () => void exportSelectionManifestUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -5422,6 +5422,27 @@ def prepare_selection_export(
 
 
 @mcp.tool()
+def selection_waveforms(
+    clip_ids: list[str],
+    num_peaks: int = 200,
+    use_cache: bool = True,
+) -> dict:
+    """Waveform peaks for each selected clip with audio."""
+    return _require_editor().selection_waveforms(
+        clip_ids, num_peaks=num_peaks, use_cache=use_cache,
+    )
+
+
+@mcp.tool()
+def export_selection_manifest(
+    clip_ids: list[str],
+    path: str | None = None,
+) -> dict:
+    """Write selection agent manifest JSON (span/media/review/path-C)."""
+    return _require_editor().export_selection_manifest(clip_ids, path=path)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

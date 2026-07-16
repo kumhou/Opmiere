@@ -9207,6 +9207,45 @@ def prepare_selection_export_api(body: PrepareSelectionExportBody) -> dict[str, 
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionWaveformsBody(BaseModel):
+    clip_ids: list[str]
+    num_peaks: int = 200
+    use_cache: bool = True
+
+
+@app.post("/api/edit/selection_waveforms")
+def selection_waveforms_api(body: SelectionWaveformsBody) -> dict[str, Any]:
+    """Waveform peaks for selection clips with audio."""
+    ed = _ed()
+    try:
+        return ed.selection_waveforms(
+            body.clip_ids,
+            num_peaks=body.num_peaks,
+            use_cache=body.use_cache,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_waveforms failed: {e}") from e
+
+
+class ExportSelectionManifestBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+
+
+@app.post("/api/edit/export_selection_manifest")
+def export_selection_manifest_api(
+    body: ExportSelectionManifestBody,
+) -> dict[str, Any]:
+    """Export selection agent manifest JSON."""
+    ed = _ed()
+    try:
+        return ed.export_selection_manifest(
+            body.clip_ids, path=body.output_path,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_manifest failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

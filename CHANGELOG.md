@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.52 — 2026-07-17
+
+### Added
+- `selection_waveforms` / `export_selection_manifest` + **WaveSel** / **ManifSel**
+
 ## 0.6.51 — 2026-07-17
 
 ### Added

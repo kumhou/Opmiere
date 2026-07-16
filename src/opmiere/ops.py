@@ -9209,6 +9209,105 @@ class Editor:
             ),
         }
 
+    def selection_waveforms(
+        self,
+        clip_ids: list[str],
+        *,
+        num_peaks: int = 200,
+        use_cache: bool = True,
+    ) -> dict[str, Any]:
+        """Waveform peaks for each selected clip that has audio media."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        peaks_n = max(8, min(int(num_peaks), 4000))
+        rows: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, clip = self._find_clip_and_track(cid)
+                media = self.project.media_by_id(clip.media)
+                if media.kind == "image" or (
+                    media.kind == "video" and not media.has_audio
+                ):
+                    errors.append(
+                        {"clip_id": cid, "error": "no audio on media"}
+                    )
+                    continue
+                r = self.waveform_peaks(
+                    clip_id=cid, num_peaks=peaks_n, use_cache=use_cache,
+                )
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["clip_id"] = cid
+                    r["track_id"] = tr.id
+                    r["start"] = int(clip.start)
+                    r["end"] = int(clip.end)
+                rows.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "num_peaks": peaks_n,
+            "count": len(rows),
+            "waveforms": rows,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Per-clip source peaks for UI/agent mix eyes.",
+        }
+
+    def export_selection_manifest(
+        self,
+        clip_ids: list[str],
+        path: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """JSON manifest of selection for agent handoff / CI fixtures.
+
+        Includes span, media map, durations, path-C floor, review summary.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        body = {
+            "schema": "opmiere.selection_manifest.v1",
+            "span": self.selection_span(ids),
+            "media": self.selection_media_report(ids),
+            "durations": self.selection_clip_durations(ids),
+            "path_c": {
+                k: self.selection_path_c_report(ids).get(k)
+                for k in (
+                    "adapter_version",
+                    "path_c_ready",
+                    "not_ready_count",
+                    "count",
+                )
+            },
+            "review": self.review_selection(ids),
+            "offline": self.selection_offline_media(ids),
+            "locked": self.selection_locked_tracks(ids),
+        }
+        result: dict[str, Any] = {
+            "manifest": body,
+            "clip_count": len(ids),
+            "agent_note": "Agent handoff snapshot; adapter_version is floor not pin.",
+        }
+        if path is not None:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                json.dumps(body, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            result["path"] = str(out.resolve())
+        else:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / "selection_manifest.json"
+            out.write_text(
+                json.dumps(body, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            result["path"] = str(out.resolve())
+        return result
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
