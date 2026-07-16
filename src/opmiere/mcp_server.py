@@ -5241,6 +5241,24 @@ def selection_locked_tracks(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def unlock_selection_tracks(clip_ids: list[str]) -> dict:
+    """Unlock every track touched by selection."""
+    return _require_editor().unlock_selection_tracks(clip_ids)
+
+
+@mcp.tool()
+def lock_selection_tracks(clip_ids: list[str]) -> dict:
+    """Lock every track touched by selection."""
+    return _require_editor().lock_selection_tracks(clip_ids)
+
+
+@mcp.tool()
+def mute_selection_tracks(clip_ids: list[str], muted: bool = True) -> dict:
+    """Mute or unmute tracks touched by selection."""
+    return _require_editor().mute_selection_tracks(clip_ids, muted=muted)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

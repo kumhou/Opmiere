@@ -8334,6 +8334,104 @@ class Editor:
             "agent_note": "Unlock tracks before mutate ops on selection.",
         }
 
+    def unlock_selection_tracks(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Unlock every track touched by selection. One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        track_ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in track_ids:
+                track_ids.append(tr.id)
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for tid in track_ids:
+                tr = self.project.track_by_id(tid)
+                was = bool(tr.locked)
+                tr.locked = False
+                out.append(
+                    {
+                        "track_id": tid,
+                        "was_locked": was,
+                        "locked": False,
+                        "kind": tr.kind,
+                    }
+                )
+            return {
+                "count": len(out),
+                "tracks": out,
+                "agent_note": "Selection tracks unlocked for editing.",
+            }
+
+    def lock_selection_tracks(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Lock every track touched by selection. One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        track_ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in track_ids:
+                track_ids.append(tr.id)
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for tid in track_ids:
+                tr = self.project.track_by_id(tid)
+                was = bool(tr.locked)
+                tr.locked = True
+                out.append(
+                    {
+                        "track_id": tid,
+                        "was_locked": was,
+                        "locked": True,
+                        "kind": tr.kind,
+                    }
+                )
+            return {
+                "count": len(out),
+                "tracks": out,
+                "agent_note": "Selection tracks locked against accidental edits.",
+            }
+
+    def mute_selection_tracks(
+        self,
+        clip_ids: list[str],
+        *,
+        muted: bool = True,
+    ) -> dict[str, Any]:
+        """Mute/unmute every track touched by selection. One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        track_ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in track_ids:
+                track_ids.append(tr.id)
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for tid in track_ids:
+                tr = self.project.track_by_id(tid)
+                tr.muted = bool(muted)
+                out.append(
+                    {
+                        "track_id": tid,
+                        "muted": bool(tr.muted),
+                        "kind": tr.kind,
+                        "name": tr.name,
+                    }
+                )
+            return {
+                "muted": bool(muted),
+                "count": len(out),
+                "tracks": out,
+                "agent_note": "Track-level mute (not clip.muted).",
+            }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.45 — 2026-07-17
+
+### Added
+- `unlock_selection_tracks` / `lock_selection_tracks` / `mute_selection_tracks` + **UnlkTrk** / **LockTrk** / **MuteTrk** / **UnmuteTrk**
+
 ## 0.6.44 — 2026-07-17
 
 ### Added

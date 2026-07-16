@@ -8886,6 +8886,52 @@ def selection_locked_tracks_api(body: SelectionLockedTracksBody) -> dict[str, An
         raise HTTPException(400, f"selection_locked_tracks failed: {e}") from e
 
 
+class UnlockSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/unlock_selection_tracks")
+def unlock_selection_tracks_api(body: UnlockSelectionTracksBody) -> dict[str, Any]:
+    """Unlock tracks touched by selection."""
+    ed = _ed()
+    try:
+        r = ed.unlock_selection_tracks(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"unlock_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LockSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/lock_selection_tracks")
+def lock_selection_tracks_api(body: LockSelectionTracksBody) -> dict[str, Any]:
+    """Lock tracks touched by selection."""
+    ed = _ed()
+    try:
+        r = ed.lock_selection_tracks(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"lock_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MuteSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+    muted: bool = True
+
+
+@app.post("/api/edit/mute_selection_tracks")
+def mute_selection_tracks_api(body: MuteSelectionTracksBody) -> dict[str, Any]:
+    """Mute/unmute tracks touched by selection."""
+    ed = _ed()
+    try:
+        r = ed.mute_selection_tracks(body.clip_ids, muted=body.muted)
+    except Exception as e:
+        raise HTTPException(400, f"mute_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

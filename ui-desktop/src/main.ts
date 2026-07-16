@@ -11658,6 +11658,80 @@ async function selectionLockedTracksUi() {
   }
 }
 
+async function unlockSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to unlock tracks";
+    return;
+  }
+  $("status-msg").textContent = "Unlocking selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/unlock_selection_tracks", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `UnlkTrk · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`UnlkTrk failed: ${e}`);
+    $("status-msg").textContent = `UnlkTrk failed: ${e}`;
+  }
+}
+
+async function lockSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to lock tracks";
+    return;
+  }
+  $("status-msg").textContent = "Locking selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/lock_selection_tracks", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `LockTrk · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`LockTrk failed: ${e}`);
+    $("status-msg").textContent = `LockTrk failed: ${e}`;
+  }
+}
+
+async function muteSelectionTracksUi(muted: boolean) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = muted
+      ? "Select clips to mute tracks"
+      : "Select clips to unmute tracks";
+    return;
+  }
+  $("status-msg").textContent = muted
+    ? "Muting selection tracks…"
+    : "Unmuting selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/mute_selection_tracks", { clip_ids: ids, muted });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `${muted ? "MuteTrk" : "UnmuteTrk"} · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`MuteTrk failed: ${e}`);
+    $("status-msg").textContent = `MuteTrk failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15644,6 +15718,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-preflight-sel", () => void selectionExportPreflightUi());
   proBind("btn-offline-sel", () => void selectionOfflineMediaUi());
   proBind("btn-locked-sel", () => void selectionLockedTracksUi());
+  proBind("btn-unlock-trk-sel", () => void unlockSelectionTracksUi());
+  proBind("btn-lock-trk-sel", () => void lockSelectionTracksUi());
+  proBind("btn-mute-trk-sel", () => void muteSelectionTracksUi(true));
+  proBind("btn-unmute-trk-sel", () => void muteSelectionTracksUi(false));
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
