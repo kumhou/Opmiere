@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.69 — 2026-07-16
+
+### Added
+- Desktop **SRT** from markers (chapter-like cues)
+
 ## 0.4.68 — 2026-07-16
 
 ### Added
