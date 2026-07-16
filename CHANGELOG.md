@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.29 — 2026-07-17
+
+### Added
+- Status: heartbeat pill + e/s/g counters co-exist
+
 ## 0.5.28 — 2026-07-17
 
 ### Added
