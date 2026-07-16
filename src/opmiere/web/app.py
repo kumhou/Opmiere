@@ -2531,11 +2531,18 @@ def shift_markers_api(body: ShiftMarkersBody) -> dict[str, Any]:
     return {**r, "markers": ed.list_markers()["markers"]}
 
 
+class ClearMarkersBody(BaseModel):
+    prefix: str | None = None
+    marker_ids: list[str] | None = None
+
+
 @app.post("/api/markers/clear")
-def clear_markers_api() -> dict[str, Any]:
+def clear_markers_api(body: ClearMarkersBody | None = None) -> dict[str, Any]:
+    """Clear markers (all / prefix / ids). Empty body clears all."""
+    body = body or ClearMarkersBody()
     ed = _ed()
-    r = ed.clear_markers()
-    return {**r, "markers": []}
+    r = ed.clear_markers(prefix=body.prefix, marker_ids=body.marker_ids)
+    return {**r, "markers": ed.list_markers()["markers"] if r.get("remaining") else []}
 
 
 @app.post("/api/clip/solo")
@@ -3711,18 +3718,6 @@ def marker_slots_api(
         include_tail=include_tail,
         min_duration_frames=min_duration_frames,
     )
-
-
-class ClearMarkersBody(BaseModel):
-    prefix: str | None = None
-    marker_ids: list[str] | None = None
-
-
-@app.post("/api/markers/clear")
-def clear_markers_api(body: ClearMarkersBody | None = None) -> dict[str, Any]:
-    """Clear markers (all / prefix / ids)."""
-    body = body or ClearMarkersBody()
-    return _ed().clear_markers(prefix=body.prefix, marker_ids=body.marker_ids)
 
 
 class MarkersFromSrtBody(BaseModel):

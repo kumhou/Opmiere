@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.56 — 2026-07-17
+
+### Fixed
+- Deduped `clear_markers` API/MCP (single enhanced route with prefix/ids)
 ## 0.5.55 — 2026-07-17
 
 ### Added
@@ -1427,6 +1431,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

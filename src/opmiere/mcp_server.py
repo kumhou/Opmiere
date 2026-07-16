@@ -1640,12 +1640,6 @@ def shift_markers(
 
 
 @mcp.tool()
-def clear_markers() -> dict:
-    """Delete all markers."""
-    return _require_editor().clear_markers()
-
-
-@mcp.tool()
 def ripple_delete_range(
     start_frame: int,
     end_frame: int,
