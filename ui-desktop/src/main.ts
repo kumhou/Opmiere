@@ -5831,6 +5831,109 @@ async function assembleUnusedUi() {
   }
 }
 
+async function roughCutUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = firstVideoTrackId();
+  if (!trackId) {
+    $("status-msg").textContent = "Need a video track";
+    return;
+  }
+  $("status-msg").textContent = "Rough cut (assemble + dissolves + fades)…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      sequence?: { count?: number };
+      fades?: { count?: number };
+    }>("/api/edit/rough_cut", {
+      track_id: trackId,
+      use_unused: true,
+      kind: "video",
+      start_frame: playheadFrame(),
+      clear_track: false,
+      transition: "cross_dissolve",
+      transition_frames: 10,
+      apply_edge_fades: true,
+      fade_frames: 6,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Rough · seq ${r.sequence?.count ?? "?"} · fades ${r.fades?.count ?? "?"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Rough failed: ${e}`);
+    $("status-msg").textContent = `Rough failed: ${e}`;
+  }
+}
+
+async function edgeFadesUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const body: Record<string, unknown> = {
+    fade_in_frames: 6,
+    fade_out_frames: 6,
+    replace: true,
+  };
+  if (ids.length) {
+    body.clip_ids = ids;
+  } else {
+    const trackId = firstVideoTrackId();
+    if (!trackId) {
+      $("status-msg").textContent = "Select clips or a track";
+      return;
+    }
+    body.track_id = trackId;
+  }
+  $("status-msg").textContent = "Applying edge fades…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clips/edge_fades", body);
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Fades · ${r.count ?? 0} clips`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Fades failed: ${e}`);
+    $("status-msg").textContent = `Fades failed: ${e}`;
+  }
+}
+
+async function voMusicDuckUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Setting up VO/music duck…";
+  try {
+    const r = await postJson<{
+      vo_track_id?: string;
+      music_track_id?: string;
+      agent_note?: string;
+    }>("/api/mix/vo_music_duck", {
+      music_gain_db: -6,
+      ratio: 8,
+      threshold_db: -30,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DuckVO · music ${r.music_track_id || "?"} under VO ${r.vo_track_id || "?"}`;
+  } catch (e) {
+    setProOut(`DuckVO failed: ${e}`);
+    $("status-msg").textContent = `DuckVO failed: ${e}`;
+  }
+}
+
 async function freezeAtMarkersUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9802,6 +9905,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-match-grade", () => void matchGradeUi());
   proBind("btn-seq-media", () => void sequenceFromMediaUi());
   proBind("btn-asm-unused", () => void assembleUnusedUi());
+  proBind("btn-rough-cut", () => void roughCutUi());
+  proBind("btn-edge-fades", () => void edgeFadesUi());
+  proBind("btn-vo-duck", () => void voMusicDuckUi());
   proBind("btn-title-card", () => void titleCardUi());
   proBind("btn-freeze-mkr", () => void freezeAtMarkersUi());
   proBind("btn-stills-mkr", () => void stillsAtMarkersUi());

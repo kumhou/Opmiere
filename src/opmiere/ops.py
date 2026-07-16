@@ -4201,6 +4201,207 @@ class Editor:
         result["kind"] = kind
         return result
 
+    def rough_cut(
+        self,
+        track_id: str,
+        *,
+        media_ids: list[str] | None = None,
+        use_unused: bool = True,
+        kind: str = "video",
+        start_frame: int = 0,
+        clear_track: bool = False,
+        transition: str | None = "cross_dissolve",
+        transition_frames: int = 10,
+        apply_edge_fades: bool = True,
+        fade_frames: int = 6,
+    ) -> dict[str, Any]:
+        """One-shot rough cut: sequence media + dissolves + optional edge fades.
+
+        media_ids wins; else use_unused pulls unused bin media of kind.
+        Agent entry for first timeline after import.
+        """
+        out: dict[str, Any] = {"track_id": track_id}
+        if media_ids:
+            out["sequence"] = self.sequence_from_media(
+                media_ids,
+                track_id,
+                start_frame=start_frame,
+                clear_track=clear_track,
+                transition=transition,
+                transition_frames=transition_frames,
+            )
+        elif use_unused:
+            out["sequence"] = self.assemble_unused_media(
+                track_id,
+                kind=kind,
+                start_frame=start_frame,
+                clear_track=clear_track,
+                transition=transition,
+                transition_frames=transition_frames,
+            )
+        else:
+            raise ValueError("pass media_ids or use_unused=True")
+        if apply_edge_fades and out["sequence"].get("count", 0) > 0:
+            ids = [p["clip_id"] for p in out["sequence"].get("placed") or []]
+            if ids:
+                out["fades"] = self.apply_edge_fades(
+                    clip_ids=ids,
+                    fade_in_frames=fade_frames,
+                    fade_out_frames=fade_frames,
+                )
+        out["agent_note"] = (
+            "Rough cut ready — razor, grade, music_broll, then prepare_export."
+        )
+        return out
+
+    def apply_edge_fades(
+        self,
+        *,
+        clip_ids: list[str] | None = None,
+        track_id: str | None = None,
+        fade_in_frames: int = 6,
+        fade_out_frames: int = 6,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Add fade-in/out on clips (selection or whole track). One undo."""
+        if fade_in_frames < 0 or fade_out_frames < 0:
+            raise ValueError("fade frames must be >= 0")
+        if not clip_ids and not track_id:
+            raise ValueError("pass clip_ids or track_id")
+        targets: list[str] = []
+        if clip_ids:
+            targets = list(dict.fromkeys(clip_ids))
+        else:
+            assert track_id is not None
+            tr = self.project.track_by_id(track_id)
+            targets = [c.id for c in tr.clips_in_order()]
+        if not targets:
+            return {"count": 0, "clips": []}
+        with self._mutate():
+            applied: list[dict[str, Any]] = []
+            for cid in targets:
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                if replace:
+                    kept = [e for e in (clip.effects or []) if e.get("type") != "fade"]
+                else:
+                    kept = list(clip.effects or [])
+                src_len = max(1, clip.duration_frames)
+                fi, fo = int(fade_in_frames), int(fade_out_frames)
+                if fi + fo > src_len:
+                    scale = src_len / float(fi + fo)
+                    fi = int(fi * scale)
+                    fo = max(0, src_len - fi)
+                if fi > 0:
+                    kept.append({
+                        "type": "fade", "direction": "in", "duration_frames": fi,
+                    })
+                if fo > 0:
+                    kept.append({
+                        "type": "fade", "direction": "out", "duration_frames": fo,
+                    })
+                clip.effects = kept
+                applied.append({
+                    "clip_id": cid, "fade_in_frames": fi, "fade_out_frames": fo,
+                })
+            return {
+                "count": len(applied),
+                "clips": applied,
+                "fade_in_frames": fade_in_frames,
+                "fade_out_frames": fade_out_frames,
+            }
+
+    def setup_vo_music_duck(
+        self,
+        *,
+        vo_track_id: str | None = None,
+        music_track_id: str | None = None,
+        threshold_db: float = -30.0,
+        ratio: float = 8.0,
+        attack_ms: float = 20.0,
+        release_ms: float = 300.0,
+        makeup_db: float = 0.0,
+        music_gain_db: float | None = -6.0,
+    ) -> dict[str, Any]:
+        """Wire music-under-VO ducking (auto-pick audio tracks if omitted).
+
+        Defaults: first audio track = VO (key), second = music (ducked),
+        or match track names containing vo/dialogue vs music/bed.
+        Optional music_gain_db pulls music bed down before duck.
+        """
+        audio = [t for t in self.project.tracks if t.kind == "audio"]
+        if len(audio) < 2 and (not vo_track_id or not music_track_id):
+            raise ValueError("need two audio tracks (VO + music) for ducking")
+
+        def _pick(role: str, explicit: str | None) -> str:
+            if explicit:
+                return explicit
+            keys = {
+                "vo": ("vo", "dialogue", "dialog", "narrat", "speech", "vocal"),
+                "music": ("music", "bed", "score", "bgm", "backing"),
+            }
+            for t in audio:
+                name = (t.name or t.id).lower()
+                if any(k in name for k in keys[role]):
+                    return t.id
+            # fallback order
+            if role == "vo":
+                return audio[0].id
+            # music: prefer second, not vo
+            vo_id = _pick("vo", vo_track_id)
+            for t in audio:
+                if t.id != vo_id:
+                    return t.id
+            return audio[-1].id
+
+        vo_id = _pick("vo", vo_track_id)
+        music_id = _pick("music", music_track_id)
+        if vo_id == music_id:
+            raise ValueError("could not distinguish VO and music tracks — pass ids")
+
+        out: dict[str, Any] = {
+            "vo_track_id": vo_id,
+            "music_track_id": music_id,
+        }
+        if music_gain_db is not None:
+            music_clips = [
+                c.id for c in self.project.track_by_id(music_id).clips
+            ]
+            if music_clips:
+                with self._mutate():
+                    for cid in music_clips:
+                        clip = self._find_clip(cid)
+                        clip.effects = [
+                            e for e in (clip.effects or []) if e.get("type") != "gain"
+                        ]
+                        db = float(music_gain_db)
+                        if abs(db) >= 0.05:
+                            clip.effects.append({"type": "gain", "db": db})
+                out["music_gain"] = {
+                    "db": music_gain_db, "clip_count": len(music_clips),
+                }
+        # set_ducking: music track ducks under VO
+        track = self.set_ducking(
+            music_id,
+            vo_id,
+            threshold_db=threshold_db,
+            ratio=ratio,
+            attack_ms=attack_ms,
+            release_ms=release_ms,
+            makeup_db=makeup_db,
+        )
+        out["duck"] = {
+            "track_id": music_id,
+            "against": vo_id,
+            "threshold_db": threshold_db,
+            "ratio": ratio,
+        }
+        out["agent_note"] = (
+            "Music ducks under VO. Verify track names or pass explicit track ids."
+        )
+        _ = track
+        return out
+
     def freeze_at_markers(
         self,
         track_id: str,

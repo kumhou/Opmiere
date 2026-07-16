@@ -1630,6 +1630,76 @@ def assemble_unused_media(
 
 
 @mcp.tool()
+def rough_cut(
+    track_id: str,
+    media_ids: list[str] | None = None,
+    use_unused: bool = True,
+    kind: str = "video",
+    start_frame: int = 0,
+    clear_track: bool = False,
+    transition: str | None = "cross_dissolve",
+    transition_frames: int = 10,
+    apply_edge_fades: bool = True,
+    fade_frames: int = 6,
+) -> dict:
+    """One-shot rough cut: sequence + dissolves + edge fades."""
+    return _require_editor().rough_cut(
+        track_id,
+        media_ids=media_ids,
+        use_unused=use_unused,
+        kind=kind,
+        start_frame=start_frame,
+        clear_track=clear_track,
+        transition=transition,
+        transition_frames=transition_frames,
+        apply_edge_fades=apply_edge_fades,
+        fade_frames=fade_frames,
+    )
+
+
+@mcp.tool()
+def apply_edge_fades(
+    clip_ids: list[str] | None = None,
+    track_id: str | None = None,
+    fade_in_frames: int = 6,
+    fade_out_frames: int = 6,
+    replace: bool = True,
+) -> dict:
+    """Add fade-in/out on clips (ids or whole track)."""
+    return _require_editor().apply_edge_fades(
+        clip_ids=clip_ids,
+        track_id=track_id,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def setup_vo_music_duck(
+    vo_track_id: str | None = None,
+    music_track_id: str | None = None,
+    threshold_db: float = -30.0,
+    ratio: float = 8.0,
+    attack_ms: float = 20.0,
+    release_ms: float = 300.0,
+    makeup_db: float = 0.0,
+    music_gain_db: float | None = -6.0,
+) -> dict:
+    """Auto-wire music-under-VO ducking (picks tracks by name if omitted)."""
+    return _require_editor().setup_vo_music_duck(
+        vo_track_id=vo_track_id,
+        music_track_id=music_track_id,
+        threshold_db=threshold_db,
+        ratio=ratio,
+        attack_ms=attack_ms,
+        release_ms=release_ms,
+        makeup_db=makeup_db,
+        music_gain_db=music_gain_db,
+    )
+
+
+@mcp.tool()
 def freeze_at_markers(
     track_id: str,
     duration_frames: int = 24,

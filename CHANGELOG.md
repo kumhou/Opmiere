@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.61 — 2026-07-17
+
+### Added
+- `rough_cut` one-shot (sequence + dissolves + edge fades) + **Rough**
+- `apply_edge_fades` + **Fades**
+- `setup_vo_music_duck` + **DuckVO**
+
+### Fixed
+- CI: path-C catalog tests no longer require `lut3d` in unmapped
 ## 0.5.60 — 2026-07-17
 
 ### Added
@@ -1458,6 +1467,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

@@ -3902,6 +3902,97 @@ def assemble_unused_api(body: AssembleUnusedBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RoughCutBody(BaseModel):
+    track_id: str
+    media_ids: list[str] | None = None
+    use_unused: bool = True
+    kind: str = "video"
+    start_frame: int = 0
+    clear_track: bool = False
+    transition: str | None = "cross_dissolve"
+    transition_frames: int = 10
+    apply_edge_fades: bool = True
+    fade_frames: int = 6
+
+
+@app.post("/api/edit/rough_cut")
+def rough_cut_api(body: RoughCutBody) -> dict[str, Any]:
+    """One-shot rough cut: sequence + dissolves + edge fades."""
+    ed = _ed()
+    try:
+        r = ed.rough_cut(
+            body.track_id,
+            media_ids=body.media_ids,
+            use_unused=body.use_unused,
+            kind=body.kind,
+            start_frame=body.start_frame,
+            clear_track=body.clear_track,
+            transition=body.transition,
+            transition_frames=body.transition_frames,
+            apply_edge_fades=body.apply_edge_fades,
+            fade_frames=body.fade_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rough_cut failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class EdgeFadesBody(BaseModel):
+    clip_ids: list[str] | None = None
+    track_id: str | None = None
+    fade_in_frames: int = 6
+    fade_out_frames: int = 6
+    replace: bool = True
+
+
+@app.post("/api/clips/edge_fades")
+def edge_fades_api(body: EdgeFadesBody) -> dict[str, Any]:
+    """Apply fade-in/out to selection or track."""
+    ed = _ed()
+    try:
+        r = ed.apply_edge_fades(
+            clip_ids=body.clip_ids,
+            track_id=body.track_id,
+            fade_in_frames=body.fade_in_frames,
+            fade_out_frames=body.fade_out_frames,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"edge_fades failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class VoMusicDuckBody(BaseModel):
+    vo_track_id: str | None = None
+    music_track_id: str | None = None
+    threshold_db: float = -30.0
+    ratio: float = 8.0
+    attack_ms: float = 20.0
+    release_ms: float = 300.0
+    makeup_db: float = 0.0
+    music_gain_db: float | None = -6.0
+
+
+@app.post("/api/mix/vo_music_duck")
+def vo_music_duck_api(body: VoMusicDuckBody | None = None) -> dict[str, Any]:
+    """Auto-wire music-under-VO ducking."""
+    body = body or VoMusicDuckBody()
+    ed = _ed()
+    try:
+        return ed.setup_vo_music_duck(
+            vo_track_id=body.vo_track_id,
+            music_track_id=body.music_track_id,
+            threshold_db=body.threshold_db,
+            ratio=body.ratio,
+            attack_ms=body.attack_ms,
+            release_ms=body.release_ms,
+            makeup_db=body.makeup_db,
+            music_gain_db=body.music_gain_db,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"vo_music_duck failed: {e}") from e
+
+
 class FreezeAtMarkersBody(BaseModel):
     track_id: str
     duration_frames: int = 24
