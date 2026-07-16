@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.65 — 2026-07-16
+
+### Added
+- Desktop **Still** (playhead) + **Aud out** mix export
+
 ## 0.4.64 — 2026-07-16
 
 ### Added
