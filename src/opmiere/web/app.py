@@ -3896,6 +3896,57 @@ def reframe_clip_api(body: ReframeBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class TimecodeBody(BaseModel):
+    clip_id: str
+    enabled: bool = True
+    position: str = "bottom"
+    size: int = 28
+    start: str = "00:00:00:00"
+
+
+@app.post("/api/clip/timecode")
+def clip_timecode_api(body: TimecodeBody) -> dict[str, Any]:
+    """Burn running timecode overlay on a clip."""
+    ed = _ed()
+    try:
+        r = ed.set_clip_timecode(
+            body.clip_id,
+            enabled=body.enabled,
+            position=body.position,
+            size=body.size,
+            start=body.start,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"timecode failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MarkersFromClipsBody(BaseModel):
+    track_id: str | None = None
+    at: str = "start"
+    prefix: str = ""
+    clear_existing: bool = False
+    color: str = "#7c9cff"
+
+
+@app.post("/api/markers/from_clips")
+def markers_from_clips_api(body: MarkersFromClipsBody | None = None) -> dict[str, Any]:
+    """Create markers at each clip edge on a track."""
+    body = body or MarkersFromClipsBody()
+    ed = _ed()
+    try:
+        r = ed.markers_from_clips(
+            body.track_id,
+            at=body.at,
+            prefix=body.prefix,
+            clear_existing=body.clear_existing,
+            color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"markers_from_clips failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

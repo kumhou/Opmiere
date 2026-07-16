@@ -141,6 +141,35 @@ def _effect_filters(
                 f"borderw={border_width}:bordercolor={border_color}:"
                 f"x={x_expr}:y={y_expr}:expansion=none"
             )
+        elif etype == "timecode":
+            if stream != "video":
+                continue
+            position = effect.get("position", "bottom")
+            if position not in _TEXT_POSITION_EXPRESSIONS:
+                raise ValueError(f"timecode effect has invalid position {position!r}")
+            size = effect.get("size", 28)
+            color = effect.get("color", "white")
+            border_width = effect.get("border_width", 2)
+            border_color = effect.get("border_color", "black")
+            font = effect.get("font", DEFAULT_TEXT_FONT)
+            start = str(effect.get("start") or "00:00:00:00")
+            # rate for drawtext timecode = project fps
+            rate = float(effect.get("fps") or fps or 30.0)
+            if rate <= 0:
+                rate = 30.0
+            if not Path(font).exists():
+                raise FileNotFoundError(
+                    f"timecode effect font not found: {font}"
+                )
+            tc = start.replace(":", r"\:")
+            x_expr, y_expr = _TEXT_POSITION_EXPRESSIONS[position]
+            parts.append(
+                f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                f"timecode='{tc}':r={rate}:"
+                f"fontcolor={color}:fontsize={size}:"
+                f"borderw={border_width}:bordercolor={border_color}:"
+                f"x={x_expr}:y={y_expr}"
+            )
         elif etype == "subtitles":
             if stream != "video":
                 continue

@@ -2636,6 +2636,60 @@ async function reframeSelectionUi(aspect = "9:16") {
   }
 }
 
+async function timecodeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for timecode";
+    return;
+  }
+  $("status-msg").textContent = `Timecode ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/timecode", {
+        clip_id: id,
+        enabled: true,
+        position: "bottom",
+        size: 28,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `TC · ${ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`TC failed: ${e}`);
+    $("status-msg").textContent = `TC failed: ${e}`;
+  }
+}
+
+async function markersFromClipsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Markers from clips…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/markers/from_clips", {
+      track_id: trackForKind("video"),
+      at: "start",
+      clear_existing: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Mkr←Clips · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`Mkr←Clips failed: ${e}`);
+    $("status-msg").textContent = `Mkr←Clips failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10945,6 +10999,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnReframe.addEventListener("click", () => {
       stopPlay();
       void reframeSelectionUi("9:16");
+    });
+  }
+  const btnTc = document.getElementById("btn-tc");
+  if (btnTc) {
+    btnTc.addEventListener("click", () => {
+      stopPlay();
+      void timecodeSelectionUi();
+    });
+  }
+  const btnMkrClips = document.getElementById("btn-mkr-clips");
+  if (btnMkrClips) {
+    btnMkrClips.addEventListener("click", () => {
+      stopPlay();
+      void markersFromClipsUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

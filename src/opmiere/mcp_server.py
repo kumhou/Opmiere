@@ -2287,6 +2287,34 @@ def reframe_clip(
 
 
 @mcp.tool()
+def set_clip_timecode(
+    clip_id: str,
+    enabled: bool = True,
+    position: str = "bottom",
+    size: int = 28,
+    start: str = "00:00:00:00",
+) -> dict:
+    """Burn running timecode overlay on a clip."""
+    return _require_editor().set_clip_timecode(
+        clip_id, enabled=enabled, position=position, size=size, start=start,
+    )
+
+
+@mcp.tool()
+def markers_from_clips(
+    track_id: str | None = None,
+    at: str = "start",
+    prefix: str = "",
+    clear_existing: bool = False,
+    color: str = "#7c9cff",
+) -> dict:
+    """Create markers at each clip start/mid/end (chapter scaffold)."""
+    return _require_editor().markers_from_clips(
+        track_id, at=at, prefix=prefix, clear_existing=clear_existing, color=color,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

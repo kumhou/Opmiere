@@ -4343,6 +4343,19 @@ class Editor:
             border_width = effect.get("border_width", 2)
             if not isinstance(border_width, int) or border_width < 0:
                 raise ValueError("text effect 'border_width' must be a non-negative integer")
+        elif etype == "timecode":
+            position = effect.get("position", "bottom")
+            if position not in TEXT_POSITIONS:
+                raise ValueError(
+                    f"timecode effect position must be one of {sorted(TEXT_POSITIONS)}, "
+                    f"got {position!r}"
+                )
+            size = effect.get("size", 28)
+            if not isinstance(size, int) or size <= 0:
+                raise ValueError("timecode effect 'size' must be a positive integer")
+            # inject project fps for render
+            effect = dict(effect)
+            effect.setdefault("fps", float(self.project.timebase.fps or 30.0))
         elif etype == "subtitles":
             path = effect.get("path")
             if not isinstance(path, str) or not path.strip():
@@ -11911,6 +11924,89 @@ class Editor:
                 "hflip": {"from": had_h, "to": want_h},
                 "vflip": {"from": had_v, "to": want_v},
                 "agent_note": "Mirror via ffmpeg hflip/vflip; path-C plan scale_x/y=-1.",
+            }
+
+    def set_clip_timecode(
+        self,
+        clip_id: str,
+        *,
+        enabled: bool = True,
+        position: str = "bottom",
+        size: int = 28,
+        start: str = "00:00:00:00",
+    ) -> dict[str, Any]:
+        """Burn running timecode overlay on a clip (replaces existing timecode FX)."""
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.effects = [
+                e for e in (clip.effects or [])
+                if not (isinstance(e, dict) and e.get("type") == "timecode")
+            ]
+            if enabled:
+                self._apply_effect_unlocked(
+                    clip_id,
+                    {
+                        "type": "timecode",
+                        "position": position,
+                        "size": int(size),
+                        "start": start,
+                        "fps": float(self.project.timebase.fps or 30.0),
+                    },
+                )
+            return {
+                "clip_id": clip_id,
+                "enabled": enabled,
+                "position": position,
+                "size": size,
+                "start": start,
+                "agent_note": "Timecode burn-in via drawtext; bake_clip to freeze.",
+            }
+
+    def markers_from_clips(
+        self,
+        track_id: str | None = None,
+        *,
+        at: str = "start",
+        prefix: str = "",
+        clear_existing: bool = False,
+        color: str = "#7c9cff",
+    ) -> dict[str, Any]:
+        """Create markers at each clip start/mid/end on a track (chapter scaffold)."""
+        if at not in ("start", "mid", "end"):
+            raise ValueError("at must be start|mid|end")
+        with self._mutate():
+            if track_id is not None:
+                tracks = [self.project.track_by_id(track_id)]
+            else:
+                tracks = [t for t in self.project.tracks if t.kind == "video"]
+                if not tracks:
+                    tracks = list(self.project.tracks[:1])
+            if clear_existing:
+                self.project.markers.clear()
+            existing = {int(m.frame) for m in self.project.markers}
+            added: list[dict[str, Any]] = []
+            for tr in tracks:
+                for i, c in enumerate(tr.clips_in_order()):
+                    if at == "start":
+                        fr = int(c.start)
+                    elif at == "end":
+                        fr = max(0, int(c.end) - 1)
+                    else:
+                        fr = int(c.start + max(0, c.timeline_duration_frames // 2))
+                    if fr in existing:
+                        continue
+                    lab = c.name or f"Clip {i + 1}"
+                    if prefix:
+                        lab = f"{prefix}{lab}"
+                    m = self.project.add_marker(fr, label=lab, color=color)
+                    existing.add(fr)
+                    added.append(m.to_dict())
+            return {
+                "count": len(added),
+                "markers": added,
+                "at": at,
+                "agent_note": "Markers from clip edges — use export_storyboard / chapters next.",
             }
 
     def reset_clip_transform(

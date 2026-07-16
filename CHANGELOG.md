@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.79 — 2026-07-17
+
+### Added
+- `timecode` effect (burn-in drawtext) + `set_clip_timecode` + path-C **adapter v21** + **TC**
+- `markers_from_clips` chapter scaffold + **Mkr←Clips**
+
 ## 0.5.78 — 2026-07-17
 
 ### Added
