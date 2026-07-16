@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.16 — 2026-07-17
+
+### Added
+- `GET /api/session/summary`, `POST /api/suggest/filler`
+- Desktop **Sess** / **Fill?**
+
 ## 0.5.15 — 2026-07-17
 
 ### Added

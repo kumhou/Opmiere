@@ -860,6 +860,14 @@ button.btn-muted {
   margin-left: 6px;
 }
 
+.ph-tc-float {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-accent);
+  margin: 0 8px;
+  min-width: 7.5em;
+}
+
 .sel-card {
   margin: var(--space-sm) 0 var(--space-md);
   padding: var(--space-md);

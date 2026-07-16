@@ -4068,6 +4068,69 @@ def prepare_for_export_api(body: PrepareForExportBody | None = None) -> dict[str
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FillerSuggestBody(BaseModel):
+    path: str | None = None
+    clip_id: str | None = None
+    media_id: str | None = None
+    pad_seconds: float = 0.02
+    model_size: str = "base"
+    language: str | None = None
+    use_cache: bool = True
+
+
+@app.post("/api/suggest/filler")
+def suggest_filler_api(body: FillerSuggestBody | None = None) -> dict[str, Any]:
+    """Word-level filler plan (um/uh/…) — does not edit timeline."""
+    body = body or FillerSuggestBody()
+    try:
+        return _ed().suggest_filler_cuts(
+            path=body.path,
+            clip_id=body.clip_id,
+            media_id=body.media_id,
+            pad_seconds=body.pad_seconds,
+            model_size=body.model_size,
+            language=body.language,
+            use_cache=body.use_cache,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"suggest_filler failed: {e}") from e
+
+
+@app.get("/api/project/colors")
+def project_colors_alias() -> dict[str, Any]:
+    """Alias of clip color palette for agents."""
+    return _ed().list_clip_colors()
+
+
+@app.get("/api/project/recent")
+def project_recent_alias(limit: int = 12) -> dict[str, Any]:
+    """Alias of list_recent_projects."""
+    return _ed().list_recent_projects(limit=limit)
+
+
+@app.get("/api/session/summary")
+def session_summary_api() -> dict[str, Any]:
+    """Compact session snapshot for desktop status / agents."""
+    ed = _ed()
+    try:
+        pre = ed.agent_preflight()
+    except Exception as e:
+        pre = {"ok": False, "error": str(e)}
+    try:
+        enc = ed.encode_status()
+    except Exception:
+        enc = {}
+    return {
+        "version": __version__,
+        "preflight": pre,
+        "encode": enc,
+        "duration_frames": ed.duration_frames(),
+        "track_count": len(ed.project.tracks),
+        "media_count": len(ed.project.media),
+        "marker_count": len(getattr(ed.project, "markers", None) or []),
+    }
+
+
 if _STATIC.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 

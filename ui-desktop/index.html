@@ -433,6 +433,9 @@
               <button type="button" id="btn-prep-exp2" class="btn-mini" title="prepare_for_export">Prep2</button>
               <button type="button" id="btn-sel-share" class="btn-mini" title="Select all clips sharing media">SelShare</button>
               <button type="button" id="btn-lane-compact" class="btn-mini" title="Toggle compact lanes">Compact</button>
+              <button type="button" id="btn-filler-sug" class="btn-mini" title="suggest_filler_cuts">Fill?</button>
+              <button type="button" id="btn-sess-sum" class="btn-mini" title="session summary">Sess</button>
+              <button type="button" id="btn-copy-bundle" class="btn-mini" title="Copy bundle path">Path</button>
             </div>
             <div id="pro-out" class="review-out muted">Pro —</div>
             </div>
@@ -539,6 +542,7 @@
         <section class="timeline-region">
           <div class="timeline-header">
             <span>Timeline</span>
+            <span id="ph-tc-float" class="ph-tc-float" title="Playhead TC">00:00:00:00</span>
             <span id="timeline-meta">—</span>
             <span class="spacer"></span>
             <span id="io-display" class="io-display">I/O —</span>
@@ -634,6 +638,8 @@
           <div><kbd>?</kbd> This help</div>
           <div>Preflight / Agent fin (Pro)</div>
           <div>Generate panel (ComfyUI)</div>
+          <div><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> Preflight</div>
+          <div><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd> Doctor</div>
           <div><kbd>Esc</kbd> Clear / close</div>
         </div>
         <p class="help-note">Click outside or press Esc to close.</p>

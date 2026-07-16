@@ -380,6 +380,7 @@ function setPlayheadUi() {
   scrub.disabled = !state.projectOpen || state.durationSec <= 0;
   const frames = Math.round(state.t * state.fps);
   $("tc").textContent = framesToTc(frames, state.fps);
+  updatePlayheadTcFloat();
   document.querySelectorAll<HTMLElement>(".timeline-playhead").forEach((el) => {
     const pct =
       state.durationSec > 0
@@ -6348,6 +6349,86 @@ async function prepareForExportUi() {
   }
 }
 
+async function suggestFillerUi() {
+  const ids = selectionList();
+  const body: Record<string, unknown> = { use_cache: true, model_size: "base" };
+  if (ids.length === 1) body.clip_id = ids[0];
+  else if (state.binMediaId) body.media_id = state.binMediaId;
+  else {
+    $("status-msg").textContent = "Select clip or bin media for filler suggest";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/suggest/filler",
+      body,
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Filler suggest ready";
+  } catch (e) {
+    setProOut(`Filler suggest failed: ${e}`);
+    $("status-msg").textContent = `Filler suggest failed: ${e}`;
+  }
+}
+
+async function sessionSummaryUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/session/summary");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Session · tracks=${r.track_count ?? "?"} media=${r.media_count ?? "?"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Session summary failed: ${e}`;
+  }
+}
+
+async function copyBundlePath() {
+  const p = state.bundlePath;
+  if (!p) {
+    $("status-msg").textContent = "No bundle path";
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(p);
+    $("status-msg").textContent = "Bundle path copied";
+  } catch {
+    window.prompt("Bundle path", p);
+  }
+}
+
+let healthTimer: ReturnType<typeof setInterval> | 0 = 0;
+
+function startHealthHeartbeat() {
+  if (healthTimer) return;
+  healthTimer = setInterval(() => {
+    if (document.hidden) return;
+    void (async () => {
+      try {
+        const h = await getJson<{ status?: string; project_open?: boolean }>(
+          "/api/health",
+        );
+        setPill(
+          "pill-api",
+          h.status === "ok" || h.project_open != null ? "ok" : "warn",
+          h.project_open ? "API · project" : "API",
+        );
+      } catch {
+        setPill("pill-api", "err", "API down");
+      }
+    })();
+  }, 15000);
+}
+
+function updatePlayheadTcFloat() {
+  const el = document.getElementById("ph-tc-float");
+  if (!el) return;
+  el.textContent = framesToTc(playheadFrame(), state.fps);
+}
+
 async function showDoctorFull() {
   try {
     const r = await getJson<Record<string, unknown>>(
@@ -8411,6 +8492,16 @@ function onKey(ev: KeyboardEvent) {
     void saveProject();
     return;
   }
+  if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && k === "p") {
+    ev.preventDefault();
+    void runAgentPreflight();
+    return;
+  }
+  if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && k === "d") {
+    ev.preventDefault();
+    void showDoctorFull();
+    return;
+  }
   if ((ev.ctrlKey || ev.metaKey) && k === "w") {
     ev.preventDefault();
     void closeProject();
@@ -8902,6 +8993,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-stems", () => void separateStemsUi());
   proBind("btn-frame-bin", () => void extractFrameBinUi());
   proBind("btn-prep-exp2", () => void prepareForExportUi());
+  proBind("btn-filler-sug", () => void suggestFillerUi());
+  proBind("btn-sess-sum", () => void sessionSummaryUi());
+  proBind("btn-copy-bundle", () => void copyBundlePath());
   proBind("btn-pro-toggle", () => {
     const body = document.getElementById("pro-body");
     const btn = document.getElementById("btn-pro-toggle");
@@ -9366,4 +9460,10 @@ window.addEventListener("DOMContentLoaded", () => {
   void loadTemplates();
   void refreshRecent();
   void refresh();
+  startHealthHeartbeat();
+  sessionStorage.setItem("opmiere_sess_edit", "0");
+  sessionStorage.setItem("opmiere_sess_save", "0");
+  sessionStorage.setItem("opmiere_sess_gen", "0");
+  const ss = document.getElementById("session-stats");
+  if (ss) ss.textContent = "e0/s0/g0";
 });
