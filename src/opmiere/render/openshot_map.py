@@ -62,7 +62,7 @@ _UNMAPPED_VISUAL = frozenset({
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 11
+ADAPTER_VERSION = 12
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -80,6 +80,7 @@ _CURVES_BRIGHTNESS = {
 
 _DISSOLVE_TYPES = frozenset({
     "cross_dissolve", "dissolve", "fade", "fade_black", "fade_white",
+    "dip_to_black", "dip_to_white",
 })
 
 
@@ -99,7 +100,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "chroma_key": "ChromaKey green/blue key when available",
             "luma_key": "LumaKey threshold/tolerance when available",
             "glow": "soft Blur + Brightness stand-in",
-            "transition_dissolve": "cross_dissolve → fade_in/out on neighbors",
+            "transition_dissolve": "cross_dissolve/dip_* → fade_in/out on neighbors",
             "curves": "preset → brightness stand-in only",
             "shape_mask": "circle/rect → crop fractions (no feather)",
         },
@@ -501,7 +502,8 @@ def build_openshot_plan(
 
             fade_in = int(vis.get("fade_in_frames") or 0)
             fade_out = int(vis.get("fade_out_frames") or 0)
-            # cross_dissolve-style transition_in → alpha ramps on this + previous clip
+            dip_color: str | None = None
+            # cross_dissolve / dip-style transition_in → alpha ramps on neighbors
             if clip.transition_in and isinstance(clip.transition_in, dict):
                 ti = clip.transition_in
                 ttype = str(
@@ -515,6 +517,7 @@ def build_openshot_plan(
                     ttype in _DISSOLVE_TYPES
                     or "dissolve" in ttype
                     or ttype.startswith("fade")
+                    or ttype.startswith("dip_")
                 ):
                     fade_in = max(fade_in, tdur)
                     prev = last_entry_by_layer.get(layer)
@@ -522,6 +525,13 @@ def build_openshot_plan(
                         prev["fade_out_frames"] = max(
                             int(prev.get("fade_out_frames") or 0), tdur
                         )
+                    if ttype in (
+                        "dip_to_black", "dip_to_white", "fade_black", "fade_white",
+                    ):
+                        dip_color = "black" if "black" in ttype else "white"
+                        if prev is not None:
+                            prev["dip_out"] = dip_color
+                        mapped_notes.append(f"transition_dip:{clip.id}")
                     mapped_notes.append(f"transition:{clip.id}")
                 else:
                     unsupported.append(f"transition:{clip.id}")
@@ -547,6 +557,8 @@ def build_openshot_plan(
                 "sharpen": vis.get("sharpen") or 0.0,
                 "film_grain": vis.get("film_grain") or 0.0,
             }
+            if dip_color:
+                entry["dip_in"] = dip_color
             if vis.get("crop"):
                 entry["crop"] = vis["crop"]
             if vis.get("ken_burns"):

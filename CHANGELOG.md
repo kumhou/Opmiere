@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.49 — 2026-07-17
+
+### Added
+- OpenShot path-C **adapter v12**: `dip_to_black` / `dip_to_white` → fade ramps + dip tags
 ## 0.5.48 — 2026-07-17
 
 ### Added
@@ -1392,6 +1396,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
