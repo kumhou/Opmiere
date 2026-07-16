@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.96 — 2026-07-17
+
+### Added
+- Desktop **Compact** lane height toggle
+
 ## 0.4.95 — 2026-07-17
 
 ### Added
