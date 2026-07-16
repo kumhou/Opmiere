@@ -15174,6 +15174,66 @@ class Editor:
         result["agent_note"] = cfg.get("description", "")
         return result
 
+    def export_presets_pack(
+        self,
+        out_dir: str | Path,
+        *,
+        presets: list[str] | None = None,
+        name_prefix: str = "export",
+        prepare: bool | None = None,
+    ) -> dict[str, Any]:
+        """Export multiple named presets into a folder (draft/streaming/broadcast).
+
+        Full re-renders per preset. Prefer small projects for batch.
+        """
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        names = presets or ["draft", "streaming"]
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for name in names:
+            key = str(name).strip()
+            if key not in self.EXPORT_PRESETS:
+                errors.append({
+                    "preset": key,
+                    "reason": f"unknown; known={sorted(self.EXPORT_PRESETS)}",
+                })
+                continue
+            dest = out / f"{name_prefix}_{key}.mp4"
+            try:
+                r = self.export_with_preset(dest, key, prepare=prepare)
+                written.append(r)
+            except Exception as e:
+                errors.append({"preset": key, "reason": str(e)[:300]})
+        return {
+            "path": str(out.resolve()),
+            "count": len(written),
+            "written": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "presets": names,
+            "agent_note": "Preset pack for client/delivery variants. Heavy: N full encodes.",
+        }
+
+    def match_clip_duration(
+        self,
+        clip_id: str,
+        *,
+        target_clip_id: str | None = None,
+        target_frames: int | None = None,
+        clamp: bool = True,
+    ) -> dict[str, Any]:
+        """Rate-stretch clip_id to match another clip's timeline duration or frames."""
+        if target_frames is None:
+            if target_clip_id is None:
+                raise ValueError("pass target_clip_id or target_frames")
+            other = self._find_clip(target_clip_id)
+            target_frames = int(other.timeline_duration_frames)
+        r = self.stretch_to(clip_id, int(target_frames), clamp=clamp)
+        r["target_clip_id"] = target_clip_id
+        r["agent_note"] = "Speed adjusted to match duration; neighbors not rippled."
+        return r
+
     def export(
         self,
         output_path: Path,

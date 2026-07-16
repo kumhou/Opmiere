@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.89 — 2026-07-17
+
+### Added
+- `export_presets_pack` (draft/streaming/… batch) + **Presets**
+- `match_clip_duration` (rate-stretch to peer) + **MatchD**
+
 ## 0.5.88 — 2026-07-17
 
 ### Added

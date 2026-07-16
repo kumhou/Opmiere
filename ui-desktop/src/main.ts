@@ -3277,6 +3277,62 @@ async function projectSnapshotUi() {
   }
 }
 
+async function exportPresetsPackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Presets pack output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting presets pack…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      path?: string;
+    }>("/api/export/presets_pack", {
+      out_dir: dir,
+      presets: ["draft", "streaming"],
+      name_prefix: "export",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Presets · ${r.count ?? 0}` +
+      (r.error_count ? ` · err ${r.error_count}` : "") +
+      ` → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`Presets failed: ${e}`);
+    $("status-msg").textContent = `Presets failed: ${e}`;
+  }
+}
+
+async function matchDurationUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select 2 clips: source then target duration";
+    return;
+  }
+  $("status-msg").textContent = "Match duration…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/match_duration",
+      {
+        clip_id: ids[0],
+        target_clip_id: ids[1],
+        clamp: true,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MatchD · ${ids[0]} → ${ids[1]}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`MatchD failed: ${e}`);
+    $("status-msg").textContent = `MatchD failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11745,6 +11801,20 @@ window.addEventListener("DOMContentLoaded", () => {
     btnSnapshot.addEventListener("click", () => {
       stopPlay();
       void projectSnapshotUi();
+    });
+  }
+  const btnPresetsPack = document.getElementById("btn-presets-pack");
+  if (btnPresetsPack) {
+    btnPresetsPack.addEventListener("click", () => {
+      stopPlay();
+      void exportPresetsPackUi();
+    });
+  }
+  const btnMatchDur = document.getElementById("btn-match-dur");
+  if (btnMatchDur) {
+    btnMatchDur.addEventListener("click", () => {
+      stopPlay();
+      void matchDurationUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

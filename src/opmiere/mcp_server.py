@@ -2667,6 +2667,35 @@ def export_project_snapshot(
 
 
 @mcp.tool()
+def export_presets_pack(
+    out_dir: str,
+    presets: list[str] | None = None,
+    name_prefix: str = "export",
+    prepare: bool | None = None,
+) -> dict:
+    """Export multiple named presets (draft/streaming/…) into a folder."""
+    return _require_editor().export_presets_pack(
+        out_dir, presets=presets, name_prefix=name_prefix, prepare=prepare,
+    )
+
+
+@mcp.tool()
+def match_clip_duration(
+    clip_id: str,
+    target_clip_id: str | None = None,
+    target_frames: int | None = None,
+    clamp: bool = True,
+) -> dict:
+    """Rate-stretch a clip to match another clip's duration or frame count."""
+    return _require_editor().match_clip_duration(
+        clip_id,
+        target_clip_id=target_clip_id,
+        target_frames=target_frames,
+        clamp=clamp,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

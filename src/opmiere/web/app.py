@@ -4488,6 +4488,51 @@ def project_snapshot_api(body: ProjectSnapshotBody) -> dict[str, Any]:
         raise HTTPException(400, f"project_snapshot failed: {e}") from e
 
 
+class PresetsPackBody(BaseModel):
+    out_dir: str
+    presets: list[str] | None = None
+    name_prefix: str = "export"
+    prepare: bool | None = None
+
+
+@app.post("/api/export/presets_pack")
+def export_presets_pack_api(body: PresetsPackBody) -> dict[str, Any]:
+    """Export multiple named presets into a folder."""
+    ed = _ed()
+    try:
+        return ed.export_presets_pack(
+            body.out_dir,
+            presets=body.presets,
+            name_prefix=body.name_prefix,
+            prepare=body.prepare,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"presets_pack failed: {e}") from e
+
+
+class MatchDurationBody(BaseModel):
+    clip_id: str
+    target_clip_id: str | None = None
+    target_frames: int | None = None
+    clamp: bool = True
+
+
+@app.post("/api/clip/match_duration")
+def match_duration_api(body: MatchDurationBody) -> dict[str, Any]:
+    """Rate-stretch clip to match another clip or frame count."""
+    ed = _ed()
+    try:
+        r = ed.match_clip_duration(
+            body.clip_id,
+            target_clip_id=body.target_clip_id,
+            target_frames=body.target_frames,
+            clamp=body.clamp,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"match_duration failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str
