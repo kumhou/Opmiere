@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.33 — 2026-07-17
+
+### Added
+- `.track-lane.compact` style present
+
 ## 0.5.32 — 2026-07-17
 
 ### Added
