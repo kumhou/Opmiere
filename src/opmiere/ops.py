@@ -5779,6 +5779,118 @@ class Editor:
             [c.id for c in clips], delta, follow_links=False,
         )
 
+    def lift_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        follow_links: bool = False,
+    ) -> dict[str, Any]:
+        """Premiere Lift on selection: remove clips, leave holes (no ripple). One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = (
+            self._expand_link_ids(clip_ids)
+            if follow_links
+            else list(dict.fromkeys(clip_ids))
+        )
+        with self._mutate():
+            lifted: list[dict[str, Any]] = []
+            errors: list[dict[str, Any]] = []
+            for cid in ids:
+                try:
+                    track, clip = self._find_clip_and_track(cid)
+                    if track.locked:
+                        raise ValueError(f"track {track.id} is locked")
+                    start = int(clip.start)
+                    end = int(clip.end)
+                    dur = int(clip.timeline_duration_frames)
+                    nxt = None
+                    ordered = track.clips_in_order()
+                    for i, c in enumerate(ordered):
+                        if c.id == cid and i + 1 < len(ordered):
+                            nxt = ordered[i + 1]
+                            break
+                    track.clips.remove(clip)
+                    if nxt is not None and nxt.transition_in is not None:
+                        nxt.transition_in = None
+                    lifted.append(
+                        {
+                            "deleted_id": cid,
+                            "track_id": track.id,
+                            "start": start,
+                            "end": end,
+                            "duration_frames": dur,
+                        }
+                    )
+                except Exception as e:
+                    errors.append({"clip_id": cid, "error": str(e)[:200]})
+            return {
+                "count": len(lifted),
+                "lifted": lifted,
+                "errors": errors,
+                "error_count": len(errors),
+                "ripple": False,
+                "agent_note": "Gaps left open; pack_selection / close_gaps / fill_track_gaps.",
+            }
+
+    def pack_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        gap_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Per track: pack selected clips left into a contiguous block.
+
+        Earliest selected clip on each track keeps its start; later selected
+        clips move to prev_end + gap_frames. Non-selected clips are not moved.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        gap = max(0, int(gap_frames))
+        ids = list(dict.fromkeys(clip_ids))
+        with self._mutate():
+            by_track: dict[str, list[Any]] = {}
+            for cid in ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                by_track.setdefault(track.id, []).append(clip)
+            moved: list[dict[str, Any]] = []
+            for tid, clips in by_track.items():
+                clips_sorted = sorted(clips, key=lambda c: (int(c.start), c.id))
+                cursor = int(clips_sorted[0].start)
+                for c in clips_sorted:
+                    old = int(c.start)
+                    c.start = cursor
+                    if old != cursor:
+                        moved.append(
+                            {
+                                "clip_id": c.id,
+                                "track_id": tid,
+                                "from": old,
+                                "to": cursor,
+                            }
+                        )
+                    cursor = int(c.end) + gap
+            return {
+                "gap_frames": gap,
+                "count": len(moved),
+                "moved": moved,
+                "tracks": list(by_track.keys()),
+                "agent_note": "Selection packed per track; non-selected clips untouched.",
+            }
+
+    def mute_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        muted: bool = True,
+    ) -> dict[str, Any]:
+        """Mute or unmute selection (still occupies timeline)."""
+        r = self.set_clips_muted(clip_ids, muted=bool(muted))
+        r["agent_note"] = "Muted clips render black/silence; duration unchanged."
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

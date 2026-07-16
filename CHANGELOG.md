@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.22 — 2026-07-17
+
+### Added
+- `lift_selection` / `pack_selection` / `mute_selection` + **LiftSel** / **PackSel** / **MuteSel** / **UnmuteSel**
+
 ## 0.6.21 — 2026-07-17
 
 ### Added

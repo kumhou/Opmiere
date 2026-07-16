@@ -4589,6 +4589,24 @@ def snap_selection_to_playhead(
 
 
 @mcp.tool()
+def lift_selection(clip_ids: list[str], follow_links: bool = False) -> dict:
+    """Premiere Lift: remove selection clips, leave gaps (no ripple)."""
+    return _require_editor().lift_selection(clip_ids, follow_links=follow_links)
+
+
+@mcp.tool()
+def pack_selection(clip_ids: list[str], gap_frames: int = 0) -> dict:
+    """Pack selected clips left into a contiguous block per track."""
+    return _require_editor().pack_selection(clip_ids, gap_frames=gap_frames)
+
+
+@mcp.tool()
+def mute_selection(clip_ids: list[str], muted: bool = True) -> dict:
+    """Mute or unmute selection (timeline footprint unchanged)."""
+    return _require_editor().mute_selection(clip_ids, muted=muted)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

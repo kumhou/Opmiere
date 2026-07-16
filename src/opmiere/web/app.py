@@ -7619,6 +7619,54 @@ def snap_selection_playhead_api(body: SnapSelectionPlayheadBody) -> dict[str, An
     return {**r, "timeline": ed.timeline_view()}
 
 
+class LiftSelectionBody(BaseModel):
+    clip_ids: list[str]
+    follow_links: bool = False
+
+
+@app.post("/api/edit/lift_selection")
+def lift_selection_api(body: LiftSelectionBody) -> dict[str, Any]:
+    """Lift selection (remove, leave gaps)."""
+    ed = _ed()
+    try:
+        r = ed.lift_selection(body.clip_ids, follow_links=body.follow_links)
+    except Exception as e:
+        raise HTTPException(400, f"lift_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class PackSelectionBody(BaseModel):
+    clip_ids: list[str]
+    gap_frames: int = 0
+
+
+@app.post("/api/edit/pack_selection")
+def pack_selection_api(body: PackSelectionBody) -> dict[str, Any]:
+    """Pack selected clips tight per track."""
+    ed = _ed()
+    try:
+        r = ed.pack_selection(body.clip_ids, gap_frames=body.gap_frames)
+    except Exception as e:
+        raise HTTPException(400, f"pack_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MuteSelectionBody(BaseModel):
+    clip_ids: list[str]
+    muted: bool = True
+
+
+@app.post("/api/edit/mute_selection")
+def mute_selection_api(body: MuteSelectionBody) -> dict[str, Any]:
+    """Mute or unmute selection."""
+    ed = _ed()
+    try:
+        r = ed.mute_selection(body.clip_ids, muted=body.muted)
+    except Exception as e:
+        raise HTTPException(400, f"mute_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
