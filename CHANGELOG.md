@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.90 — 2026-07-17
+
+### Added
+- Desktop **Prep2** — prepare_for_export (fill gaps / clear empty)
+- Milestone **0.4.90**: deep craft dual-surface complete
+
 ## 0.4.89 — 2026-07-17
 
 ### Added
