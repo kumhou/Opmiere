@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.26 — 2026-07-17
+
+### Added
+- Double-click **Pro** / **Gen** panels to copy text
+
 ## 0.5.25 — 2026-07-17
 
 ### Added

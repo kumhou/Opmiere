@@ -5357,6 +5357,22 @@ function setProOut(text: string, muted = false) {
   if (!el) return;
   el.className = muted ? "review-out muted" : "review-out";
   el.textContent = text.slice(0, 5000);
+  el.title = "Double-click to copy";
+}
+
+async function copyProOut() {
+  const el = document.getElementById("pro-out");
+  const t = el?.textContent || "";
+  if (!t || t === "Pro —") {
+    $("status-msg").textContent = "Nothing to copy";
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(t);
+    $("status-msg").textContent = "Pro output copied";
+  } catch {
+    window.prompt("Pro output", t.slice(0, 2000));
+  }
 }
 
 async function runAgentPreflight() {
@@ -5545,7 +5561,22 @@ async function exportStillUi() {
       width: 1280,
     });
     setProOut(JSON.stringify(r, null, 2));
-    $("status-msg").textContent = `Still f${frame} → ${r.path || r.output_path || "ok"}`;
+    const p = String(r.path || r.output_path || "");
+    // also refresh program still via frame API
+    try {
+      const q = new URLSearchParams({
+        t: String(frame / Math.max(1, state.fps)),
+        width: "640",
+        engine: "auto",
+        _: String(Date.now()),
+      });
+      const img = $("program-img") as HTMLImageElement;
+      img.src = `${API_BASE}/api/preview/frame.jpg?${q.toString()}`;
+      showProgramImage(img.src);
+    } catch {
+      /* ignore */
+    }
+    $("status-msg").textContent = `Still f${frame} → ${p || "ok"}`;
   } catch (e) {
     $("status-msg").textContent = `Still failed: ${e}`;
   }
@@ -9466,4 +9497,23 @@ window.addEventListener("DOMContentLoaded", () => {
   sessionStorage.setItem("opmiere_sess_gen", "0");
   const ss = document.getElementById("session-stats");
   if (ss) ss.textContent = "e0/s0/g0";
+  const proOut = document.getElementById("pro-out");
+  if (proOut) {
+    proOut.addEventListener("dblclick", () => {
+      void copyProOut();
+    });
+  }
+  const genOut = document.getElementById("gen-out");
+  if (genOut) {
+    genOut.addEventListener("dblclick", () => {
+      const t = genOut.textContent || "";
+      if (t) void navigator.clipboard.writeText(t).then(
+        () => {
+          $("status-msg").textContent = "Gen output copied";
+        },
+        () => undefined,
+      );
+    });
+    genOut.title = "Double-click to copy";
+  }
 });
