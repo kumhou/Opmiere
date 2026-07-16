@@ -5552,6 +5552,42 @@ async function exportFcpxmlUi() {
   }
 }
 
+async function importFcpxmlFile() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const picked = await pickImportFile({
+    title: "Import FCPXML",
+    extensions: ["fcpxml", "xml"],
+  });
+  if (!picked) return;
+  $("status-msg").textContent = "Importing FCPXML…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+      imported_media_count?: number;
+    }>("/api/import/fcpxml", {
+      path: picked.path || null,
+      text: picked.text || null,
+      clear_track: false,
+      import_missing_media: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    $("status-msg").textContent =
+      `FCPXML in · ${r.count ?? "?"} clips` +
+      (r.imported_media_count ? ` · +${r.imported_media_count} media` : "") +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `FCPXML import failed: ${e}`;
+  }
+}
+
 async function exportOtioUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9076,6 +9112,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-silence", () => void runSilenceCutsPlan());
   proBind("btn-scenes", () => void runDetectScenes());
   proBind("btn-fcpxml", () => void exportFcpxmlUi());
+  proBind("btn-import-fcpxml", () => void importFcpxmlFile());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-still", () => void exportStillUi());

@@ -3154,6 +3154,14 @@ class ImportOtioBody(BaseModel):
     conform: bool = True
 
 
+class ImportFcpxmlBody(BaseModel):
+    path: str | None = None
+    text: str | None = None
+    clear_track: bool = False
+    import_missing_media: bool = True
+    conform: bool = True
+
+
 class ExportStillBody(BaseModel):
     output_path: str | None = None
     frame: int | None = None
@@ -3291,6 +3299,23 @@ def export_fcpxml_api(body: InterchangeExportBody | None = None) -> dict[str, An
         return ed.export_fcpxml(path, title=body.title)
     except Exception as e:
         raise HTTPException(500, f"export_fcpxml failed: {e}") from e
+
+
+@app.post("/api/import/fcpxml")
+def import_fcpxml_api(body: ImportFcpxmlBody) -> dict[str, Any]:
+    """Import minimal FCPXML 1.9 (pair of export_fcpxml)."""
+    ed = _ed()
+    try:
+        r = ed.import_fcpxml(
+            body.path,
+            text=body.text,
+            clear_track=body.clear_track,
+            import_missing_media=body.import_missing_media,
+            conform=body.conform,
+        )
+        return {**r, "timeline": ed.timeline_view()}
+    except Exception as e:
+        raise HTTPException(400, f"import_fcpxml failed: {e}") from e
 
 
 @app.post("/api/export/otio")

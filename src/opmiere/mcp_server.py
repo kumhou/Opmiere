@@ -1455,6 +1455,24 @@ def export_fcpxml(path: str | None = None, title: str | None = None) -> dict:
 
 
 @mcp.tool()
+def import_fcpxml(
+    path: str | None = None,
+    text: str | None = None,
+    clear_track: bool = False,
+    import_missing_media: bool = True,
+    conform: bool = True,
+) -> dict:
+    """Import minimal FCPXML 1.9 (pair of export_fcpxml)."""
+    return _require_editor().import_fcpxml(
+        path,
+        text=text,
+        clear_track=clear_track,
+        import_missing_media=import_missing_media,
+        conform=conform,
+    )
+
+
+@mcp.tool()
 def export_otio_json(path: str | None = None, title: str | None = None) -> dict:
     """Simplified OTIO-like JSON timeline."""
     return _require_editor().export_otio_json(path, title=title)

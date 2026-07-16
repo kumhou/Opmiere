@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "opmiere-desktop"
-version = "0.5.42"
+version = "0.5.43"
 dependencies = [
  "serde",
  "serde_json",
@@ -3808,7 +3808,7 @@ checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap 2.14.0",
  "toml_datetime 0.6.3",
- "winnow 0.5.42",
+ "winnow 0.5.43",
 ]
 
 [[package]]
@@ -3821,7 +3821,7 @@ dependencies = [
  "serde",
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.3",
- "winnow 0.5.42",
+ "winnow 0.5.43",
 ]
 
 [[package]]
@@ -4737,7 +4737,7 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winnow"
-version = "0.5.42"
+version = "0.5.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
 dependencies = [

@@ -22,9 +22,10 @@ Mapped for path-C frame grab (incremental):
   - luma_key threshold/tolerance (LumaKey when available)
   - glow amount/intensity → soft blur + brightness stand-in
   - cross_dissolve / fade transitions → alpha ramps on cut neighbors
+  - curves presets → brightness stand-in (path-C stills)
 
 Still unsupported (listed in plan): complex grade FX
-(curves/lut/text/…), audio effects, non-dissolve transitions, base-track position.
+(lut/text/…), audio effects, non-dissolve transitions, base-track position.
 """
 
 from __future__ import annotations
@@ -48,18 +49,32 @@ __all__ = [
 _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
-    "film_grain", "chroma_key", "luma_key", "glow",
+    "film_grain", "chroma_key", "luma_key", "glow", "curves",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
     "gain", "text",
-    "curves", "lut3d",
+    "lut3d",
     "shape_mask", "subtitles", "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 9
+ADAPTER_VERSION = 10
+
+# curves preset → approximate brightness delta for still path-C preview
+_CURVES_BRIGHTNESS = {
+    "lighter": 0.12,
+    "darker": -0.14,
+    "increase_contrast": 0.04,
+    "strong_contrast": 0.06,
+    "medium_contrast": 0.03,
+    "linear_contrast": 0.02,
+    "vintage": -0.04,
+    "cross_process": 0.03,
+    "color_negative": -0.08,
+    "negative": -0.1,
+}
 
 _DISSOLVE_TYPES = frozenset({
     "cross_dissolve", "dissolve", "fade", "fade_black", "fade_white",
@@ -83,6 +98,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "luma_key": "LumaKey threshold/tolerance when available",
             "glow": "soft Blur + Brightness stand-in",
             "transition_dissolve": "cross_dissolve → fade_in/out on neighbors",
+            "curves": "preset → brightness stand-in only",
         },
     }
 
@@ -204,6 +220,13 @@ def clip_visual_props(
                 brightness = 0.0
             # only brightness is approximated on path-C stills
             mapped.append("color")
+        elif et == "curves":
+            preset = str(e.get("preset") or "")
+            if preset in _CURVES_BRIGHTNESS:
+                brightness = float(brightness) + float(_CURVES_BRIGHTNESS[preset])
+                mapped.append("curves")
+            else:
+                unmapped.append("curves")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)

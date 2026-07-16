@@ -81,4 +81,4 @@ def test_path_c_effect_catalog():
     assert int(cat.get("adapter_version") or 0) >= 5
     assert "vignette" in cat["mapped"]
     # Still intentionally unmapped (complex grade / audio)
-    assert "curves" in cat["unmapped"]
+    assert "lut3d" in cat["unmapped"]

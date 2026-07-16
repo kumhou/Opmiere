@@ -6851,7 +6851,13 @@ class Editor:
         for i, media in enumerate(self.project.media, start=1):
             rid = f"r{i}"
             media_to_r[media.id] = rid
-            src = media.path.replace("&", "&amp;").replace('"', "&quot;")
+            try:
+                abs_src = str(self.bundle.media_path(media.path).resolve())
+            except Exception:
+                abs_src = media.path
+            if not Path(abs_src).is_file():
+                abs_src = media.path
+            src = abs_src.replace("\\", "/").replace("&", "&amp;").replace('"', "&quot;")
             # duration in frames as Nd/fps_i s FCP style
             dur = max(1, media.duration_frames)
             res_lines.append(
@@ -6868,10 +6874,11 @@ class Editor:
                 dur = clip.timeline_duration_frames
                 offset = clip.start
                 src_dur = clip.duration_frames
+                cname = (clip.name or clip.id).replace('"', "&quot;").replace("<", "")
                 spine.append(
                     f'        <asset-clip ref="{rid}" '
                     f'offset="{offset}/{fps_i}s" '
-                    f'name="{(clip.name or clip.id)}" '
+                    f'name="{cname}" '
                     f'duration="{dur}/{fps_i}s" '
                     f'start="{clip.src_in}/{fps_i}s" '
                     f'tcFormat="NDF"/>'
@@ -6915,6 +6922,172 @@ class Editor:
             "fps": fps,
             "agent_note": "Minimal FCPXML 1.9 skeleton — verify in target NLE.",
         }
+
+    def import_fcpxml(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        clear_track: bool = False,
+        import_missing_media: bool = True,
+        conform: bool = True,
+    ) -> dict[str, Any]:
+        """Import a minimal FCPXML 1.9 skeleton (pair of export_fcpxml).
+
+        Parses ``<asset src=...>`` and spine ``<asset-clip>`` elements written
+        by our exporter (and similar simple producers). Not a full Final Cut
+        import.
+        """
+        import re
+
+        if text is None and path is None:
+            raise ValueError("pass text= or path=")
+        if text is None:
+            text = Path(path).read_text(encoding="utf-8")
+        assert text is not None
+
+        fps = float(self.project.timebase.fps or 30.0)
+        fps_i = max(1, int(round(fps)))
+
+        def _frames(token: str) -> int:
+            token = (token or "0s").strip()
+            if "/" in token and token.endswith("s"):
+                num, den = token[:-1].split("/", 1)
+                try:
+                    return int(round(float(num) / float(den) * fps))
+                except (TypeError, ValueError, ZeroDivisionError):
+                    return 0
+            if token.endswith("s"):
+                try:
+                    return int(round(float(token[:-1]) * fps))
+                except (TypeError, ValueError):
+                    return 0
+            try:
+                return int(token)
+            except (TypeError, ValueError):
+                return 0
+
+        assets: dict[str, str] = {}
+        for m in re.finditer(
+            r'<asset\s+([^>]+?)/?>',
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            attrs = m.group(1)
+            id_m = re.search(r'\bid="([^"]+)"', attrs)
+            src_m = re.search(r'\bsrc="([^"]+)"', attrs)
+            if not id_m or not src_m:
+                continue
+            src = src_m.group(1)
+            if src.startswith("file:///"):
+                src = src[8:]
+            elif src.startswith("file://"):
+                src = src[7:]
+            assets[id_m.group(1)] = src.replace("&amp;", "&")
+
+        clips_raw: list[dict[str, Any]] = []
+        for m in re.finditer(
+            r'<asset-clip\s+([^>]+?)/?>',
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            attrs = m.group(1)
+            ref_m = re.search(r'\bref="([^"]+)"', attrs)
+            off_m = re.search(r'\boffset="([^"]+)"', attrs)
+            dur_m = re.search(r'\bduration="([^"]+)"', attrs)
+            start_m = re.search(r'\bstart="([^"]+)"', attrs)
+            name_m = re.search(r'\bname="([^"]*)"', attrs)
+            if not ref_m:
+                continue
+            clips_raw.append({
+                "ref": ref_m.group(1),
+                "offset": _frames(off_m.group(1) if off_m else "0s"),
+                "duration": _frames(dur_m.group(1) if dur_m else "0s"),
+                "src_in": _frames(start_m.group(1) if start_m else "0s"),
+                "name": name_m.group(1) if name_m else None,
+            })
+
+        def _media_by_path(url: str) -> Any | None:
+            p = Path(url)
+            name = p.name.lower()
+            for media in self.project.media:
+                if Path(media.path).name.lower() == name:
+                    return media
+                if str(media.path).replace("\\", "/") == str(url).replace("\\", "/"):
+                    return media
+            return None
+
+        with self._mutate():
+            vtracks = [t for t in self.project.tracks if t.kind == "video"]
+            track = vtracks[0] if vtracks else self.project.add_track("video")
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            if clear_track:
+                track.clips.clear()
+
+            placed: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            imported_media: list[str] = []
+
+            for ev in clips_raw:
+                url = assets.get(ev["ref"])
+                if not url:
+                    skipped.append({**ev, "reason": f"unknown asset ref {ev['ref']}"})
+                    continue
+                media = _media_by_path(url)
+                if media is None and import_missing_media:
+                    src = Path(url)
+                    if src.is_file():
+                        media = _ffmpeg_import_media(
+                            self.bundle,
+                            self.project,
+                            src,
+                            self.guess_media_kind(src),
+                            conform=conform,
+                            fit="none",
+                        )
+                        imported_media.append(media.id)
+                    else:
+                        skipped.append({**ev, "reason": f"media not found: {url}"})
+                        continue
+                if media is None:
+                    skipped.append({**ev, "reason": f"no media for {url}"})
+                    continue
+                src_in = max(0, int(ev["src_in"]))
+                rec_dur = max(1, int(ev["duration"]) or 1)
+                src_out = min(media.duration_frames, src_in + rec_dur)
+                if src_out <= src_in:
+                    src_in = 0
+                    src_out = max(1, min(media.duration_frames, rec_dur))
+                start = max(0, int(ev["offset"]))
+                clip = self.project.add_clip(track, media, start, src_in, src_out)
+                src_len = clip.duration_frames
+                if src_len > 0 and rec_dur != src_len:
+                    speed = src_len / float(rec_dur)
+                    if 0.25 <= speed <= 4.0:
+                        clip.speed = float(speed)
+                if ev.get("name"):
+                    clip.name = str(ev["name"])
+                placed.append({
+                    "clip_id": clip.id,
+                    "media_id": media.id,
+                    "start": clip.start,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                })
+
+            return {
+                "track_id": track.id,
+                "placed": placed,
+                "count": len(placed),
+                "skipped": skipped[:40],
+                "skipped_count": len(skipped),
+                "imported_media": imported_media,
+                "imported_media_count": len(imported_media),
+                "clear_track": clear_track,
+                "fps": fps_i,
+                "agent_note": "Minimal FCPXML import (Opmiere export shape).",
+            }
 
     def export_otio_json(
         self,

@@ -41,11 +41,20 @@ def test_project_path_c_report():
         tr = ed.add_track("video")
         c = ed.place_from_file(v, "video", tr.id, 0)
         ed.apply_effect(c.id, {"type": "blur", "amount": 1.0})
-        ed.apply_effect(c.id, {"type": "curves", "preset": "vintage"})
+        ed.apply_effect(
+            c.id,
+            {
+                "type": "text",
+                "content": "x",
+                "position": "bottom",
+                "size": 24,
+                "border_width": 1,
+            },
+        )
         rep = project_path_c_report(ed.project)
         assert rep["clips_with_effects"] == 1
         assert rep["not_ready_count"] == 1
         assert rep["path_c_ready"] is False
-        assert "curves" in rep["clips"][0]["unmapped"]
+        assert "text" in rep["clips"][0]["unmapped"]
     finally:
         shutil.rmtree(root, ignore_errors=True)

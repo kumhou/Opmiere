@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.43 — 2026-07-17
+
+### Added
+- `import_fcpxml` + `POST /api/import/fcpxml` + MCP + desktop **Imp FCP**
+- FCPXML export uses absolute media paths for re-import
+- OpenShot path-C **adapter v10**: `curves` presets → brightness stand-in
 ## 0.5.42 — 2026-07-17
 
 ### Added
@@ -1362,6 +1368,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
