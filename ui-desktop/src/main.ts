@@ -8539,6 +8539,60 @@ async function closeGapsAllUi() {
   }
 }
 
+async function exportTrackOnlyUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip (uses its track)";
+    return;
+  }
+  $("status-msg").textContent = "Exporting track only…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/track_only", {
+      clip_id: ids[0],
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `TrkOnly → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`TrkOnly failed: ${e}`);
+    $("status-msg").textContent = `TrkOnly failed: ${e}`;
+  }
+}
+
+async function exportSelectionMp4Ui() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for SelMP4";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection MP4…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/selection_mp4", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SelMP4 → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`SelMP4 failed: ${e}`);
+    $("status-msg").textContent = `SelMP4 failed: ${e}`;
+  }
+}
+
+async function exportWorkAreaMp4Ui() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting work-area MP4…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/work_area_mp4", {});
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WA-MP4 → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`WA-MP4 failed: ${e}`);
+    $("status-msg").textContent = `WA-MP4 failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12393,6 +12447,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clips-pack", () => void exportClipsPackUi());
   proBind("btn-slate", () => void slateUi());
   proBind("btn-close-all", () => void closeGapsAllUi());
+  proBind("btn-trk-only", () => void exportTrackOnlyUi());
+  proBind("btn-sel-mp4", () => void exportSelectionMp4Ui());
+  proBind("btn-wa-mp4", () => void exportWorkAreaMp4Ui());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

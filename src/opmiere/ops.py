@@ -6056,6 +6056,93 @@ class Editor:
             "agent_note": "Per-track pack; does not align multi-track sync.",
         }
 
+    def export_track_only(
+        self,
+        track_id: str,
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = None,
+        clip_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Export full timeline with only this track unmuted (others muted temp).
+
+        If clip_id is set, track_id is taken from that clip (clip wins).
+        """
+        if clip_id is not None:
+            tr, _ = self._find_clip_and_track(clip_id)
+            track_id = tr.id
+        tr = self.project.track_by_id(track_id)
+        saved = {t.id: bool(t.muted) for t in self.project.tracks}
+        try:
+            with self._mutate():
+                for t in self.project.tracks:
+                    t.muted = t.id != track_id
+            written = self.export(
+                Path(output_path),
+                normalize_preset=normalize_preset,
+            )
+            out: dict[str, Any] = {
+                "path": str(Path(written).resolve()),
+                "track_id": track_id,
+                "track_kind": tr.kind,
+                "agent_note": "Other tracks muted during export; mutes restored.",
+            }
+            if clip_id:
+                out["clip_id"] = clip_id
+            return out
+        finally:
+            with self._mutate():
+                for t in self.project.tracks:
+                    if t.id in saved:
+                        t.muted = saved[t.id]
+
+    def export_selection_mp4(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export the union timeline span of clip_ids as one MP4."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+        start_f = min(int(c.start) for c in clips)
+        end_f = max(int(c.end) for c in clips)
+        if end_f <= start_f:
+            raise ValueError("selection has empty span")
+        fps = float(self.project.timebase.fps or 30.0)
+        output_path = Path(output_path)
+        if output_path.suffix.lower() not in (".mp4", ".mov", ".mkv"):
+            output_path = output_path.with_suffix(".mp4")
+        r = self.export_range(
+            output_path,
+            start_f / fps,
+            end_f / fps,
+            normalize_preset=normalize_preset,
+            run_delivery_check=False,
+        )
+        r["clip_ids"] = [c.id for c in clips]
+        r["start_frame"] = start_f
+        r["end_frame"] = end_f
+        r["agent_note"] = "Union of selection spans; full program composite in range."
+        return r
+
+    def export_work_area_mp4(
+        self,
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export in/out work area as MP4 (alias of export_work_area)."""
+        r = self.export_work_area(
+            output_path,
+            normalize_preset=normalize_preset,
+            run_delivery_check=False,
+        )
+        r["agent_note"] = "Work-area MP4; set in/out first."
+        return r
+
     def stretch_to(
         self,
         clip_id: str,

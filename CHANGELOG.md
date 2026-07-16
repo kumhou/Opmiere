@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.4 — 2026-07-17
+
+### Added
+- `export_track_only` (solo-track export) + **TrkOnly**
+- `export_selection_mp4` / `export_work_area_mp4` + **SelMP4** / **WA-MP4**
+
 ## 0.6.3 — 2026-07-17
 
 ### Added

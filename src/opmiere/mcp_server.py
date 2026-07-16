@@ -3964,6 +3964,47 @@ def close_gaps_all_tracks(
 
 
 @mcp.tool()
+def export_track_only(
+    output_path: str,
+    track_id: str | None = None,
+    clip_id: str | None = None,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export full timeline with only this track unmuted (track_id or clip_id)."""
+    if not track_id and not clip_id:
+        raise ValueError("track_id or clip_id required")
+    return _require_editor().export_track_only(
+        track_id or "",
+        output_path,
+        normalize_preset=normalize_preset,
+        clip_id=clip_id,
+    )
+
+
+@mcp.tool()
+def export_selection_mp4(
+    clip_ids: list[str],
+    output_path: str,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export the union timeline span of clips as one MP4."""
+    return _require_editor().export_selection_mp4(
+        clip_ids, output_path, normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
+def export_work_area_mp4(
+    output_path: str,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export in/out work area as MP4."""
+    return _require_editor().export_work_area_mp4(
+        output_path, normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

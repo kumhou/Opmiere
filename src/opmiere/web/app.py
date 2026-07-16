@@ -6540,6 +6540,69 @@ def close_gaps_all_api(body: CloseGapsAllBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportTrackOnlyBody(BaseModel):
+    track_id: str | None = None
+    clip_id: str | None = None
+    output_path: str | None = None
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/track_only")
+def export_track_only_api(body: ExportTrackOnlyBody) -> dict[str, Any]:
+    """Export with only one track unmuted (track_id or clip_id)."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "track_only.mp4")
+    if not body.track_id and not body.clip_id:
+        raise HTTPException(400, "track_id or clip_id required")
+    try:
+        tid = body.track_id or ""
+        return ed.export_track_only(
+            tid,
+            out,
+            normalize_preset=body.normalize_preset,
+            clip_id=body.clip_id,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"track_only failed: {e}") from e
+
+
+class ExportSelectionMp4Body(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/selection_mp4")
+def export_selection_mp4_api(body: ExportSelectionMp4Body) -> dict[str, Any]:
+    """Export union span of selected clips as MP4."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection.mp4")
+    try:
+        return ed.export_selection_mp4(
+            body.clip_ids, out, normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_mp4 failed: {e}") from e
+
+
+class ExportWorkAreaMp4Body(BaseModel):
+    output_path: str | None = None
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/work_area_mp4")
+def export_work_area_mp4_api(body: ExportWorkAreaMp4Body) -> dict[str, Any]:
+    """Export in/out work area as MP4."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "work_area.mp4")
+    try:
+        return ed.export_work_area_mp4(
+            out, normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"work_area_mp4 failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
