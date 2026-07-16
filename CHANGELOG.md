@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.54 — 2026-07-17
+
+### Added
+- `music_broll` one-shot (beats → place → fit → dissolve) + API/MCP/desktop **Broll**
 ## 0.5.53 — 2026-07-17
 
 ### Added
@@ -1417,6 +1421,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

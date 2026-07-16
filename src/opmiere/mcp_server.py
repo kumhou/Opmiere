@@ -1443,6 +1443,37 @@ def fit_clips_to_markers(
 
 
 @mcp.tool()
+def music_broll(
+    track_id: str,
+    media_ids: list[str],
+    beat_media_id: str | None = None,
+    beat_path: str | None = None,
+    max_beats: int = 64,
+    place_duration_frames: int | None = None,
+    fit_method: str = "speed",
+    transition: str | None = "cross_dissolve",
+    transition_frames: int = 8,
+    clear_beat_markers: bool = True,
+) -> dict:
+    """One-shot music B-roll: beats → place → fit → dissolves.
+
+    Prefer this for agent music-video assembly on an overlay track.
+    """
+    return _require_editor().music_broll(
+        track_id,
+        media_ids,
+        beat_media_id=beat_media_id,
+        beat_path=beat_path,
+        max_beats=max_beats,
+        place_duration_frames=place_duration_frames,
+        fit_method=fit_method,
+        transition=transition,
+        transition_frames=transition_frames,
+        clear_beat_markers=clear_beat_markers,
+    )
+
+
+@mcp.tool()
 def markers_from_srt(
     path: str | None = None,
     text: str | None = None,

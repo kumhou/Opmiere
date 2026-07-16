@@ -3666,6 +3666,41 @@ def fit_to_markers_api(body: FitToMarkersBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MusicBrollBody(BaseModel):
+    track_id: str
+    media_ids: list[str]
+    beat_media_id: str | None = None
+    beat_path: str | None = None
+    max_beats: int = 64
+    place_duration_frames: int | None = None
+    fit_method: str = "speed"
+    transition: str | None = "cross_dissolve"
+    transition_frames: int = 8
+    clear_beat_markers: bool = True
+
+
+@app.post("/api/edit/music_broll")
+def music_broll_api(body: MusicBrollBody) -> dict[str, Any]:
+    """One-shot: beat markers → place media → fit → optional dissolves."""
+    ed = _ed()
+    try:
+        r = ed.music_broll(
+            body.track_id,
+            body.media_ids,
+            beat_media_id=body.beat_media_id,
+            beat_path=body.beat_path,
+            max_beats=body.max_beats,
+            place_duration_frames=body.place_duration_frames,
+            fit_method=body.fit_method,
+            transition=body.transition,
+            transition_frames=body.transition_frames,
+            clear_beat_markers=body.clear_beat_markers,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"music_broll failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class MarkersFromSrtBody(BaseModel):
     path: str | None = None
     text: str | None = None

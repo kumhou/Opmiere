@@ -6060,6 +6060,59 @@ async function fitToMarkersUi() {
   }
 }
 
+async function musicBrollUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select B-roll media in the bin";
+    return;
+  }
+  const ids = selectionList();
+  let trackId = ids.length ? state.clips.get(ids[0])?.trackId : "";
+  if (!trackId) {
+    const tracks = (state as { tracks?: { id: string; kind?: string }[] }).tracks;
+    const vt = Array.isArray(tracks)
+      ? tracks.find((t) => t.kind === "video") || tracks[0]
+      : null;
+    trackId = vt?.id || "";
+  }
+  if (!trackId) {
+    $("status-msg").textContent = "Select a clip on the B-roll track";
+    return;
+  }
+  $("status-msg").textContent = "Music B-roll pipeline…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      bpm_estimate?: number;
+      place?: { count?: number };
+      fit?: { count?: number };
+      transitions?: { count?: number };
+    }>("/api/edit/music_broll", {
+      track_id: trackId,
+      media_ids: [state.binMediaId],
+      max_beats: 64,
+      fit_method: "speed",
+      transition: "cross_dissolve",
+      transition_frames: 8,
+      clear_beat_markers: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Broll · place ${r.place?.count ?? "?"} · fit ${r.fit?.count ?? "?"}` +
+      (r.bpm_estimate != null ? ` · ~${Math.round(Number(r.bpm_estimate))} bpm` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Broll failed: ${e}`);
+    $("status-msg").textContent = `Broll failed: ${e}`;
+  }
+}
+
 async function importSrtMarkersUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9458,6 +9511,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-x-near-mkr", () => void transitionsNearMarkersUi());
   proBind("btn-place-mkr", () => void placeAtMarkersUi());
   proBind("btn-fit-mkr", () => void fitToMarkersUi());
+  proBind("btn-music-broll", () => void musicBrollUi());
   proBind("btn-srt-mkr", () => void importSrtMarkersUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());

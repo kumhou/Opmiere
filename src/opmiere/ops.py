@@ -6669,6 +6669,68 @@ class Editor:
                 "agent_note": "Media laid on marker grid; adjust trims with slip/roll.",
             }
 
+    def music_broll(
+        self,
+        track_id: str,
+        media_ids: list[str],
+        *,
+        beat_media_id: str | None = None,
+        beat_path: str | Path | None = None,
+        max_beats: int = 64,
+        place_duration_frames: int | None = None,
+        fit_method: str = "speed",
+        transition: str | None = "cross_dissolve",
+        transition_frames: int = 8,
+        clear_beat_markers: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot music B-roll: beat markers → place media → fit → optional dissolve.
+
+        Steps:
+          1. markers_from_beats (label Beat)
+          2. place_media_at_markers on track_id
+          3. fit_clips_to_markers (speed/trim)
+          4. optional apply_transitions_near_markers
+        """
+        if not media_ids:
+            raise ValueError("media_ids is empty")
+        out: dict[str, Any] = {}
+        out["markers"] = self.markers_from_beats(
+            beat_media_id,
+            path=beat_path,
+            max_markers=max_beats,
+            label_prefix="Beat",
+            clear_existing_prefix=clear_beat_markers,
+        )
+        out["place"] = self.place_media_at_markers(
+            media_ids,
+            track_id,
+            duration_frames=place_duration_frames,
+            mode="overwrite",
+            cycle=True,
+        )
+        placed_ids = [p["clip_id"] for p in out["place"].get("placed") or []]
+        if placed_ids:
+            out["fit"] = self.fit_clips_to_markers(
+                placed_ids, method=fit_method, max_start_delta=4, clamp=True,
+            )
+        else:
+            out["fit"] = {"count": 0, "fitted": [], "skipped": []}
+        if transition and placed_ids:
+            try:
+                out["transitions"] = self.apply_transitions_near_markers(
+                    track_id,
+                    transition_type=transition,
+                    duration_frames=transition_frames,
+                    max_delta_frames=3,
+                )
+            except Exception as e:
+                out["transitions"] = {"count": 0, "error": str(e)[:300]}
+        out["bpm_estimate"] = out["markers"].get("bpm_estimate")
+        out["agent_note"] = (
+            "Music B-roll grid ready. Review speeds (fit.clamped) before export."
+        )
+        return out
+
     def fit_clips_to_markers(
         self,
         clip_ids: list[str] | None = None,
