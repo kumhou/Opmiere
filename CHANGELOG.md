@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.84 — 2026-07-17
+
+### Added
+- `find_clips` / `isolate_clips` (search + solo-by-mute) + **Isolate**
+- `apply_crossfades_on_track` + **Xfade**
+- `markers_from_hard_cuts` + **MkrCuts**
+
 ## 0.5.83 — 2026-07-17
 
 ### Added

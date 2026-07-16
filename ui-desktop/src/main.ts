@@ -2936,6 +2936,93 @@ async function renameClipsSeqUi() {
   }
 }
 
+async function isolateSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) to isolate";
+    return;
+  }
+  $("status-msg").textContent = `Isolate ×${ids.length}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      muted_count?: number;
+      unmuted_count?: number;
+    }>("/api/clips/isolate", {
+      clip_ids: ids,
+      follow_links: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Isolate · keep ${r.unmuted_count ?? ids.length} · mute ${r.muted_count ?? "?"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Isolate failed: ${e}`);
+    $("status-msg").textContent = `Isolate failed: ${e}`;
+  }
+}
+
+async function crossfadesTrackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  $("status-msg").textContent = "Applying crossfades…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      applied?: unknown;
+    }>("/api/track/crossfades", {
+      track_id: trackId,
+      duration_frames: 12,
+      transition_type: "cross_dissolve",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    const n = r.count ?? (Array.isArray(r.applied) ? r.applied.length : "?");
+    $("status-msg").textContent = `Xfade · ${n}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Xfade failed: ${e}`);
+    $("status-msg").textContent = `Xfade failed: ${e}`;
+  }
+}
+
+async function markersFromHardCutsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Markers at hard cuts…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/markers/from_hard_cuts", {
+      track_id: trackForKind("video"),
+      prefix: "Cut ",
+      clear_existing: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MkrCuts · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`MkrCuts failed: ${e}`);
+    $("status-msg").textContent = `MkrCuts failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11321,6 +11408,27 @@ window.addEventListener("DOMContentLoaded", () => {
     btnRenameSeq.addEventListener("click", () => {
       stopPlay();
       void renameClipsSeqUi();
+    });
+  }
+  const btnIsolate = document.getElementById("btn-isolate");
+  if (btnIsolate) {
+    btnIsolate.addEventListener("click", () => {
+      stopPlay();
+      void isolateSelectionUi();
+    });
+  }
+  const btnXfade = document.getElementById("btn-xfade");
+  if (btnXfade) {
+    btnXfade.addEventListener("click", () => {
+      stopPlay();
+      void crossfadesTrackUi();
+    });
+  }
+  const btnMkrCuts = document.getElementById("btn-mkr-cuts");
+  if (btnMkrCuts) {
+    btnMkrCuts.addEventListener("click", () => {
+      stopPlay();
+      void markersFromHardCutsUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

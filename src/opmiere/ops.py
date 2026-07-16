@@ -9612,6 +9612,171 @@ class Editor:
                         n += 1
             return {"unmuted_count": n}
 
+    def find_clips(
+        self,
+        *,
+        name_contains: str | None = None,
+        media_id: str | None = None,
+        color: str | None = None,
+        track_id: str | None = None,
+        kind: str | None = None,
+        has_effect: str | None = None,
+        muted: bool | None = None,
+    ) -> dict[str, Any]:
+        """Search clips by name/media/color/effect/mute (read-only agent query)."""
+        name_q = (name_contains or "").strip().lower() or None
+        color_q = (color or "").strip().lower() or None
+        hits: list[dict[str, Any]] = []
+        for tr in self.project.tracks:
+            if track_id is not None and tr.id != track_id:
+                continue
+            if kind is not None and tr.kind != kind:
+                continue
+            for c in tr.clips_in_order():
+                if media_id is not None and c.media != media_id:
+                    continue
+                if name_q is not None:
+                    label = (c.name or c.id or "").lower()
+                    if name_q not in label:
+                        continue
+                if color_q is not None:
+                    if (c.color or "").strip().lower() != color_q:
+                        continue
+                if muted is not None and bool(c.muted) != bool(muted):
+                    continue
+                if has_effect is not None:
+                    types = {
+                        e.get("type")
+                        for e in (c.effects or [])
+                        if isinstance(e, dict)
+                    }
+                    if has_effect not in types:
+                        continue
+                hits.append({
+                    "clip_id": c.id,
+                    "track_id": tr.id,
+                    "track_kind": tr.kind,
+                    "name": c.name,
+                    "media_id": c.media,
+                    "start": c.start,
+                    "end": c.end,
+                    "color": c.color,
+                    "muted": bool(c.muted),
+                    "effects": [
+                        e.get("type")
+                        for e in (c.effects or [])
+                        if isinstance(e, dict)
+                    ],
+                })
+        return {
+            "count": len(hits),
+            "clips": hits,
+            "filters": {
+                "name_contains": name_contains,
+                "media_id": media_id,
+                "color": color,
+                "track_id": track_id,
+                "kind": kind,
+                "has_effect": has_effect,
+                "muted": muted,
+            },
+            "agent_note": "Read-only search; use isolate_clips / set_clips_muted on results.",
+        }
+
+    def isolate_clips(
+        self,
+        clip_ids: list[str],
+        *,
+        track_id: str | None = None,
+        follow_links: bool = True,
+    ) -> dict[str, Any]:
+        """Unmute selected clips; mute every other clip (solo-by-mute). One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        keep = set(
+            self._expand_link_ids(clip_ids) if follow_links else dict.fromkeys(clip_ids)
+        )
+        with self._mutate():
+            unmuted: list[str] = []
+            muted: list[str] = []
+            for tr in self.project.tracks:
+                if track_id is not None and tr.id != track_id:
+                    continue
+                if tr.locked:
+                    continue
+                for c in tr.clips:
+                    if c.id in keep:
+                        if c.muted:
+                            c.muted = False
+                        unmuted.append(c.id)
+                    else:
+                        if not c.muted:
+                            c.muted = True
+                        muted.append(c.id)
+            return {
+                "keep": sorted(keep),
+                "unmuted_count": len(unmuted),
+                "muted_count": len(muted),
+                "unmuted": unmuted,
+                "muted": muted,
+                "agent_note": "Isolate via clip mute; unmute_all_clips to restore.",
+            }
+
+    def apply_crossfades_on_track(
+        self,
+        track_id: str,
+        *,
+        duration_frames: int = 12,
+        transition_type: str = "cross_dissolve",
+        max_count: int | None = None,
+    ) -> dict[str, Any]:
+        """Add crossfades on every hard cut (video xfade / audio acrossfade).
+
+        Thin agent entry over apply_transitions_on_cuts.
+        """
+        r = self.apply_transitions_on_cuts(
+            track_id,
+            transition_type=transition_type,
+            duration_frames=duration_frames,
+            max_count=max_count,
+        )
+        r["agent_note"] = (
+            "Crossfades applied at hard cuts. Audio tracks use acrossfade; "
+            "video uses xfade. Re-export proxy to scrub."
+        )
+        return r
+
+    def markers_from_hard_cuts(
+        self,
+        track_id: str | None = None,
+        *,
+        prefix: str = "Cut ",
+        clear_existing: bool = False,
+        color: str = "#ff9f43",
+    ) -> dict[str, Any]:
+        """Place markers at each hard cut (adjacent clips, no transition)."""
+        cuts = self.list_cuts(track_id, kind=None if track_id else "video")
+        hard = [c for c in (cuts.get("cuts") or []) if c.get("is_hard_cut")]
+        with self._mutate():
+            if clear_existing:
+                self.project.markers.clear()
+            existing = {int(m.frame) for m in self.project.markers}
+            added: list[dict[str, Any]] = []
+            for i, c in enumerate(hard):
+                fr = int(c["frame"])
+                if fr in existing:
+                    continue
+                lab = f"{prefix}{i + 1}"
+                m = self.project.add_marker(fr, label=lab, color=color)
+                existing.add(fr)
+                added.append(m.to_dict())
+            return {
+                "count": len(added),
+                "markers": added,
+                "hard_cut_count": len(hard),
+                "agent_note": "Markers at hard cuts — pair with export_storyboard / chapters.",
+            }
+
     def set_clips_color_cycle(
         self,
         clip_ids: list[str] | None = None,

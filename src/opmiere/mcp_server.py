@@ -2450,6 +2450,69 @@ def export_cuts_report(
 
 
 @mcp.tool()
+def find_clips(
+    name_contains: str | None = None,
+    media_id: str | None = None,
+    color: str | None = None,
+    track_id: str | None = None,
+    kind: str | None = None,
+    has_effect: str | None = None,
+    muted: bool | None = None,
+) -> dict:
+    """Search clips by name/media/color/effect/mute."""
+    return _require_editor().find_clips(
+        name_contains=name_contains,
+        media_id=media_id,
+        color=color,
+        track_id=track_id,
+        kind=kind,
+        has_effect=has_effect,
+        muted=muted,
+    )
+
+
+@mcp.tool()
+def isolate_clips(
+    clip_ids: list[str],
+    track_id: str | None = None,
+    follow_links: bool = True,
+) -> dict:
+    """Unmute selected clips; mute every other clip (solo-by-mute)."""
+    return _require_editor().isolate_clips(
+        clip_ids, track_id=track_id, follow_links=follow_links,
+    )
+
+
+@mcp.tool()
+def apply_crossfades_on_track(
+    track_id: str,
+    duration_frames: int = 12,
+    transition_type: str = "cross_dissolve",
+    max_count: int | None = None,
+) -> dict:
+    """Add crossfades on every hard cut (video xfade / audio acrossfade)."""
+    return _require_editor().apply_crossfades_on_track(
+        track_id,
+        duration_frames=duration_frames,
+        transition_type=transition_type,
+        max_count=max_count,
+    )
+
+
+@mcp.tool()
+def markers_from_hard_cuts(
+    track_id: str | None = None,
+    prefix: str = "Cut ",
+    clear_existing: bool = False,
+    color: str = "#ff9f43",
+) -> dict:
+    """Place markers at each hard cut."""
+    return _require_editor().markers_from_hard_cuts(
+        track_id, prefix=prefix, clear_existing=clear_existing, color=color,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

@@ -4162,6 +4162,99 @@ def export_cuts_report_api(body: ExportCutsReportBody | None = None) -> dict[str
         raise HTTPException(400, f"export_cuts_report failed: {e}") from e
 
 
+class FindClipsBody(BaseModel):
+    name_contains: str | None = None
+    media_id: str | None = None
+    color: str | None = None
+    track_id: str | None = None
+    kind: str | None = None
+    has_effect: str | None = None
+    muted: bool | None = None
+
+
+@app.post("/api/clips/find")
+def find_clips_api(body: FindClipsBody | None = None) -> dict[str, Any]:
+    """Search clips by name/media/color/effect."""
+    body = body or FindClipsBody()
+    return _ed().find_clips(
+        name_contains=body.name_contains,
+        media_id=body.media_id,
+        color=body.color,
+        track_id=body.track_id,
+        kind=body.kind,
+        has_effect=body.has_effect,
+        muted=body.muted,
+    )
+
+
+class IsolateClipsBody(BaseModel):
+    clip_ids: list[str]
+    track_id: str | None = None
+    follow_links: bool = True
+
+
+@app.post("/api/clips/isolate")
+def isolate_clips_api(body: IsolateClipsBody) -> dict[str, Any]:
+    """Unmute selection; mute all other clips."""
+    ed = _ed()
+    try:
+        r = ed.isolate_clips(
+            body.clip_ids,
+            track_id=body.track_id,
+            follow_links=body.follow_links,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"isolate_clips failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CrossfadesBody(BaseModel):
+    track_id: str
+    duration_frames: int = 12
+    transition_type: str = "cross_dissolve"
+    max_count: int | None = None
+
+
+@app.post("/api/track/crossfades")
+def crossfades_api(body: CrossfadesBody) -> dict[str, Any]:
+    """Apply crossfades on every hard cut of a track."""
+    ed = _ed()
+    try:
+        r = ed.apply_crossfades_on_track(
+            body.track_id,
+            duration_frames=body.duration_frames,
+            transition_type=body.transition_type,
+            max_count=body.max_count,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"crossfades failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MarkersFromCutsBody(BaseModel):
+    track_id: str | None = None
+    prefix: str = "Cut "
+    clear_existing: bool = False
+    color: str = "#ff9f43"
+
+
+@app.post("/api/markers/from_hard_cuts")
+def markers_from_hard_cuts_api(body: MarkersFromCutsBody | None = None) -> dict[str, Any]:
+    """Markers at each hard cut."""
+    body = body or MarkersFromCutsBody()
+    ed = _ed()
+    try:
+        r = ed.markers_from_hard_cuts(
+            body.track_id,
+            prefix=body.prefix,
+            clear_existing=body.clear_existing,
+            color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"markers_from_hard_cuts failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str
