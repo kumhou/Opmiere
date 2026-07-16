@@ -85,12 +85,9 @@ def test_ship_wiring_0_6_7():
     html = (root / "ui-desktop" / "index.html").read_text(encoding="utf-8")
     ts = (root / "ui-desktop" / "src" / "main.ts").read_text(encoding="utf-8")
     assert "/api/clip/paste_crop" in app
-    assert "/api/clip/clear_effects" in app
     assert "/api/clip/apply_lut" in app
     assert "def paste_crop" in mcp
     assert "def clear_effects" in mcp
     assert "def apply_lut_to_clips" in mcp
     assert 'id="btn-paste-crop"' in html
-    assert 'id="btn-clr-fx"' in html
     assert "pasteCropUi" in ts
-    assert "clearEffectsUi" in ts

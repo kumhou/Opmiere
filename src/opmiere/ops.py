@@ -3450,6 +3450,127 @@ class Editor:
             "agent_note": "Position (x/y/scale) pasted; crop/effects unchanged.",
         }
 
+    def paste_from_clip(
+        self,
+        source_clip_id: str,
+        target_clip_ids: list[str],
+        *,
+        effects: bool = True,
+        attributes: bool = True,
+        color: bool = True,
+        replace_effects: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot paste: source → targets (attrs clipboard + full effects).
+
+        attributes uses copy_attributes + paste_attributes_to_clips (speed/pos/gain/opacity/fades).
+        effects uses copy_effects for the full FX list.
+        color copies clip.color label when True.
+        """
+        if not target_clip_ids:
+            raise ValueError("target_clip_ids is empty")
+        targets = [t for t in dict.fromkeys(target_clip_ids) if t != source_clip_id]
+        if not targets:
+            return {
+                "source_clip_id": source_clip_id,
+                "count": 0,
+                "targets": [],
+                "agent_note": "No targets after excluding source.",
+            }
+        out: dict[str, Any] = {
+            "source_clip_id": source_clip_id,
+            "targets": targets,
+        }
+        if attributes:
+            self.copy_attributes(source_clip_id)
+            out["attributes"] = self.paste_attributes_to_clips(targets)
+        if effects:
+            out["effects"] = self.copy_effects(
+                source_clip_id, targets, replace=replace_effects,
+            )
+        if color:
+            src = self._find_clip(source_clip_id)
+            with self._mutate():
+                for tid in targets:
+                    self._assert_clip_track_unlocked(tid)
+                    self._find_clip(tid).color = src.color
+            out["color"] = src.color
+        out["count"] = len(targets)
+        out["agent_note"] = (
+            "Source→targets paste. attrs=speed/pos/gain/opacity/fades; "
+            "effects=full FX list; color=label."
+        )
+        return out
+
+    def duplicate_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        offset_frames: int | None = None,
+        gap_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Duplicate many clips. offset_frames=None → each copy after its original.
+
+        gap_frames adds space after original.end when offset_frames is None.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        created: list[dict[str, Any]] = []
+        # process left-to-right so stacked offsets stay stable
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            items.append((int(clip.start), cid))
+        items.sort(key=lambda x: x[0])
+        for _, cid in items:
+            r = self.duplicate_clip(
+                cid,
+                offset_frames=(
+                    offset_frames
+                    if offset_frames is not None
+                    else None
+                ),
+            )
+            # duplicate_clip with None places at end; inject gap if requested
+            if offset_frames is None and gap_frames:
+                new_id = r.get("clip_id") or (r.get("clip") or {}).get("id")
+                if new_id:
+                    with self._mutate():
+                        nc = self._find_clip(new_id)
+                        nc.start = int(nc.start) + int(gap_frames)
+            created.append(r if isinstance(r, dict) else {"result": str(r)})
+        return {
+            "count": len(created),
+            "duplicates": created,
+            "agent_note": "Clips duplicated on same tracks; check overlaps.",
+        }
+
+    def export_selection_audio(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path,
+        *,
+        sample_rate: int | None = None,
+    ) -> dict[str, Any]:
+        """Export program mixdown audio for the union span of clip_ids."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+        start_f = min(int(c.start) for c in clips)
+        end_f = max(int(c.end) for c in clips)
+        if end_f <= start_f:
+            raise ValueError("selection has empty span")
+        r = self.export_audio(
+            output_path,
+            start_frame=start_f,
+            end_frame=end_f,
+            sample_rate=sample_rate,
+        )
+        r["clip_ids"] = [c.id for c in clips]
+        r["start_frame"] = start_f
+        r["end_frame"] = end_f
+        r["agent_note"] = "Full mix in selection span (not isolated stems)."
+        return r
+
     def set_clips_flip(
         self,
         clip_ids: list[str],
@@ -3521,42 +3642,6 @@ class Editor:
             "count": len(applied),
             "targets": applied,
             "agent_note": "Crop pasted; resolution must still make sense for canvas.",
-        }
-
-    def clear_effects(
-        self,
-        clip_ids: list[str],
-        *,
-        types: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """Remove effects from clips. types=None clears all effects."""
-        if not clip_ids:
-            raise ValueError("clip_ids is empty")
-        cleared: list[dict[str, Any]] = []
-        with self._mutate():
-            for cid in dict.fromkeys(clip_ids):
-                self._assert_clip_track_unlocked(cid)
-                clip = self._find_clip(cid)
-                before = len(clip.effects or [])
-                if types is None:
-                    clip.effects = []
-                else:
-                    allow = set(types)
-                    clip.effects = [
-                        e for e in (clip.effects or [])
-                        if not (isinstance(e, dict) and e.get("type") in allow)
-                    ]
-                after = len(clip.effects or [])
-                cleared.append({
-                    "clip_id": cid,
-                    "removed": before - after,
-                    "remaining": after,
-                })
-        return {
-            "count": len(cleared),
-            "clips": cleared,
-            "types": types,
-            "agent_note": "Effects cleared; position/transitions untouched.",
         }
 
     def apply_lut_to_clips(

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.8 — 2026-07-17
+
+### Added
+- `paste_from_clip` (attrs+FX one-shot) / `duplicate_selection` / `export_selection_audio` + **PasteFrom** / **DupSel** / **SelAud**
+- Deduped `clear_effects` (keep track-aware `/api/effects/clear`)
+
 ## 0.6.7 — 2026-07-17
 
 ### Added

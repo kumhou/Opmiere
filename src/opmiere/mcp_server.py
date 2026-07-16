@@ -4092,15 +4092,6 @@ def paste_crop(
 
 
 @mcp.tool()
-def clear_effects(
-    clip_ids: list[str],
-    types: list[str] | None = None,
-) -> dict:
-    """Clear effects on clips; optional types filter (e.g. ['blur','vignette'])."""
-    return _require_editor().clear_effects(clip_ids, types=types)
-
-
-@mcp.tool()
 def apply_lut_to_clips(
     clip_ids: list[str],
     path: str,
@@ -4109,6 +4100,50 @@ def apply_lut_to_clips(
     """Apply a .cube/.3dl LUT to many clips."""
     return _require_editor().apply_lut_to_clips(
         clip_ids, path, replace=replace,
+    )
+
+
+@mcp.tool()
+def paste_from_clip(
+    source_clip_id: str,
+    target_clip_ids: list[str],
+    effects: bool = True,
+    attributes: bool = True,
+    color: bool = True,
+    replace_effects: bool = True,
+) -> dict:
+    """One-shot paste source attributes+effects onto target clips."""
+    return _require_editor().paste_from_clip(
+        source_clip_id,
+        target_clip_ids,
+        effects=effects,
+        attributes=attributes,
+        color=color,
+        replace_effects=replace_effects,
+    )
+
+
+@mcp.tool()
+def duplicate_selection(
+    clip_ids: list[str],
+    offset_frames: int | None = None,
+    gap_frames: int = 0,
+) -> dict:
+    """Duplicate many clips (default: each copy after its original)."""
+    return _require_editor().duplicate_selection(
+        clip_ids, offset_frames=offset_frames, gap_frames=gap_frames,
+    )
+
+
+@mcp.tool()
+def export_selection_audio(
+    clip_ids: list[str],
+    output_path: str,
+    sample_rate: int | None = None,
+) -> dict:
+    """Export program mixdown audio for the union span of clips."""
+    return _require_editor().export_selection_audio(
+        clip_ids, output_path, sample_rate=sample_rate,
     )
 
 

@@ -8794,28 +8794,77 @@ async function pasteCropUi() {
   }
 }
 
-async function clearEffectsUi() {
+async function pasteFromClipUi() {
   const ids = selectionList();
-  if (!ids.length) {
-    $("status-msg").textContent = "Select clips to clear effects";
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select source + targets (source first)";
     return;
   }
-  $("status-msg").textContent = "Clearing effects…";
+  $("status-msg").textContent = "Pasting from source clip…";
   try {
     const r = await postJson<{
       timeline?: TimelineView;
       count?: number;
-    }>("/api/clip/clear_effects", {
+    }>("/api/clip/paste_from_clip", {
+      source_clip_id: ids[0],
+      target_clip_ids: ids.slice(1),
+      effects: true,
+      attributes: true,
+      color: true,
+      replace_effects: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `PasteFrom · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`PasteFrom failed: ${e}`);
+    $("status-msg").textContent = `PasteFrom failed: ${e}`;
+  }
+}
+
+async function duplicateSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to duplicate";
+    return;
+  }
+  $("status-msg").textContent = "Duplicating selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/duplicate_selection", {
       clip_ids: ids,
     });
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
     setProOut(JSON.stringify(r, null, 2));
-    $("status-msg").textContent = `ClrFX · ${r.count ?? ids.length}`;
+    $("status-msg").textContent = `DupSel · ${r.count ?? ids.length}`;
     scheduleProxyRefresh();
   } catch (e) {
-    setProOut(`ClrFX failed: ${e}`);
-    $("status-msg").textContent = `ClrFX failed: ${e}`;
+    setProOut(`DupSel failed: ${e}`);
+    $("status-msg").textContent = `DupSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionAudioUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for SelAud";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection audio…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/selection_audio", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SelAud → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`SelAud failed: ${e}`);
+    $("status-msg").textContent = `SelAud failed: ${e}`;
   }
 }
 
@@ -12684,7 +12733,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-paste-pos", () => void pastePositionUi());
   proBind("btn-flip-h", () => void flipHSelectionUi());
   proBind("btn-paste-crop", () => void pasteCropUi());
-  proBind("btn-clr-fx", () => void clearEffectsUi());
+  proBind("btn-paste-from", () => void pasteFromClipUi());
+  proBind("btn-dup-sel", () => void duplicateSelectionUi());
+  proBind("btn-sel-aud", () => void exportSelectionAudioUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

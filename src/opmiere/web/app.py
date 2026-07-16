@@ -6759,22 +6759,6 @@ def paste_crop_api(body: PasteCropBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
-class ClearEffectsBody(BaseModel):
-    clip_ids: list[str]
-    types: list[str] | None = None
-
-
-@app.post("/api/clip/clear_effects")
-def clear_effects_api(body: ClearEffectsBody) -> dict[str, Any]:
-    """Clear effects on clips (optional type filter)."""
-    ed = _ed()
-    try:
-        r = ed.clear_effects(body.clip_ids, types=body.types)
-    except Exception as e:
-        raise HTTPException(400, f"clear_effects failed: {e}") from e
-    return {**r, "timeline": ed.timeline_view()}
-
-
 class LutClipsBody(BaseModel):
     clip_ids: list[str]
     path: str
@@ -6792,6 +6776,73 @@ def apply_lut_to_clips_api(body: LutClipsBody) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(400, f"apply_lut failed: {e}") from e
     return {**r, "timeline": ed.timeline_view()}
+
+
+class PasteFromClipBody(BaseModel):
+    source_clip_id: str
+    target_clip_ids: list[str]
+    effects: bool = True
+    attributes: bool = True
+    color: bool = True
+    replace_effects: bool = True
+
+
+@app.post("/api/clip/paste_from_clip")
+def paste_from_clip_api(body: PasteFromClipBody) -> dict[str, Any]:
+    """One-shot paste source attrs+effects onto targets."""
+    ed = _ed()
+    try:
+        r = ed.paste_from_clip(
+            body.source_clip_id,
+            body.target_clip_ids,
+            effects=body.effects,
+            attributes=body.attributes,
+            color=body.color,
+            replace_effects=body.replace_effects,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"paste_from_clip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DuplicateSelectionBody(BaseModel):
+    clip_ids: list[str]
+    offset_frames: int | None = None
+    gap_frames: int = 0
+
+
+@app.post("/api/edit/duplicate_selection")
+def duplicate_selection_api(body: DuplicateSelectionBody) -> dict[str, Any]:
+    """Duplicate many clips."""
+    ed = _ed()
+    try:
+        r = ed.duplicate_selection(
+            body.clip_ids,
+            offset_frames=body.offset_frames,
+            gap_frames=body.gap_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"duplicate_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionAudioBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    sample_rate: int | None = None
+
+
+@app.post("/api/export/selection_audio")
+def export_selection_audio_api(body: ExportSelectionAudioBody) -> dict[str, Any]:
+    """Export mixdown audio for selection span."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection.wav")
+    try:
+        return ed.export_selection_audio(
+            body.clip_ids, out, sample_rate=body.sample_rate,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_audio failed: {e}") from e
 
 
 class ExportWebmBody(BaseModel):
