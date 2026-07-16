@@ -7810,6 +7810,57 @@ async function exportGifUi() {
   }
 }
 
+async function exportWorkAreaGifUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting work-area GIF…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/work_area_gif", {
+      fps: 12,
+      width: 480,
+      max_duration_seconds: 12,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WA-GIF → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`WA-GIF failed: ${e}`);
+    $("status-msg").textContent = `WA-GIF failed: ${e}`;
+  }
+}
+
+async function solidUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const color = window.prompt("Solid color (#hex or name)", "#000000");
+  if (color == null || !color.trim()) return;
+  const durRaw = window.prompt("Duration frames", "30");
+  if (durRaw == null) return;
+  const duration_frames = Math.max(1, parseInt(durRaw, 10) || 30);
+  $("status-msg").textContent = "Adding solid…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/edit/solid", {
+      color: color.trim(),
+      duration_frames,
+      append: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Solid · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Solid failed: ${e}`);
+    $("status-msg").textContent = `Solid failed: ${e}`;
+  }
+}
+
 async function kenBurnsUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11667,6 +11718,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-gif", () => void exportGifUi());
+  proBind("btn-wa-gif", () => void exportWorkAreaGifUi());
+  proBind("btn-solid", () => void solidUi());
   proBind("btn-kb", () => void kenBurnsUi());
   proBind("btn-kb-img", () => void kenBurnsImagesUi());
   proBind("btn-audio-out", () => void exportAudioUi());

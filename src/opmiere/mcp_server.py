@@ -3558,6 +3558,42 @@ def export_gif(
 
 
 @mcp.tool()
+def export_work_area_gif(
+    output_path: str,
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 15.0,
+) -> dict:
+    """Export the in/out work area as animated GIF."""
+    return _require_editor().export_work_area_gif(
+        output_path,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
+def add_solid(
+    color: str = "#000000",
+    duration_frames: int = 30,
+    start: int | None = None,
+    track_id: str | None = None,
+    name: str | None = None,
+    append: bool = True,
+) -> dict:
+    """Place a solid color matte on a video track."""
+    return _require_editor().add_solid(
+        color,
+        duration_frames=duration_frames,
+        start=start,
+        track_id=track_id,
+        name=name,
+        append=append,
+    )
+
+
+@mcp.tool()
 def apply_ken_burns(
     clip_id: str,
     zoom_start: float = 1.0,

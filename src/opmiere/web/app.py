@@ -5950,6 +5950,56 @@ def export_gif_api(body: ExportGifBody) -> dict[str, Any]:
         raise HTTPException(500, f"export_gif failed: {e}") from e
 
 
+class ExportWorkAreaGifBody(BaseModel):
+    output_path: str | None = None
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 15.0
+
+
+@app.post("/api/export/work_area_gif")
+def export_work_area_gif_api(body: ExportWorkAreaGifBody) -> dict[str, Any]:
+    """Export in/out work area as GIF."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "work_area.gif")
+    try:
+        return ed.export_work_area_gif(
+            out,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"work_area_gif failed: {e}") from e
+
+
+class SolidBody(BaseModel):
+    color: str = "#000000"
+    duration_frames: int = 30
+    start: int | None = None
+    track_id: str | None = None
+    name: str | None = None
+    append: bool = True
+
+
+@app.post("/api/edit/solid")
+def solid_api(body: SolidBody) -> dict[str, Any]:
+    """Place a solid color matte clip."""
+    ed = _ed()
+    try:
+        r = ed.add_solid(
+            body.color,
+            duration_frames=body.duration_frames,
+            start=body.start,
+            track_id=body.track_id,
+            name=body.name,
+            append=body.append,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"solid failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/clip/ken_burns")
 def ken_burns_api(body: KenBurnsBody) -> dict[str, Any]:
     """Apply Ken Burns zoom/pan to a clip."""

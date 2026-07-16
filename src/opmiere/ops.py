@@ -3671,6 +3671,136 @@ class Editor:
             )
         return media
 
+    def ensure_color_media(self, color: str = "#000000") -> Media:
+        """Cached solid-color video slug for mattes / graphic pads."""
+        import re
+        import subprocess
+
+        raw = (color or "#000000").strip()
+        if raw.startswith("#"):
+            hexc = raw[1:]
+        else:
+            hexc = raw
+        if not re.fullmatch(r"[0-9A-Fa-f]{6}", hexc):
+            # allow named colors for ffmpeg color=
+            safe = re.sub(r"[^a-zA-Z0-9_]", "", raw) or "black"
+            color_arg = safe
+            tag_key = safe.lower()
+        else:
+            color_arg = f"0x{hexc}"
+            tag_key = hexc.lower()
+
+        fps = float(self.project.timebase.fps or 30.0)
+        slug_seconds = 600
+        w, h = self.project.resolution.w, self.project.resolution.h
+        tag = f"solid_{tag_key}_{int(fps)}_{w}x{h}"
+        for m in self.project.media:
+            if m.origin and m.origin.get("slug") == tag:
+                return m
+
+        self.bundle.media_dir.mkdir(parents=True, exist_ok=True)
+        name = f"{tag}.mp4"
+        dest = self.bundle.media_dir / name
+        if not dest.exists():
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-f", "lavfi",
+                    "-i", f"color=c={color_arg}:size={w}x{h}:duration={slug_seconds}:rate={fps}",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast",
+                    "-an", str(dest),
+                ],
+                capture_output=True, text=True,
+            )
+            if proc.returncode != 0 or not dest.exists():
+                raise RuntimeError(
+                    f"color solid failed:\n{(proc.stderr or '')[-1200:]}"
+                )
+        after_dur = self.project.timebase.seconds_to_frames(slug_seconds)
+        with self._mutate():
+            media = self.project.add_media(
+                kind="video",
+                path=name,
+                duration_frames=after_dur,
+                has_audio=False,
+                origin={"slug": tag, "kind": "solid", "color": raw},
+            )
+        return media
+
+    def add_solid(
+        self,
+        color: str = "#000000",
+        *,
+        duration_frames: int = 30,
+        start: int | None = None,
+        track_id: str | None = None,
+        name: str | None = None,
+        append: bool = True,
+    ) -> dict[str, Any]:
+        """Place a solid color matte on a video track.
+
+        start defaults to sequence end when append=True, else 0.
+        """
+        dur = max(1, int(duration_frames))
+        media = self.ensure_color_media(color)
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is None:
+            if not vids:
+                with self._mutate():
+                    track_id = self.project.add_track("video").id
+            else:
+                track_id = vids[0].id
+        if start is None:
+            start_f = int(self.duration_frames()) if append else 0
+        else:
+            start_f = max(0, int(start))
+        with self._mutate():
+            tr = self.project.track_by_id(track_id)
+            if tr.kind != "video":
+                raise ValueError("solid requires video track")
+            if tr.locked:
+                raise ValueError(f"track {track_id} is locked")
+            clip = self.project.add_clip(tr, media, start_f, 0, dur)
+            clip.name = name or f"solid_{color}"
+            clip.color = color if color.startswith("#") else None
+            return {
+                "clip_id": clip.id,
+                "media_id": media.id,
+                "track_id": track_id,
+                "start": clip.start,
+                "end": clip.end,
+                "color": color,
+                "duration_frames": dur,
+                "agent_note": "Solid matte for pads/graphics; cache reuses same color media.",
+            }
+
+    def export_work_area_gif(
+        self,
+        output_path: str | Path,
+        *,
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 15.0,
+    ) -> dict[str, Any]:
+        """Export in/out work area as GIF. Requires set_in_point + set_out_point."""
+        io = self.get_in_out()
+        if not io.get("ready"):
+            raise ValueError("set in and out points first (set_in_point / set_out_point)")
+        fps_tb = float(self.project.timebase.fps or 30.0)
+        start_s = float(io["in_frame"]) / fps_tb
+        end_s = float(io["out_frame"]) / fps_tb
+        r = self.export_gif(
+            output_path,
+            start_seconds=start_s,
+            end_seconds=end_s,
+            fps=fps,
+            width=width,
+            max_duration_seconds=max_duration_seconds,
+        )
+        r["in_frame"] = io["in_frame"]
+        r["out_frame"] = io["out_frame"]
+        return r
+
     def fill_track_gaps(
         self,
         track_id: str | None = None,

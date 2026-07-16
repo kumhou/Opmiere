@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.94 — 2026-07-17
+
+### Added
+- `add_solid` / `ensure_color_media` color matte + **Solid**
+- `export_work_area_gif` (in/out → GIF) + **WA-GIF**
+
 ## 0.5.93 — 2026-07-17
 
 ### Added
