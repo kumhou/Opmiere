@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.17 — 2026-07-17
+
+### Added
+- `GET /api/project/colors` + `/api/project/recent` agent aliases
+
 ## 0.5.16 — 2026-07-17
 
 ### Added
