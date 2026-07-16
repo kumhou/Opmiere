@@ -4915,6 +4915,102 @@ class Editor:
         r["out_frame"] = io["out_frame"]
         return r
 
+    def apply_shape_mask(
+        self,
+        clip_id: str,
+        *,
+        shape: str = "circle",
+        cx: float = 0.5,
+        cy: float = 0.5,
+        size: float = 0.5,
+        feather: float = 0.05,
+        width: float = 0.5,
+        height: float = 0.5,
+        invert: bool = False,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply circular or rectangular shape_mask for vignette/PiP cutouts."""
+        self._assert_clip_track_unlocked(clip_id)
+        sh = str(shape or "circle").lower()
+        if sh not in SHAPE_MASK_SHAPES:
+            raise ValueError(f"shape must be one of {sorted(SHAPE_MASK_SHAPES)}")
+        fx: dict[str, Any] = {
+            "type": "shape_mask",
+            "shape": sh,
+            "cx": float(cx),
+            "cy": float(cy),
+            "size": float(size),
+            "feather": float(feather),
+            "invert": bool(invert),
+        }
+        if sh == "rect":
+            fx["width"] = float(width)
+            fx["height"] = float(height)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "shape_mask"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Shape mask for circular/rect cutouts on overlays.",
+            }
+
+    def export_clip_webm(
+        self,
+        clip_id: str,
+        output_path: str | Path,
+        *,
+        crf: int = 32,
+        width: int | None = None,
+    ) -> dict[str, Any]:
+        """Export a single clip's timeline span as WebM."""
+        clip = self._find_clip(clip_id)
+        fps_tb = float(self.project.timebase.fps or 30.0)
+        start_s = float(clip.start) / fps_tb
+        end_s = float(clip.end) / fps_tb
+        r = self.export_webm(
+            output_path,
+            start_seconds=start_s,
+            end_seconds=end_s,
+            crf=crf,
+            width=width,
+        )
+        r["clip_id"] = clip_id
+        r["start_frame"] = clip.start
+        r["end_frame"] = clip.end
+        return r
+
+    def apply_curves(
+        self,
+        clip_id: str,
+        *,
+        preset: str = "increase_contrast",
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply curves color grade preset to a clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        if preset not in CURVES_PRESETS:
+            raise ValueError(
+                f"unknown curves preset {preset!r}; known: {sorted(CURVES_PRESETS)}"
+            )
+        fx = {"type": "curves", "preset": preset}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "curves"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": f"Curves preset '{preset}' applied.",
+            }
+
     def export_webm(
         self,
         output_path: str | Path,

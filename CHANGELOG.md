@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.99 — 2026-07-17
+
+### Added
+- `apply_shape_mask` / `apply_curves` + **Mask** / **Curves**
+- `export_clip_webm` + **ClipWebM**
+
 ## 0.5.98 — 2026-07-17
 
 ### Added

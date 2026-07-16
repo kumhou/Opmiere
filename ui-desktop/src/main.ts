@@ -8166,6 +8166,81 @@ async function exportWorkAreaWebmUi() {
   }
 }
 
+async function shapeMaskUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip for shape mask";
+    return;
+  }
+  $("status-msg").textContent = "Applying shape mask…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/shape_mask", {
+      clip_id: ids[0],
+      shape: "circle",
+      size: 0.55,
+      feather: 0.08,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Mask · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Mask failed: ${e}`);
+    $("status-msg").textContent = `Mask failed: ${e}`;
+  }
+}
+
+async function curvesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip for curves";
+    return;
+  }
+  $("status-msg").textContent = "Applying curves…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/curves", {
+      clip_id: ids[0],
+      preset: "increase_contrast",
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Curves · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Curves failed: ${e}`);
+    $("status-msg").textContent = `Curves failed: ${e}`;
+  }
+}
+
+async function exportClipWebmUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for ClipWebM";
+    return;
+  }
+  $("status-msg").textContent = "Exporting clip WebM…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clip_webm", {
+      clip_id: ids[0],
+      crf: 32,
+      width: 720,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClipWebM → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`ClipWebM failed: ${e}`);
+    $("status-msg").textContent = `ClipWebM failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12003,7 +12078,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-ckey", () => void chromaKeyUi());
   proBind("btn-lkey", () => void lumaKeyUi());
   proBind("btn-wb", () => void whiteBalanceUi());
+  proBind("btn-mask", () => void shapeMaskUi());
+  proBind("btn-curves", () => void curvesUi());
   proBind("btn-clip-gif", () => void exportClipGifUi());
+  proBind("btn-clip-webm", () => void exportClipWebmUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

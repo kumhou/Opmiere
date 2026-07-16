@@ -3741,6 +3741,59 @@ def export_work_area_webm(
 
 
 @mcp.tool()
+def apply_shape_mask(
+    clip_id: str,
+    shape: str = "circle",
+    cx: float = 0.5,
+    cy: float = 0.5,
+    size: float = 0.5,
+    feather: float = 0.05,
+    width: float = 0.5,
+    height: float = 0.5,
+    invert: bool = False,
+    replace: bool = True,
+) -> dict:
+    """Apply circular or rectangular shape mask to a clip."""
+    return _require_editor().apply_shape_mask(
+        clip_id,
+        shape=shape,
+        cx=cx,
+        cy=cy,
+        size=size,
+        feather=feather,
+        width=width,
+        height=height,
+        invert=invert,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_curves(
+    clip_id: str,
+    preset: str = "increase_contrast",
+    replace: bool = True,
+) -> dict:
+    """Apply curves color grade preset (e.g. vintage, increase_contrast)."""
+    return _require_editor().apply_curves(
+        clip_id, preset=preset, replace=replace,
+    )
+
+
+@mcp.tool()
+def export_clip_webm(
+    clip_id: str,
+    output_path: str,
+    crf: int = 32,
+    width: int | None = None,
+) -> dict:
+    """Export a clip's timeline span as WebM."""
+    return _require_editor().export_clip_webm(
+        clip_id, output_path, crf=crf, width=width,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

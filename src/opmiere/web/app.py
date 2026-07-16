@@ -6207,6 +6207,80 @@ def export_work_area_webm_api(body: ExportWorkAreaWebmBody) -> dict[str, Any]:
         raise HTTPException(400, f"work_area_webm failed: {e}") from e
 
 
+class ShapeMaskBody(BaseModel):
+    clip_id: str
+    shape: str = "circle"
+    cx: float = 0.5
+    cy: float = 0.5
+    size: float = 0.5
+    feather: float = 0.05
+    width: float = 0.5
+    height: float = 0.5
+    invert: bool = False
+    replace: bool = True
+
+
+@app.post("/api/clip/shape_mask")
+def shape_mask_api(body: ShapeMaskBody) -> dict[str, Any]:
+    """Apply shape mask to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_shape_mask(
+            body.clip_id,
+            shape=body.shape,
+            cx=body.cx,
+            cy=body.cy,
+            size=body.size,
+            feather=body.feather,
+            width=body.width,
+            height=body.height,
+            invert=body.invert,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"shape_mask failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CurvesBody(BaseModel):
+    clip_id: str
+    preset: str = "increase_contrast"
+    replace: bool = True
+
+
+@app.post("/api/clip/curves")
+def curves_api(body: CurvesBody) -> dict[str, Any]:
+    """Apply curves grade preset to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_curves(
+            body.clip_id, preset=body.preset, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"curves failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportClipWebmBody(BaseModel):
+    clip_id: str
+    output_path: str | None = None
+    crf: int = 32
+    width: int | None = None
+
+
+@app.post("/api/export/clip_webm")
+def export_clip_webm_api(body: ExportClipWebmBody) -> dict[str, Any]:
+    """Export one clip span as WebM."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "clip.webm")
+    try:
+        return ed.export_clip_webm(
+            body.clip_id, out, crf=body.crf, width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clip_webm failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
