@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.21 — 2026-07-17
+
+### Added
+- Keyboard **Ctrl+Shift+P** preflight, **Ctrl+Shift+D** doctor
+
 ## 0.5.20 — 2026-07-17
 
 ### Added
