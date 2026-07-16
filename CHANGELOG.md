@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.83 — 2026-07-17
+
+### Added
+- Desktop **Xf1** / **Xf1✕** add_transition / remove_transition on selection
+
 ## 0.4.82 — 2026-07-17
 
 ### Added
