@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.59 — 2026-07-17
+
+### Added
+- `export_work_area_gif_default` / `finish_work_area_delivery` + **WA-GIF** / **FinishWA**
+
 ## 0.6.58 — 2026-07-17
 
 ### Added

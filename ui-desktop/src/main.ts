@@ -12456,6 +12456,57 @@ async function exportWorkAreaWebmDefaultUi() {
   }
 }
 
+async function exportWorkAreaGifDefaultUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting work-area GIF…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+    }>("/api/edit/export_work_area_gif_default", {
+      filename: "work_area.gif",
+      fps: 12,
+      width: 320,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WA-GIF → ${r.path || r.output_path || "?"}`;
+  } catch (e) {
+    setProOut(`WA-GIF failed: ${e}`);
+    $("status-msg").textContent = `WA-GIF failed: ${e}`;
+  }
+}
+
+async function finishWorkAreaDeliveryUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Finish work-area delivery…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      delivery_ok?: boolean;
+      export_path?: string;
+      steps?: string[];
+    }>("/api/edit/finish_work_area_delivery", {
+      filename: "work_area_delivery.mp4",
+      prepare: true,
+      run_review: true,
+      delivery_preset: "streaming",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinishWA · ok=${r.ok ?? "?"} deliv=${r.delivery_ok ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`FinishWA failed: ${e}`);
+    $("status-msg").textContent = `FinishWA failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16475,6 +16526,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-wa-mp4-def", () => void exportWorkAreaMp4DefaultUi());
   proBind("btn-pathc-stills-json", () => void exportSelectionPathCStillsPlanDefaultUi());
   proBind("btn-wa-webm-def", () => void exportWorkAreaWebmDefaultUi());
+  proBind("btn-wa-gif-def", () => void exportWorkAreaGifDefaultUi());
+  proBind("btn-finish-wa", () => void finishWorkAreaDeliveryUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

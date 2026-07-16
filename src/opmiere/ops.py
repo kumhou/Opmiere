@@ -9871,6 +9871,102 @@ class Editor:
             width=width,
         )
 
+    def export_work_area_gif_default(
+        self,
+        *,
+        filename: str = "work_area.gif",
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 15.0,
+    ) -> dict[str, Any]:
+        """export_work_area_gif into project exports/ (requires in/out)."""
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "work_area.gif")
+        return self.export_work_area_gif(
+            out,
+            fps=float(fps),
+            width=int(width),
+            max_duration_seconds=float(max_duration_seconds),
+        )
+
+    def finish_work_area_delivery(
+        self,
+        *,
+        filename: str = "work_area_delivery.mp4",
+        prepare: bool = True,
+        fill_video: bool = True,
+        fill_audio: bool = False,
+        run_review: bool = True,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+    ) -> dict[str, Any]:
+        """Canonical work-area finish: prepare_export → export_work_area + gates.
+
+        Requires in/out points. Does not change work area.
+        """
+        io = self.get_in_out()
+        if not io.get("ready"):
+            raise ValueError(
+                "set in and out points first (set_in_point / set_out_point "
+                "or work_area_from_selection)"
+            )
+        out: dict[str, Any] = {
+            "filename": filename,
+            "in_out": io,
+            "steps": [],
+            "ok": False,
+            "delivery_ok": False,
+        }
+        if prepare:
+            try:
+                out["prepare"] = self.prepare_export(
+                    fill_video=fill_video, fill_audio=fill_audio,
+                )
+                out["steps"].append("prepare_export")
+            except Exception as e:
+                out["prepare"] = {"error": str(e)[:400]}
+                out["steps"].append("prepare_export:error")
+        if run_review:
+            try:
+                out["review"] = self.review_cut()
+                out["steps"].append("review_cut")
+            except Exception as e:
+                out["review"] = {"error": str(e)[:400]}
+                out["steps"].append("review_cut:error")
+        try:
+            exp = self.export_work_area_mp4_default(
+                filename=filename,
+                normalize_preset=normalize_preset,
+                run_delivery_check=True,
+                delivery_preset=delivery_preset,
+            )
+            out["export"] = exp
+            out["steps"].append("export_work_area_mp4_default")
+            path = exp.get("path") or exp.get("output_path")
+            out["export_path"] = path
+            if isinstance(exp, dict):
+                dc = exp.get("delivery_check") or exp.get("check")
+                if isinstance(dc, dict):
+                    out["delivery_check"] = dc
+                    out["delivery_ok"] = bool(dc.get("ok"))
+                elif exp.get("ok") is not None:
+                    out["delivery_ok"] = bool(exp.get("ok"))
+            if path and Path(str(path)).is_file() and Path(str(path)).stat().st_size > 500:
+                out["ok"] = True
+            elif path and (Path(self.bundle.root) / "exports" / filename).is_file():
+                out["ok"] = True
+                out["export_path"] = str(
+                    (Path(self.bundle.root) / "exports" / filename).resolve()
+                )
+        except Exception as e:
+            out["export"] = {"error": str(e)[:400]}
+            out["steps"].append("export_work_area_mp4_default:error")
+        out["agent_note"] = (
+            "Work-area finish. ok=file present; delivery_ok=full gates when present."
+        )
+        return out
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

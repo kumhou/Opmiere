@@ -5657,6 +5657,44 @@ def export_work_area_webm_default(
 
 
 @mcp.tool()
+def export_work_area_gif_default(
+    filename: str = "work_area.gif",
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 15.0,
+) -> dict:
+    """Export in/out work area GIF under project exports/."""
+    return _require_editor().export_work_area_gif_default(
+        filename=filename,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
+def finish_work_area_delivery(
+    filename: str = "work_area_delivery.mp4",
+    prepare: bool = True,
+    fill_video: bool = True,
+    fill_audio: bool = False,
+    run_review: bool = True,
+    normalize_preset: str | None = "streaming",
+    delivery_preset: str = "streaming",
+) -> dict:
+    """Canonical work-area finish: prepare → export + delivery gates."""
+    return _require_editor().finish_work_area_delivery(
+        filename=filename,
+        prepare=prepare,
+        fill_video=fill_video,
+        fill_audio=fill_audio,
+        run_review=run_review,
+        normalize_preset=normalize_preset,
+        delivery_preset=delivery_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -9582,6 +9582,64 @@ def export_work_area_webm_default_api(
         ) from e
 
 
+class ExportWorkAreaGifDefaultBody(BaseModel):
+    filename: str = "work_area.gif"
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 15.0
+
+
+@app.post("/api/edit/export_work_area_gif_default")
+def export_work_area_gif_default_api(
+    body: ExportWorkAreaGifDefaultBody,
+) -> dict[str, Any]:
+    """Export in/out work area GIF under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_work_area_gif_default(
+            filename=body.filename,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_work_area_gif_default failed: {e}",
+        ) from e
+
+
+class FinishWorkAreaDeliveryBody(BaseModel):
+    filename: str = "work_area_delivery.mp4"
+    prepare: bool = True
+    fill_video: bool = True
+    fill_audio: bool = False
+    run_review: bool = True
+    normalize_preset: str | None = "streaming"
+    delivery_preset: str = "streaming"
+
+
+@app.post("/api/edit/finish_work_area_delivery")
+def finish_work_area_delivery_api(
+    body: FinishWorkAreaDeliveryBody,
+) -> dict[str, Any]:
+    """Prepare + export work area with delivery gates."""
+    ed = _ed()
+    try:
+        return ed.finish_work_area_delivery(
+            filename=body.filename,
+            prepare=body.prepare,
+            fill_video=body.fill_video,
+            fill_audio=body.fill_audio,
+            run_review=body.run_review,
+            normalize_preset=body.normalize_preset,
+            delivery_preset=body.delivery_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_work_area_delivery failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
