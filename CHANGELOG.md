@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.64 — 2026-07-17
+
+### Added
+- `relink_offline_media` (basename search → copy into bundle) + API/MCP/desktop **Relink**
+- `export_handoff_package` (manifest + chapters + preflight + media status) + **Handoff**
+
 ## 0.5.63 — 2026-07-17
 
 ### Added

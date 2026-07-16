@@ -2065,6 +2065,38 @@ def agent_quick_assembly(
 
 
 @mcp.tool()
+def relink_offline_media(
+    search_dirs: list[str],
+    recursive: bool = True,
+    re_probe: bool = True,
+) -> dict:
+    """Relink offline bin media by basename under search_dirs (copy into bundle)."""
+    return _require_editor().relink_offline_media(
+        search_dirs, recursive=recursive, re_probe=re_probe,
+    )
+
+
+@mcp.tool()
+def export_handoff_package(
+    out_dir: str,
+    include_manifest: bool = True,
+    include_chapters: bool = True,
+    include_preflight: bool = True,
+    include_otio: bool = False,
+    include_media_status: bool = True,
+) -> dict:
+    """Write agent handoff folder: manifest, chapters, preflight, media status."""
+    return _require_editor().export_handoff_package(
+        out_dir,
+        include_manifest=include_manifest,
+        include_chapters=include_chapters,
+        include_preflight=include_preflight,
+        include_otio=include_otio,
+        include_media_status=include_media_status,
+    )
+
+
+@mcp.tool()
 def import_otio_json(
     path: str | None = None,
     text: str | None = None,

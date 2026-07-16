@@ -3454,6 +3454,53 @@ def quick_assembly_api(body: QuickAssemblyBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RelinkOfflineBody(BaseModel):
+    search_dirs: list[str]
+    recursive: bool = True
+    re_probe: bool = True
+
+
+@app.post("/api/media/relink_offline")
+def relink_offline_api(body: RelinkOfflineBody) -> dict[str, Any]:
+    """Relink offline media by basename under search_dirs."""
+    ed = _ed()
+    try:
+        r = ed.relink_offline_media(
+            body.search_dirs,
+            recursive=body.recursive,
+            re_probe=body.re_probe,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"relink_offline failed: {e}") from e
+    return r
+
+
+class HandoffPackageBody(BaseModel):
+    out_dir: str
+    include_manifest: bool = True
+    include_chapters: bool = True
+    include_preflight: bool = True
+    include_otio: bool = False
+    include_media_status: bool = True
+
+
+@app.post("/api/export/handoff")
+def export_handoff_api(body: HandoffPackageBody) -> dict[str, Any]:
+    """Write agent handoff package (manifest + chapters + preflight)."""
+    ed = _ed()
+    try:
+        return ed.export_handoff_package(
+            body.out_dir,
+            include_manifest=body.include_manifest,
+            include_chapters=body.include_chapters,
+            include_preflight=body.include_preflight,
+            include_otio=body.include_otio,
+            include_media_status=body.include_media_status,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_handoff failed: {e}") from e
+
+
 @app.post("/api/import/otio")
 def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
     """Import simplified OTIO-like JSON (pair of export_otio)."""

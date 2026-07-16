@@ -6122,6 +6122,62 @@ async function ensureAllProxiesUi() {
   }
 }
 
+async function relinkOfflineUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Folder containing offline media files" });
+  if (!dir) return;
+  $("status-msg").textContent = "Relinking offline media…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      still_offline_count?: number;
+    }>("/api/media/relink_offline", {
+      search_dirs: [dir],
+      recursive: true,
+      re_probe: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    await refreshMediaBin();
+    $("status-msg").textContent =
+      `Relink · ${r.count ?? 0}` +
+      (r.still_offline_count ? ` · still ${r.still_offline_count}` : "");
+  } catch (e) {
+    setProOut(`Relink failed: ${e}`);
+    $("status-msg").textContent = `Relink failed: ${e}`;
+  }
+}
+
+async function exportHandoffUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Handoff package output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Writing handoff package…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+    }>("/api/export/handoff", {
+      out_dir: dir,
+      include_manifest: true,
+      include_chapters: true,
+      include_preflight: true,
+      include_otio: false,
+      include_media_status: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Handoff · ${r.count ?? 0} files → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`Handoff failed: ${e}`);
+    $("status-msg").textContent = `Handoff failed: ${e}`;
+  }
+}
+
 async function importOtioFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9997,6 +10053,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-manifest", () => void exportManifestUi());
   proBind("btn-imp-manifest", () => void importManifestUi());
   proBind("btn-proxies-all2", () => void ensureAllProxiesUi());
+  proBind("btn-relink-off", () => void relinkOfflineUi());
+  proBind("btn-handoff", () => void exportHandoffUi());
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());

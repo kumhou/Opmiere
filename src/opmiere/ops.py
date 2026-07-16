@@ -9638,6 +9638,197 @@ class Editor:
         )
         return out
 
+    def relink_offline_media(
+        self,
+        search_dirs: list[str | Path],
+        *,
+        recursive: bool = True,
+        re_probe: bool = True,
+    ) -> dict[str, Any]:
+        """Relink offline bin media by basename under search_dirs.
+
+        Copies found files back into the bundle at Media.path. Optional
+        re_probe updates duration_frames / has_audio from the replacement.
+        """
+        import shutil
+
+        from .render.probe import probe as _probe
+
+        if not search_dirs:
+            raise ValueError("search_dirs is empty")
+        dirs: list[Path] = []
+        for d in search_dirs:
+            p = Path(d)
+            if not p.is_dir():
+                raise ValueError(f"not a directory: {p}")
+            dirs.append(p)
+
+        index: dict[str, Path] = {}
+        for root in dirs:
+            files = root.rglob("*") if recursive else root.iterdir()
+            for f in files:
+                if not f.is_file():
+                    continue
+                key = f.name.lower()
+                if key not in index:
+                    index[key] = f
+
+        status = self.list_media_status()
+        offline = list(status.get("offline") or [])
+        if not offline:
+            return {
+                "relinked": [],
+                "count": 0,
+                "still_offline": [],
+                "still_offline_count": 0,
+                "searched_dirs": [str(d) for d in dirs],
+                "index_size": len(index),
+                "agent_note": "No offline media.",
+            }
+
+        relinked: list[dict[str, Any]] = []
+        still_offline: list[dict[str, Any]] = []
+
+        with self._mutate():
+            for row in offline:
+                mid = str(row.get("media_id") or "")
+                if not mid:
+                    continue
+                media = self.project.media_by_id(mid)
+                base = Path(media.path).name.lower()
+                found = index.get(base)
+                if found is None:
+                    still_offline.append({
+                        "media_id": mid,
+                        "path": media.path,
+                        "reason": f"basename not found: {Path(media.path).name}",
+                    })
+                    continue
+                dest = self.bundle.media_path(media.path)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(found, dest)
+                old_dur = media.duration_frames
+                old_audio = media.has_audio
+                if re_probe and media.kind in ("video", "audio"):
+                    try:
+                        pr = _probe(dest)
+                        media.duration_frames = max(
+                            1,
+                            self.project.timebase.seconds_to_frames(pr.duration_seconds),
+                        )
+                        media.has_audio = bool(pr.has_audio)
+                    except Exception as e:
+                        relinked.append({
+                            "media_id": mid,
+                            "path": media.path,
+                            "from": str(found.resolve()),
+                            "dest": str(dest.resolve()),
+                            "probe_error": str(e)[:200],
+                            "duration_frames": media.duration_frames,
+                        })
+                        continue
+                # invalidate stale proxy path if missing
+                if media.proxy_path:
+                    px = self.bundle.resolve_bundle_path(media.proxy_path)
+                    if not px.exists():
+                        media.proxy_path = None
+                relinked.append({
+                    "media_id": mid,
+                    "path": media.path,
+                    "from": str(found.resolve()),
+                    "dest": str(dest.resolve()),
+                    "duration_frames": media.duration_frames,
+                    "duration_was": old_dur,
+                    "has_audio": media.has_audio,
+                    "has_audio_was": old_audio,
+                })
+
+        return {
+            "relinked": relinked,
+            "count": len(relinked),
+            "still_offline": still_offline,
+            "still_offline_count": len(still_offline),
+            "searched_dirs": [str(d) for d in dirs],
+            "index_size": len(index),
+            "agent_note": (
+                "Relinked by basename into bundle media/. "
+                "Rebuild proxies if needed (ensure_all_media_proxies)."
+            ),
+        }
+
+    def export_handoff_package(
+        self,
+        out_dir: str | Path,
+        *,
+        include_manifest: bool = True,
+        include_chapters: bool = True,
+        include_preflight: bool = True,
+        include_otio: bool = False,
+        include_media_status: bool = True,
+    ) -> dict[str, Any]:
+        """Write agent handoff folder: manifest, chapters, preflight, media status.
+
+        Compact package for review / CI / handoff between agents — not a full
+        media collect (use export + bundle for that).
+        """
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        written: list[str] = []
+
+        if include_manifest:
+            man = self.export_edit_manifest(out / "edit_manifest.json")
+            written.append(str(man["path"]))
+
+        if include_media_status:
+            st = self.list_media_status()
+            p = out / "media_status.json"
+            p.write_text(json.dumps(st, indent=2, ensure_ascii=False), encoding="utf-8")
+            written.append(str(p.resolve()))
+
+        if include_preflight:
+            pf = self.agent_preflight()
+            p = out / "preflight.json"
+            p.write_text(json.dumps(pf, indent=2, ensure_ascii=False), encoding="utf-8")
+            written.append(str(p.resolve()))
+
+        if include_chapters:
+            try:
+                ch = self.export_markers(format="youtube")
+                body = ch.get("body") or ch.get("text") or ""
+                if not body and isinstance(ch.get("lines"), list):
+                    body = "\n".join(str(x) for x in ch["lines"])
+                if not body:
+                    body = json.dumps(ch, indent=2, ensure_ascii=False)
+                p = out / "youtube_chapters.txt"
+                p.write_text(str(body), encoding="utf-8")
+                written.append(str(p.resolve()))
+            except Exception as e:
+                p = out / "youtube_chapters_error.txt"
+                p.write_text(str(e)[:500], encoding="utf-8")
+                written.append(str(p.resolve()))
+
+        if include_otio:
+            ot = self.export_otio_json(out / "timeline.otio.json")
+            if ot.get("path"):
+                written.append(str(ot["path"]))
+
+        meta = {
+            "schema": "opmiere.handoff.v1",
+            "project_id": self.project.id,
+            "files": written,
+            "duration_frames": self.duration_frames(),
+        }
+        meta_path = out / "handoff.json"
+        meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        written.append(str(meta_path.resolve()))
+
+        return {
+            "path": str(out.resolve()),
+            "files": written,
+            "count": len(written),
+            "agent_note": "Handoff package written. Pair with import_edit_manifest to rehydrate layout.",
+        }
+
     def agent_preflight(self) -> dict[str, Any]:
         """Single agent call: media + validate + proxy + duration + next steps.
 
@@ -9651,7 +9842,9 @@ class Editor:
         stats = self.project_stats()
         next_steps: list[str] = []
         if not media.get("ok"):
-            next_steps.append("relink or re-import offline media (list_media_status)")
+            next_steps.append(
+                "relink_offline_media(search_dirs=[...]) or re-import (list_media_status)"
+            )
         if not validate.get("ok"):
             next_steps.append("fix overlaps/gaps (validate_timeline / close_gaps / prepare_for_export)")
         if not proxy.get("fresh"):
