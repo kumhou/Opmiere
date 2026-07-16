@@ -6603,6 +6603,84 @@ def export_work_area_mp4_api(body: ExportWorkAreaMp4Body) -> dict[str, Any]:
         raise HTTPException(400, f"work_area_mp4 failed: {e}") from e
 
 
+class LiftClipBody(BaseModel):
+    clip_id: str
+
+
+@app.post("/api/edit/lift_clip")
+def lift_clip_api(body: LiftClipBody) -> dict[str, Any]:
+    """Lift clip leaving a gap (no ripple)."""
+    ed = _ed()
+    try:
+        r = ed.lift_clip(body.clip_id)
+    except Exception as e:
+        raise HTTPException(400, f"lift_clip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RippleDeleteSelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/ripple_delete_selection")
+def ripple_delete_selection_api(body: RippleDeleteSelectionBody) -> dict[str, Any]:
+    """Ripple-delete multiple clips."""
+    ed = _ed()
+    try:
+        r = ed.ripple_delete_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"ripple_delete_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CopyEffectsBody(BaseModel):
+    source_clip_id: str
+    target_clip_ids: list[str]
+    replace: bool = True
+    types: list[str] | None = None
+
+
+@app.post("/api/clip/copy_effects")
+def copy_effects_api(body: CopyEffectsBody) -> dict[str, Any]:
+    """Copy effects from source clip to targets."""
+    ed = _ed()
+    try:
+        r = ed.copy_effects(
+            body.source_clip_id,
+            body.target_clip_ids,
+            replace=body.replace,
+            types=body.types,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"copy_effects failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportClipsStillsPackBody(BaseModel):
+    clip_ids: list[str]
+    output_dir: str | None = None
+    at: str = "mid"
+    width: int = 1280
+    prefix: str = "still"
+
+
+@app.post("/api/export/clips_stills_pack")
+def export_clips_stills_pack_api(body: ExportClipsStillsPackBody) -> dict[str, Any]:
+    """Export stills for many clips into a folder."""
+    ed = _ed()
+    out = body.output_dir or str(_desktop_export_dir() / "stills_pack")
+    try:
+        return ed.export_clips_stills_pack(
+            body.clip_ids,
+            out,
+            at=body.at,
+            width=body.width,
+            prefix=body.prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clips_stills_pack failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

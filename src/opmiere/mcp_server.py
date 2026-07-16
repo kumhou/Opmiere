@@ -4005,6 +4005,48 @@ def export_work_area_mp4(
 
 
 @mcp.tool()
+def lift_clip(clip_id: str) -> dict:
+    """Remove clip leaving a gap (Premiere Lift, no ripple)."""
+    return _require_editor().lift_clip(clip_id)
+
+
+@mcp.tool()
+def ripple_delete_selection(clip_ids: list[str]) -> dict:
+    """Ripple-delete multiple clips (end→start per track)."""
+    return _require_editor().ripple_delete_selection(clip_ids)
+
+
+@mcp.tool()
+def copy_effects(
+    source_clip_id: str,
+    target_clip_ids: list[str],
+    replace: bool = True,
+    types: list[str] | None = None,
+) -> dict:
+    """Copy effects from source clip onto target clips."""
+    return _require_editor().copy_effects(
+        source_clip_id,
+        target_clip_ids,
+        replace=replace,
+        types=types,
+    )
+
+
+@mcp.tool()
+def export_clips_stills_pack(
+    clip_ids: list[str],
+    output_dir: str,
+    at: str = "mid",
+    width: int = 1280,
+    prefix: str = "still",
+) -> dict:
+    """Export a still for each clip into output_dir."""
+    return _require_editor().export_clips_stills_pack(
+        clip_ids, output_dir, at=at, width=width, prefix=prefix,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

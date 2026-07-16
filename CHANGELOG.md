@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.5 — 2026-07-17
+
+### Added
+- `lift_clip` / `ripple_delete_selection` + **LiftC** / **RipSel**
+- `copy_effects` + **CopyFX**
+- `export_clips_stills_pack` + **StillsP**
+
 ## 0.6.4 — 2026-07-17
 
 ### Added

@@ -8593,6 +8593,101 @@ async function exportWorkAreaMp4Ui() {
   }
 }
 
+async function liftClipUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to lift";
+    return;
+  }
+  $("status-msg").textContent = "Lifting clip…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      deleted_id?: string;
+    }>("/api/edit/lift_clip", { clip_id: ids[0] });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `LiftC · ${r.deleted_id || ids[0]}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`LiftC failed: ${e}`);
+    $("status-msg").textContent = `LiftC failed: ${e}`;
+  }
+}
+
+async function rippleDeleteSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to ripple-delete";
+    return;
+  }
+  $("status-msg").textContent = "Ripple-deleting selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/ripple_delete_selection", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RipSel · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RipSel failed: ${e}`);
+    $("status-msg").textContent = `RipSel failed: ${e}`;
+  }
+}
+
+async function copyEffectsUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select source + target clips (source first)";
+    return;
+  }
+  $("status-msg").textContent = "Copying effects…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clip/copy_effects", {
+      source_clip_id: ids[0],
+      target_clip_ids: ids.slice(1),
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `CopyFX · ${r.count ?? 0} targets`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`CopyFX failed: ${e}`);
+    $("status-msg").textContent = `CopyFX failed: ${e}`;
+  }
+}
+
+async function exportClipsStillsPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for stills pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting stills pack…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clips_stills_pack", {
+      clip_ids: ids,
+      at: "mid",
+      width: 1280,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StillsP · ${String(r.count ?? 0)}/${String(r.total ?? ids.length)}`;
+  } catch (e) {
+    setProOut(`StillsP failed: ${e}`);
+    $("status-msg").textContent = `StillsP failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12450,6 +12545,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-trk-only", () => void exportTrackOnlyUi());
   proBind("btn-sel-mp4", () => void exportSelectionMp4Ui());
   proBind("btn-wa-mp4", () => void exportWorkAreaMp4Ui());
+  proBind("btn-lift-clip", () => void liftClipUi());
+  proBind("btn-rip-sel", () => void rippleDeleteSelectionUi());
+  proBind("btn-copy-fx", () => void copyEffectsUi());
+  proBind("btn-stills-pack", () => void exportClipsStillsPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

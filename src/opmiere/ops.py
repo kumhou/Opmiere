@@ -3203,6 +3203,171 @@ class Editor:
                 "shifted": shifted,
             }
 
+    def lift_clip(self, clip_id: str) -> dict[str, Any]:
+        """Remove clip and leave a hole (Premiere Lift). No ripple.
+
+        Unlike delete_clip, returns structured agent payload with span info.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            start = int(clip.start)
+            end = int(clip.end)
+            dur = int(clip.timeline_duration_frames)
+            deleted_id = clip.id
+            # clear transition_in on next neighbor if it referenced this cut
+            nxt = None
+            ordered = track.clips_in_order()
+            for i, c in enumerate(ordered):
+                if c.id == clip_id and i + 1 < len(ordered):
+                    nxt = ordered[i + 1]
+                    break
+            track.clips.remove(clip)
+            if nxt is not None and nxt.transition_in is not None:
+                nxt.transition_in = None
+            return {
+                "deleted_id": deleted_id,
+                "track_id": track.id,
+                "start": start,
+                "end": end,
+                "duration_frames": dur,
+                "ripple": False,
+                "agent_note": "Gap left open; use close_gaps or fill_track_gaps.",
+            }
+
+    def ripple_delete_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Ripple-delete multiple clips (right-to-left per track to keep frames stable)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        # group by track, sort by start descending so later deletes first
+        by_track: dict[str, list[tuple[int, str]]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            by_track.setdefault(tr.id, []).append((int(clip.start), cid))
+        deleted: list[dict[str, Any]] = []
+        for tid, items in by_track.items():
+            items.sort(key=lambda x: x[0], reverse=True)
+            for _, cid in items:
+                # clip may already be gone if id duplicated
+                try:
+                    self._find_clip(cid)
+                except Exception:
+                    continue
+                r = self.ripple_delete(cid)
+                deleted.append(r)
+        return {
+            "count": len(deleted),
+            "deleted": deleted,
+            "agent_note": "Multi-clip ripple delete; order was end→start per track.",
+        }
+
+    def copy_effects(
+        self,
+        source_clip_id: str,
+        target_clip_ids: list[str],
+        *,
+        replace: bool = True,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Copy effects from source clip onto targets (one undo per target via batch).
+
+        types: optional allow-list of effect type names; default = all effects.
+        replace=True clears matching types (or all if types is None) on targets first.
+        """
+        if not target_clip_ids:
+            raise ValueError("target_clip_ids is empty")
+        src = self._find_clip(source_clip_id)
+        fx_src = list(src.effects or [])
+        if types is not None:
+            allow = set(types)
+            fx_src = [e for e in fx_src if isinstance(e, dict) and e.get("type") in allow]
+        if not fx_src:
+            return {
+                "source_clip_id": source_clip_id,
+                "count": 0,
+                "targets": [],
+                "agent_note": "Source has no matching effects to copy.",
+            }
+        applied: list[dict[str, Any]] = []
+        with self._mutate():
+            for tid in dict.fromkeys(target_clip_ids):
+                if tid == source_clip_id:
+                    continue
+                self._assert_clip_track_unlocked(tid)
+                clip = self._find_clip(tid)
+                if replace:
+                    if types is None:
+                        clip.effects = []
+                    else:
+                        allow = set(types)
+                        clip.effects = [
+                            e for e in (clip.effects or [])
+                            if not (isinstance(e, dict) and e.get("type") in allow)
+                        ]
+                for e in fx_src:
+                    self._apply_effect_unlocked(tid, dict(e))
+                applied.append({
+                    "clip_id": tid,
+                    "effects_count": len(fx_src),
+                })
+        return {
+            "source_clip_id": source_clip_id,
+            "count": len(applied),
+            "targets": applied,
+            "effect_types": [
+                e.get("type") for e in fx_src if isinstance(e, dict)
+            ],
+            "agent_note": "Effects copied; transitions/position not included.",
+        }
+
+    def export_clips_stills_pack(
+        self,
+        clip_ids: list[str],
+        output_dir: str | Path,
+        *,
+        at: str = "mid",
+        width: int = 1280,
+        prefix: str = "still",
+    ) -> dict[str, Any]:
+        """Export a still image for each clip (thumbnail pack)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stills: list[dict[str, Any]] = []
+        for i, cid in enumerate(dict.fromkeys(clip_ids)):
+            clip = self._find_clip(cid)
+            name = (clip.name or cid)[:32]
+            safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
+            dest = out_dir / f"{prefix}_{i + 1:02d}_{safe}.jpg"
+            try:
+                r = self.export_clip_still(cid, dest, at=at, width=width)
+                stills.append({
+                    "clip_id": cid,
+                    "path": r.get("path") or str(dest),
+                    "ok": True,
+                    "frame": r.get("frame"),
+                })
+            except Exception as e:
+                stills.append({
+                    "clip_id": cid,
+                    "ok": False,
+                    "error": str(e)[:300],
+                })
+        ok_n = sum(1 for s in stills if s.get("ok"))
+        return {
+            "count": ok_n,
+            "total": len(stills),
+            "stills": stills,
+            "output_dir": str(out_dir.resolve()),
+            "at": at,
+            "ok": ok_n == len(stills) and ok_n > 0,
+            "agent_note": "Mid/start/end stills per clip for storyboard grids.",
+        }
+
     def slip_clip(self, clip_id: str, delta_src_frames: int) -> dict[str, Any]:
         """Slip: slide source in/out together; timeline start/duration unchanged.
 
