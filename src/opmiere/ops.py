@@ -5014,6 +5014,86 @@ class Editor:
         )
         return r
 
+    def expand_selection_links(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Expand clip_ids to include all peers sharing a link_group."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        base = list(dict.fromkeys(clip_ids))
+        expanded = self._expand_link_ids(base)
+        added = [c for c in expanded if c not in base]
+        return {
+            "clip_ids": expanded,
+            "count": len(expanded),
+            "added": added,
+            "added_count": len(added),
+            "agent_note": "Includes linked A/V pairs for group edits.",
+        }
+
+    def close_gaps_on_selection_tracks(
+        self,
+        clip_ids: list[str],
+        *,
+        from_frame: int = 0,
+    ) -> dict[str, Any]:
+        """close_gaps only on tracks that hold any of the selected clips."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        track_ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in track_ids:
+                track_ids.append(tr.id)
+        results: list[dict[str, Any]] = []
+        for tid in track_ids:
+            try:
+                results.append(self.close_gaps(tid, from_frame=from_frame))
+            except Exception as e:
+                results.append({
+                    "track_id": tid,
+                    "ok": False,
+                    "error": str(e)[:200],
+                })
+        return {
+            "track_ids": track_ids,
+            "count": len(results),
+            "tracks": results,
+            "from_frame": int(from_frame),
+            "agent_note": "Packs only tracks involved in selection (not global).",
+        }
+
+    def freeze_selection_mids(
+        self,
+        clip_ids: list[str],
+        *,
+        duration_frames: int = 30,
+        insert: bool = True,
+    ) -> dict[str, Any]:
+        """freeze_clip_mid for each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.freeze_clip_mid(
+                    cid,
+                    duration_frames=duration_frames,
+                    insert=insert,
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:240]})
+        return {
+            "count": len(out),
+            "freezes": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Still after each clip mid-frame (ffmpeg extract).",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

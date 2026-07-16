@@ -7205,6 +7205,59 @@ def selection_jl_cut_api(body: SelectionJlCutBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExpandLinksBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/expand_selection_links")
+def expand_selection_links_api(body: ExpandLinksBody) -> dict[str, Any]:
+    """Expand selection to linked peers."""
+    ed = _ed()
+    try:
+        return ed.expand_selection_links(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"expand_selection_links failed: {e}") from e
+
+
+class CloseGapsSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+    from_frame: int = 0
+
+
+@app.post("/api/edit/close_gaps_selection_tracks")
+def close_gaps_selection_tracks_api(body: CloseGapsSelectionTracksBody) -> dict[str, Any]:
+    """Close gaps on tracks that hold selection."""
+    ed = _ed()
+    try:
+        r = ed.close_gaps_on_selection_tracks(
+            body.clip_ids, from_frame=body.from_frame,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"close_gaps_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FreezeSelectionMidsBody(BaseModel):
+    clip_ids: list[str]
+    duration_frames: int = 30
+    insert: bool = True
+
+
+@app.post("/api/edit/freeze_selection_mids")
+def freeze_selection_mids_api(body: FreezeSelectionMidsBody) -> dict[str, Any]:
+    """Freeze mid-frame for each selected clip."""
+    ed = _ed()
+    try:
+        r = ed.freeze_selection_mids(
+            body.clip_ids,
+            duration_frames=body.duration_frames,
+            insert=body.insert,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"freeze_selection_mids failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

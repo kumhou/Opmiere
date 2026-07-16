@@ -4359,6 +4359,35 @@ def selection_jl_cut(
 
 
 @mcp.tool()
+def expand_selection_links(clip_ids: list[str]) -> dict:
+    """Expand clip_ids to include all link_group peers."""
+    return _require_editor().expand_selection_links(clip_ids)
+
+
+@mcp.tool()
+def close_gaps_on_selection_tracks(
+    clip_ids: list[str],
+    from_frame: int = 0,
+) -> dict:
+    """close_gaps only on tracks that hold the selection."""
+    return _require_editor().close_gaps_on_selection_tracks(
+        clip_ids, from_frame=from_frame,
+    )
+
+
+@mcp.tool()
+def freeze_selection_mids(
+    clip_ids: list[str],
+    duration_frames: int = 30,
+    insert: bool = True,
+) -> dict:
+    """Freeze mid-frame still after each selected clip."""
+    return _require_editor().freeze_selection_mids(
+        clip_ids, duration_frames=duration_frames, insert=insert,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

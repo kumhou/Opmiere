@@ -9354,6 +9354,85 @@ async function selectionJlCutUi(style: "j" | "l") {
   }
 }
 
+async function expandSelectionLinksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to expand links";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      clip_ids?: string[];
+      count?: number;
+      added_count?: number;
+    }>("/api/edit/expand_selection_links", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    const expanded = r.clip_ids || ids;
+    // best-effort: if selection API exists use it; else status only
+    if (typeof (globalThis as { setSelection?: (x: string[]) => void }).setSelection === "function") {
+      (globalThis as { setSelection: (x: string[]) => void }).setSelection(expanded);
+    }
+    $("status-msg").textContent =
+      `ExpLink · ${r.count ?? expanded.length} (+${r.added_count ?? 0})`;
+  } catch (e) {
+    setProOut(`ExpLink failed: ${e}`);
+    $("status-msg").textContent = `ExpLink failed: ${e}`;
+  }
+}
+
+async function closeGapsSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips (tracks to pack)";
+    return;
+  }
+  $("status-msg").textContent = "Closing gaps on selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/close_gaps_selection_tracks", {
+      clip_ids: ids,
+      from_frame: 0,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `GapSel · ${r.count ?? 0} tracks`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`GapSel failed: ${e}`);
+    $("status-msg").textContent = `GapSel failed: ${e}`;
+  }
+}
+
+async function freezeSelectionMidsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to freeze";
+    return;
+  }
+  $("status-msg").textContent = "Freezing selection mids…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/freeze_selection_mids", {
+      clip_ids: ids,
+      duration_frames: 30,
+      insert: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FrzSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FrzSel failed: ${e}`);
+    $("status-msg").textContent = `FrzSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13243,6 +13322,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-match-sel", () => void matchSelectionDurationUi());
   proBind("btn-jcut-sel", () => void selectionJlCutUi("j"));
   proBind("btn-lcut-sel", () => void selectionJlCutUi("l"));
+  proBind("btn-exp-link", () => void expandSelectionLinksUi());
+  proBind("btn-gap-sel", () => void closeGapsSelectionTracksUi());
+  proBind("btn-frz-sel", () => void freezeSelectionMidsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

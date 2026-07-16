@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.15 — 2026-07-17
+
+### Added
+- `expand_selection_links` / `close_gaps_on_selection_tracks` / `freeze_selection_mids` + **ExpLink** / **GapSel** / **FrzSel**
+
 ## 0.6.14 — 2026-07-17
 
 ### Added
