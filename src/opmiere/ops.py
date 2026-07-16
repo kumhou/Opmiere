@@ -6739,6 +6739,109 @@ class Editor:
                 "agent_note": "Insert time before selection; later clips ripple right.",
             }
 
+    def remove_time_before_selection(
+        self,
+        clip_ids: list[str],
+        frames: int,
+    ) -> dict[str, Any]:
+        """Ripple-remove empty time before selection (inverse of insert_time).
+
+        Clips with start >= earliest selected on each track shift left by frames
+        (clamped so no start goes below 0).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        gap = int(frames)
+        if gap <= 0:
+            raise ValueError("frames must be > 0")
+        by_track: dict[str, int] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            s = int(clip.start)
+            if tr.id not in by_track or s < by_track[tr.id]:
+                by_track[tr.id] = s
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            applied: dict[str, int] = {}
+            for tid, cut in by_track.items():
+                tr = self.project.track_by_id(tid)
+                if tr.locked:
+                    raise ValueError(f"track {tid} is locked")
+                targets = [c for c in tr.clips_in_order() if int(c.start) >= cut]
+                if not targets:
+                    applied[tid] = 0
+                    continue
+                min_start = min(int(c.start) for c in targets)
+                d = min(gap, min_start)  # cannot go below 0
+                applied[tid] = d
+                if d <= 0:
+                    continue
+                for c in targets:
+                    old = int(c.start)
+                    c.start = old - d
+                    if c.transition_in is not None:
+                        c.transition_in = None
+                    moved.append(
+                        {
+                            "clip_id": c.id,
+                            "track_id": tid,
+                            "from": old,
+                            "to": int(c.start),
+                        }
+                    )
+            return {
+                "frames_requested": gap,
+                "applied": applied,
+                "tracks": list(by_track.keys()),
+                "cut_frames": by_track,
+                "count": len(moved),
+                "moved": moved,
+                "agent_note": "Remove time before selection; followers shift left.",
+            }
+
+    def ripple_nudge_selection(
+        self,
+        clip_ids: list[str],
+        delta_frames: int,
+        *,
+        include_self: bool = True,
+    ) -> dict[str, Any]:
+        """ripple_nudge from earliest selected clip on each track."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(delta_frames, int):
+            raise ValueError("delta_frames must be an int")
+        by_track: dict[str, tuple[int, str]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            s = int(clip.start)
+            if tr.id not in by_track or s < by_track[tr.id][0]:
+                by_track[tr.id] = (s, cid)
+        # process tracks independently; rightmost track first not needed
+        results: list[dict[str, Any]] = []
+        for tid, (_, anchor_id) in by_track.items():
+            r = self.ripple_nudge(
+                anchor_id, int(delta_frames), include_self=include_self,
+            )
+            r["track_id"] = tid
+            results.append(r)
+        return {
+            "delta_frames": int(delta_frames),
+            "count": len(results),
+            "tracks": results,
+            "agent_note": "One ripple_nudge per track from earliest selected.",
+        }
+
+    def razor_selection_at(
+        self,
+        clip_ids: list[str],
+        at_frame: int,
+    ) -> dict[str, Any]:
+        """Razor selected clips that span at_frame (alias split_selection_at)."""
+        r = self.split_selection_at(clip_ids, int(at_frame))
+        r["agent_note"] = "Razor selection at frame; non-spanning clips skipped."
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

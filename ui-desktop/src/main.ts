@@ -10596,6 +10596,88 @@ async function insertTimeBeforeSelectionUi() {
   }
 }
 
+async function removeTimeBeforeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for remove time";
+    return;
+  }
+  $("status-msg").textContent = "Removing time before selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      frames_requested?: number;
+    }>("/api/edit/remove_time_before_selection", {
+      clip_ids: ids,
+      frames: 15,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RmTime · −${r.frames_requested ?? 15}f moved ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RmTime failed: ${e}`);
+    $("status-msg").textContent = `RmTime failed: ${e}`;
+  }
+}
+
+async function rippleNudgeSelectionUi(delta: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to ripple-nudge";
+    return;
+  }
+  $("status-msg").textContent = `Ripple nudge ${delta}f…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/ripple_nudge_selection", {
+      clip_ids: ids,
+      delta_frames: delta,
+      include_self: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RNudge · tracks ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RNudge failed: ${e}`);
+    $("status-msg").textContent = `RNudge failed: ${e}`;
+  }
+}
+
+async function razorSelectionAtUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to razor";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Razor selection @ f${ph}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/razor_selection_at", {
+      clip_ids: ids,
+      at_frame: ph,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RazorSel@ · ${r.count ?? 0} @f${ph}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RazorSel@ failed: ${e}`);
+    $("status-msg").textContent = `RazorSel@ failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14539,6 +14621,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-nudge-sel-p", () => void nudgeSelectionUi(5));
   proBind("btn-move-ph-sel", () => void moveSelectionToPlayheadUi());
   proBind("btn-ins-time-sel", () => void insertTimeBeforeSelectionUi());
+  proBind("btn-rm-time-sel", () => void removeTimeBeforeSelectionUi());
+  proBind("btn-rnudge-sel-m", () => void rippleNudgeSelectionUi(-5));
+  proBind("btn-rnudge-sel-p", () => void rippleNudgeSelectionUi(5));
+  proBind("btn-razor-sel-at", () => void razorSelectionAtUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -4832,6 +4832,30 @@ def insert_time_before_selection(clip_ids: list[str], frames: int) -> dict:
 
 
 @mcp.tool()
+def remove_time_before_selection(clip_ids: list[str], frames: int) -> dict:
+    """Ripple-remove empty frames before selection on touched tracks."""
+    return _require_editor().remove_time_before_selection(clip_ids, frames)
+
+
+@mcp.tool()
+def ripple_nudge_selection(
+    clip_ids: list[str],
+    delta_frames: int,
+    include_self: bool = True,
+) -> dict:
+    """Ripple-nudge from earliest selected clip on each track."""
+    return _require_editor().ripple_nudge_selection(
+        clip_ids, delta_frames, include_self=include_self,
+    )
+
+
+@mcp.tool()
+def razor_selection_at(clip_ids: list[str], at_frame: int) -> dict:
+    """Razor selected clips that span at_frame."""
+    return _require_editor().razor_selection_at(clip_ids, at_frame)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

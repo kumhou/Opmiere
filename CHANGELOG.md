@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.31 — 2026-07-17
+
+### Added
+- `remove_time_before_selection` / `ripple_nudge_selection` / `razor_selection_at` + **RmTime** / **RNudge±** / **RazorSel@**
+
 ## 0.6.30 — 2026-07-17
 
 ### Added

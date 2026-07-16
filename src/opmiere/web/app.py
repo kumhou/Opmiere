@@ -8109,6 +8109,61 @@ def insert_time_before_selection_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RemoveTimeBeforeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    frames: int
+
+
+@app.post("/api/edit/remove_time_before_selection")
+def remove_time_before_selection_api(
+    body: RemoveTimeBeforeSelectionBody,
+) -> dict[str, Any]:
+    """Ripple-remove empty time before selection."""
+    ed = _ed()
+    try:
+        r = ed.remove_time_before_selection(body.clip_ids, body.frames)
+    except Exception as e:
+        raise HTTPException(400, f"remove_time_before_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RippleNudgeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    delta_frames: int
+    include_self: bool = True
+
+
+@app.post("/api/edit/ripple_nudge_selection")
+def ripple_nudge_selection_api(body: RippleNudgeSelectionBody) -> dict[str, Any]:
+    """Ripple-nudge from earliest selected per track."""
+    ed = _ed()
+    try:
+        r = ed.ripple_nudge_selection(
+            body.clip_ids,
+            body.delta_frames,
+            include_self=body.include_self,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ripple_nudge_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RazorSelectionAtBody(BaseModel):
+    clip_ids: list[str]
+    at_frame: int
+
+
+@app.post("/api/edit/razor_selection_at")
+def razor_selection_at_api(body: RazorSelectionAtBody) -> dict[str, Any]:
+    """Razor selection at frame."""
+    ed = _ed()
+    try:
+        r = ed.razor_selection_at(body.clip_ids, body.at_frame)
+    except Exception as e:
+        raise HTTPException(400, f"razor_selection_at failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
