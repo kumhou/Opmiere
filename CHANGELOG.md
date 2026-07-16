@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.89 — 2026-07-17
+
+### Added
+- Desktop **Stems** (demucs) + **Frm** extract_frame from bin media
+
 ## 0.4.88 — 2026-07-17
 
 ### Added
