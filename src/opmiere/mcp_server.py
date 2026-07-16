@@ -2225,6 +2225,28 @@ def export_frame_sequence(
 
 
 @mcp.tool()
+def export_storyboard(
+    out_dir: str,
+    include_markers: bool = True,
+    include_clip_mids: bool = True,
+    include_contact: bool = True,
+    include_chapters: bool = True,
+    width: int = 640,
+    max_stills: int = 64,
+) -> dict:
+    """Export review storyboard: stills + contact sheet + chapters."""
+    return _require_editor().export_storyboard(
+        out_dir,
+        include_markers=include_markers,
+        include_clip_mids=include_clip_mids,
+        include_contact=include_contact,
+        include_chapters=include_chapters,
+        width=width,
+        max_stills=max_stills,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

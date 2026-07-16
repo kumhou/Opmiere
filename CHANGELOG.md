@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.77 — 2026-07-17
+
+### Added
+- `export_storyboard` (stills + contact + chapters) + API/MCP/desktop **Story**
+
 ## 0.5.76 — 2026-07-17
 
 ### Added

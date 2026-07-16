@@ -3805,6 +3805,34 @@ def export_frame_sequence_api(body: FrameSequenceBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_frame_sequence failed: {e}") from e
 
 
+class StoryboardBody(BaseModel):
+    out_dir: str
+    include_markers: bool = True
+    include_clip_mids: bool = True
+    include_contact: bool = True
+    include_chapters: bool = True
+    width: int = 640
+    max_stills: int = 64
+
+
+@app.post("/api/export/storyboard")
+def export_storyboard_api(body: StoryboardBody) -> dict[str, Any]:
+    """Export review storyboard (stills + contact + chapters)."""
+    ed = _ed()
+    try:
+        return ed.export_storyboard(
+            body.out_dir,
+            include_markers=body.include_markers,
+            include_clip_mids=body.include_clip_mids,
+            include_contact=body.include_contact,
+            include_chapters=body.include_chapters,
+            width=body.width,
+            max_stills=body.max_stills,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_storyboard failed: {e}") from e
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

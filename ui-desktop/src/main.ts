@@ -2549,6 +2549,37 @@ async function clearEffectsUi() {
   }
 }
 
+async function exportStoryboardUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Storyboard output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting storyboard…";
+  try {
+    const r = await postJson<{
+      still_count?: number;
+      path?: string;
+      count?: number;
+    }>("/api/export/storyboard", {
+      out_dir: dir,
+      include_markers: true,
+      include_clip_mids: true,
+      include_contact: true,
+      include_chapters: true,
+      width: 640,
+      max_stills: 48,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Story · ${r.still_count ?? 0} stills · ${r.count ?? 0} files → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`Story failed: ${e}`);
+    $("status-msg").textContent = `Story failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10837,6 +10868,13 @@ window.addEventListener("DOMContentLoaded", () => {
     btnClrFx.addEventListener("click", () => {
       stopPlay();
       void clearEffectsUi();
+    });
+  }
+  const btnStory = document.getElementById("btn-storyboard");
+  if (btnStory) {
+    btnStory.addEventListener("click", () => {
+      stopPlay();
+      void exportStoryboardUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

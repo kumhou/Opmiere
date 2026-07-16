@@ -11046,6 +11046,121 @@ class Editor:
             "agent_note": "Handoff package written. Pair with import_edit_manifest to rehydrate layout.",
         }
 
+    def export_storyboard(
+        self,
+        out_dir: str | Path,
+        *,
+        include_markers: bool = True,
+        include_clip_mids: bool = True,
+        include_contact: bool = True,
+        include_chapters: bool = True,
+        width: int = 640,
+        max_stills: int = 64,
+    ) -> dict[str, Any]:
+        """Export a review storyboard folder: stills + optional contact + chapters.
+
+        - stills at markers (if any)
+        - mid-frame still per base-video clip
+        - sequence contact sheet
+        - youtube chapters text when markers exist
+        """
+        import re
+
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        stills_dir = out / "stills"
+        stills_dir.mkdir(exist_ok=True)
+        written: list[str] = []
+        stills: list[dict[str, Any]] = []
+        frames_done: set[int] = set()
+
+        def _still(frame: int, label: str) -> None:
+            if frame in frames_done or len(stills) >= max_stills:
+                return
+            safe = re.sub(r"[^\w\-]+", "_", label)[:40] or "shot"
+            dest = stills_dir / f"{len(stills):03d}_{safe}_f{frame}.jpg"
+            try:
+                r = self.export_still(dest, int(frame), width=width)
+                stills.append({
+                    "frame": int(frame),
+                    "label": label,
+                    "path": str(Path(r.get("path") or dest).resolve()),
+                })
+                written.append(str(dest.resolve()))
+                frames_done.add(int(frame))
+            except Exception as e:
+                stills.append({
+                    "frame": int(frame),
+                    "label": label,
+                    "error": str(e)[:200],
+                })
+
+        if include_markers and self.project.markers:
+            for m in sorted(self.project.markers, key=lambda x: x.frame):
+                _still(int(m.frame), m.label or f"m{m.frame}")
+
+        if include_clip_mids:
+            for tr in self.project.tracks:
+                if tr.kind != "video":
+                    continue
+                for c in tr.clips_in_order():
+                    mid = c.start + max(0, c.timeline_duration_frames // 2)
+                    _still(mid, c.name or c.id)
+                break  # base video track only
+
+        contact_path = None
+        if include_contact:
+            contact_path = out / "contact_sheet.jpg"
+            try:
+                cs = self.make_sequence_contact_sheet(
+                    contact_path, max_tiles=min(24, max_stills), tile_width=160,
+                )
+                if cs.get("path"):
+                    written.append(str(Path(cs["path"]).resolve()))
+                    contact_path = str(Path(cs["path"]).resolve())
+            except Exception as e:
+                contact_path = None
+                written.append(str((out / "contact_error.txt").resolve()))
+                (out / "contact_error.txt").write_text(str(e)[:400], encoding="utf-8")
+
+        chapters_path = None
+        if include_chapters:
+            try:
+                ch = self.export_markers(format="youtube")
+                body = ch.get("body") or ""
+                chapters_path = out / "youtube_chapters.txt"
+                chapters_path.write_text(str(body), encoding="utf-8")
+                written.append(str(chapters_path.resolve()))
+                chapters_path = str(chapters_path.resolve())
+            except Exception:
+                chapters_path = None
+
+        meta = {
+            "schema": "opmiere.storyboard.v1",
+            "still_count": len([s for s in stills if "path" in s]),
+            "stills": stills,
+            "contact_sheet": contact_path,
+            "chapters": chapters_path,
+            "files": written,
+        }
+        meta_path = out / "storyboard.json"
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
+        written.append(str(meta_path.resolve()))
+        return {
+            "path": str(out.resolve()),
+            "still_count": meta["still_count"],
+            "stills": stills,
+            "contact_sheet": contact_path,
+            "chapters": chapters_path,
+            "files": written,
+            "count": len(written),
+            "agent_note": (
+                "Storyboard for review. Pair with export_handoff_package for full agent pack."
+            ),
+        }
+
     def export_frame_sequence(
         self,
         out_dir: str | Path,
