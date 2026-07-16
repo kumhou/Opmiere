@@ -8688,6 +8688,85 @@ async function exportClipsStillsPackUi() {
   }
 }
 
+async function joinClipsUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select two adjacent clips to join";
+    return;
+  }
+  $("status-msg").textContent = "Joining clips…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/edit/join_clips", {
+      left_clip_id: ids[0],
+      right_clip_id: ids[1],
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Join · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Join failed: ${e}`);
+    $("status-msg").textContent = `Join failed: ${e}`;
+  }
+}
+
+async function pastePositionUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select source + targets (source first)";
+    return;
+  }
+  $("status-msg").textContent = "Pasting position…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clip/paste_position", {
+      source_clip_id: ids[0],
+      target_clip_ids: ids.slice(1),
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `PastePos · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`PastePos failed: ${e}`);
+    $("status-msg").textContent = `PastePos failed: ${e}`;
+  }
+}
+
+async function flipHSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to flip";
+    return;
+  }
+  $("status-msg").textContent = "Flipping…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clip/set_clips_flip", {
+      clip_ids: ids,
+      horizontal: true,
+      vertical: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FlipH · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FlipH failed: ${e}`);
+    $("status-msg").textContent = `FlipH failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12549,6 +12628,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rip-sel", () => void rippleDeleteSelectionUi());
   proBind("btn-copy-fx", () => void copyEffectsUi());
   proBind("btn-stills-pack", () => void exportClipsStillsPackUi());
+  proBind("btn-join", () => void joinClipsUi());
+  proBind("btn-paste-pos", () => void pastePositionUi());
+  proBind("btn-flip-h", () => void flipHSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -6681,6 +6681,63 @@ def export_clips_stills_pack_api(body: ExportClipsStillsPackBody) -> dict[str, A
         raise HTTPException(400, f"clips_stills_pack failed: {e}") from e
 
 
+class JoinClipsBody(BaseModel):
+    left_clip_id: str
+    right_clip_id: str
+
+
+@app.post("/api/edit/join_clips")
+def join_clips_api(body: JoinClipsBody) -> dict[str, Any]:
+    """Join two adjacent same-media clips."""
+    ed = _ed()
+    try:
+        r = ed.join_clips(body.left_clip_id, body.right_clip_id)
+    except Exception as e:
+        raise HTTPException(400, f"join_clips failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class PastePositionBody(BaseModel):
+    source_clip_id: str
+    target_clip_ids: list[str]
+
+
+@app.post("/api/clip/paste_position")
+def paste_position_api(body: PastePositionBody) -> dict[str, Any]:
+    """Paste PiP position from source to targets."""
+    ed = _ed()
+    try:
+        r = ed.paste_position(body.source_clip_id, body.target_clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"paste_position failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClipsFlipBody(BaseModel):
+    clip_ids: list[str]
+    horizontal: bool | None = True
+    vertical: bool | None = None
+    toggle_h: bool = False
+    toggle_v: bool = False
+
+
+@app.post("/api/clip/set_clips_flip")
+def set_clips_flip_api(body: ClipsFlipBody) -> dict[str, Any]:
+    """Batch hflip/vflip on clips."""
+    ed = _ed()
+    try:
+        r = ed.set_clips_flip(
+            body.clip_ids,
+            horizontal=body.horizontal,
+            vertical=body.vertical,
+            toggle_h=body.toggle_h,
+            toggle_v=body.toggle_v,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"set_clips_flip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -3368,6 +3368,116 @@ class Editor:
             "agent_note": "Mid/start/end stills per clip for storyboard grids.",
         }
 
+    def join_clips(
+        self,
+        left_clip_id: str,
+        right_clip_id: str,
+    ) -> dict[str, Any]:
+        """Join two adjacent clips on the same track into one (same media).
+
+        Requires: same track, same media, speed=1, right starts at left.end,
+        right.src_in == left.src_out (contiguous source). Transitions cleared.
+        """
+        self._assert_clip_track_unlocked(left_clip_id)
+        self._assert_clip_track_unlocked(right_clip_id)
+        with self._mutate():
+            tl, left = self._find_clip_and_track(left_clip_id)
+            tr, right = self._find_clip_and_track(right_clip_id)
+            if tl.id != tr.id:
+                raise ValueError("clips must be on the same track")
+            if left.id == right.id:
+                raise ValueError("clips must be different")
+            # order by start
+            if right.start < left.start:
+                left, right = right, left
+                left_clip_id, right_clip_id = right_clip_id, left_clip_id
+            if left.media != right.media:
+                raise ValueError("clips must share the same media")
+            if float(left.speed or 1.0) != 1.0 or float(right.speed or 1.0) != 1.0:
+                raise ValueError("join_clips requires speed=1.0 on both clips")
+            if int(right.start) != int(left.end):
+                raise ValueError(
+                    f"clips must be adjacent (left.end={left.end}, right.start={right.start})"
+                )
+            if int(right.src_in) != int(left.src_out):
+                raise ValueError(
+                    "source ranges must be contiguous "
+                    f"(left.src_out={left.src_out}, right.src_in={right.src_in})"
+                )
+            new_out = int(right.src_out)
+            old_right = right.id
+            left.src_out = new_out
+            left.transition_in = left.transition_in  # keep left's
+            if right.transition_in is not None:
+                # right's transition becomes meaningless after merge
+                pass
+            tr.clips.remove(right)
+            return {
+                "clip_id": left.id,
+                "removed_clip_id": old_right,
+                "track_id": tl.id,
+                "src_in": left.src_in,
+                "src_out": left.src_out,
+                "start": left.start,
+                "end": left.end,
+                "agent_note": "Joined contiguous same-media clips into one.",
+            }
+
+    def paste_position(
+        self,
+        source_clip_id: str,
+        target_clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Copy PiP position dict from source onto targets (or clear if none)."""
+        if not target_clip_ids:
+            raise ValueError("target_clip_ids is empty")
+        src = self._find_clip(source_clip_id)
+        pos = dict(src.position) if src.position else None
+        applied: list[str] = []
+        with self._mutate():
+            for tid in dict.fromkeys(target_clip_ids):
+                if tid == source_clip_id:
+                    continue
+                self._assert_clip_track_unlocked(tid)
+                clip = self._find_clip(tid)
+                clip.position = dict(pos) if pos else None
+                applied.append(tid)
+        return {
+            "source_clip_id": source_clip_id,
+            "position": pos,
+            "count": len(applied),
+            "targets": applied,
+            "agent_note": "Position (x/y/scale) pasted; crop/effects unchanged.",
+        }
+
+    def set_clips_flip(
+        self,
+        clip_ids: list[str],
+        *,
+        horizontal: bool | None = None,
+        vertical: bool | None = None,
+        toggle_h: bool = False,
+        toggle_v: bool = False,
+    ) -> dict[str, Any]:
+        """Apply set_clip_flip to many clips (one call each)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            r = self.set_clip_flip(
+                cid,
+                horizontal=horizontal,
+                vertical=vertical,
+                toggle_h=toggle_h,
+                toggle_v=toggle_v,
+            )
+            out.append(r)
+        return {
+            "count": len(out),
+            "clips": out,
+            "agent_note": "Batch flip; path-C maps hflip/vflip.",
+        }
+
     def slip_clip(self, clip_id: str, delta_src_frames: int) -> dict[str, Any]:
         """Slip: slide source in/out together; timeline start/duration unchanged.
 

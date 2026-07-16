@@ -4047,6 +4047,39 @@ def export_clips_stills_pack(
 
 
 @mcp.tool()
+def join_clips(left_clip_id: str, right_clip_id: str) -> dict:
+    """Join two adjacent same-media clips on one track."""
+    return _require_editor().join_clips(left_clip_id, right_clip_id)
+
+
+@mcp.tool()
+def paste_position(
+    source_clip_id: str,
+    target_clip_ids: list[str],
+) -> dict:
+    """Copy PiP position (x/y/scale) from source to targets."""
+    return _require_editor().paste_position(source_clip_id, target_clip_ids)
+
+
+@mcp.tool()
+def set_clips_flip(
+    clip_ids: list[str],
+    horizontal: bool | None = True,
+    vertical: bool | None = None,
+    toggle_h: bool = False,
+    toggle_v: bool = False,
+) -> dict:
+    """Batch set/toggle hflip/vflip on clips."""
+    return _require_editor().set_clips_flip(
+        clip_ids,
+        horizontal=horizontal,
+        vertical=vertical,
+        toggle_h=toggle_h,
+        toggle_v=toggle_v,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

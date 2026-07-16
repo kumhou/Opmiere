@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.6 — 2026-07-17
+
+### Added
+- `join_clips` (adjacent same-media) + **Join**
+- `paste_position` / `set_clips_flip` + **PastePos** / **FlipH**
+
 ## 0.6.5 — 2026-07-17
 
 ### Added
