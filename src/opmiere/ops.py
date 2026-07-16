@@ -5011,6 +5011,105 @@ class Editor:
                 "agent_note": f"Curves preset '{preset}' applied.",
             }
 
+    def apply_compression(
+        self,
+        clip_id: str,
+        *,
+        ratio: float = 4.0,
+        threshold_db: float = -18.0,
+        attack_ms: float = 20.0,
+        release_ms: float = 250.0,
+        makeup_db: float = 0.0,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply audio compression effect to a clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        r = float(ratio)
+        if not (1.0 <= r <= 20.0):
+            raise ValueError("ratio must be in [1, 20]")
+        fx = {
+            "type": "compression",
+            "ratio": r,
+            "threshold_db": float(threshold_db),
+            "attack_ms": float(attack_ms),
+            "release_ms": float(release_ms),
+            "makeup_db": float(makeup_db),
+        }
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "compression"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Audio compression on clip; use on dialogue tracks.",
+            }
+
+    def apply_audio_eq(
+        self,
+        clip_id: str,
+        *,
+        frequency_hz: float = 1000.0,
+        gain_db: float = 0.0,
+        q: float = 1.0,
+        replace: bool = False,
+    ) -> dict[str, Any]:
+        """Apply a parametric audio_eq band to a clip.
+
+        replace=True clears existing audio_eq effects first; default appends a band.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        freq = float(frequency_hz)
+        gdb = float(gain_db)
+        qv = float(q)
+        if not (20.0 <= freq <= 20000.0):
+            raise ValueError("frequency_hz must be in [20, 20000]")
+        if not (-24.0 <= gdb <= 24.0):
+            raise ValueError("gain_db must be in [-24, 24]")
+        if not (0.0 < qv <= 10.0):
+            raise ValueError("q must be in (0, 10]")
+        fx = {
+            "type": "audio_eq",
+            "frequency_hz": freq,
+            "gain_db": gdb,
+            "q": qv,
+        }
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "audio_eq"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Parametric EQ band; call multiple times for multi-band.",
+            }
+
+    def export_clip_audio(
+        self,
+        clip_id: str,
+        output_path: str | Path,
+        *,
+        sample_rate: int | None = None,
+    ) -> dict[str, Any]:
+        """Export timeline audio for a clip's frame span (wav/m4a/mp3 by suffix)."""
+        clip = self._find_clip(clip_id)
+        r = self.export_audio(
+            output_path,
+            start_frame=int(clip.start),
+            end_frame=int(clip.end),
+            sample_rate=sample_rate,
+        )
+        r["clip_id"] = clip_id
+        r["start_frame"] = clip.start
+        r["end_frame"] = clip.end
+        return r
+
     def export_webm(
         self,
         output_path: str | Path,

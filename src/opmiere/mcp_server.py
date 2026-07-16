@@ -3794,6 +3794,58 @@ def export_clip_webm(
 
 
 @mcp.tool()
+def apply_compression(
+    clip_id: str,
+    ratio: float = 4.0,
+    threshold_db: float = -18.0,
+    attack_ms: float = 20.0,
+    release_ms: float = 250.0,
+    makeup_db: float = 0.0,
+    replace: bool = True,
+) -> dict:
+    """Apply audio compression to a clip."""
+    return _require_editor().apply_compression(
+        clip_id,
+        ratio=ratio,
+        threshold_db=threshold_db,
+        attack_ms=attack_ms,
+        release_ms=release_ms,
+        makeup_db=makeup_db,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def apply_audio_eq(
+    clip_id: str,
+    frequency_hz: float = 1000.0,
+    gain_db: float = 0.0,
+    q: float = 1.0,
+    replace: bool = False,
+) -> dict:
+    """Apply a parametric EQ band to a clip (append by default)."""
+    return _require_editor().apply_audio_eq(
+        clip_id,
+        frequency_hz=frequency_hz,
+        gain_db=gain_db,
+        q=q,
+        replace=replace,
+    )
+
+
+@mcp.tool()
+def export_clip_audio(
+    clip_id: str,
+    output_path: str,
+    sample_rate: int | None = None,
+) -> dict:
+    """Export mixdown audio for a clip span (wav/m4a/mp3 by suffix)."""
+    return _require_editor().export_clip_audio(
+        clip_id, output_path, sample_rate=sample_rate,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

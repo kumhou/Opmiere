@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 — 2026-07-17
+
+### Added
+- `apply_compression` / `apply_audio_eq` + **Comp** / **EQ**
+- `export_clip_audio` (clip span mixdown) + **ClipAud**
+
 ## 0.5.99 — 2026-07-17
 
 ### Added

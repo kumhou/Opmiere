@@ -6281,6 +6281,79 @@ def export_clip_webm_api(body: ExportClipWebmBody) -> dict[str, Any]:
         raise HTTPException(400, f"clip_webm failed: {e}") from e
 
 
+class CompressionBody(BaseModel):
+    clip_id: str
+    ratio: float = 4.0
+    threshold_db: float = -18.0
+    attack_ms: float = 20.0
+    release_ms: float = 250.0
+    makeup_db: float = 0.0
+    replace: bool = True
+
+
+@app.post("/api/clip/compression")
+def compression_api(body: CompressionBody) -> dict[str, Any]:
+    """Apply audio compression to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_compression(
+            body.clip_id,
+            ratio=body.ratio,
+            threshold_db=body.threshold_db,
+            attack_ms=body.attack_ms,
+            release_ms=body.release_ms,
+            makeup_db=body.makeup_db,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"compression failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class AudioEqBody(BaseModel):
+    clip_id: str
+    frequency_hz: float = 1000.0
+    gain_db: float = 0.0
+    q: float = 1.0
+    replace: bool = False
+
+
+@app.post("/api/clip/audio_eq")
+def audio_eq_api(body: AudioEqBody) -> dict[str, Any]:
+    """Apply parametric EQ band to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_audio_eq(
+            body.clip_id,
+            frequency_hz=body.frequency_hz,
+            gain_db=body.gain_db,
+            q=body.q,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"audio_eq failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportClipAudioBody(BaseModel):
+    clip_id: str
+    output_path: str | None = None
+    sample_rate: int | None = None
+
+
+@app.post("/api/export/clip_audio")
+def export_clip_audio_api(body: ExportClipAudioBody) -> dict[str, Any]:
+    """Export mixdown audio for a clip's timeline span."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "clip.wav")
+    try:
+        return ed.export_clip_audio(
+            body.clip_id, out, sample_rate=body.sample_rate,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clip_audio failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

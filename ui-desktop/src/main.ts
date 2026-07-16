@@ -8241,6 +8241,80 @@ async function exportClipWebmUi() {
   }
 }
 
+async function compressionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for compression";
+    return;
+  }
+  $("status-msg").textContent = "Applying compression…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/compression", {
+      clip_id: ids[0],
+      ratio: 4,
+      threshold_db: -18,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Comp · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Comp failed: ${e}`);
+    $("status-msg").textContent = `Comp failed: ${e}`;
+  }
+}
+
+async function audioEqUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for EQ";
+    return;
+  }
+  $("status-msg").textContent = "Applying EQ…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/audio_eq", {
+      clip_id: ids[0],
+      frequency_hz: 1000,
+      gain_db: 3,
+      q: 1,
+      replace: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `EQ · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`EQ failed: ${e}`);
+    $("status-msg").textContent = `EQ failed: ${e}`;
+  }
+}
+
+async function exportClipAudioUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for ClipAud";
+    return;
+  }
+  $("status-msg").textContent = "Exporting clip audio…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clip_audio", {
+      clip_id: ids[0],
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClipAud → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`ClipAud failed: ${e}`);
+    $("status-msg").textContent = `ClipAud failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12082,6 +12156,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-curves", () => void curvesUi());
   proBind("btn-clip-gif", () => void exportClipGifUi());
   proBind("btn-clip-webm", () => void exportClipWebmUi());
+  proBind("btn-comp", () => void compressionUi());
+  proBind("btn-eq", () => void audioEqUi());
+  proBind("btn-clip-aud", () => void exportClipAudioUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
