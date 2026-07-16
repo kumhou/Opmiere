@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.68 — 2026-07-16
+
+### Added
+- Desktop **Px✕** invalidate proxy + **Recent∅** clear recent
+
 ## 0.4.67 — 2026-07-16
 
 ### Added
