@@ -5145,7 +5145,24 @@ async function applyFxPreset(kind: string) {
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
     void refreshEffectsList();
-    $("status-msg").textContent = `FX ${kind} on ${ids.length} clip(s)`;
+    // Dual-surface: tell editor whether path-C still preview can approximate this FX.
+    let pathNote = "";
+    try {
+      const cat = await getJson<{
+        mapped?: string[];
+        unmapped?: string[];
+        adapter_version?: number;
+      }>("/api/preview/openshot_effects");
+      const et = String(effect.type || "");
+      if (et && Array.isArray(cat.mapped) && cat.mapped.includes(et)) {
+        pathNote = ` · path-C v${cat.adapter_version ?? "?"} maps ${et}`;
+      } else if (et && Array.isArray(cat.unmapped) && cat.unmapped.includes(et)) {
+        pathNote = ` · path-C skips ${et} (export/ffmpeg still applies)`;
+      }
+    } catch {
+      /* catalog optional */
+    }
+    $("status-msg").textContent = `FX ${kind} on ${ids.length} clip(s)${pathNote}`;
     void seekTo(state.t);
     scheduleProxyRefresh();
   } catch (e) {

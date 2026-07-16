@@ -517,6 +517,42 @@ for c in plan["clips"]:
                     pass
         except Exception:
             pass
+    # film_grain amount → Noise when available
+    try:
+        grain = float(c.get("film_grain", 0) or 0)
+    except Exception:
+        grain = 0.0
+    if grain > 0.5:
+        try:
+            # amount 0..100 → soft 0..1 intensity for Noise constructors that take one float
+            g = max(0.01, min(1.0, grain / 100.0))
+            if hasattr(openshot, "Noise"):
+                ne = openshot.Noise(float(g))
+                clip.AddEffect(ne)
+                applied.append("film_grain")
+        except Exception:
+            pass
+    # chroma_key → ChromaKey / greenscreen when available
+    ck = c.get("chroma_key") or {{}}
+    if isinstance(ck, dict) and ck:
+        try:
+            color = str(ck.get("color") or "green").lower()
+            sim = float(ck.get("similarity", 0.15) or 0.15)
+            blend = float(ck.get("blend", 0.05) or 0.05)
+            # RGB key color
+            if color == "blue":
+                kr, kg, kb = 0.0, 0.0, 1.0
+            else:
+                kr, kg, kb = 0.0, 1.0, 0.0
+            if hasattr(openshot, "ChromaKey"):
+                try:
+                    ce = openshot.ChromaKey(openshot.Color(kr, kg, kb), float(sim), float(blend))
+                except Exception:
+                    ce = openshot.ChromaKey(float(sim), float(blend))
+                clip.AddEffect(ce)
+                applied.append("chroma_key")
+        except Exception:
+            pass
     # vignette strength → Mask / edge darken when available
     try:
         vig = float(c.get("vignette", 0) or 0)

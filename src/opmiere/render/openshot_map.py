@@ -17,9 +17,11 @@ Mapped for path-C frame grab (incremental):
   - sharpen amount (Sharpen/Convolution when available)
   - ken_burns → scale + location keyframe ramps
   - white_balance temperature → Hue/Sat approximation
+  - film_grain amount (Noise when available)
+  - chroma_key color/similarity (ChromaKey when available)
 
 Still unsupported (listed in plan): transitions, complex grade FX
-(curves/lut/text/…), audio effects, chroma/luma key, base-track position.
+(curves/lut/text/…), audio effects, luma key, base-track position.
 """
 
 from __future__ import annotations
@@ -35,23 +37,25 @@ __all__ = [
     "plan_preview_size",
     "clip_visual_props",
     "path_c_effect_catalog",
+    "clip_path_c_support",
 ]
 
 # Effect types the OpenShot path-C adapter can approximate for still frames.
 _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
+    "film_grain", "chroma_key",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "gain", "text", "chroma_key", "luma_key",
-    "curves", "film_grain", "glow", "lut3d",
+    "gain", "text", "luma_key",
+    "curves", "glow", "lut3d",
     "shape_mask", "subtitles", "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 5
+ADAPTER_VERSION = 6
 
 
 def path_c_effect_catalog() -> dict[str, Any]:
@@ -66,7 +70,28 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "ken_burns": "scale_x/y + location_x/y keyframe ramps",
             "white_balance": "temperature → hue/sat approximation",
             "color": "brightness only on still frames",
+            "film_grain": "Noise/grain when libopenshot exposes it",
+            "chroma_key": "ChromaKey green/blue key when available",
         },
+    }
+
+
+def clip_path_c_support(clip: Any) -> dict[str, Any]:
+    """Per-clip breakdown of path-C support for current effects."""
+    vis = clip_visual_props(clip)
+    effects = []
+    for e in clip.effects or []:
+        if isinstance(e, dict) and e.get("type"):
+            effects.append(str(e["type"]))
+    mapped = list(vis.get("mapped_effects") or [])
+    unmapped = list(vis.get("unmapped_effects") or [])
+    return {
+        "clip_id": getattr(clip, "id", None),
+        "adapter_version": ADAPTER_VERSION,
+        "effects": effects,
+        "mapped": mapped,
+        "unmapped": unmapped,
+        "path_c_ready": len(unmapped) == 0,
     }
 
 
@@ -99,6 +124,8 @@ def clip_visual_props(
     fade_out = 0
     vignette = 0.0
     sharpen = 0.0
+    film_grain = 0.0
+    chroma_key: dict[str, Any] | None = None
     ken_burns: dict[str, float] | None = None
     white_balance: dict[str, float] | None = None
     mapped: list[str] = []
@@ -196,6 +223,28 @@ def clip_visual_props(
                 mapped.append("white_balance")
             except (TypeError, ValueError):
                 unmapped.append("white_balance")
+        elif et == "film_grain":
+            try:
+                film_grain = float(e.get("amount", 20.0) or 0)
+            except (TypeError, ValueError):
+                film_grain = 0.0
+            if film_grain > 0:
+                mapped.append("film_grain")
+            else:
+                unmapped.append("film_grain")
+        elif et == "chroma_key":
+            try:
+                color = str(e.get("color") or "green").lower().strip()
+                similarity = float(e.get("similarity", 0.15))
+                blend = float(e.get("blend", 0.05))
+                chroma_key = {
+                    "color": color if color in ("green", "blue") else "green",
+                    "similarity": max(0.01, min(1.0, similarity)),
+                    "blend": max(0.0, min(1.0, blend)),
+                }
+                mapped.append("chroma_key")
+            except (TypeError, ValueError):
+                unmapped.append("chroma_key")
         elif et == "crop":
             # Opmiere crop is pixel box; convert to fractions of project frame.
             try:
@@ -241,6 +290,8 @@ def clip_visual_props(
         "fade_out_frames": fade_out,
         "vignette": vignette,
         "sharpen": sharpen,
+        "film_grain": film_grain,
+        "chroma_key": chroma_key,
         "ken_burns": ken_burns,
         "white_balance": white_balance,
         "mapped_effects": mapped,
@@ -341,6 +392,7 @@ def build_openshot_plan(
                 "fade_out_frames": vis.get("fade_out_frames") or 0,
                 "vignette": vis.get("vignette") or 0.0,
                 "sharpen": vis.get("sharpen") or 0.0,
+                "film_grain": vis.get("film_grain") or 0.0,
             }
             if vis.get("crop"):
                 entry["crop"] = vis["crop"]
@@ -348,6 +400,8 @@ def build_openshot_plan(
                 entry["ken_burns"] = vis["ken_burns"]
             if vis.get("white_balance"):
                 entry["white_balance"] = vis["white_balance"]
+            if vis.get("chroma_key"):
+                entry["chroma_key"] = vis["chroma_key"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.37 — 2026-07-17
+
+### Added
+- OpenShot path-C **adapter v6**: `film_grain` + `chroma_key` mapping
+- `GET /api/clip/{id}/path_c` per-clip path-C support for agents
+- Desktop FX presets report whether path-C maps or skips the effect
 ## 0.5.36 — 2026-07-17
 
 ### Added
@@ -1332,4 +1338,5 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 

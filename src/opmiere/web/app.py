@@ -2863,6 +2863,16 @@ def preview_openshot_effects() -> dict[str, Any]:
     return path_c_effect_catalog()
 
 
+@app.get("/api/clip/{clip_id}/path_c")
+def clip_path_c(clip_id: str) -> dict[str, Any]:
+    """Per-clip path-C support for current effect stack (agents + desktop)."""
+    from opmiere.render.openshot_map import clip_path_c_support
+
+    ed = _ed()
+    clip = ed._find_clip(clip_id)  # noqa: SLF001 — same pattern as other clip GETs
+    return clip_path_c_support(clip)
+
+
 @app.post("/api/preview/openshot_frame")
 def preview_openshot_frame(body: OpenShotFrameBody) -> dict[str, Any]:
     """Path-C multi-clip frame via OpenShot sidecar."""
