@@ -3409,6 +3409,359 @@ def normalize_file_api(body: NormalizeFileBody) -> dict[str, Any]:
         raise HTTPException(400, f"normalize failed: {e}") from e
 
 
+# --- Craft / mix / delivery helpers (0.4.71+) ---
+
+
+class PathOnlyBody(BaseModel):
+    path: str
+
+
+class DetectBeatsBody(BaseModel):
+    path: str
+    max_seconds: float | None = 180.0
+    sensitivity: float = 1.15
+
+
+class SuggestMixBody(BaseModel):
+    vo_path: str | None = None
+    music_path: str | None = None
+    sfx_path: str | None = None
+    vo_track_id: str | None = None
+    music_track_id: str | None = None
+
+
+class ColorMatchBody(BaseModel):
+    reference_clip_id: str
+    clip_ids: list[str] | None = None
+    strength: float = 0.65
+
+
+class ApplySilenceBody(BaseModel):
+    clip_id: str
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.4
+    pad_seconds: float = 0.08
+    min_keep_seconds: float = 0.2
+    dry_run: bool = True
+
+
+class PlaceAfterBody(BaseModel):
+    after_clip_id: str
+    media_id: str
+    src_in: int = 0
+    src_out: int | None = None
+
+
+class SuggestProjectBody(BaseModel):
+    paths: list[str] | None = None
+    preference: str = "auto"
+
+
+class DeliveryLimitsBody(BaseModel):
+    paths: list[str] | None = None
+    fps: float | None = None
+    width: int | None = None
+    height: int | None = None
+
+
+class CaptionClipBody(BaseModel):
+    clip_id: str
+    srt_path: str | None = None
+    model_size: str = "base"
+    language: str | None = None
+
+
+class ExportRangeBody(BaseModel):
+    output_path: str | None = None
+    start_seconds: float
+    end_seconds: float
+    normalize_preset: str | None = None
+    run_delivery_check: bool = False
+
+
+class PreviewRangeBody(BaseModel):
+    output_path: str | None = None
+    start_seconds: float
+    end_seconds: float
+    height: int = 360
+    fps: float = 12.0
+    ensure_proxy: bool = True
+
+
+class OffsetLinkedBody(BaseModel):
+    clip_id: str
+    delta_frames: int
+    kinds: list[str] | None = None
+
+
+class RippleTrimBody(BaseModel):
+    clip_id: str
+    new_src_in: int | None = None
+    new_src_out: int | None = None
+
+
+class AnalyzeAssetBody(BaseModel):
+    path: str
+    do_scenes: bool = True
+    do_silence: bool = True
+    do_motion: bool = True
+    do_transcribe: bool = False
+
+
+class ApplyMixPlanBody(BaseModel):
+    plan: dict[str, Any]
+    role_clip_ids: dict[str, list[str]] | None = None
+    music_track_id: str | None = None
+    vo_track_id: str | None = None
+
+
+@app.get("/api/looks")
+def list_looks_api() -> dict[str, Any]:
+    return _ed().list_look_presets()
+
+
+@app.get("/api/encode_status")
+def encode_status_api() -> dict[str, Any]:
+    return _ed().encode_status()
+
+
+@app.post("/api/detect/beats")
+def detect_beats_api(body: DetectBeatsBody) -> dict[str, Any]:
+    try:
+        return _ed().detect_beats(
+            body.path,
+            max_seconds=body.max_seconds,
+            sensitivity=body.sensitivity,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"detect_beats failed: {e}") from e
+
+
+@app.post("/api/suggest/mix")
+def suggest_mix_api(body: SuggestMixBody | None = None) -> dict[str, Any]:
+    body = body or SuggestMixBody()
+    try:
+        return _ed().suggest_mix(
+            vo_path=body.vo_path,
+            music_path=body.music_path,
+            sfx_path=body.sfx_path,
+            vo_track_id=body.vo_track_id,
+            music_track_id=body.music_track_id,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"suggest_mix failed: {e}") from e
+
+
+@app.post("/api/clips/color_match")
+def color_match_api(body: ColorMatchBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.color_match_to_clip(
+            body.reference_clip_id,
+            clip_ids=body.clip_ids,
+            strength=body.strength,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"color_match failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/apply_silence")
+def apply_silence_api(body: ApplySilenceBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.apply_silence_to_clip(
+            body.clip_id,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            pad_seconds=body.pad_seconds,
+            min_keep_seconds=body.min_keep_seconds,
+            dry_run=body.dry_run,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_silence failed: {e}") from e
+    out: dict[str, Any] = {**r}
+    if not body.dry_run:
+        out["timeline"] = ed.timeline_view()
+    return out
+
+
+@app.get("/api/media/{media_id}/clips")
+def clips_sharing_media_api(media_id: str) -> dict[str, Any]:
+    return _ed().clips_sharing_media(media_id)
+
+
+@app.post("/api/place_after")
+def place_after_api(body: PlaceAfterBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        clip = ed.place_after(
+            body.after_clip_id,
+            body.media_id,
+            src_in=body.src_in,
+            src_out=body.src_out,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"place_after failed: {e}") from e
+    return {
+        "clip": clip.to_dict() if hasattr(clip, "to_dict") else {"id": clip.id},
+        "timeline": ed.timeline_view(),
+    }
+
+
+@app.post("/api/suggest/fps")
+def suggest_fps_api(body: SuggestProjectBody | None = None) -> dict[str, Any]:
+    body = body or SuggestProjectBody()
+    try:
+        return _ed().suggest_project_fps(paths=body.paths, preference=body.preference)
+    except Exception as e:
+        raise HTTPException(400, f"suggest_fps failed: {e}") from e
+
+
+@app.post("/api/suggest/resolution")
+def suggest_resolution_api(body: SuggestProjectBody | None = None) -> dict[str, Any]:
+    body = body or SuggestProjectBody()
+    try:
+        return _ed().suggest_project_resolution(
+            paths=body.paths, preference=body.preference,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"suggest_resolution failed: {e}") from e
+
+
+@app.post("/api/delivery/limits")
+def delivery_limits_api(body: DeliveryLimitsBody | None = None) -> dict[str, Any]:
+    body = body or DeliveryLimitsBody()
+    try:
+        return _ed().check_delivery_limits(
+            paths=body.paths,
+            fps=body.fps,
+            width=body.width,
+            height=body.height,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"delivery_limits failed: {e}") from e
+
+
+@app.get("/api/media/{media_id}/transcript")
+def load_transcript_api(media_id: str) -> dict[str, Any]:
+    r = _ed().load_cached_transcript(media_id)
+    if r is None:
+        return {"media_id": media_id, "transcript": None, "cached": False}
+    return {"media_id": media_id, "transcript": r, "cached": True}
+
+
+@app.post("/api/clip/caption")
+def caption_clip_api(body: CaptionClipBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.caption_clip(
+            body.clip_id,
+            srt_path=body.srt_path,
+            model_size=body.model_size,
+            language=body.language,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"caption_clip failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/export/range")
+def export_range_api(body: ExportRangeBody) -> dict[str, Any]:
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "range.mp4")
+    try:
+        return ed.export_range(
+            out,
+            body.start_seconds,
+            body.end_seconds,
+            normalize_preset=body.normalize_preset,
+            run_delivery_check=body.run_delivery_check,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"export_range failed: {e}") from e
+
+
+@app.post("/api/preview/range")
+def preview_range_api(body: PreviewRangeBody) -> dict[str, Any]:
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "preview_range.mp4")
+    try:
+        return ed.preview_range(
+            out,
+            body.start_seconds,
+            body.end_seconds,
+            ensure_proxy=body.ensure_proxy,
+            height=body.height,
+            fps=body.fps,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"preview_range failed: {e}") from e
+
+
+@app.post("/api/clip/offset_linked")
+def offset_linked_api(body: OffsetLinkedBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.offset_linked(
+            body.clip_id, body.delta_frames, kinds=body.kinds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"offset_linked failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/clip/ripple_trim")
+def ripple_trim_api(body: RippleTrimBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.ripple_trim(
+            body.clip_id,
+            new_src_in=body.new_src_in,
+            new_src_out=body.new_src_out,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ripple_trim failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/analyze/asset")
+def analyze_asset_api(body: AnalyzeAssetBody) -> dict[str, Any]:
+    try:
+        return _ed().analyze_asset(
+            body.path,
+            do_scenes=body.do_scenes,
+            do_silence=body.do_silence,
+            do_motion=body.do_motion,
+            do_transcribe=body.do_transcribe,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"analyze_asset failed: {e}") from e
+
+
+@app.post("/api/mix/apply_plan")
+def apply_mix_plan_api(body: ApplyMixPlanBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.apply_mix_plan(
+            body.plan,
+            role_clip_ids=body.role_clip_ids,
+            music_track_id=body.music_track_id,
+            vo_track_id=body.vo_track_id,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_mix_plan failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/suggest/dialogue_chain")
+def dialogue_chain_api(body: PathOnlyBody) -> dict[str, Any]:
+    try:
+        return _ed().suggest_dialogue_chain(body.path)
+    except Exception as e:
+        raise HTTPException(400, f"dialogue_chain failed: {e}") from e
+
+
 if _STATIC.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 

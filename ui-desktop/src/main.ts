@@ -5676,6 +5676,349 @@ async function writeSrtFromMarkersUi() {
   }
 }
 
+async function binMediaPath(): Promise<string | null> {
+  if (!state.binMediaId) return null;
+  try {
+    const media = await getJson<{
+      media?: Array<{ id?: string; abs_path?: string; path?: string }>;
+    }>("/api/media");
+    const m = (media.media || []).find((x) => x.id === state.binMediaId);
+    return m?.abs_path || m?.path || null;
+  } catch {
+    return null;
+  }
+}
+
+async function showLooksUi() {
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/looks");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Look presets";
+  } catch (e) {
+    $("status-msg").textContent = `Looks failed: ${e}`;
+  }
+}
+
+async function showEncodeStatusUi() {
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/encode_status");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = r.nvenc
+      ? "NVENC ready"
+      : "Software encode (libx264)";
+  } catch (e) {
+    $("status-msg").textContent = `Encode status failed: ${e}`;
+  }
+}
+
+async function detectBeatsUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media for beats";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/detect/beats", {
+      path,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Beats detected";
+  } catch (e) {
+    setProOut(`Beats failed: ${e}`);
+    $("status-msg").textContent = `Beats failed: ${e}`;
+  }
+}
+
+async function suggestMixUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/suggest/mix", {});
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Mix plan ready";
+  } catch (e) {
+    setProOut(`Mix plan failed: ${e}`);
+    $("status-msg").textContent = `Mix plan failed: ${e}`;
+  }
+}
+
+async function colorMatchUi() {
+  const ids = selectionList();
+  if (ids.length < 1) {
+    $("status-msg").textContent = "Select reference clip first (then others)";
+    return;
+  }
+  const ref = ids[0];
+  const others = ids.length > 1 ? ids.slice(1) : null;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clips/color_match",
+      {
+        reference_clip_id: ref,
+        clip_ids: others,
+        strength: 0.65,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Color match → ${ref}`;
+  } catch (e) {
+    $("status-msg").textContent = `Color match failed: ${e}`;
+  }
+}
+
+async function applySilenceUi(dryRun: boolean) {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip for silence cut";
+    return;
+  }
+  if (
+    !dryRun &&
+    !window.confirm("Apply silence keep-ranges to selection? (undoable)")
+  ) {
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/apply_silence",
+      { clip_id: ids[0], dry_run: dryRun },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = dryRun
+      ? "Silence plan (dry-run)"
+      : "Silence applied";
+  } catch (e) {
+    $("status-msg").textContent = `Silence failed: ${e}`;
+  }
+}
+
+async function clipsSharingMediaUi() {
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select bin media";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>(
+      `/api/media/${encodeURIComponent(state.binMediaId)}/clips`,
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Clips sharing media";
+  } catch (e) {
+    $("status-msg").textContent = `Sharing media failed: ${e}`;
+  }
+}
+
+async function placeAfterUi() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip to place after";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select bin media to place";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/place_after", {
+      after_clip_id: ids[0],
+      media_id: state.binMediaId,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = "Placed after selection";
+    scheduleProxyRefresh();
+  } catch (e) {
+    $("status-msg").textContent = `Place after failed: ${e}`;
+  }
+}
+
+async function suggestFpsResUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    let paths: string[] = [];
+    try {
+      const media = await getJson<{
+        media?: Array<{ abs_path?: string; path?: string }>;
+      }>("/api/media");
+      paths = (media.media || [])
+        .map((m) => m.abs_path || m.path || "")
+        .filter(Boolean);
+    } catch {
+      /* empty */
+    }
+    const fps = await postJson<Record<string, unknown>>("/api/suggest/fps", {
+      paths,
+      preference: "auto",
+    });
+    const res = await postJson<Record<string, unknown>>(
+      "/api/suggest/resolution",
+      { paths, preference: "auto" },
+    );
+    setProOut(JSON.stringify({ fps, resolution: res }, null, 2));
+    $("status-msg").textContent = "FPS / resolution suggestion";
+  } catch (e) {
+    $("status-msg").textContent = `Suggest failed: ${e}`;
+  }
+}
+
+async function deliveryLimitsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/delivery/limits", {
+      fps: state.fps,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Delivery limits check";
+  } catch (e) {
+    $("status-msg").textContent = `Delivery limits failed: ${e}`;
+  }
+}
+
+async function loadTranscriptUi() {
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select bin media";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>(
+      `/api/media/${encodeURIComponent(state.binMediaId)}/transcript`,
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = r.cached
+      ? "Cached transcript"
+      : "No cached transcript";
+  } catch (e) {
+    $("status-msg").textContent = `Transcript failed: ${e}`;
+  }
+}
+
+async function captionClipUi() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip for caption";
+    return;
+  }
+  $("status-msg").textContent = "Caption (ASR)…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/caption", {
+      clip_id: ids[0],
+      model_size: "base",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Caption applied";
+  } catch (e) {
+    setProOut(`Caption failed: ${e}`);
+    $("status-msg").textContent = `Caption failed: ${e}`;
+  }
+}
+
+async function exportRangeIoUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const a = state.workIO.in_frame;
+  const b = state.workIO.out_frame;
+  if (a == null || b == null || b <= a) {
+    $("status-msg").textContent = "Set I/O for range export";
+    return;
+  }
+  const fps = Math.max(1, state.fps);
+  const start = a / fps;
+  const end = b / fps;
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/range", {
+      start_seconds: start,
+      end_seconds: end,
+      normalize_preset: null,
+      run_delivery_check: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Range export ${start.toFixed(2)}–${end.toFixed(2)}s`;
+  } catch (e) {
+    $("status-msg").textContent = `Range export failed: ${e}`;
+  }
+}
+
+async function previewRangeIoUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const a = state.workIO.in_frame;
+  const b = state.workIO.out_frame;
+  if (a == null || b == null || b <= a) {
+    $("status-msg").textContent = "Set I/O for preview range";
+    return;
+  }
+  const fps = Math.max(1, state.fps);
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/preview/range", {
+      start_seconds: a / fps,
+      end_seconds: b / fps,
+      height: 360,
+      fps: 12,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Preview range ready";
+  } catch (e) {
+    $("status-msg").textContent = `Preview range failed: ${e}`;
+  }
+}
+
+async function offsetLinkedUi(delta: number) {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip for linked offset";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/clip/offset_linked",
+      { clip_id: ids[0], delta_frames: delta, kinds: ["audio"] },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Linked offset Δ${delta}`;
+  } catch (e) {
+    $("status-msg").textContent = `Offset linked failed: ${e}`;
+  }
+}
+
+async function analyzeAssetUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media for asset card";
+    return;
+  }
+  $("status-msg").textContent = "Analyze asset…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/analyze/asset", {
+      path,
+      do_scenes: true,
+      do_silence: true,
+      do_motion: true,
+      do_transcribe: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Asset card ready";
+  } catch (e) {
+    setProOut(`Asset analyze failed: ${e}`);
+    $("status-msg").textContent = `Asset analyze failed: ${e}`;
+  }
+}
+
 /** Dump OpenShot multi-clip plan (path-C diagnostics, no render). */
 async function showOpenshotPlan() {
   if (!state.projectOpen) {
@@ -8110,6 +8453,24 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-px-inval", () => void invalidatePreviewUi());
   proBind("btn-recent-clr", () => void clearRecentUi());
   proBind("btn-srt", () => void writeSrtFromMarkersUi());
+  proBind("btn-looks", () => void showLooksUi());
+  proBind("btn-enc", () => void showEncodeStatusUi());
+  proBind("btn-det-beats", () => void detectBeatsUi());
+  proBind("btn-mix-plan", () => void suggestMixUi());
+  proBind("btn-color-match", () => void colorMatchUi());
+  proBind("btn-sil-plan", () => void applySilenceUi(true));
+  proBind("btn-sil-go", () => void applySilenceUi(false));
+  proBind("btn-share-media", () => void clipsSharingMediaUi());
+  proBind("btn-place-after", () => void placeAfterUi());
+  proBind("btn-suggest-fmt", () => void suggestFpsResUi());
+  proBind("btn-deliv-lim", () => void deliveryLimitsUi());
+  proBind("btn-transcript", () => void loadTranscriptUi());
+  proBind("btn-caption", () => void captionClipUi());
+  proBind("btn-exp-range", () => void exportRangeIoUi());
+  proBind("btn-px-range", () => void previewRangeIoUi());
+  proBind("btn-off-link-m", () => void offsetLinkedUi(-6));
+  proBind("btn-off-link-p", () => void offsetLinkedUi(6));
+  proBind("btn-asset-card", () => void analyzeAssetUi());
   document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
     b.addEventListener("click", () => {
       const kind = b.dataset.fx || "";

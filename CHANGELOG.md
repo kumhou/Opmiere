@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.71 — 2026-07-16
+
+### Added
+- **Craft API surface**: looks, encode_status, beats, mix, color_match, silence, place_after, fps/res suggest, delivery limits, transcript, caption, range export, offset_linked, asset analyze
+- Desktop **Looks** / **Enc**
+- Test: `tests/test_desktop_craft_api_102.py`
+
 ## 0.4.70 — 2026-07-16
 
 ### Added
