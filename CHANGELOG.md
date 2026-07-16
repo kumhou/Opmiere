@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.58 — 2026-07-17
+
+### Added
+- `match_grade_to_clip` + API/MCP/desktop **MatchG** (hero grade → targets)
+- OpenShot path-C **adapter v17**: `lut3d` path in plan
 ## 0.5.57 — 2026-07-17
 
 ### Added
@@ -1440,6 +1445,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

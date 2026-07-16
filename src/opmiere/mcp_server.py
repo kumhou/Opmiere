@@ -1572,6 +1572,22 @@ def balance_clip_gains(
 
 
 @mcp.tool()
+def match_grade_to_clip(
+    source_clip_id: str,
+    target_clip_ids: list[str],
+    replace: bool = True,
+    effect_types: list[str] | None = None,
+) -> dict:
+    """Copy grade effects from one hero clip onto many targets."""
+    return _require_editor().match_grade_to_clip(
+        source_clip_id,
+        target_clip_ids,
+        replace=replace,
+        effect_types=effect_types,
+    )
+
+
+@mcp.tool()
 def openshot_plan(height: int = 360, include_audio: bool = False) -> dict:
     """OpenShot multi-clip plan (optional audio track listing)."""
     return _require_editor().openshot_plan(

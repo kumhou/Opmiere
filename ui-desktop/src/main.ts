@@ -5656,6 +5656,37 @@ async function balanceGainsUi() {
   }
 }
 
+async function matchGradeUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select source + targets (first = grade source)";
+    return;
+  }
+  const source = ids[0];
+  const targets = ids.slice(1);
+  $("status-msg").textContent = `Match grade → ${targets.length} clips…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      types?: string[];
+    }>("/api/clips/match_grade", {
+      source_clip_id: source,
+      target_clip_ids: targets,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MatchG · ${r.count ?? targets.length} · ${(r.types || []).join(",") || "fx"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`MatchG failed: ${e}`);
+    $("status-msg").textContent = `MatchG failed: ${e}`;
+  }
+}
+
 async function importFcpxmlFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9567,6 +9598,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-mkr-seg", () => void exportMarkerSegmentsUi());
   proBind("btn-track-stems", () => void exportTrackStemsUi());
   proBind("btn-bal-gain", () => void balanceGainsUi());
+  proBind("btn-match-grade", () => void matchGradeUi());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-interchange", () => void interchangeCatalogUi());

@@ -1753,6 +1753,61 @@ class Editor:
             "agent_note": "Session effects clipboard — paste_effects. Not in .opm.",
         }
 
+    def match_grade_to_clip(
+        self,
+        source_clip_id: str,
+        target_clip_ids: list[str],
+        *,
+        replace: bool = True,
+        effect_types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Copy grade effects from source onto many targets (one undo).
+
+        effect_types=None copies all visual grade types (not gain/audio).
+        Agents: grade one hero shot then match_grade_to_clip across the cut.
+        """
+        if not target_clip_ids:
+            raise ValueError("target_clip_ids is empty")
+        source = self._find_clip(source_clip_id)
+        grade_default = {
+            "color", "curves", "lut3d", "white_balance", "vignette",
+            "blur", "sharpen", "glow", "film_grain", "opacity", "fade",
+        }
+        allow = set(effect_types) if effect_types else grade_default
+        incoming = [
+            dict(e) for e in (source.effects or [])
+            if isinstance(e, dict) and e.get("type") in allow
+        ]
+        with self._mutate():
+            applied: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(target_clip_ids):
+                if cid == source_clip_id:
+                    continue
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                if replace:
+                    # keep non-grade effects when filtering
+                    keep = [
+                        e for e in (clip.effects or [])
+                        if not (isinstance(e, dict) and e.get("type") in allow)
+                    ]
+                    clip.effects = keep + [dict(e) for e in incoming]
+                else:
+                    clip.effects = list(clip.effects or []) + [dict(e) for e in incoming]
+                applied.append({
+                    "clip_id": cid,
+                    "effect_count": len(incoming),
+                    "types": [e.get("type") for e in incoming],
+                })
+            return {
+                "source_clip_id": source_clip_id,
+                "count": len(applied),
+                "applied": applied,
+                "types": [e.get("type") for e in incoming],
+                "replace": replace,
+                "agent_note": "Grade matched; path-C maps most grade FX — check project/path_c.",
+            }
+
     def paste_effects(
         self,
         clip_id: str,

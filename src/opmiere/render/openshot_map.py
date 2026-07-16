@@ -51,17 +51,16 @@ _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
-    "shape_mask", "text", "subtitles", "gain",
+    "shape_mask", "text", "subtitles", "gain", "lut3d",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "lut3d",
     "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 16
+ADAPTER_VERSION = 17
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -111,6 +110,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "subtitles": "SRT/ASS path recorded in plan for burn-in awareness",
             "gain": "gain_db carried on plan clips (audio mix / export)",
             "audio_tracks": "include_audio=True lists audio clips in plan.audio",
+            "lut3d": "cube/3dl path recorded; grade applied at ffmpeg export",
         },
     }
 
@@ -200,6 +200,7 @@ def clip_visual_props(
     text_overlay: dict[str, Any] | None = None
     subtitles: dict[str, Any] | None = None
     gain_db = 0.0
+    lut3d: dict[str, Any] | None = None
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -307,6 +308,13 @@ def clip_visual_props(
             except (TypeError, ValueError):
                 gain_db = 0.0
             mapped.append("gain")
+        elif et == "lut3d":
+            path = str(e.get("path") or "").strip()
+            if path:
+                lut3d = {"path": path, "exists": Path(path).is_file()}
+                mapped.append("lut3d")
+            else:
+                unmapped.append("lut3d")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)
@@ -468,6 +476,7 @@ def clip_visual_props(
         "text": text_overlay,
         "subtitles": subtitles,
         "gain_db": gain_db,
+        "lut3d": lut3d,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -635,6 +644,8 @@ def build_openshot_plan(
                 entry["text"] = vis["text"]
             if vis.get("subtitles"):
                 entry["subtitles"] = vis["subtitles"]
+            if vis.get("lut3d"):
+                entry["lut3d"] = vis["lut3d"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {

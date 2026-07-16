@@ -3823,6 +3823,29 @@ def balance_gains_api(body: BalanceGainsBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MatchGradeBody(BaseModel):
+    source_clip_id: str
+    target_clip_ids: list[str]
+    replace: bool = True
+    effect_types: list[str] | None = None
+
+
+@app.post("/api/clips/match_grade")
+def match_grade_api(body: MatchGradeBody) -> dict[str, Any]:
+    """Copy grade FX from source clip onto targets."""
+    ed = _ed()
+    try:
+        r = ed.match_grade_to_clip(
+            body.source_clip_id,
+            body.target_clip_ids,
+            replace=body.replace,
+            effect_types=body.effect_types,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"match_grade failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)
