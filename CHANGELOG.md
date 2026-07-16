@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.93 — 2026-07-17
+
+### Added
+- Generate **steps / w / h** inputs → `/api/generate` params
+
 ## 0.4.92 — 2026-07-17
 
 ### Added
