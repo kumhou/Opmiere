@@ -707,6 +707,7 @@ function updateSelectionCard() {
     });
   }
   void enrichSelectionFades(ids[0]);
+  void enrichClipGainOpacity(ids[0]);
   void refreshEffectsList();
 }
 
@@ -6019,6 +6020,303 @@ async function analyzeAssetUi() {
   }
 }
 
+async function enrichClipGainOpacity(clipId: string) {
+  try {
+    const g = await getJson<{ db?: number }>(
+      `/api/clip/${encodeURIComponent(clipId)}/gain`,
+    );
+    const o = await getJson<{ amount?: number }>(
+      `/api/clip/${encodeURIComponent(clipId)}/opacity`,
+    );
+    const card = document.getElementById("sel-card");
+    if (card && !card.classList.contains("muted")) {
+      let el = document.getElementById("sel-gain-op");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "sel-gain-op";
+        el.className = "kv";
+        card.appendChild(el);
+      }
+      el.textContent = `gain ${g.db ?? "?"} dB · opac ${o.amount ?? "?"}`;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function trimClipToIoUi() {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip for source trim";
+    return;
+  }
+  const c = state.clips.get(ids[0]);
+  if (!c) {
+    $("status-msg").textContent = "Clip not found";
+    return;
+  }
+  // prompt source frames
+  const raw = window.prompt(
+    "src_in,src_out (source frames)",
+    `0,${Math.max(1, c.dur)}`,
+  );
+  if (raw == null) return;
+  const parts = raw.split(",").map((s) => parseInt(s.trim(), 10));
+  if (parts.length !== 2 || !parts.every((n) => Number.isFinite(n))) {
+    $("status-msg").textContent = "Bad src_in,src_out";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/clip/trim", {
+      clip_id: ids[0],
+      src_in: parts[0],
+      src_out: parts[1],
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Trim src ${parts[0]}–${parts[1]}`;
+  } catch (e) {
+    $("status-msg").textContent = `Trim failed: ${e}`;
+  }
+}
+
+async function slugMediaUi(place: boolean) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView; media?: { id?: string } }>(
+      "/api/media/slug",
+      { kind: "video", place, start: place ? playheadFrame() : null },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    await refreshMediaBin();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = place
+      ? `Slug placed ${r.media?.id || ""}`
+      : `Slug media ${r.media?.id || ""}`;
+  } catch (e) {
+    $("status-msg").textContent = `Slug failed: ${e}`;
+  }
+}
+
+async function clipTransitionUi(clear: boolean) {
+  const ids = selectionList();
+  if (ids.length !== 1) {
+    $("status-msg").textContent = "Select one clip for transition";
+    return;
+  }
+  try {
+    const r = clear
+      ? await postJson<{ timeline?: TimelineView }>(
+          "/api/clip/transition/clear",
+          { clip_id: ids[0] },
+        )
+      : await postJson<{ timeline?: TimelineView }>("/api/clip/transition", {
+          clip_id: ids[0],
+          transition_type: "cross_dissolve",
+          duration_frames: 12,
+        });
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = clear ? "Transition cleared" : "Transition +12f";
+  } catch (e) {
+    $("status-msg").textContent = `Transition failed: ${e}`;
+  }
+}
+
+async function rippleDeleteRangeIoUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const a = state.workIO.in_frame;
+  const b = state.workIO.out_frame;
+  if (a == null || b == null || b <= a) {
+    $("status-msg").textContent = "Set I/O for ripple delete range";
+    return;
+  }
+  if (!window.confirm(`Ripple delete f${a}–${b}?`)) return;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/ripple_delete_range",
+      { start_frame: a, end_frame: b },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    $("status-msg").textContent = `Ripple deleted f${a}–${b}`;
+  } catch (e) {
+    $("status-msg").textContent = `Ripple range failed: ${e}`;
+  }
+}
+
+async function markersColorBatchUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const color = window.prompt("Marker color (#hex)", "#7c9cff");
+  if (color == null || !color.trim()) return;
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/markers/color_batch",
+      { color: color.trim() },
+    );
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Markers → ${color.trim()}`;
+  } catch (e) {
+    $("status-msg").textContent = `Marker color failed: ${e}`;
+  }
+}
+
+async function mediaContactSheetUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media for contact sheet";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/media/contact_sheet",
+      { path, cols: 3, rows: 3 },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Contact sheet → ${r.path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Contact sheet failed: ${e}`;
+  }
+}
+
+async function loadCachedAssetAnalysisUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/asset/analysis", {
+      path,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = r.cached
+      ? "Cached asset analysis"
+      : "No cached analysis — run Asset first";
+  } catch (e) {
+    $("status-msg").textContent = `Analysis load failed: ${e}`;
+  }
+}
+
+async function roomToneSuggestUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media for room tone";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/room_tone/suggest",
+      { path },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Room tone suggest";
+  } catch (e) {
+    $("status-msg").textContent = `Room tone failed: ${e}`;
+  }
+}
+
+async function roomToneExtractUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/room_tone/extract",
+      { path },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Room tone extract → ${r.path || r.output_path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Extract room tone failed: ${e}`;
+  }
+}
+
+async function roomTonePlaceUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media (room tone source)";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/room_tone/place",
+      { source_path: path, start_frame: playheadFrame(), gain_db: -8 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Room tone placed";
+  } catch (e) {
+    $("status-msg").textContent = `Place room tone failed: ${e}`;
+  }
+}
+
+async function separateStemsUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media for stems";
+    return;
+  }
+  $("status-msg").textContent = "Separating stems (may take a while)…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/stems/separate", {
+      path,
+      two_stems: "vocals",
+      device: "cpu",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Stems separated";
+  } catch (e) {
+    setProOut(`Stems failed: ${e}`);
+    $("status-msg").textContent = `Stems failed: ${e}`;
+  }
+}
+
+async function extractFrameBinUi() {
+  const path = await binMediaPath();
+  if (!path) {
+    $("status-msg").textContent = "Select bin media";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/media/extract_frame",
+      { path, time_seconds: state.t, width: 640 },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Frame → ${r.path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Extract frame failed: ${e}`;
+  }
+}
+
+async function prepareForExportUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/prepare_for_export",
+      { fill_video: true, fill_audio: false, clear_empty_tracks: true },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Prepared for export";
+  } catch (e) {
+    $("status-msg").textContent = `Prepare failed: ${e}`;
+  }
+}
+
 /** Dump OpenShot multi-clip plan (path-C diagnostics, no render). */
 async function showOpenshotPlan() {
   if (!state.projectOpen) {
@@ -8471,6 +8769,25 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-off-link-m", () => void offsetLinkedUi(-6));
   proBind("btn-off-link-p", () => void offsetLinkedUi(6));
   proBind("btn-asset-card", () => void analyzeAssetUi());
+  proBind("btn-clip-gain-op", () => {
+    const ids = selectionList();
+    if (ids.length === 1) void enrichClipGainOpacity(ids[0]);
+  });
+  proBind("btn-trim-src", () => void trimClipToIoUi());
+  proBind("btn-slug", () => void slugMediaUi(false));
+  proBind("btn-slug-place", () => void slugMediaUi(true));
+  proBind("btn-xfade-1", () => void clipTransitionUi(false));
+  proBind("btn-xfade-clr-1", () => void clipTransitionUi(true));
+  proBind("btn-rip-range", () => void rippleDeleteRangeIoUi());
+  proBind("btn-mk-color", () => void markersColorBatchUi());
+  proBind("btn-media-sheet", () => void mediaContactSheetUi());
+  proBind("btn-asset-load", () => void loadCachedAssetAnalysisUi());
+  proBind("btn-rt-suggest", () => void roomToneSuggestUi());
+  proBind("btn-rt-extract", () => void roomToneExtractUi());
+  proBind("btn-rt-place", () => void roomTonePlaceUi());
+  proBind("btn-stems", () => void separateStemsUi());
+  proBind("btn-frame-bin", () => void extractFrameBinUi());
+  proBind("btn-prep-exp2", () => void prepareForExportUi());
   document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
     b.addEventListener("click", () => {
       const kind = b.dataset.fx || "";

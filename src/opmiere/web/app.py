@@ -3762,6 +3762,312 @@ def dialogue_chain_api(body: PathOnlyBody) -> dict[str, Any]:
         raise HTTPException(400, f"dialogue_chain failed: {e}") from e
 
 
+# --- Deep craft (0.4.81+) ---
+
+
+class TrimClipBody(BaseModel):
+    clip_id: str
+    src_in: int
+    src_out: int
+
+
+class SlugMediaBody(BaseModel):
+    kind: str = "video"
+    place: bool = False
+    track_id: str | None = None
+    start: int | None = None
+
+
+class ClipTransitionBody(BaseModel):
+    clip_id: str
+    transition_type: str = "cross_dissolve"
+    duration_frames: int = 12
+
+
+class ClipIdOnlyBody(BaseModel):
+    clip_id: str
+
+
+class RippleDeleteRangeBody(BaseModel):
+    start_frame: int
+    end_frame: int
+    track_id: str | None = None
+    kind: str | None = None
+
+
+class MarkerColorBatchBody(BaseModel):
+    color: str
+    marker_ids: list[str] | None = None
+
+
+class MediaContactSheetBody(BaseModel):
+    path: str
+    output_path: str | None = None
+    cols: int = 3
+    rows: int = 3
+
+
+class KeepRangesBody(BaseModel):
+    clip_id: str
+    keep_ranges: list[dict[str, Any]]
+    time_unit: str = "seconds"
+
+
+class RoomToneSuggestBody(BaseModel):
+    path: str
+
+
+class RoomToneExtractBody(BaseModel):
+    path: str
+    output_path: str | None = None
+
+
+class RoomTonePlaceBody(BaseModel):
+    source_path: str
+    track_id: str | None = None
+    start_frame: int = 0
+    loop_to_seconds: float | None = None
+    gain_db: float = -8.0
+
+
+class SeparateStemsBody(BaseModel):
+    path: str
+    output_dir: str | None = None
+    model: str = "htdemucs"
+    two_stems: str | None = "vocals"
+    device: str = "cpu"
+
+
+class ExtractFrameFileBody(BaseModel):
+    path: str
+    time_seconds: float = 0.0
+    output_path: str | None = None
+    width: int = 640
+
+
+class CacheTranscriptBody(BaseModel):
+    media_id: str
+    transcript: dict[str, Any]
+
+
+class PrepareForExportBody(BaseModel):
+    fill_video: bool = True
+    fill_audio: bool = False
+    clear_empty_tracks: bool = True
+
+
+@app.get("/api/clip/{clip_id}/gain")
+def get_clip_gain_api(clip_id: str) -> dict[str, Any]:
+    return {"clip_id": clip_id, "db": _ed().get_clip_gain_db(clip_id)}
+
+
+@app.get("/api/clip/{clip_id}/opacity")
+def get_clip_opacity_api(clip_id: str) -> dict[str, Any]:
+    return {"clip_id": clip_id, "amount": _ed().get_clip_opacity(clip_id)}
+
+
+@app.post("/api/clip/trim")
+def trim_clip_api(body: TrimClipBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        clip = ed.trim_clip(body.clip_id, body.src_in, body.src_out)
+    except Exception as e:
+        raise HTTPException(400, f"trim_clip failed: {e}") from e
+    return {
+        "clip": clip.to_dict() if hasattr(clip, "to_dict") else {"id": body.clip_id},
+        "timeline": ed.timeline_view(),
+    }
+
+
+@app.post("/api/media/slug")
+def ensure_slug_media_api(body: SlugMediaBody | None = None) -> dict[str, Any]:
+    body = body or SlugMediaBody()
+    kind = body.kind if body.kind in ("video", "audio", "image") else "video"
+    ed = _ed()
+    try:
+        media = ed.ensure_slug_media(kind=kind)  # type: ignore[arg-type]
+    except Exception as e:
+        raise HTTPException(400, f"ensure_slug_media failed: {e}") from e
+    out: dict[str, Any] = {
+        "media": media.to_dict() if hasattr(media, "to_dict") else {"id": media.id},
+    }
+    if body.place:
+        tracks = ed.project.tracks
+        tid = body.track_id
+        if not tid:
+            match = next((t for t in tracks if t.kind == kind), None)
+            if match is None:
+                match = ed.add_track(kind)  # type: ignore[arg-type]
+            tid = match.id
+        start = body.start if body.start is not None else ed.duration_frames()
+        placed = ed.place_media(media.id, tid, start)
+        out["place"] = placed if isinstance(placed, dict) else {"result": placed}
+        out["timeline"] = ed.timeline_view()
+    return out
+
+
+@app.post("/api/clip/transition")
+def add_clip_transition_api(body: ClipTransitionBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        clip = ed.add_transition(
+            body.clip_id, body.transition_type, body.duration_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"add_transition failed: {e}") from e
+    return {
+        "clip": clip.to_dict() if hasattr(clip, "to_dict") else {"id": body.clip_id},
+        "timeline": ed.timeline_view(),
+    }
+
+
+@app.post("/api/clip/transition/clear")
+def remove_clip_transition_api(body: ClipIdOnlyBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        clip = ed.remove_transition(body.clip_id)
+    except Exception as e:
+        raise HTTPException(400, f"remove_transition failed: {e}") from e
+    return {
+        "clip": clip.to_dict() if hasattr(clip, "to_dict") else {"id": body.clip_id},
+        "timeline": ed.timeline_view(),
+    }
+
+
+@app.post("/api/ripple_delete_range")
+def ripple_delete_range_api(body: RippleDeleteRangeBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.ripple_delete_range(
+            body.start_frame,
+            body.end_frame,
+            track_id=body.track_id,
+            kind=body.kind,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ripple_delete_range failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/markers/color_batch")
+def markers_color_batch_api(body: MarkerColorBatchBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        return ed.set_marker_color_batch(body.color, marker_ids=body.marker_ids)
+    except Exception as e:
+        raise HTTPException(400, f"marker color batch failed: {e}") from e
+
+
+@app.post("/api/media/contact_sheet")
+def media_contact_sheet_api(body: MediaContactSheetBody) -> dict[str, Any]:
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "media_contact.jpg")
+    try:
+        path = ed.make_contact_sheet(body.path, out, cols=body.cols, rows=body.rows)
+    except Exception as e:
+        raise HTTPException(400, f"contact_sheet failed: {e}") from e
+    return {"path": str(path), "cols": body.cols, "rows": body.rows}
+
+
+@app.post("/api/clip/keep_ranges")
+def apply_keep_ranges_api(body: KeepRangesBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.apply_keep_ranges(
+            body.clip_id, body.keep_ranges, time_unit=body.time_unit,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_keep_ranges failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/asset/analysis")
+def load_asset_analysis_api(body: PathOnlyBody) -> dict[str, Any]:
+    r = _ed().load_asset_analysis(body.path)
+    return {"path": body.path, "analysis": r, "cached": r is not None}
+
+
+@app.post("/api/room_tone/suggest")
+def room_tone_suggest_api(body: RoomToneSuggestBody) -> dict[str, Any]:
+    try:
+        return _ed().suggest_room_tone(body.path)
+    except Exception as e:
+        raise HTTPException(400, f"suggest_room_tone failed: {e}") from e
+
+
+@app.post("/api/room_tone/extract")
+def room_tone_extract_api(body: RoomToneExtractBody) -> dict[str, Any]:
+    out = body.output_path or str(_desktop_export_dir() / "room_tone.wav")
+    try:
+        return _ed().extract_room_tone(body.path, out)
+    except Exception as e:
+        raise HTTPException(400, f"extract_room_tone failed: {e}") from e
+
+
+@app.post("/api/room_tone/place")
+def room_tone_place_api(body: RoomTonePlaceBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.place_room_tone(
+            body.source_path,
+            track_id=body.track_id,
+            start_frame=body.start_frame,
+            loop_to_seconds=body.loop_to_seconds,
+            gain_db=body.gain_db,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"place_room_tone failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/stems/separate")
+def separate_stems_api(body: SeparateStemsBody) -> dict[str, Any]:
+    out_dir = body.output_dir or str(_desktop_export_dir() / "stems")
+    try:
+        return _ed().separate_stems(
+            body.path, out_dir, model=body.model,
+            two_stems=body.two_stems, device=body.device,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"separate_stems failed: {e}") from e
+
+
+@app.post("/api/media/extract_frame")
+def extract_frame_file_api(body: ExtractFrameFileBody) -> dict[str, Any]:
+    out = body.output_path or str(
+        _desktop_export_dir() / f"frame_{body.time_seconds:.2f}s.jpg"
+    )
+    try:
+        return _ed().extract_frame(
+            body.path, body.time_seconds, out, width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"extract_frame failed: {e}") from e
+
+
+@app.post("/api/media/cache_transcript")
+def cache_transcript_api(body: CacheTranscriptBody) -> dict[str, Any]:
+    try:
+        return _ed().cache_transcript(body.media_id, body.transcript)
+    except Exception as e:
+        raise HTTPException(400, f"cache_transcript failed: {e}") from e
+
+
+@app.post("/api/prepare_for_export")
+def prepare_for_export_api(body: PrepareForExportBody | None = None) -> dict[str, Any]:
+    body = body or PrepareForExportBody()
+    ed = _ed()
+    try:
+        r = ed.prepare_for_export(
+            fill_video=body.fill_video,
+            fill_audio=body.fill_audio,
+            clear_empty_tracks=body.clear_empty_tracks,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"prepare_for_export failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 if _STATIC.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.81 — 2026-07-17
+
+### Added
+- Deep craft APIs: gain/opacity get, trim_clip, slug, transitions, ripple range, marker color batch, media contact sheet, keep_ranges, room tone, stems, extract_frame, prepare_for_export
+- Desktop **G/O** refresh + **TrimSrc**
+- Test: `tests/test_desktop_deep_craft_103.py`
+
 ## 0.4.80 — 2026-07-16
 
 ### Added
