@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.56 — 2026-07-16
+
+### Added
+- Drag **move** commits via `/api/clip/layout` (atomic + quick preview)
+- Single-clip **rename** → `/api/clip/meta`; sel-card double-click rename
+- Inspector fades from `GET /api/clip/fades/{id}`
+- Grade extras: **Sharp / Warm / Cool / Title** (text lower-third)
+- **OS plan** / **OS frame** path-C diagnostics
+- Test: `tests/test_desktop_layout_os_096.py`
+
 ## 0.4.55 — 2026-07-16
 
 ### Added

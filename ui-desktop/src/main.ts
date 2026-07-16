@@ -680,17 +680,50 @@ function updateSelectionCard() {
   }
   el.className = "sel-card";
   const name = c.name || c.label || c.id;
+  const fadeIn = c.fade_in_frames ?? 0;
+  const fadeOut = c.fade_out_frames ?? 0;
   el.innerHTML = [
-    `<div class="sel-title">${escapeHtml(name)}</div>`,
+    `<div class="sel-title" title="Double-click to rename">${escapeHtml(name)}</div>`,
     `<div class="kv">id <span>${escapeHtml(c.id)}</span></div>`,
     `<div class="kv">f${c.start} · ${c.dur}f · ${c.speed ?? 1}×</div>`,
     `<div class="kv">gain ${c.gain_db ?? 0} dB · opac ${c.opacity ?? 1}</div>`,
+    `<div class="kv" id="sel-fades">fade in ${fadeIn}f · out ${fadeOut}f</div>`,
     c.muted ? `<div class="kv">muted</div>` : "",
     c.link_group ? `<div class="kv">link ${escapeHtml(c.link_group)}</div>` : "",
   ]
     .filter(Boolean)
     .join("");
+  const title = el.querySelector(".sel-title");
+  if (title) {
+    title.addEventListener("dblclick", () => {
+      void renameSelection();
+    });
+  }
+  void enrichSelectionFades(ids[0]);
   void refreshEffectsList();
+}
+
+/** Refresh fade line from GET /api/clip/fades/{id} (source of truth). */
+async function enrichSelectionFades(clipId: string) {
+  const line = document.getElementById("sel-fades");
+  if (!line || !state.selected.has(clipId) || state.selected.size !== 1) return;
+  try {
+    const r = await getJson<{
+      fade_in_frames?: number;
+      fade_out_frames?: number;
+      clip_id?: string;
+    }>(`/api/clip/fades/${encodeURIComponent(clipId)}`);
+    const fi = r.fade_in_frames ?? 0;
+    const fo = r.fade_out_frames ?? 0;
+    line.textContent = `fade in ${fi}f · out ${fo}f`;
+    const c = state.clips.get(clipId);
+    if (c) {
+      c.fade_in_frames = fi;
+      c.fade_out_frames = fo;
+    }
+  } catch {
+    /* keep timeline-derived fades */
+  }
 }
 
 function escapeHtml(s: string): string {
@@ -704,10 +737,12 @@ function escapeHtml(s: string): string {
 async function moveClip(clipId: string, startFrame: number) {
   $("status-msg").textContent = `Moving ${clipId} → f${startFrame}…`;
   try {
+    // Atomic layout write (one undo) + optional quick proxy refresh.
     const r = await postJson<{
       timeline?: TimelineView;
-      clip?: { start?: number };
-    }>("/api/clip/move", {
+      layout?: { start?: number };
+      preview?: { fresh?: boolean };
+    }>("/api/clip/layout", {
       clip_id: clipId,
       start_frame: startFrame,
       refresh_preview: true,
@@ -715,7 +750,9 @@ async function moveClip(clipId: string, startFrame: number) {
     });
     if (r.timeline) {
       applyTimelineView(r.timeline);
-      state.proxyFresh = !!r.timeline.proxy?.fresh;
+      state.proxyFresh = !!(
+        r.preview?.fresh ?? r.timeline.proxy?.fresh
+      );
     }
     $("status-msg").textContent = `Moved ${clipId} → f${startFrame}`;
     void seekTo(state.t);
@@ -4502,20 +4539,40 @@ async function renameSelection() {
     $("status-msg").textContent = "Select clip(s) to rename";
     return;
   }
+  const c0 = state.clips.get(ids[0]);
   const current =
+    c0?.name ||
+    c0?.label ||
     document.querySelector<HTMLElement>(
       `.clip-block.selected[data-clip-id="${ids[0]}"]`,
-    )?.dataset.label || "";
-  const name = window.prompt("Clip name:", current);
+    )?.dataset.label ||
+    "";
+  const name = window.prompt(
+    ids.length === 1 ? "Clip name:" : `Name for ${ids.length} clips:`,
+    current,
+  );
   if (name == null) return;
   const trimmed = name.trim();
   try {
-    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/meta", {
-      clip_ids: ids,
-      name: trimmed || null,
-      clear_name: !trimmed,
-    });
-    if (r.timeline) applyTimelineView(r.timeline);
+    let last: TimelineView | undefined;
+    if (ids.length === 1) {
+      // Single-clip path uses /api/clip/meta
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/meta", {
+        clip_id: ids[0],
+        name: trimmed || null,
+        clear_name: !trimmed,
+      });
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clips/meta", {
+        clip_ids: ids,
+        name: trimmed || null,
+        clear_name: !trimmed,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
     $("status-msg").textContent = trimmed
       ? `Renamed ${ids.length} → ${trimmed}`
       : `Cleared name on ${ids.length}`;
@@ -4894,8 +4951,27 @@ async function applyFxPreset(kind: string) {
     blur: { type: "blur", amount: 2.5 },
     grain: { type: "film_grain", amount: 18 },
     vintage: { type: "curves", preset: "vintage" },
+    sharpen: { type: "sharpen", amount: 1.2 },
+    warm: { type: "white_balance", temperature: 5600, mix: 0.65 },
+    cool: { type: "white_balance", temperature: 7500, mix: 0.55 },
   };
-  const effect = effects[kind];
+  let effect = effects[kind];
+  if (kind === "text") {
+    const content = window.prompt("Title text (bottom lower-third)", "Opmiere");
+    if (content == null) return;
+    const trimmed = content.trim();
+    if (!trimmed) {
+      $("status-msg").textContent = "Empty title text";
+      return;
+    }
+    effect = {
+      type: "text",
+      content: trimmed,
+      position: "bottom",
+      size: 48,
+      border_width: 2,
+    };
+  }
   if (!effect) {
     $("status-msg").textContent = `Unknown FX preset: ${kind}`;
     return;
@@ -4914,6 +4990,77 @@ async function applyFxPreset(kind: string) {
     scheduleProxyRefresh();
   } catch (e) {
     $("status-msg").textContent = `FX ${kind} failed: ${e}`;
+  }
+}
+
+/** Dump OpenShot multi-clip plan (path-C diagnostics, no render). */
+async function showOpenshotPlan() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>(
+      "/api/preview/openshot_plan?height=360",
+    );
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 6000);
+    }
+    const n =
+      (Array.isArray(r.clips) && r.clips.length) ||
+      (Array.isArray(r.layers) && r.layers.length) ||
+      "?";
+    $("status-msg").textContent = `OpenShot plan · items=${n}`;
+  } catch (e) {
+    $("status-msg").textContent = `OpenShot plan failed: ${e}`;
+  }
+}
+
+/** Grab path-C OpenShot frame at playhead into Review status (if installed). */
+async function grabOpenshotFrame() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = "OpenShot frame…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      error?: string;
+      mode?: string;
+    }>("/api/preview/openshot_frame", {
+      time_seconds: state.t,
+      height: 360,
+      use_timeline: true,
+    });
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = JSON.stringify(r, null, 2).slice(0, 2000);
+    }
+    if (r.path) {
+      // Prefer program still via proxy/openshot engine select when available
+      const q = new URLSearchParams({
+        t: String(state.t),
+        width: "640",
+        engine: "openshot",
+        _: String(Date.now()),
+      });
+      const img = $("program-img") as HTMLImageElement;
+      img.src = `${API_BASE}/api/preview/frame.jpg?${q.toString()}`;
+      showProgramImage(img.src);
+      $("frame-mode").textContent = "openshot/frame";
+      $("status-msg").textContent = `OpenShot frame @ ${state.t.toFixed(2)}s`;
+    } else {
+      $("status-msg").textContent =
+        r.error || `OpenShot frame: ${JSON.stringify(r).slice(0, 80)}`;
+    }
+  } catch (e) {
+    $("status-msg").textContent = `OpenShot frame failed: ${e}`;
   }
 }
 
@@ -7093,6 +7240,12 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-project-state").addEventListener("click", () => {
     void showProjectState();
+  });
+  $("btn-os-plan").addEventListener("click", () => {
+    void showOpenshotPlan();
+  });
+  $("btn-os-frame").addEventListener("click", () => {
+    void grabOpenshotFrame();
   });
   document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
     b.addEventListener("click", () => {
