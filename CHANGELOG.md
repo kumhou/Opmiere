@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.71 — 2026-07-17
+
+### Added
+- `import_folder` (NLE Import Folder + optional place/rough_cut) + API/MCP/desktop **ImpDir**
+
 ## 0.5.70 — 2026-07-17
 
 ### Added

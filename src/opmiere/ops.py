@@ -772,6 +772,122 @@ class Editor:
                 self.save()
         return self.project.media_by_id(media.id)
 
+    def import_folder(
+        self,
+        folder: str | Path,
+        *,
+        recursive: bool = False,
+        kinds: list[str] | None = None,
+        place: bool = False,
+        track_id: str | None = None,
+        rough_cut: bool = False,
+        transition: str | None = "cross_dissolve",
+        max_files: int = 200,
+        conform: bool = True,
+    ) -> dict[str, Any]:
+        """Import all media files from a folder (NLE Import Folder).
+
+        kinds: subset of video|audio|image (default all). place=True appends
+        to a video/audio track; rough_cut=True uses sequence+dissolve pipeline
+        for video media only.
+        """
+        root = Path(folder)
+        if not root.is_dir():
+            raise NotADirectoryError(f"not a directory: {root}")
+        allow = set(kinds or ["video", "audio", "image"])
+        video_ext = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv"}
+        audio_ext = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".aif", ".aiff"}
+        image_ext = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".exr"}
+
+        files: list[Path] = []
+        it = root.rglob("*") if recursive else root.iterdir()
+        for f in sorted(it):
+            if not f.is_file():
+                continue
+            ext = f.suffix.lower()
+            kind: str | None = None
+            if ext in video_ext:
+                kind = "video"
+            elif ext in audio_ext:
+                kind = "audio"
+            elif ext in image_ext:
+                kind = "image"
+            if kind is None or kind not in allow:
+                continue
+            files.append(f)
+            if len(files) >= max(1, int(max_files)):
+                break
+
+        imported: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        media_ids: list[str] = []
+        for f in files:
+            try:
+                kind = self.guess_media_kind(f)
+                if kind not in allow:
+                    continue
+                m = self.import_media(f, kind, conform=conform)  # type: ignore[arg-type]
+                media_ids.append(m.id)
+                imported.append({
+                    "media_id": m.id,
+                    "path": str(f),
+                    "kind": kind,
+                    "duration_frames": m.duration_frames,
+                })
+            except Exception as e:
+                errors.append({"path": str(f), "error": str(e)[:300]})
+
+        out: dict[str, Any] = {
+            "folder": str(root.resolve()),
+            "imported": imported,
+            "count": len(imported),
+            "errors": errors,
+            "error_count": len(errors),
+            "recursive": recursive,
+        }
+        if not media_ids:
+            out["agent_note"] = "No media imported."
+            return out
+
+        if rough_cut:
+            video_ids = [
+                x["media_id"] for x in imported if x.get("kind") == "video"
+            ]
+            if video_ids:
+                vids = [t for t in self.project.tracks if t.kind == "video"]
+                tid = track_id or (vids[0].id if vids else self.project.add_track("video").id)
+                out["rough_cut"] = self.rough_cut(
+                    tid,
+                    media_ids=video_ids,
+                    use_unused=False,
+                    transition=transition,
+                    apply_edge_fades=True,
+                )
+                out["track_id"] = tid
+        elif place:
+            # place video+image on V, audio on A
+            v_ids = [x["media_id"] for x in imported if x["kind"] in ("video", "image")]
+            a_ids = [x["media_id"] for x in imported if x["kind"] == "audio"]
+            if v_ids:
+                vids = [t for t in self.project.tracks if t.kind == "video"]
+                tid = track_id or (vids[0].id if vids else self.project.add_track("video").id)
+                out["sequence"] = self.sequence_from_media(
+                    v_ids, tid, transition=None,
+                )
+                out["track_id"] = tid
+            if a_ids:
+                auds = [t for t in self.project.tracks if t.kind == "audio"]
+                atid = auds[0].id if auds else self.project.add_track("audio").id
+                out["audio_sequence"] = self.sequence_from_media(
+                    a_ids, atid, transition=None,
+                )
+                out["audio_track_id"] = atid
+        out["agent_note"] = (
+            "Folder imported into bin. place/rough_cut for timeline; "
+            "purge_unused_media to clean later."
+        )
+        return out
+
     def import_image_sequence(
         self,
         path: str | Path,

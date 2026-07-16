@@ -2171,6 +2171,32 @@ def import_image_sequence(
 
 
 @mcp.tool()
+def import_folder(
+    folder: str,
+    recursive: bool = False,
+    kinds: list[str] | None = None,
+    place: bool = False,
+    track_id: str | None = None,
+    rough_cut: bool = False,
+    transition: str | None = "cross_dissolve",
+    max_files: int = 200,
+    conform: bool = True,
+) -> dict:
+    """Import all media files from a folder (optional place / rough_cut)."""
+    return _require_editor().import_folder(
+        folder,
+        recursive=recursive,
+        kinds=kinds,
+        place=place,
+        track_id=track_id,
+        rough_cut=rough_cut,
+        transition=transition,
+        max_files=max_files,
+        conform=conform,
+    )
+
+
+@mcp.tool()
 def detach_audio_all(
     track_id: str | None = None,
     audio_track_id: str | None = None,

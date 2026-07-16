@@ -3654,6 +3654,40 @@ def import_image_sequence_api(body: ImportImageSequenceBody) -> dict[str, Any]:
     return out
 
 
+class ImportFolderBody(BaseModel):
+    folder: str
+    recursive: bool = False
+    kinds: list[str] | None = None
+    place: bool = False
+    track_id: str | None = None
+    rough_cut: bool = False
+    transition: str | None = "cross_dissolve"
+    max_files: int = 200
+    conform: bool = True
+
+
+@app.post("/api/import/folder")
+def import_folder_api(body: ImportFolderBody) -> dict[str, Any]:
+    """Import all media from a folder; optional place / rough_cut."""
+    ed = _ed()
+    try:
+        r = ed.import_folder(
+            body.folder,
+            recursive=body.recursive,
+            kinds=body.kinds,
+            place=body.place,
+            track_id=body.track_id,
+            rough_cut=body.rough_cut,
+            transition=body.transition,
+            max_files=body.max_files,
+            conform=body.conform,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"import_folder failed: {e}") from e
+    out = {**r, "timeline": ed.timeline_view()}
+    return out
+
+
 class DetachAudioAllBody(BaseModel):
     track_id: str | None = None
     audio_track_id: str | None = None

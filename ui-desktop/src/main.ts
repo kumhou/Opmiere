@@ -6306,6 +6306,39 @@ async function importImageSequenceUi() {
   }
 }
 
+async function importFolderUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Import media folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Importing folder…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/import/folder", {
+      folder: dir,
+      recursive: false,
+      place: true,
+      rough_cut: false,
+      max_files: 100,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ImpDir · ${r.count ?? 0}` +
+      (r.error_count ? ` · err ${r.error_count}` : "");
+  } catch (e) {
+    setProOut(`ImpDir failed: ${e}`);
+    $("status-msg").textContent = `ImpDir failed: ${e}`;
+  }
+}
+
 async function exportFrameSequenceUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -10272,6 +10305,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-handoff", () => void exportHandoffUi());
   proBind("btn-collect", () => void collectBundleUi());
   proBind("btn-imgseq", () => void importImageSequenceUi());
+  proBind("btn-imp-folder", () => void importFolderUi());
   proBind("btn-frameseq", () => void exportFrameSequenceUi());
   proBind("btn-detach-all", () => void detachAudioAllUi());
   proBind("btn-jl-cut", () => void jlOffsetUi(-15));
