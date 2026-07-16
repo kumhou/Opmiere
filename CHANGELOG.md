@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.64 — 2026-07-16
+
+### Added
+- Desktop **FCPXML** / **OTIO** interchange export
+
 ## 0.4.63 — 2026-07-16
 
 ### Added
