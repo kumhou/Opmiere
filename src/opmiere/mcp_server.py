@@ -4148,6 +4148,36 @@ def export_selection_audio(
 
 
 @mcp.tool()
+def split_selection_at(clip_ids: list[str], at_frame: int) -> dict:
+    """Razor every selected clip that contains at_frame."""
+    return _require_editor().split_selection_at(clip_ids, at_frame)
+
+
+@mcp.tool()
+def markers_from_selection(
+    clip_ids: list[str],
+    edge: str = "start",
+    prefix: str = "Sel ",
+    color: str = "#4cc9f0",
+    clear_matching_prefix: bool = False,
+) -> dict:
+    """Place markers at selection clip starts/ends."""
+    return _require_editor().markers_from_selection(
+        clip_ids,
+        edge=edge,
+        prefix=prefix,
+        color=color,
+        clear_matching_prefix=clear_matching_prefix,
+    )
+
+
+@mcp.tool()
+def selection_span(clip_ids: list[str]) -> dict:
+    """Return union timeline span of clips (read-only)."""
+    return _require_editor().selection_span(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

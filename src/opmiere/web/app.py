@@ -6845,6 +6845,61 @@ def export_selection_audio_api(body: ExportSelectionAudioBody) -> dict[str, Any]
         raise HTTPException(400, f"selection_audio failed: {e}") from e
 
 
+class SplitSelectionBody(BaseModel):
+    clip_ids: list[str]
+    at_frame: int
+
+
+@app.post("/api/edit/split_selection")
+def split_selection_api(body: SplitSelectionBody) -> dict[str, Any]:
+    """Razor selected clips at frame."""
+    ed = _ed()
+    try:
+        r = ed.split_selection_at(body.clip_ids, body.at_frame)
+    except Exception as e:
+        raise HTTPException(400, f"split_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MarkersFromSelectionBody(BaseModel):
+    clip_ids: list[str]
+    edge: str = "start"
+    prefix: str = "Sel "
+    color: str = "#4cc9f0"
+    clear_matching_prefix: bool = False
+
+
+@app.post("/api/markers/from_selection")
+def markers_from_selection_api(body: MarkersFromSelectionBody) -> dict[str, Any]:
+    """Markers at selection clip edges."""
+    ed = _ed()
+    try:
+        r = ed.markers_from_selection(
+            body.clip_ids,
+            edge=body.edge,
+            prefix=body.prefix,
+            color=body.color,
+            clear_matching_prefix=body.clear_matching_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"markers_from_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSpanBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_span")
+def selection_span_api(body: SelectionSpanBody) -> dict[str, Any]:
+    """Read-only union span of clips."""
+    ed = _ed()
+    try:
+        return ed.selection_span(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_span failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

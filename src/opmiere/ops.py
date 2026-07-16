@@ -3571,6 +3571,113 @@ class Editor:
         r["agent_note"] = "Full mix in selection span (not isolated stems)."
         return r
 
+    def split_selection_at(
+        self,
+        clip_ids: list[str],
+        at_frame: int,
+    ) -> dict[str, Any]:
+        """Razor every selected clip that contains at_frame. One result list."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(at_frame, int):
+            raise ValueError("at_frame must be an int")
+        splits: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            if not (clip.start < at_frame < clip.end):
+                skipped.append({
+                    "clip_id": cid,
+                    "reason": "frame outside clip",
+                    "start": clip.start,
+                    "end": clip.end,
+                })
+                continue
+            left, right = self.split_clip(cid, at_frame)
+            splits.append({
+                "left_id": left.id,
+                "right_id": right.id,
+                "at_frame": at_frame,
+            })
+        return {
+            "at_frame": at_frame,
+            "count": len(splits),
+            "splits": splits,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "agent_note": "Selection razor; only clips spanning the frame split.",
+        }
+
+    def markers_from_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        edge: str = "start",
+        prefix: str = "Sel ",
+        color: str = "#4cc9f0",
+        clear_matching_prefix: bool = False,
+    ) -> dict[str, Any]:
+        """Add markers at selection clip starts (or ends).
+
+        edge: start|end|both
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if edge not in ("start", "end", "both"):
+            raise ValueError("edge must be start|end|both")
+        clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+        frames: list[tuple[int, str]] = []
+        for c in clips:
+            name = (c.name or c.id)[:24]
+            if edge in ("start", "both"):
+                frames.append((int(c.start), f"{prefix}{name}"))
+            if edge in ("end", "both"):
+                frames.append((int(c.end), f"{prefix}{name} end"))
+        frames.sort(key=lambda x: x[0])
+        with self._mutate():
+            if clear_matching_prefix:
+                keep = [
+                    m for m in self.project.markers
+                    if not (m.label or "").startswith(prefix)
+                ]
+                self.project.markers[:] = keep
+            added: list[dict[str, Any]] = []
+            for fr, lab in frames:
+                m = self.project.add_marker(frame=fr, label=lab, color=color)
+                added.append({
+                    "marker_id": m.id,
+                    "frame": m.frame,
+                    "label": m.label,
+                })
+            return {
+                "count": len(added),
+                "markers": added,
+                "edge": edge,
+                "agent_note": "Markers from selection edges for chapter/export cues.",
+            }
+
+    def selection_span(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Return union timeline span of clips (read-only helper for agents)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        clips = [self._find_clip(cid) for cid in dict.fromkeys(clip_ids)]
+        start_f = min(int(c.start) for c in clips)
+        end_f = max(int(c.end) for c in clips)
+        fps = float(self.project.timebase.fps or 30.0)
+        return {
+            "clip_ids": [c.id for c in clips],
+            "start_frame": start_f,
+            "end_frame": end_f,
+            "duration_frames": end_f - start_f,
+            "start_seconds": round(start_f / fps, 4),
+            "end_seconds": round(end_f / fps, 4),
+            "count": len(clips),
+            "agent_note": "Union span; use for export_range / work area.",
+        }
+
     def set_clips_flip(
         self,
         clip_ids: list[str],

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.9 — 2026-07-17
+
+### Added
+- `split_selection_at` / `markers_from_selection` / `selection_span` + **SplitSel** / **MkrSel** / **Span?**
+
 ## 0.6.8 — 2026-07-17
 
 ### Added

@@ -8868,6 +8868,78 @@ async function exportSelectionAudioUi() {
   }
 }
 
+async function splitSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to razor";
+    return;
+  }
+  const at = playheadFrame();
+  $("status-msg").textContent = `Splitting selection @ f${at}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/split_selection", {
+      clip_ids: ids,
+      at_frame: at,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SplitSel · ${r.count ?? 0} @ f${at}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SplitSel failed: ${e}`);
+    $("status-msg").textContent = `SplitSel failed: ${e}`;
+  }
+}
+
+async function markersFromSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for markers";
+    return;
+  }
+  $("status-msg").textContent = "Adding selection markers…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/markers/from_selection", {
+      clip_ids: ids,
+      edge: "start",
+      prefix: "Sel ",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MkrSel · ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`MkrSel failed: ${e}`);
+    $("status-msg").textContent = `MkrSel failed: ${e}`;
+  }
+}
+
+async function selectionSpanUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for span";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/edit/selection_span", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Span f${String(r.start_frame ?? "?")}–${String(r.end_frame ?? "?")} (${String(r.duration_frames ?? "?")}f)`;
+  } catch (e) {
+    setProOut(`Span failed: ${e}`);
+    $("status-msg").textContent = `Span failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12736,6 +12808,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-paste-from", () => void pasteFromClipUi());
   proBind("btn-dup-sel", () => void duplicateSelectionUi());
   proBind("btn-sel-aud", () => void exportSelectionAudioUi());
+  proBind("btn-split-sel", () => void splitSelectionUi());
+  proBind("btn-mkr-sel", () => void markersFromSelectionUi());
+  proBind("btn-span-sel", () => void selectionSpanUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
