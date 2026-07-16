@@ -12664,6 +12664,60 @@ async function exportSelectionSocialPackUi() {
   }
 }
 
+async function reframeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select video clips to reframe";
+    return;
+  }
+  $("status-msg").textContent = "Reframing selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      aspect?: string;
+    }>("/api/edit/reframe_selection", {
+      clip_ids: ids,
+      aspect: "9:16",
+      anchor: "center",
+      video_only: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ReframeSel · ${r.aspect ?? "9:16"} n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+    await refreshTimeline();
+  } catch (e) {
+    setProOut(`ReframeSel failed: ${e}`);
+    $("status-msg").textContent = `ReframeSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionSocialUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for reels export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection reels…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      variant?: string;
+      width?: number;
+      height?: number;
+    }>("/api/edit/export_selection_social", {
+      clip_ids: ids,
+      variant: "reels",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ReelsSel · ${r.variant ?? "reels"} ${r.width ?? "?"}x${r.height ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ReelsSel failed: ${e}`);
+    $("status-msg").textContent = `ReelsSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16691,6 +16745,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-cs-def-sel", () => void exportSelectionContactSheetDefaultUi());
   proBind("btn-size-sel", () => void exportSelectionToSizeUi());
   proBind("btn-social-sel", () => void exportSelectionSocialPackUi());
+  proBind("btn-reframe-sel", () => void reframeSelectionUi());
+  proBind("btn-social1-sel", () => void exportSelectionSocialUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.63 — 2026-07-17
+
+### Added
+- `reframe_selection` / `export_selection_social` + **ReframeSel** / **ReelsSel**
+
 ## 0.6.62 — 2026-07-17
 
 ### Added

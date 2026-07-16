@@ -9803,6 +9803,55 @@ def export_selection_social_pack_api(
         ) from e
 
 
+class ReframeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    aspect: str = "9:16"
+    anchor: str = "center"
+    video_only: bool = True
+
+
+@app.post("/api/edit/reframe_selection")
+def reframe_selection_api(body: ReframeSelectionBody) -> dict[str, Any]:
+    """Crop-reframe selection clips to a target aspect."""
+    ed = _ed()
+    try:
+        r = ed.reframe_selection(
+            body.clip_ids,
+            aspect=body.aspect,
+            anchor=body.anchor,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"reframe_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSocialBody(BaseModel):
+    clip_ids: list[str]
+    variant: str = "reels"
+    filename: str | None = None
+    normalize_preset: str | None = None
+
+
+@app.post("/api/edit/export_selection_social")
+def export_selection_social_api(
+    body: ExportSelectionSocialBody,
+) -> dict[str, Any]:
+    """Export selection to one named social canvas under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_social(
+            body.clip_ids,
+            variant=body.variant,
+            filename=body.filename,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_social failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

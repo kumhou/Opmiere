@@ -5801,6 +5801,38 @@ def export_selection_social_pack(
 
 
 @mcp.tool()
+def reframe_selection(
+    clip_ids: list[str],
+    aspect: str = "9:16",
+    anchor: str = "center",
+    video_only: bool = True,
+) -> dict:
+    """Batch crop-reframe selection clips to a target aspect ratio."""
+    return _require_editor().reframe_selection(
+        clip_ids,
+        aspect=aspect,
+        anchor=anchor,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def export_selection_social(
+    clip_ids: list[str],
+    variant: str = "reels",
+    filename: str | None = None,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export selection to one social canvas (reels/youtube/square/…)."""
+    return _require_editor().export_selection_social(
+        clip_ids,
+        variant=variant,
+        filename=filename,
+        normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

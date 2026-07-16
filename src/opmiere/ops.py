@@ -10332,6 +10332,83 @@ class Editor:
             "agent_note": "Selection social pack; reels/shorts share 9:16 canvas.",
         }
 
+    def reframe_selection(
+        self,
+        clip_ids: list[str],
+        aspect: str = "9:16",
+        *,
+        anchor: str = "center",
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Batch reframe_clip (crop effect) on selection for target aspect."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        done: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, _clip = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                r = self.reframe_clip(cid, aspect=aspect, anchor=anchor)
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["clip_id"] = cid
+                done.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "aspect": aspect,
+            "anchor": anchor,
+            "count": len(done),
+            "reframed": done,
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Crop effect per clip; export still uses project canvas.",
+        }
+
+    def export_selection_social(
+        self,
+        clip_ids: list[str],
+        *,
+        variant: str = "reels",
+        filename: str | None = None,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export selection to one SOCIAL_PRESETS canvas under exports/.
+
+        variant: youtube|reels|tiktok|shorts|square|ig_feed|landscape…
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        key = str(variant).lower().strip()
+        preset = self.SOCIAL_PRESETS.get(key)
+        if not preset:
+            raise ValueError(
+                f"unknown social variant {variant!r}; "
+                f"known={sorted(self.SOCIAL_PRESETS)}"
+            )
+        if not filename:
+            filename = f"selection_{key}.mp4"
+        r = self.export_selection_to_size(
+            list(dict.fromkeys(clip_ids)),
+            width=int(preset["width"]),
+            height=int(preset["height"]),
+            fit=str(preset.get("fit") or "cover"),
+            normalize_preset=normalize_preset,
+            filename=filename,
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["variant"] = key
+            r["agent_note"] = (
+                f"Single social export ({key}). Pack: export_selection_social_pack."
+            )
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
