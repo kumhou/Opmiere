@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.80 — 2026-07-17
+
+### Added
+- `watermark` effect + `set_clip_watermark` + path-C **adapter v22** + desktop **©**
+- `list_cuts` (hard-cut inventory) + **Cuts?**
+
 ## 0.5.79 — 2026-07-17
 
 ### Added

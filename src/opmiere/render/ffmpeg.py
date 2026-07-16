@@ -170,6 +170,42 @@ def _effect_filters(
                 f"borderw={border_width}:bordercolor={border_color}:"
                 f"x={x_expr}:y={y_expr}"
             )
+        elif etype == "watermark":
+            if stream != "video":
+                continue
+            content = effect.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("watermark effect requires non-empty string 'content'")
+            position = effect.get("position", "bottom")
+            if position not in _TEXT_POSITION_EXPRESSIONS:
+                raise ValueError(f"watermark effect has invalid position {position!r}")
+            size = effect.get("size", 22)
+            color = effect.get("color", "white")
+            # alpha 0..1 → @alpha on fontcolor when not already present
+            alpha = effect.get("alpha", effect.get("opacity", 0.55))
+            try:
+                alpha_f = max(0.05, min(1.0, float(alpha)))
+            except (TypeError, ValueError):
+                alpha_f = 0.55
+            if "@" not in str(color):
+                color = f"{color}@{alpha_f:.2f}"
+            border_width = effect.get("border_width", 1)
+            border_color = effect.get("border_color", "black")
+            font = effect.get("font", DEFAULT_TEXT_FONT)
+            if not Path(font).exists():
+                raise FileNotFoundError(f"watermark effect font not found: {font}")
+            if text_dir is None:
+                raise RuntimeError("internal: _effect_filters needs text_dir for watermark")
+            caption_path = Path(text_dir) / f"wm_{uuid.uuid4().hex[:8]}.txt"
+            caption_path.write_text(content, encoding="utf-8")
+            x_expr, y_expr = _TEXT_POSITION_EXPRESSIONS[position]
+            parts.append(
+                f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                f"textfile='{_escape_filter_path(str(caption_path))}':"
+                f"fontcolor={color}:fontsize={size}:"
+                f"borderw={border_width}:bordercolor={border_color}:"
+                f"x={x_expr}:y={y_expr}:expansion=none"
+            )
         elif etype == "subtitles":
             if stream != "video":
                 continue

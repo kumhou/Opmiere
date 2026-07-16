@@ -53,13 +53,13 @@ _MAPPED_VISUAL = frozenset({
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
     "shape_mask", "text", "subtitles", "gain", "lut3d",
     "compression", "noise_reduction", "audio_eq",
-    "hflip", "vflip", "timecode",
+    "hflip", "vflip", "timecode", "watermark",
 })
 # Known effects intentionally without visual still approximation.
 _UNMAPPED_VISUAL = frozenset()
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 21
+ADAPTER_VERSION = 22
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -116,6 +116,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "hflip": "scale_x=-1 (mirror horizontal)",
             "vflip": "scale_y=-1 (mirror vertical)",
             "timecode": "burn-in props in plan (drawtext at export; stills may skip glyphs)",
+            "watermark": "text watermark props in plan (drawtext at export)",
         },
     }
 
@@ -239,6 +240,8 @@ def clip_visual_props(
         elif et == "timecode":
             # Plan tag only — still path-C may not paint running TC digits.
             mapped.append("timecode")
+        elif et == "watermark":
+            mapped.append("watermark")
         elif et == "blur":
             try:
                 blur = float(e.get("amount", 0) or 0)

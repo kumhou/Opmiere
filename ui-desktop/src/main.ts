@@ -2690,6 +2690,61 @@ async function markersFromClipsUi() {
   }
 }
 
+async function watermarkSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for watermark";
+    return;
+  }
+  $("status-msg").textContent = `Watermark ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/watermark", {
+        clip_id: id,
+        content: "© Opmiere",
+        position: "bottom",
+        size: 22,
+        alpha: 0.55,
+        enabled: true,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `© · ${ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Watermark failed: ${e}`);
+    $("status-msg").textContent = `Watermark failed: ${e}`;
+  }
+}
+
+async function listCutsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Listing cuts…";
+  try {
+    const tid = trackForKind("video");
+    const r = await getJson<{
+      count?: number;
+      hard_cut_count?: number;
+    }>(
+      tid
+        ? `/api/edit/cuts?track_id=${encodeURIComponent(tid)}&kind=video`
+        : "/api/edit/cuts?kind=video",
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Cuts? · ${r.count ?? 0} · hard ${r.hard_cut_count ?? 0}`;
+  } catch (e) {
+    setProOut(`Cuts failed: ${e}`);
+    $("status-msg").textContent = `Cuts failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11013,6 +11068,19 @@ window.addEventListener("DOMContentLoaded", () => {
     btnMkrClips.addEventListener("click", () => {
       stopPlay();
       void markersFromClipsUi();
+    });
+  }
+  const btnWm = document.getElementById("btn-wm");
+  if (btnWm) {
+    btnWm.addEventListener("click", () => {
+      stopPlay();
+      void watermarkSelectionUi();
+    });
+  }
+  const btnCuts = document.getElementById("btn-cuts");
+  if (btnCuts) {
+    btnCuts.addEventListener("click", () => {
+      void listCutsUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

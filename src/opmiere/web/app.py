@@ -3947,6 +3947,52 @@ def markers_from_clips_api(body: MarkersFromClipsBody | None = None) -> dict[str
     return {**r, "timeline": ed.timeline_view()}
 
 
+class WatermarkBody(BaseModel):
+    clip_id: str
+    content: str = "© Opmiere"
+    position: str = "bottom"
+    size: int = 22
+    alpha: float = 0.55
+    color: str = "white"
+    enabled: bool = True
+
+
+@app.post("/api/clip/watermark")
+def clip_watermark_api(body: WatermarkBody) -> dict[str, Any]:
+    """Set text watermark on a clip."""
+    ed = _ed()
+    try:
+        r = ed.set_clip_watermark(
+            body.clip_id,
+            body.content,
+            position=body.position,
+            size=body.size,
+            alpha=body.alpha,
+            color=body.color,
+            enabled=body.enabled,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"watermark failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ListCutsBody(BaseModel):
+    track_id: str | None = None
+    kind: str | None = "video"
+
+
+@app.get("/api/edit/cuts")
+def list_cuts_api(track_id: str | None = None, kind: str | None = "video") -> dict[str, Any]:
+    """List hard-cut edit points on track(s)."""
+    return _ed().list_cuts(track_id, kind=kind)
+
+
+@app.post("/api/edit/cuts")
+def list_cuts_post_api(body: ListCutsBody | None = None) -> dict[str, Any]:
+    body = body or ListCutsBody()
+    return _ed().list_cuts(body.track_id, kind=body.kind)
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

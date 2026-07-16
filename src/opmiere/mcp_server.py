@@ -2315,6 +2315,34 @@ def markers_from_clips(
 
 
 @mcp.tool()
+def set_clip_watermark(
+    clip_id: str,
+    content: str = "© Opmiere",
+    position: str = "bottom",
+    size: int = 22,
+    alpha: float = 0.55,
+    color: str = "white",
+    enabled: bool = True,
+) -> dict:
+    """Set text watermark on a clip (replaces existing watermark)."""
+    return _require_editor().set_clip_watermark(
+        clip_id,
+        content,
+        position=position,
+        size=size,
+        alpha=alpha,
+        color=color,
+        enabled=enabled,
+    )
+
+
+@mcp.tool()
+def list_cuts(track_id: str | None = None, kind: str | None = "video") -> dict:
+    """List hard-cut edit points for razor/transition planning."""
+    return _require_editor().list_cuts(track_id, kind=kind)
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

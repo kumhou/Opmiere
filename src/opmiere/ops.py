@@ -4356,6 +4356,22 @@ class Editor:
             # inject project fps for render
             effect = dict(effect)
             effect.setdefault("fps", float(self.project.timebase.fps or 30.0))
+        elif etype == "watermark":
+            content = effect.get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("watermark effect requires non-empty string 'content'")
+            position = effect.get("position", "bottom")
+            if position not in TEXT_POSITIONS:
+                raise ValueError(
+                    f"watermark effect position must be one of {sorted(TEXT_POSITIONS)}, "
+                    f"got {position!r}"
+                )
+            size = effect.get("size", 22)
+            if not isinstance(size, int) or size <= 0:
+                raise ValueError("watermark effect 'size' must be a positive integer")
+            alpha = effect.get("alpha", effect.get("opacity", 0.55))
+            if not isinstance(alpha, (int, float)) or not (0.0 < float(alpha) <= 1.0):
+                raise ValueError("watermark effect alpha/opacity must be in (0, 1]")
         elif etype == "subtitles":
             path = effect.get("path")
             if not isinstance(path, str) or not path.strip():
@@ -11962,6 +11978,109 @@ class Editor:
                 "start": start,
                 "agent_note": "Timecode burn-in via drawtext; bake_clip to freeze.",
             }
+
+    def set_clip_watermark(
+        self,
+        clip_id: str,
+        content: str,
+        *,
+        position: str = "bottom",
+        size: int = 22,
+        alpha: float = 0.55,
+        color: str = "white",
+        enabled: bool = True,
+    ) -> dict[str, Any]:
+        """Set text watermark on a clip (replaces existing watermark FX)."""
+        self._assert_clip_track_unlocked(clip_id)
+        if enabled and (not isinstance(content, str) or not content.strip()):
+            raise ValueError("watermark content required when enabled")
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.effects = [
+                e for e in (clip.effects or [])
+                if not (isinstance(e, dict) and e.get("type") == "watermark")
+            ]
+            if enabled:
+                self._apply_effect_unlocked(
+                    clip_id,
+                    {
+                        "type": "watermark",
+                        "content": content.strip(),
+                        "position": position,
+                        "size": int(size),
+                        "alpha": float(alpha),
+                        "color": color,
+                    },
+                )
+            return {
+                "clip_id": clip_id,
+                "enabled": enabled,
+                "content": content.strip() if enabled else None,
+                "position": position,
+                "alpha": float(alpha),
+                "agent_note": "Text watermark via drawtext; apply_effects_to_track for whole track.",
+            }
+
+    def list_cuts(
+        self,
+        track_id: str | None = None,
+        *,
+        kind: str | None = "video",
+    ) -> dict[str, Any]:
+        """List hard-cut edit points (clip boundaries) for razor/transition planning.
+
+        Returns ordered cut frames with left/right clip ids when both exist.
+        """
+        tracks = (
+            [self.project.track_by_id(track_id)]
+            if track_id is not None
+            else list(self.project.tracks)
+        )
+        if kind is not None and track_id is None:
+            tracks = [t for t in tracks if t.kind == kind]
+        cuts: list[dict[str, Any]] = []
+        for tr in tracks:
+            ordered = tr.clips_in_order()
+            for i, c in enumerate(ordered):
+                cuts.append({
+                    "track_id": tr.id,
+                    "track_kind": tr.kind,
+                    "frame": int(c.start),
+                    "kind": "clip_start",
+                    "clip_id": c.id,
+                    "name": c.name,
+                    "prev_clip_id": ordered[i - 1].id if i > 0 else None,
+                    "is_hard_cut": (
+                        i > 0 and ordered[i - 1].end == c.start
+                        and c.transition_in is None
+                    ),
+                    "has_transition": c.transition_in is not None,
+                })
+                # also record end of last clip as sequence edge
+            if ordered:
+                last = ordered[-1]
+                cuts.append({
+                    "track_id": tr.id,
+                    "track_kind": tr.kind,
+                    "frame": int(last.end),
+                    "kind": "clip_end",
+                    "clip_id": last.id,
+                    "name": last.name,
+                    "prev_clip_id": None,
+                    "is_hard_cut": False,
+                    "has_transition": False,
+                })
+        cuts.sort(key=lambda x: (x["track_id"], x["frame"], x["kind"]))
+        hard = [c for c in cuts if c.get("is_hard_cut")]
+        return {
+            "count": len(cuts),
+            "hard_cut_count": len(hard),
+            "cuts": cuts,
+            "agent_note": (
+                "Hard cuts are adjacent clips with no transition_in — "
+                "use apply_transitions_on_cuts or razor here."
+            ),
+        }
 
     def markers_from_clips(
         self,
