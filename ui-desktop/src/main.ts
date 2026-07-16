@@ -8358,6 +8358,31 @@ async function refresh() {
       $("preview-backend").textContent = "preview: idle";
       setPill("pill-preview", "warn", "preview idle");
     }
+    // path-C effect adapter version (maps grade FX for still program monitor)
+    try {
+      const cat = await getJson<{
+        adapter_version?: number;
+        mapped?: string[];
+        unmapped?: string[];
+      }>("/api/preview/openshot_effects");
+      const ver = cat.adapter_version ?? "?";
+      const nMap = Array.isArray(cat.mapped) ? cat.mapped.length : 0;
+      const nSkip = Array.isArray(cat.unmapped) ? cat.unmapped.length : 0;
+      const pathcOk =
+        preview?.active_backend === "libopenshot" ||
+        preview?.openshot_app_present === true;
+      setPill(
+        "pill-pathc",
+        pathcOk ? "ok" : "warn",
+        `path-C v${ver}`,
+      );
+      const pathcEl = document.getElementById("pill-pathc");
+      if (pathcEl) {
+        pathcEl.title = `OpenShot path-C adapter v${ver} · ${nMap} mapped · ${nSkip} export-only`;
+      }
+    } catch {
+      setPill("pill-pathc", "warn", "path-C —");
+    }
 
     if (state.projectOpen) {
       try {

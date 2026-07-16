@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.39 — 2026-07-17
+
+### Added
+- Desktop statusbar `path-C vN` pill from `/api/preview/openshot_effects`
 ## 0.5.38 — 2026-07-17
 
 ### Added
@@ -1343,6 +1347,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
