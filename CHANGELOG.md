@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.97 — 2026-07-17
+
+### Added
+- Save sets clean pill, pulses dirty on edit, **refreshValidate** after save
+
 ## 0.4.96 — 2026-07-17
 
 ### Added
