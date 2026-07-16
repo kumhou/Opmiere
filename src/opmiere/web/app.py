@@ -7948,6 +7948,61 @@ def export_selection_path_c_plan_api(
         raise HTTPException(400, f"export_selection_path_c_plan failed: {e}") from e
 
 
+class FillSelectionGapsBody(BaseModel):
+    clip_ids: list[str]
+    mode: str = "slug"
+    color: str = "#000000"
+
+
+@app.post("/api/edit/fill_selection_gaps")
+def fill_selection_gaps_api(body: FillSelectionGapsBody) -> dict[str, Any]:
+    """Fill gaps between selected clips (slug or pack)."""
+    ed = _ed()
+    try:
+        r = ed.fill_selection_gaps(
+            body.clip_ids, mode=body.mode, color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"fill_selection_gaps failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SwapSelectionPairBody(BaseModel):
+    clip_id_a: str
+    clip_id_b: str
+
+
+@app.post("/api/edit/swap_selection_pair")
+def swap_selection_pair_api(body: SwapSelectionPairBody) -> dict[str, Any]:
+    """Swap starts of two clips."""
+    ed = _ed()
+    try:
+        r = ed.swap_selection_pair(body.clip_id_a, body.clip_id_b)
+    except Exception as e:
+        raise HTTPException(400, f"swap_selection_pair failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DuplicateSelectionBlockBody(BaseModel):
+    clip_ids: list[str]
+    gap_frames: int = 0
+
+
+@app.post("/api/edit/duplicate_selection_block")
+def duplicate_selection_block_api(
+    body: DuplicateSelectionBlockBody,
+) -> dict[str, Any]:
+    """Duplicate selection as rigid block after union end."""
+    ed = _ed()
+    try:
+        r = ed.duplicate_selection_block(
+            body.clip_ids, gap_frames=body.gap_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"duplicate_selection_block failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

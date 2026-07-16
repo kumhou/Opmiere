@@ -10361,6 +10361,86 @@ async function exportSelectionPathCPlanUi() {
   }
 }
 
+async function fillSelectionGapsUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips to fill gaps";
+    return;
+  }
+  $("status-msg").textContent = "Filling selection gaps…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/fill_selection_gaps", {
+      clip_ids: ids,
+      mode: "slug",
+      color: "#000000",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FillGaps · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`FillGaps failed: ${e}`);
+    $("status-msg").textContent = `FillGaps failed: ${e}`;
+  }
+}
+
+async function swapSelectionPairUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips to swap first two";
+    return;
+  }
+  $("status-msg").textContent = "Swapping pair…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+    }>("/api/edit/swap_selection_pair", {
+      clip_id_a: ids[0],
+      clip_id_b: ids[1],
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Swap2 · done";
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Swap2 failed: ${e}`);
+    $("status-msg").textContent = `Swap2 failed: ${e}`;
+  }
+}
+
+async function duplicateSelectionBlockUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to duplicate block";
+    return;
+  }
+  $("status-msg").textContent = "Duplicating selection block…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/duplicate_selection_block", {
+      clip_ids: ids,
+      gap_frames: 0,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DupBlock · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`DupBlock failed: ${e}`);
+    $("status-msg").textContent = `DupBlock failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14294,6 +14374,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rtrim-h-sel", () => void rippleTrimSelectionEdgesUi(3, 0));
   proBind("btn-rtrim-t-sel", () => void rippleTrimSelectionEdgesUi(0, 3));
   proBind("btn-export-pathc-sel", () => void exportSelectionPathCPlanUi());
+  proBind("btn-fill-gaps-sel", () => void fillSelectionGapsUi());
+  proBind("btn-swap-sel", () => void swapSelectionPairUi());
+  proBind("btn-dup-block-sel", () => void duplicateSelectionBlockUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

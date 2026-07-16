@@ -6413,6 +6413,130 @@ class Editor:
             "agent_note": "path-C plan JSON written; adapter is floor not pin.",
         }
 
+    def fill_selection_gaps(
+        self,
+        clip_ids: list[str],
+        *,
+        mode: str = "slug",
+        color: str = "#000000",
+    ) -> dict[str, Any]:
+        """Fill holes between selected clips per track.
+
+        mode:
+          - slug: insert solid color mattes in positive gaps (video tracks)
+          - close: pack_selection (no pads)
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if mode not in ("slug", "close"):
+            raise ValueError("mode must be slug|close")
+        if mode == "close":
+            r = self.pack_selection(clip_ids, gap_frames=0)
+            r["mode"] = "close"
+            return r
+        gaps = self.selection_gaps(clip_ids)
+        filled: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for g in gaps.get("gaps") or []:
+            gf = int(g.get("gap_frames") or 0)
+            if gf <= 0:
+                skipped.append({**g, "reason": "overlap_or_zero"})
+                continue
+            tid = g["track_id"]
+            tr = self.project.track_by_id(tid)
+            if tr.kind != "video":
+                skipped.append({**g, "reason": "not_video"})
+                continue
+            if tr.locked:
+                skipped.append({**g, "reason": "locked"})
+                continue
+            r = self.add_solid(
+                color,
+                duration_frames=gf,
+                start=int(g["left_end"]),
+                track_id=tid,
+                append=False,
+                name=f"gap_pad_{gf}f",
+            )
+            filled.append(r)
+        return {
+            "mode": "slug",
+            "color": color,
+            "count": len(filled),
+            "filled": filled,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "agent_note": "Solid pads in selection holes; audio gaps skipped.",
+        }
+
+    def swap_selection_pair(
+        self,
+        clip_id_a: str,
+        clip_id_b: str,
+    ) -> dict[str, Any]:
+        """Swap timeline start of two clips (same or different tracks)."""
+        with self._mutate():
+            ta, a = self._find_clip_and_track(clip_id_a)
+            tb, b = self._find_clip_and_track(clip_id_b)
+            if ta.locked:
+                raise ValueError(f"track {ta.id} is locked")
+            if tb.locked:
+                raise ValueError(f"track {tb.id} is locked")
+            sa, sb = int(a.start), int(b.start)
+            a.start = sb
+            b.start = sa
+            return {
+                "clip_id_a": a.id,
+                "clip_id_b": b.id,
+                "starts": {
+                    a.id: {"from": sa, "to": int(a.start)},
+                    b.id: {"from": sb, "to": int(b.start)},
+                },
+                "agent_note": "Starts swapped; durations/tracks unchanged.",
+            }
+
+    def duplicate_selection_block(
+        self,
+        clip_ids: list[str],
+        *,
+        gap_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Duplicate selection as a rigid block after the union end.
+
+        Relative spacing preserved; block starts at span.end + gap_frames.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        min_start = int(span["start_frame"])
+        dest = int(span["end_frame"]) + max(0, int(gap_frames))
+        delta = dest - min_start
+        created: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        # left-to-right for stable ids
+        ordered: list[tuple[int, str]] = []
+        for cid in ids:
+            c = self._find_clip(cid)
+            ordered.append((int(c.start), cid))
+        ordered.sort(key=lambda x: x[0])
+        for _, cid in ordered:
+            try:
+                r = self.duplicate_clip(cid, offset_frames=delta)
+                created.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "delta_frames": delta,
+            "gap_frames": max(0, int(gap_frames)),
+            "span": span,
+            "count": len(created),
+            "duplicates": created,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Rigid block copy after selection union.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

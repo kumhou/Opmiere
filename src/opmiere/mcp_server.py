@@ -4745,6 +4745,35 @@ def export_selection_path_c_plan(
 
 
 @mcp.tool()
+def fill_selection_gaps(
+    clip_ids: list[str],
+    mode: str = "slug",
+    color: str = "#000000",
+) -> dict:
+    """Fill holes between selected clips (slug solids or close pack)."""
+    return _require_editor().fill_selection_gaps(
+        clip_ids, mode=mode, color=color,
+    )
+
+
+@mcp.tool()
+def swap_selection_pair(clip_id_a: str, clip_id_b: str) -> dict:
+    """Swap timeline starts of two clips."""
+    return _require_editor().swap_selection_pair(clip_id_a, clip_id_b)
+
+
+@mcp.tool()
+def duplicate_selection_block(
+    clip_ids: list[str],
+    gap_frames: int = 0,
+) -> dict:
+    """Duplicate selection as a rigid block after the union end."""
+    return _require_editor().duplicate_selection_block(
+        clip_ids, gap_frames=gap_frames,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

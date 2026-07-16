@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.28 — 2026-07-17
+
+### Added
+- `fill_selection_gaps` / `swap_selection_pair` / `duplicate_selection_block` + **FillGaps** / **Swap2** / **DupBlock**
+
 ## 0.6.27 — 2026-07-17
 
 ### Added
