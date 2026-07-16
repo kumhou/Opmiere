@@ -10208,6 +10208,80 @@ async function selectionGapsUi() {
   }
 }
 
+async function extendSelectionNextUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to extend";
+    return;
+  }
+  $("status-msg").textContent = "Extending selection to next…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/extend_selection_next", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExtNext · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ExtNext failed: ${e}`);
+    $("status-msg").textContent = `ExtNext failed: ${e}`;
+  }
+}
+
+async function selectionSpeedUi(speed: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for speed";
+    return;
+  }
+  $("status-msg").textContent = `Setting speed ${speed}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/selection_speed", { clip_ids: ids, speed });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Spd${speed} · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Spd failed: ${e}`);
+    $("status-msg").textContent = `Spd failed: ${e}`;
+  }
+}
+
+async function selectionPathCPlanUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for path-C plan";
+    return;
+  }
+  $("status-msg").textContent = "Building path-C plan…";
+  try {
+    const r = await postJson<{
+      clips?: unknown[];
+      adapter_version?: number;
+    }>("/api/edit/selection_path_c_plan", {
+      clip_ids: ids,
+      height: 360,
+      include_audio: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    const n = Array.isArray(r.clips) ? r.clips.length : 0;
+    $("status-msg").textContent =
+      `PathCPlan · ${n} clips adapter≥${r.adapter_version ?? "?"}`;
+  } catch (e) {
+    setProOut(`PathCPlan failed: ${e}`);
+    $("status-msg").textContent = `PathCPlan failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14133,6 +14207,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-trim-h-sel", () => void trimSelectionEdgesUi(5, 0));
   proBind("btn-trim-t-sel", () => void trimSelectionEdgesUi(0, 5));
   proBind("btn-gaps-sel", () => void selectionGapsUi());
+  proBind("btn-ext-next-sel", () => void extendSelectionNextUi());
+  proBind("btn-speed1-sel", () => void selectionSpeedUi(1.0));
+  proBind("btn-speed2-sel", () => void selectionSpeedUi(2.0));
+  proBind("btn-pathc-plan-sel", () => void selectionPathCPlanUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

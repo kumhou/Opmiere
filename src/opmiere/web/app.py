@@ -7832,6 +7832,57 @@ def selection_gaps_api(body: SelectionGapsBody) -> dict[str, Any]:
     return r
 
 
+class ExtendSelectionNextBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/extend_selection_next")
+def extend_selection_next_api(body: ExtendSelectionNextBody) -> dict[str, Any]:
+    """Extend selection clips to next neighbor."""
+    ed = _ed()
+    try:
+        r = ed.extend_selection_to_next(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"extend_selection_next failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSpeedBody(BaseModel):
+    clip_ids: list[str]
+    speed: float = 1.0
+
+
+@app.post("/api/edit/selection_speed")
+def selection_speed_api(body: SelectionSpeedBody) -> dict[str, Any]:
+    """Set speed on selection (no ripple)."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_speed(body.clip_ids, body.speed)
+    except Exception as e:
+        raise HTTPException(400, f"selection_speed failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionPathCPlanBody(BaseModel):
+    clip_ids: list[str]
+    height: int = 360
+    include_audio: bool = False
+
+
+@app.post("/api/edit/selection_path_c_plan")
+def selection_path_c_plan_api(body: SelectionPathCPlanBody) -> dict[str, Any]:
+    """path-C OpenShot plan for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_path_c_plan(
+            body.clip_ids,
+            height=body.height,
+            include_audio=body.include_audio,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_path_c_plan failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

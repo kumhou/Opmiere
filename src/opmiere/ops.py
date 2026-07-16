@@ -6225,6 +6225,86 @@ class Editor:
             "agent_note": "gap_frames>0 hole; <0 overlap. Use pack_selection to close.",
         }
 
+    def extend_selection_to_next(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """extend_to_next_clip for each selected clip (fill hole to next neighbor)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        # right-to-left so extending earlier clips doesn't change later neighbors first
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            c = self._find_clip(cid)
+            items.append((int(c.start), cid))
+        items.sort(key=lambda x: x[0], reverse=True)
+        for _, cid in items:
+            try:
+                r = self.extend_to_next_clip(cid)
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(out),
+            "extended": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Fills to next neighbor using remaining source; speed must be 1.0.",
+        }
+
+    def set_selection_speed(
+        self,
+        clip_ids: list[str],
+        speed: float,
+    ) -> dict[str, Any]:
+        """Set playback speed on selection (no ripple). Alias set_clips_speed."""
+        r = self.set_clips_speed(clip_ids, speed)
+        r["agent_note"] = "Speed only; timeline ends move. Use rate_stretch for fixed duration."
+        return r
+
+    def selection_path_c_plan(
+        self,
+        clip_ids: list[str],
+        *,
+        height: int = 360,
+        include_audio: bool = False,
+    ) -> dict[str, Any]:
+        """Build path-C OpenShot plan filtered to selection clip ids + span meta.
+
+        Uses ADAPTER_VERSION floor; full-project compile then filter by clip id.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = set(dict.fromkeys(clip_ids))
+        span = self.selection_span(list(ids))
+        from .render.openshot_map import ADAPTER_VERSION, build_openshot_plan
+
+        plan = build_openshot_plan(
+            self.project,
+            self.bundle,
+            height=int(height),
+            include_audio=bool(include_audio),
+        )
+        clips = plan.get("clips") or []
+        kept: list[Any] = []
+        for entry in clips:
+            cid = entry.get("clip_id") or entry.get("id")
+            if cid in ids:
+                kept.append(entry)
+        plan = dict(plan)
+        plan["clips"] = kept
+        plan["selection_clip_ids"] = sorted(ids)
+        plan["selection_span"] = span
+        plan["adapter_version"] = int(
+            plan.get("adapter_version") or ADAPTER_VERSION
+        )
+        plan["agent_note"] = (
+            "path-C plan for selection clips only; span is union timeline range."
+        )
+        return plan
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

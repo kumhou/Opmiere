@@ -4683,6 +4683,30 @@ def selection_gaps(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def extend_selection_to_next(clip_ids: list[str]) -> dict:
+    """Extend each selected clip to the next neighbor using remaining source."""
+    return _require_editor().extend_selection_to_next(clip_ids)
+
+
+@mcp.tool()
+def set_selection_speed(clip_ids: list[str], speed: float = 1.0) -> dict:
+    """Set playback speed on selection (no ripple)."""
+    return _require_editor().set_selection_speed(clip_ids, speed)
+
+
+@mcp.tool()
+def selection_path_c_plan(
+    clip_ids: list[str],
+    height: int = 360,
+    include_audio: bool = False,
+) -> dict:
+    """Build path-C OpenShot plan filtered to selection clips."""
+    return _require_editor().selection_path_c_plan(
+        clip_ids, height=height, include_audio=include_audio,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

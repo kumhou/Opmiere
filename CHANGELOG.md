@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.26 — 2026-07-17
+
+### Added
+- `extend_selection_to_next` / `set_selection_speed` / `selection_path_c_plan` + **ExtNext** / **Spd1** / **Spd2** / **PathCPlan**
+
 ## 0.6.25 — 2026-07-17
 
 ### Added
