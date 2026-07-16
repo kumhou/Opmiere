@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.98 — 2026-07-17
+
+### Added
+- Status bar **session-stats** edits/saves/gens counters
+
 ## 0.4.97 — 2026-07-17
 
 ### Added
