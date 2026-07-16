@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.39 — 2026-07-17
+
+### Added
+- `selection_proxy_report` / `ensure_selection_media_proxies` / `export_selection_mp4_default` + **Proxy?** / **MkProxy** / **Mp4Sel**
+
 ## 0.6.38 — 2026-07-17
 
 ### Added

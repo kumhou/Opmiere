@@ -5062,6 +5062,36 @@ def export_selection_audio_default(
 
 
 @mcp.tool()
+def selection_proxy_report(clip_ids: list[str]) -> dict:
+    """Report asset proxy readiness for media used by selection."""
+    return _require_editor().selection_proxy_report(clip_ids)
+
+
+@mcp.tool()
+def ensure_selection_media_proxies(
+    clip_ids: list[str],
+    height: int = 480,
+    force: bool = False,
+) -> dict:
+    """Build low-res asset proxies for video media in selection."""
+    return _require_editor().ensure_selection_media_proxies(
+        clip_ids, height=height, force=force,
+    )
+
+
+@mcp.tool()
+def export_selection_mp4_default(
+    clip_ids: list[str],
+    filename: str = "selection.mp4",
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export selection union span as MP4 under project exports/."""
+    return _require_editor().export_selection_mp4_default(
+        clip_ids, filename=filename, normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -11241,6 +11241,77 @@ async function exportSelectionAudioDefaultUi() {
   }
 }
 
+async function selectionProxyReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for proxy report";
+    return;
+  }
+  $("status-msg").textContent = "Selection proxies…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      proxy_ready_count?: number;
+      proxy_missing_count?: number;
+    }>("/api/edit/selection_proxy_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Proxy? · ready ${r.proxy_ready_count ?? 0}/${r.count ?? 0} miss ${r.proxy_missing_count ?? 0}`;
+  } catch (e) {
+    setProOut(`Proxy? failed: ${e}`);
+    $("status-msg").textContent = `Proxy? failed: ${e}`;
+  }
+}
+
+async function ensureSelectionMediaProxiesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to build proxies";
+    return;
+  }
+  $("status-msg").textContent = "Building selection media proxies…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/ensure_selection_media_proxies", {
+      clip_ids: ids,
+      height: 480,
+      force: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkProxy · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`MkProxy failed: ${e}`);
+    $("status-msg").textContent = `MkProxy failed: ${e}`;
+  }
+}
+
+async function exportSelectionMp4DefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for MP4 export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection MP4…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+    }>("/api/edit/export_selection_mp4_default", {
+      clip_ids: ids,
+      filename: "selection.mp4",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Mp4Sel · ${String(r.path || r.output_path || "ok")}`;
+  } catch (e) {
+    setProOut(`Mp4Sel failed: ${e}`);
+    $("status-msg").textContent = `Mp4Sel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15209,6 +15280,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-razor-mkr-sel", () => void razorSelectionAtMarkersUi());
   proBind("btn-freeze-ph-sel", () => void freezeSelectionAtPlayheadUi());
   proBind("btn-aud-sel", () => void exportSelectionAudioDefaultUi());
+  proBind("btn-proxy-sel", () => void selectionProxyReportUi());
+  proBind("btn-mk-proxy-sel", () => void ensureSelectionMediaProxiesUi());
+  proBind("btn-mp4-sel", () => void exportSelectionMp4DefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

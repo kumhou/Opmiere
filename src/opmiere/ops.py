@@ -7545,6 +7545,108 @@ class Editor:
             clip_ids, out, sample_rate=sample_rate,
         )
 
+    def selection_proxy_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Per-media proxy readiness for assets used by selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        seen: dict[str, dict[str, Any]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            mid = clip.media
+            if mid in seen:
+                seen[mid]["clip_ids"].append(cid)
+                seen[mid]["clip_count"] += 1
+                continue
+            media = self.project.media_by_id(mid)
+            proxy_abs = None
+            proxy_ready = False
+            if media.proxy_path:
+                proxy_abs = self.bundle.resolve_bundle_path(media.proxy_path)
+                proxy_ready = proxy_abs.exists()
+            seen[mid] = {
+                "media_id": mid,
+                "kind": media.kind,
+                "path": str(self.bundle.media_path(media.path)),
+                "proxy_path": media.proxy_path,
+                "proxy_ready": proxy_ready,
+                "proxy_abs": str(proxy_abs) if proxy_abs else None,
+                "clip_ids": [cid],
+                "clip_count": 1,
+            }
+        rows = list(seen.values())
+        ready_n = sum(1 for r in rows if r["proxy_ready"])
+        return {
+            "count": len(rows),
+            "proxy_ready_count": ready_n,
+            "proxy_missing_count": len(rows) - ready_n,
+            "media": rows,
+            "agent_note": "Asset proxies for bin scrub; not timeline preview_proxy.",
+        }
+
+    def ensure_selection_media_proxies(
+        self,
+        clip_ids: list[str],
+        *,
+        height: int = 480,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """ensure_media_proxy for every unique video media in selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        media_ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            mid = self._find_clip(cid).media
+            if mid not in media_ids:
+                media_ids.append(mid)
+        built: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for mid in media_ids:
+            try:
+                media = self.project.media_by_id(mid)
+                if media.kind == "audio":
+                    skipped.append({"media_id": mid, "reason": "audio_only"})
+                    continue
+                if media.kind == "image":
+                    skipped.append({"media_id": mid, "reason": "image_skip"})
+                    continue
+                r = self.ensure_media_proxy(
+                    mid, height=int(height), force=bool(force),
+                )
+                built.append(r if isinstance(r, dict) else {"media_id": mid})
+            except Exception as e:
+                errors.append({"media_id": mid, "error": str(e)[:200]})
+        return {
+            "height": int(height),
+            "force": bool(force),
+            "count": len(built),
+            "built": built,
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Per-asset proxies for selection media; timeline scrub is ensure_preview_proxy.",
+        }
+
+    def export_selection_mp4_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection.mp4",
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """export_selection_mp4 into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection.mp4")
+        return self.export_selection_mp4(
+            clip_ids, out, normalize_preset=normalize_preset,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

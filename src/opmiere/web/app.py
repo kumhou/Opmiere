@@ -8556,6 +8556,62 @@ def export_selection_audio_default_api(
         raise HTTPException(400, f"export_selection_audio_default failed: {e}") from e
 
 
+class SelectionProxyReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_proxy_report")
+def selection_proxy_report_api(body: SelectionProxyReportBody) -> dict[str, Any]:
+    """Proxy readiness for selection media."""
+    ed = _ed()
+    try:
+        return ed.selection_proxy_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_proxy_report failed: {e}") from e
+
+
+class EnsureSelectionProxiesBody(BaseModel):
+    clip_ids: list[str]
+    height: int = 480
+    force: bool = False
+
+
+@app.post("/api/edit/ensure_selection_media_proxies")
+def ensure_selection_media_proxies_api(
+    body: EnsureSelectionProxiesBody,
+) -> dict[str, Any]:
+    """Build asset proxies for selection media."""
+    ed = _ed()
+    try:
+        return ed.ensure_selection_media_proxies(
+            body.clip_ids, height=body.height, force=body.force,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ensure_selection_media_proxies failed: {e}") from e
+
+
+class ExportSelectionMp4DefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection.mp4"
+    normalize_preset: str | None = None
+
+
+@app.post("/api/edit/export_selection_mp4_default")
+def export_selection_mp4_default_api(
+    body: ExportSelectionMp4DefaultBody,
+) -> dict[str, Any]:
+    """Export selection span MP4 to exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_mp4_default(
+            body.clip_ids,
+            filename=body.filename,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_mp4_default failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
