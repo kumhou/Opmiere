@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.27 — 2026-07-17
+
+### Added
+- **Still** export also seeks program frame.jpg
+
 ## 0.5.26 — 2026-07-17
 
 ### Added
