@@ -4886,6 +4886,24 @@ def selection_cut_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def crop_selection_center(clip_ids: list[str], scale: float = 0.85) -> dict:
+    """Center-crop selection to scale of project resolution."""
+    return _require_editor().crop_selection_center(clip_ids, scale=scale)
+
+
+@mcp.tool()
+def vignette_selection(clip_ids: list[str], strength: float = 0.4) -> dict:
+    """Apply vignette strength to selection."""
+    return _require_editor().vignette_selection(clip_ids, strength=strength)
+
+
+@mcp.tool()
+def selection_effects_report(clip_ids: list[str]) -> dict:
+    """Effect histogram + path-C mapped/unmapped for selection."""
+    return _require_editor().selection_effects_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -10754,6 +10754,85 @@ async function selectionCutReportUi() {
   }
 }
 
+async function cropSelectionCenterUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to crop";
+    return;
+  }
+  $("status-msg").textContent = "Center-cropping selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/crop_selection_center", {
+      clip_ids: ids,
+      scale: 0.85,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CropC · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`CropC failed: ${e}`);
+    $("status-msg").textContent = `CropC failed: ${e}`;
+  }
+}
+
+async function vignetteSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for vignette";
+    return;
+  }
+  $("status-msg").textContent = "Applying vignette…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/vignette_selection", {
+      clip_ids: ids,
+      strength: 0.4,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `VigSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`VigSel failed: ${e}`);
+    $("status-msg").textContent = `VigSel failed: ${e}`;
+  }
+}
+
+async function selectionEffectsReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for FX report";
+    return;
+  }
+  $("status-msg").textContent = "Selection FX…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      unmapped_total?: number;
+      adapter_version?: number;
+      histogram?: Record<string, number>;
+    }>("/api/edit/selection_effects_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FX? · ${r.count ?? 0} unmapped ${r.unmapped_total ?? 0} adapter≥${r.adapter_version ?? "?"}`;
+  } catch (e) {
+    setProOut(`FX? failed: ${e}`);
+    $("status-msg").textContent = `FX? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14704,6 +14783,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-flip-h-sel", () => void flipSelectionHUi());
   proBind("btn-rot90-sel", () => void rotateSelectionUi(90));
   proBind("btn-cuts-sel", () => void selectionCutReportUi());
+  proBind("btn-crop-sel", () => void cropSelectionCenterUi());
+  proBind("btn-vig-sel", () => void vignetteSelectionUi());
+  proBind("btn-fx-sel", () => void selectionEffectsReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

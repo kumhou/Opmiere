@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.33 — 2026-07-17
+
+### Added
+- `crop_selection_center` / `vignette_selection` / `selection_effects_report` + **CropC** / **VigSel** / **FX?**
+
 ## 0.6.32 — 2026-07-17
 
 ### Added

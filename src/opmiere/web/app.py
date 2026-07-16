@@ -8219,6 +8219,52 @@ def selection_cut_report_api(body: SelectionCutReportBody) -> dict[str, Any]:
         raise HTTPException(400, f"selection_cut_report failed: {e}") from e
 
 
+class CropSelectionCenterBody(BaseModel):
+    clip_ids: list[str]
+    scale: float = 0.85
+
+
+@app.post("/api/edit/crop_selection_center")
+def crop_selection_center_api(body: CropSelectionCenterBody) -> dict[str, Any]:
+    """Center-crop selection to scale of project frame."""
+    ed = _ed()
+    try:
+        r = ed.crop_selection_center(body.clip_ids, scale=body.scale)
+    except Exception as e:
+        raise HTTPException(400, f"crop_selection_center failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class VignetteSelectionBody(BaseModel):
+    clip_ids: list[str]
+    strength: float = 0.4
+
+
+@app.post("/api/edit/vignette_selection")
+def vignette_selection_api(body: VignetteSelectionBody) -> dict[str, Any]:
+    """Apply vignette to selection."""
+    ed = _ed()
+    try:
+        r = ed.vignette_selection(body.clip_ids, strength=body.strength)
+    except Exception as e:
+        raise HTTPException(400, f"vignette_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionEffectsReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_effects_report")
+def selection_effects_report_api(body: SelectionEffectsReportBody) -> dict[str, Any]:
+    """FX histogram + path-C mapped/unmapped for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_effects_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_effects_report failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

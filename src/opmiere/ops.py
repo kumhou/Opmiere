@@ -6939,6 +6939,110 @@ class Editor:
             "agent_note": "Selection adjacency map for dissolve/pack decisions.",
         }
 
+    def crop_selection_center(
+        self,
+        clip_ids: list[str],
+        *,
+        scale: float = 0.85,
+    ) -> dict[str, Any]:
+        """Center-crop selection to scale of project resolution."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        sc = float(scale)
+        if not (0.1 < sc <= 1.0):
+            raise ValueError("scale must be in (0.1, 1.0]")
+        pw = max(2, int(self.project.resolution.w or 1920))
+        ph = max(2, int(self.project.resolution.h or 1080))
+        w = max(2, int(round(pw * sc)))
+        h = max(2, int(round(ph * sc)))
+        # force even for yuv
+        w -= w % 2
+        h -= h % 2
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.set_clip_crop(cid, w, h)
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "scale": sc,
+            "width": w,
+            "height": h,
+            "count": len(out),
+            "cropped": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Center crop via set_clip_crop; x/y default center in ffmpeg.",
+        }
+
+    def vignette_selection(
+        self,
+        clip_ids: list[str],
+        strength: float = 0.4,
+    ) -> dict[str, Any]:
+        """Apply vignette to selection (replaces existing vignette per clip)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_vignette(cid, strength=float(strength))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "strength": float(strength),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Vignette on selection; path-C maps best-effort.",
+        }
+
+    def selection_effects_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Effect type histogram + path-C mapped/unmapped for selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        from .render.openshot_map import ADAPTER_VERSION, clip_path_c_support
+
+        hist: dict[str, int] = {}
+        rows: list[dict[str, Any]] = []
+        unmapped_total = 0
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            types: list[str] = []
+            for e in clip.effects or []:
+                if isinstance(e, dict) and e.get("type"):
+                    t = str(e["type"])
+                    types.append(t)
+                    hist[t] = hist.get(t, 0) + 1
+            pc = clip_path_c_support(clip)
+            unmapped = list(pc.get("unmapped") or [])
+            unmapped_total += len(unmapped)
+            rows.append(
+                {
+                    "clip_id": cid,
+                    "effects": types,
+                    "mapped": list(pc.get("mapped") or []),
+                    "unmapped": unmapped,
+                    "path_c_ready": pc.get("path_c_ready"),
+                }
+            )
+        return {
+            "adapter_version": int(ADAPTER_VERSION),
+            "count": len(rows),
+            "histogram": hist,
+            "unmapped_total": unmapped_total,
+            "clips": rows,
+            "agent_note": "FX inventory; adapter_version is floor not pin.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
