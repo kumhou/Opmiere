@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.25 — 2026-07-17
+
+### Added
+- Checkpoint **0.5.25**: session summary + health + filler + path-C v4 UX stack stable
+
 ## 0.5.24 — 2026-07-17
 
 ### Added
