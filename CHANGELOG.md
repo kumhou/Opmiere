@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.31 — 2026-07-17
+
+### Added
+- `suggest/filler` + Fill? button wiring check
+
 ## 0.5.30 — 2026-07-17
 
 ### Added
