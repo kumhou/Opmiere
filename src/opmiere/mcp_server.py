@@ -1542,6 +1542,44 @@ def export_marker_segments(
 
 
 @mcp.tool()
+def export_track_stems(
+    output_dir: str,
+    track_ids: list[str] | None = None,
+    kind: str | None = None,
+    name_prefix: str = "stem",
+    audio_only: bool = False,
+) -> dict:
+    """Export each track soloed (VO/music stems). Restores mute state."""
+    return _require_editor().export_track_stems(
+        output_dir,
+        track_ids=track_ids,
+        kind=kind,
+        name_prefix=name_prefix,
+        audio_only=audio_only,
+    )
+
+
+@mcp.tool()
+def balance_clip_gains(
+    clip_ids: list[str],
+    target_db: float = 0.0,
+    relative: bool = True,
+) -> dict:
+    """Balance clip gains (relative shift or absolute target_db)."""
+    return _require_editor().balance_clip_gains(
+        clip_ids, target_db=target_db, relative=relative,
+    )
+
+
+@mcp.tool()
+def openshot_plan(height: int = 360, include_audio: bool = False) -> dict:
+    """OpenShot multi-clip plan (optional audio track listing)."""
+    return _require_editor().openshot_plan(
+        height=height, include_audio=include_audio,
+    )
+
+
+@mcp.tool()
 def quantize_clips(
     clip_ids: list[str],
     grid_frames: int,
@@ -3509,12 +3547,6 @@ def openshot_frame_at(
     return _require_editor().openshot_frame_at(
         time_seconds, output_path, height=height, use_timeline=use_timeline,
     )
-
-
-@mcp.tool()
-def openshot_plan(height: int = 360) -> dict:
-    """OpenShot multi-clip plan for the open project (no render)."""
-    return _require_editor().openshot_plan(height=height)
 
 
 @mcp.tool()

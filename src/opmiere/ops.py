@@ -209,10 +209,148 @@ class Editor:
         from .render.preview_session import preview_engine_status
         return preview_engine_status()
 
-    def openshot_plan(self, *, height: int = 360) -> dict[str, Any]:
-        """Build OpenShot multi-clip plan for current project (no render)."""
+    def openshot_plan(
+        self, *, height: int = 360, include_audio: bool = False
+    ) -> dict[str, Any]:
+        """Build OpenShot multi-clip plan for current project (no render).
+
+        include_audio=True lists audio-track clips under plan["audio"].
+        """
         from .render.openshot_map import build_openshot_plan
-        return build_openshot_plan(self.project, self.bundle, height=height)
+        return build_openshot_plan(
+            self.project, self.bundle, height=height, include_audio=include_audio,
+        )
+
+    def export_track_stems(
+        self,
+        output_dir: str | Path,
+        *,
+        track_ids: list[str] | None = None,
+        kind: str | None = None,
+        name_prefix: str = "stem",
+        audio_only: bool = False,
+    ) -> dict[str, Any]:
+        """Export each selected track soloed (others muted) as a separate file.
+
+        Restores mute state after. audio_only=True writes wav (export_audio path
+        via full render + extract); otherwise mp4 with silence on muted video.
+        Agents use this for VO/music/stem handoff without demucs.
+        """
+        import re
+
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        tracks = list(self.project.tracks)
+        if track_ids is not None:
+            wanted = set(track_ids)
+            tracks = [t for t in tracks if t.id in wanted]
+        if kind is not None:
+            tracks = [t for t in tracks if t.kind == kind]
+        if not tracks:
+            raise ValueError("no tracks match selection")
+
+        # snapshot mute
+        mute_state = {t.id: bool(t.muted) for t in self.project.tracks}
+        stems: list[dict[str, Any]] = []
+        try:
+            for i, tr in enumerate(tracks):
+                # mute all, unmute target
+                for t in self.project.tracks:
+                    t.muted = t.id != tr.id
+                safe = re.sub(r"[^\w\-]+", "_", (tr.name or tr.id))[:32]
+                if audio_only or tr.kind == "audio":
+                    dest = out_dir / f"{name_prefix}_{i+1:02d}_{safe}.wav"
+                    try:
+                        r = self.export_audio(dest)
+                        stems.append({
+                            "track_id": tr.id,
+                            "kind": tr.kind,
+                            "name": tr.name,
+                            "path": r.get("path") or str(dest),
+                            "ok": True,
+                            "format": "wav",
+                        })
+                    except Exception as e:
+                        stems.append({
+                            "track_id": tr.id,
+                            "kind": tr.kind,
+                            "ok": False,
+                            "error": str(e)[:400],
+                        })
+                else:
+                    dest = out_dir / f"{name_prefix}_{i+1:02d}_{safe}.mp4"
+                    try:
+                        written = self.export(dest)
+                        stems.append({
+                            "track_id": tr.id,
+                            "kind": tr.kind,
+                            "name": tr.name,
+                            "path": str(Path(written).resolve()),
+                            "ok": True,
+                            "format": "mp4",
+                        })
+                    except Exception as e:
+                        stems.append({
+                            "track_id": tr.id,
+                            "kind": tr.kind,
+                            "ok": False,
+                            "error": str(e)[:400],
+                        })
+        finally:
+            for t in self.project.tracks:
+                t.muted = mute_state.get(t.id, False)
+
+        ok_n = sum(1 for s in stems if s.get("ok"))
+        return {
+            "count": ok_n,
+            "stem_count": len(stems),
+            "stems": stems,
+            "output_dir": str(out_dir.resolve()),
+            "ok": ok_n == len(stems) and ok_n > 0,
+            "agent_note": "Mute state restored. Video stems may include silence where muted.",
+        }
+
+    def balance_clip_gains(
+        self,
+        clip_ids: list[str],
+        *,
+        target_db: float = 0.0,
+        relative: bool = True,
+    ) -> dict[str, Any]:
+        """Set gains so clips share a common level offset.
+
+        relative=True: keep pairwise differences but shift average to target_db.
+        relative=False: set every clip to target_db.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        current = {cid: self.get_clip_gain_db(cid) for cid in ids}
+        if relative:
+            avg = sum(current.values()) / max(1, len(current))
+            delta = float(target_db) - avg
+            targets = {cid: max(-60.0, min(24.0, g + delta)) for cid, g in current.items()}
+        else:
+            targets = {cid: float(target_db) for cid in ids}
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in ids:
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                old = current[cid]
+                db = targets[cid]
+                clip.effects = [e for e in (clip.effects or []) if e.get("type") != "gain"]
+                applied = 0.0 if abs(db) < 0.05 else db
+                if abs(applied) >= 0.05:
+                    clip.effects.append({"type": "gain", "db": applied})
+                out.append({"clip_id": cid, "db": {"from": old, "to": applied}})
+            return {
+                "count": len(out),
+                "clips": out,
+                "target_db": target_db,
+                "relative": relative,
+                "agent_note": "Peak-agnostic gain balance; run delivery_check after export.",
+            }
 
     def openshot_frame_at(
         self,

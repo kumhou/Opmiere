@@ -5605,6 +5605,57 @@ async function exportMarkerSegmentsUi() {
   }
 }
 
+async function exportTrackStemsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting track stems (solo each track)…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      stem_count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/export/track_stems", {
+      name_prefix: "stem",
+      audio_only: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Stems · ${r.count ?? 0}/${r.stem_count ?? "?"} → ${r.output_dir || "export"}`;
+  } catch (e) {
+    setProOut(`Stems failed: ${e}`);
+    $("status-msg").textContent = `Stems failed: ${e}`;
+  }
+}
+
+async function balanceGainsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to balance gains";
+    return;
+  }
+  $("status-msg").textContent = `Balancing gains ×${ids.length}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clips/balance_gains", {
+      clip_ids: ids,
+      target_db: 0,
+      relative: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `BalG · ${r.count ?? ids.length} clips → avg 0 dB`;
+  } catch (e) {
+    setProOut(`BalG failed: ${e}`);
+    $("status-msg").textContent = `BalG failed: ${e}`;
+  }
+}
+
 async function importFcpxmlFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9514,6 +9565,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fcpxml", () => void exportFcpxmlUi());
   proBind("btn-import-fcpxml", () => void importFcpxmlFile());
   proBind("btn-exp-mkr-seg", () => void exportMarkerSegmentsUi());
+  proBind("btn-track-stems", () => void exportTrackStemsUi());
+  proBind("btn-bal-gain", () => void balanceGainsUi());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-interchange", () => void interchangeCatalogUi());

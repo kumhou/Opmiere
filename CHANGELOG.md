@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.57 — 2026-07-17
+
+### Added
+- OpenShot path-C **adapter v16**: `gain` + optional `include_audio` plan tracks
+- `export_track_stems` + API/MCP/desktop **Stems**
+- `balance_clip_gains` + **BalG**
+
+### Fixed
+- CI: path-C readiness test uses still-unmapped `audio_eq` (text/gain now mapped)
 ## 0.5.56 — 2026-07-17
 
 ### Fixed
@@ -1431,6 +1440,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

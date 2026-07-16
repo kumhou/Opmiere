@@ -2881,8 +2881,10 @@ def preview_interactive() -> dict[str, Any]:
 
 
 @app.get("/api/preview/openshot_plan")
-def preview_openshot_plan(height: int = 360) -> dict[str, Any]:
-    return _ed().openshot_plan(height=height)
+def preview_openshot_plan(
+    height: int = 360, include_audio: bool = False
+) -> dict[str, Any]:
+    return _ed().openshot_plan(height=height, include_audio=include_audio)
 
 
 @app.get("/api/preview/openshot_effects")
@@ -3774,6 +3776,51 @@ def export_marker_segments_api(body: ExportMarkerSegmentsBody | None = None) -> 
         )
     except Exception as e:
         raise HTTPException(400, f"export_marker_segments failed: {e}") from e
+
+
+class ExportTrackStemsBody(BaseModel):
+    output_dir: str | None = None
+    track_ids: list[str] | None = None
+    kind: str | None = None
+    name_prefix: str = "stem"
+    audio_only: bool = False
+
+
+@app.post("/api/export/track_stems")
+def export_track_stems_api(body: ExportTrackStemsBody | None = None) -> dict[str, Any]:
+    """Export each track soloed as a separate file (mute state restored)."""
+    body = body or ExportTrackStemsBody()
+    ed = _ed()
+    out_dir = body.output_dir or str(_desktop_export_dir() / "track_stems")
+    try:
+        return ed.export_track_stems(
+            out_dir,
+            track_ids=body.track_ids,
+            kind=body.kind,
+            name_prefix=body.name_prefix,
+            audio_only=body.audio_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_track_stems failed: {e}") from e
+
+
+class BalanceGainsBody(BaseModel):
+    clip_ids: list[str]
+    target_db: float = 0.0
+    relative: bool = True
+
+
+@app.post("/api/clips/balance_gains")
+def balance_gains_api(body: BalanceGainsBody) -> dict[str, Any]:
+    """Balance clip gains to a shared average or absolute target."""
+    ed = _ed()
+    try:
+        r = ed.balance_clip_gains(
+            body.clip_ids, target_db=body.target_db, relative=body.relative,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"balance_gains failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
 
 
 @app.get("/api/snap_points")

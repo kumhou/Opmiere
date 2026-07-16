@@ -51,18 +51,17 @@ _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
-    "shape_mask", "text", "subtitles",
+    "shape_mask", "text", "subtitles", "gain",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "gain",
     "lut3d",
     "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 15
+ADAPTER_VERSION = 16
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -110,6 +109,8 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "shape_mask": "circle/rect → crop fractions (no feather)",
             "text": "title card props in plan (still frames may not paint glyphs)",
             "subtitles": "SRT/ASS path recorded in plan for burn-in awareness",
+            "gain": "gain_db carried on plan clips (audio mix / export)",
+            "audio_tracks": "include_audio=True lists audio clips in plan.audio",
         },
     }
 
@@ -198,6 +199,7 @@ def clip_visual_props(
     white_balance: dict[str, float] | None = None
     text_overlay: dict[str, Any] | None = None
     subtitles: dict[str, Any] | None = None
+    gain_db = 0.0
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -299,6 +301,12 @@ def clip_visual_props(
                 mapped.append("subtitles")
             else:
                 unmapped.append("subtitles")
+        elif et == "gain":
+            try:
+                gain_db = float(e.get("db", 0) or 0)
+            except (TypeError, ValueError):
+                gain_db = 0.0
+            mapped.append("gain")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)
@@ -459,6 +467,7 @@ def clip_visual_props(
         "white_balance": white_balance,
         "text": text_overlay,
         "subtitles": subtitles,
+        "gain_db": gain_db,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -604,6 +613,7 @@ def build_openshot_plan(
                 "vignette": vis.get("vignette") or 0.0,
                 "sharpen": vis.get("sharpen") or 0.0,
                 "film_grain": vis.get("film_grain") or 0.0,
+                "gain_db": vis.get("gain_db") or 0.0,
             }
             if dip_color:
                 entry["dip_in"] = dip_color
@@ -647,9 +657,47 @@ def build_openshot_plan(
             clips_out.append(entry)
             last_entry_by_layer[layer] = entry
 
+    audio_out: list[dict[str, Any]] = []
     if include_audio:
-        # deferred: audio mix in interactive preview is optional for frame grab
-        pass
+        audio_tracks = [
+            tr for tr in project.tracks
+            if tr.kind == "audio" and not getattr(tr, "muted", False)
+        ]
+        solo_a = [tr for tr in audio_tracks if getattr(tr, "solo", False)]
+        if solo_a:
+            audio_tracks = solo_a
+        for track_index, track in enumerate(audio_tracks):
+            for clip in track.clips_in_order():
+                if clip.muted:
+                    continue
+                media = project.media_by_id(clip.media)
+                path = Path(bundle.media_path(media.path))
+                if not path.exists():
+                    missing.append(str(path))
+                    continue
+                vis = clip_visual_props(clip)
+                gain_db = float(vis.get("gain_db") or 0.0)
+                audio_out.append({
+                    "id": clip.id,
+                    "kind": "audio",
+                    "path": str(path.resolve()),
+                    "position": tb.frames_to_seconds(clip.start),
+                    "start": tb.frames_to_seconds(clip.src_in),
+                    "end": tb.frames_to_seconds(clip.src_out),
+                    "layer": track_index + 1,
+                    "track_index": track_index,
+                    "track_id": track.id,
+                    "speed": float(clip.speed or 1.0),
+                    "timeline_duration": tb.frames_to_seconds(
+                        clip.timeline_duration_frames
+                    ),
+                    "gain_db": gain_db,
+                    "fade_in_frames": vis.get("fade_in_frames") or 0,
+                    "fade_out_frames": vis.get("fade_out_frames") or 0,
+                })
+                if abs(gain_db) > 0.05:
+                    mapped_notes.append(f"gain:{clip.id}")
+                mapped_notes.append(f"audio:{clip.id}")
 
     duration_frames = 0
     for track in project.tracks:
@@ -684,6 +732,9 @@ def build_openshot_plan(
         "duration_frames": duration_frames,
         "clips": clips_out,
         "clip_count": len(clips_out),
+        "audio": audio_out,
+        "audio_count": len(audio_out),
+        "include_audio": bool(include_audio),
         "missing_media": missing,
         "unsupported": un_unique,
         "unsupported_detail": unsupported[:40],
