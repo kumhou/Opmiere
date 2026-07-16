@@ -3678,6 +3678,115 @@ class Editor:
             "agent_note": "Union span; use for export_range / work area.",
         }
 
+    def extend_to_next_clip(
+        self,
+        clip_id: str,
+    ) -> dict[str, Any]:
+        """Extend clip tail toward the next clip on the same track using source.
+
+        Requires speed=1.0. Uses remaining media after src_out up to next.start.
+        If already adjacent or last on track, no-op with reason.
+        """
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            track, clip = self._find_clip_and_track(clip_id)
+            if float(clip.speed or 1.0) != 1.0:
+                raise ValueError("extend_to_next_clip requires speed=1.0")
+            ordered = track.clips_in_order()
+            idx = next((i for i, c in enumerate(ordered) if c.id == clip_id), None)
+            if idx is None:
+                raise ValueError(f"clip {clip_id} not on track")
+            if idx + 1 >= len(ordered):
+                return {
+                    "clip_id": clip_id,
+                    "extended_frames": 0,
+                    "reason": "last clip on track",
+                    "agent_note": "No next clip to extend toward.",
+                }
+            nxt = ordered[idx + 1]
+            gap = int(nxt.start) - int(clip.end)
+            if gap <= 0:
+                return {
+                    "clip_id": clip_id,
+                    "extended_frames": 0,
+                    "reason": "already adjacent or overlapping",
+                    "next_start": nxt.start,
+                    "end": clip.end,
+                }
+            media = self.project.media_by_id(clip.media)
+            max_src = int(media.duration_frames or clip.src_out)
+            avail = max(0, max_src - int(clip.src_out))
+            take = min(gap, avail)
+            if take <= 0:
+                return {
+                    "clip_id": clip_id,
+                    "extended_frames": 0,
+                    "reason": "no remaining source frames",
+                    "gap_frames": gap,
+                    "media_duration_frames": max_src,
+                }
+            old_out = int(clip.src_out)
+            old_end = int(clip.end)
+            clip.src_out = old_out + take
+            return {
+                "clip_id": clip_id,
+                "track_id": track.id,
+                "extended_frames": take,
+                "gap_frames": gap,
+                "src_out": {"from": old_out, "to": clip.src_out},
+                "end": {"from": old_end, "to": clip.end},
+                "next_clip_id": nxt.id,
+                "agent_note": "Extended into gap with available source; may still leave gap.",
+            }
+
+    def reverse_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Reverse media for each selected clip (re-encode)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.reverse_clip(cid, replace=replace)
+                out.append(r if isinstance(r, dict) else {"clip_id": cid, "ok": True})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:240]})
+        return {
+            "count": len(out),
+            "clips": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Batch reverse_clip; each clip is a re-encode.",
+        }
+
+    def set_selection_speed_ripple(
+        self,
+        clip_ids: list[str],
+        speed: float,
+    ) -> dict[str, Any]:
+        """set_speed_ripple on each selected clip (end→start order)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            c = self._find_clip(cid)
+            items.append((int(c.start), cid))
+        items.sort(key=lambda x: x[0], reverse=True)
+        results: list[dict[str, Any]] = []
+        for _, cid in items:
+            results.append(self.set_speed_ripple(cid, speed))
+        return {
+            "speed": float(speed),
+            "count": len(results),
+            "results": results,
+            "agent_note": "Per-clip speed+ripple, processed right-to-left.",
+        }
+
     def set_clips_flip(
         self,
         clip_ids: list[str],

@@ -4234,6 +4234,24 @@ def set_work_area_from_selection_export(
 
 
 @mcp.tool()
+def extend_to_next_clip(clip_id: str) -> dict:
+    """Extend clip tail into the gap before the next clip (uses source)."""
+    return _require_editor().extend_to_next_clip(clip_id)
+
+
+@mcp.tool()
+def reverse_selection(clip_ids: list[str], replace: bool = True) -> dict:
+    """Reverse media for each selected clip (re-encode)."""
+    return _require_editor().reverse_selection(clip_ids, replace=replace)
+
+
+@mcp.tool()
+def set_selection_speed_ripple(clip_ids: list[str], speed: float) -> dict:
+    """Apply speed+ripple to each selected clip (right-to-left)."""
+    return _require_editor().set_selection_speed_ripple(clip_ids, speed)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

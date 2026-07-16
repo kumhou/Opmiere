@@ -6988,6 +6988,53 @@ def work_area_from_selection_export_api(body: WorkAreaSelectionExportBody) -> di
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExtendToNextBody(BaseModel):
+    clip_id: str
+
+
+@app.post("/api/clip/extend_to_next")
+def extend_to_next_api(body: ExtendToNextBody) -> dict[str, Any]:
+    """Extend clip into gap before next clip."""
+    ed = _ed()
+    try:
+        r = ed.extend_to_next_clip(body.clip_id)
+    except Exception as e:
+        raise HTTPException(400, f"extend_to_next failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ReverseSelectionBody(BaseModel):
+    clip_ids: list[str]
+    replace: bool = True
+
+
+@app.post("/api/edit/reverse_selection")
+def reverse_selection_api(body: ReverseSelectionBody) -> dict[str, Any]:
+    """Reverse media for selection."""
+    ed = _ed()
+    try:
+        r = ed.reverse_selection(body.clip_ids, replace=body.replace)
+    except Exception as e:
+        raise HTTPException(400, f"reverse_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSpeedRippleBody(BaseModel):
+    clip_ids: list[str]
+    speed: float
+
+
+@app.post("/api/edit/selection_speed_ripple")
+def selection_speed_ripple_api(body: SelectionSpeedRippleBody) -> dict[str, Any]:
+    """Speed+ripple each selected clip."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_speed_ripple(body.clip_ids, body.speed)
+    except Exception as e:
+        raise HTTPException(400, f"selection_speed_ripple failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

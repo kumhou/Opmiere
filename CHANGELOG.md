@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.11 — 2026-07-17
+
+### Added
+- `extend_to_next_clip` + **Ext→**
+- `reverse_selection` / `set_selection_speed_ripple` + **RevSel** / **2×Sel**
+
 ## 0.6.10 — 2026-07-17
 
 ### Added

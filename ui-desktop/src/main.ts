@@ -9038,6 +9038,81 @@ async function workAreaFromSelectionExportUi() {
   }
 }
 
+async function extendToNextUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip to extend";
+    return;
+  }
+  $("status-msg").textContent = "Extending to next…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      extended_frames?: number;
+    }>("/api/clip/extend_to_next", { clip_id: ids[0] });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Ext→ · +${r.extended_frames ?? 0}f`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Ext→ failed: ${e}`);
+    $("status-msg").textContent = `Ext→ failed: ${e}`;
+  }
+}
+
+async function reverseSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to reverse";
+    return;
+  }
+  $("status-msg").textContent = "Reversing selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/reverse_selection", {
+      clip_ids: ids,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RevSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RevSel failed: ${e}`);
+    $("status-msg").textContent = `RevSel failed: ${e}`;
+  }
+}
+
+async function selectionSpeedRippleUi(speed: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for speed ripple";
+    return;
+  }
+  $("status-msg").textContent = `Speed ${speed}× + ripple selection…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/selection_speed_ripple", {
+      clip_ids: ids,
+      speed,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `${speed}×Sel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SpeedSel failed: ${e}`);
+    $("status-msg").textContent = `SpeedSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12914,6 +12989,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-trim-q", () => void trimSelectionPlayheadUi("head"));
   proBind("btn-trim-w", () => void trimSelectionPlayheadUi("tail"));
   proBind("btn-wa-sel", () => void workAreaFromSelectionExportUi());
+  proBind("btn-ext-next", () => void extendToNextUi());
+  proBind("btn-rev-sel", () => void reverseSelectionUi());
+  proBind("btn-spd2-sel", () => void selectionSpeedRippleUi(2.0));
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
