@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.85 — 2026-07-17
+
+### Added
+- Desktop **MkClr** — set_marker_color_batch
+
 ## 0.4.84 — 2026-07-17
 
 ### Added
