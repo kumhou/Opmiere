@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.70 — 2026-07-16
+
+### Added
+- Milestone **0.4.70**: Pro panel complete (agent → analyze → interchange → export → craft)
+- Poll uses POST `/api/generate/status` as well as GET job
+- Help grid: Preflight / Agent finish / Generate note
+- README Status 0.4.70
+
 ## 0.4.69 — 2026-07-16
 
 ### Added

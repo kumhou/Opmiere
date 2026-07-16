@@ -5189,7 +5189,7 @@ async function pollGeneration(silent = false) {
     return;
   }
   try {
-    const r = await getJson<{
+    let r: {
       job_id?: string;
       status?: string;
       kind?: string;
@@ -5197,7 +5197,12 @@ async function pollGeneration(silent = false) {
       result_path?: string | null;
       error?: string | null;
       license?: Record<string, string>;
-    }>(`/api/generate/job/${encodeURIComponent(state.genJobId)}`);
+    };
+    try {
+      r = await getJson(`/api/generate/job/${encodeURIComponent(state.genJobId)}`);
+    } catch {
+      r = await postJson("/api/generate/status", { job_id: state.genJobId });
+    }
     state.genStatus = r.status || "";
     state.genResultPath = r.result_path || "";
     const lines = [
