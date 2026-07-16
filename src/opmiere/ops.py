@@ -5094,6 +5094,111 @@ class Editor:
             "agent_note": "Still after each clip mid-frame (ffmpeg extract).",
         }
 
+    def isolate_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        kind: str | None = None,
+    ) -> dict[str, Any]:
+        """Mute every clip not in selection (same kind filter optional).
+
+        kind=video|audio limits which tracks are muted; None = all kinds.
+        Selected clips are unmuted. One undo.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        keep = set(dict.fromkeys(clip_ids))
+        # expand to verify exist
+        for cid in keep:
+            self._find_clip(cid)
+        with self._mutate():
+            muted: list[str] = []
+            unmuted: list[str] = []
+            for tr in self.project.tracks:
+                if kind is not None and tr.kind != kind:
+                    continue
+                if tr.locked:
+                    continue
+                for c in tr.clips:
+                    if c.id in keep:
+                        if c.muted:
+                            c.muted = False
+                        unmuted.append(c.id)
+                    else:
+                        if not c.muted:
+                            c.muted = True
+                        muted.append(c.id)
+            return {
+                "keep": sorted(keep),
+                "unmuted_count": len(unmuted),
+                "muted_count": len(muted),
+                "unmuted": unmuted,
+                "muted": muted,
+                "kind": kind,
+                "agent_note": "Clip mute isolate; unmute_all_clips to restore.",
+            }
+
+    def move_selection_to_track(
+        self,
+        clip_ids: list[str],
+        track_id: str,
+        *,
+        preserve_starts: bool = True,
+        stack_start: int | None = None,
+    ) -> dict[str, Any]:
+        """Move selected clips onto track_id (same kind required).
+
+        preserve_starts=True keeps each timeline start.
+        preserve_starts=False packs from stack_start (default 0) in start order.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        dest = self.project.track_by_id(track_id)
+        if dest.locked:
+            raise ValueError(f"track {track_id} is locked")
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            if tr.kind != dest.kind:
+                raise ValueError(
+                    f"clip {cid} is {tr.kind}; dest track is {dest.kind}"
+                )
+            items.append((int(clip.start), cid))
+        items.sort(key=lambda x: x[0])
+        moved: list[dict[str, Any]] = []
+        cursor = 0 if stack_start is None else max(0, int(stack_start))
+        for _, cid in items:
+            if preserve_starts:
+                r = self.move_to_track(cid, track_id, start=None)
+            else:
+                r = self.move_to_track(cid, track_id, start=cursor)
+                clip = self._find_clip(cid)
+                cursor = int(clip.end)
+            moved.append(r if isinstance(r, dict) else {"clip_id": cid})
+        return {
+            "track_id": track_id,
+            "count": len(moved),
+            "moved": moved,
+            "preserve_starts": preserve_starts,
+            "agent_note": "Clips reparented; check overlaps on freeform tracks.",
+        }
+
+    def set_selection_gain(
+        self,
+        clip_ids: list[str],
+        db: float,
+    ) -> dict[str, Any]:
+        """Alias for set_clips_gain (selection-oriented)."""
+        return self.set_clips_gain(clip_ids, db)
+
+    def set_selection_opacity(
+        self,
+        clip_ids: list[str],
+        amount: float,
+    ) -> dict[str, Any]:
+        """Alias for set_clips_opacity (selection-oriented)."""
+        return self.set_clips_opacity(clip_ids, amount)
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

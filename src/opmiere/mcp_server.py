@@ -4388,6 +4388,40 @@ def freeze_selection_mids(
 
 
 @mcp.tool()
+def isolate_selection(clip_ids: list[str], kind: str | None = None) -> dict:
+    """Mute all clips not in selection (optional kind=video|audio)."""
+    return _require_editor().isolate_selection(clip_ids, kind=kind)
+
+
+@mcp.tool()
+def move_selection_to_track(
+    clip_ids: list[str],
+    track_id: str,
+    preserve_starts: bool = True,
+    stack_start: int | None = None,
+) -> dict:
+    """Move selected clips onto track_id."""
+    return _require_editor().move_selection_to_track(
+        clip_ids,
+        track_id,
+        preserve_starts=preserve_starts,
+        stack_start=stack_start,
+    )
+
+
+@mcp.tool()
+def set_selection_gain(clip_ids: list[str], db: float) -> dict:
+    """Set gain dB on selection."""
+    return _require_editor().set_selection_gain(clip_ids, db)
+
+
+@mcp.tool()
+def set_selection_opacity(clip_ids: list[str], amount: float) -> dict:
+    """Set opacity 0..1 on selection."""
+    return _require_editor().set_selection_opacity(clip_ids, amount)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

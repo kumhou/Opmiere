@@ -7258,6 +7258,77 @@ def freeze_selection_mids_api(body: FreezeSelectionMidsBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class IsolateSelectionBody(BaseModel):
+    clip_ids: list[str]
+    kind: str | None = None
+
+
+@app.post("/api/edit/isolate_selection")
+def isolate_selection_api(body: IsolateSelectionBody) -> dict[str, Any]:
+    """Mute all clips not in selection."""
+    ed = _ed()
+    try:
+        r = ed.isolate_selection(body.clip_ids, kind=body.kind)
+    except Exception as e:
+        raise HTTPException(400, f"isolate_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MoveSelectionTrackBody(BaseModel):
+    clip_ids: list[str]
+    track_id: str
+    preserve_starts: bool = True
+    stack_start: int | None = None
+
+
+@app.post("/api/edit/move_selection_to_track")
+def move_selection_to_track_api(body: MoveSelectionTrackBody) -> dict[str, Any]:
+    """Move selection onto a track."""
+    ed = _ed()
+    try:
+        r = ed.move_selection_to_track(
+            body.clip_ids,
+            body.track_id,
+            preserve_starts=body.preserve_starts,
+            stack_start=body.stack_start,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"move_selection_to_track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionGainBody(BaseModel):
+    clip_ids: list[str]
+    db: float
+
+
+@app.post("/api/edit/selection_gain")
+def selection_gain_api(body: SelectionGainBody) -> dict[str, Any]:
+    """Set gain on selection."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_gain(body.clip_ids, body.db)
+    except Exception as e:
+        raise HTTPException(400, f"selection_gain failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionOpacityBody(BaseModel):
+    clip_ids: list[str]
+    amount: float
+
+
+@app.post("/api/edit/selection_opacity")
+def selection_opacity_api(body: SelectionOpacityBody) -> dict[str, Any]:
+    """Set opacity on selection."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_opacity(body.clip_ids, body.amount)
+    except Exception as e:
+        raise HTTPException(400, f"selection_opacity failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -9433,6 +9433,85 @@ async function freezeSelectionMidsUi() {
   }
 }
 
+async function isolateSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to isolate";
+    return;
+  }
+  $("status-msg").textContent = "Isolating selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      muted_count?: number;
+      unmuted_count?: number;
+    }>("/api/edit/isolate_selection", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `IsoSel · keep ${r.unmuted_count ?? ids.length} mute ${r.muted_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`IsoSel failed: ${e}`);
+    $("status-msg").textContent = `IsoSel failed: ${e}`;
+  }
+}
+
+async function selectionGainUi(db: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for gain";
+    return;
+  }
+  $("status-msg").textContent = `Setting gain ${db} dB…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/selection_gain", {
+      clip_ids: ids,
+      db,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Gain · ${db} dB · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Gain failed: ${e}`);
+    $("status-msg").textContent = `Gain failed: ${e}`;
+  }
+}
+
+async function selectionOpacityUi(amount: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for opacity";
+    return;
+  }
+  $("status-msg").textContent = `Setting opacity ${amount}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/selection_opacity", {
+      clip_ids: ids,
+      amount,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Opac · ${amount} · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Opac failed: ${e}`);
+    $("status-msg").textContent = `Opac failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13325,6 +13404,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-link", () => void expandSelectionLinksUi());
   proBind("btn-gap-sel", () => void closeGapsSelectionTracksUi());
   proBind("btn-frz-sel", () => void freezeSelectionMidsUi());
+  proBind("btn-iso-sel", () => void isolateSelectionUi());
+  proBind("btn-gain-sel", () => void selectionGainUi(-3));
+  proBind("btn-opac-sel", () => void selectionOpacityUi(0.7));
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

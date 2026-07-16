@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.16 — 2026-07-17
+
+### Added
+- `isolate_selection` / `move_selection_to_track` + **IsoSel**
+- `set_selection_gain` / `set_selection_opacity` + **Gain−3** / **Opac.7**
+
 ## 0.6.15 — 2026-07-17
 
 ### Added
