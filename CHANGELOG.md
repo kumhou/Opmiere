@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.30 — 2026-07-17
+
+### Added
+- **0.5.30** checkpoint: path-C v4 + Pro UX + gen params + session tools
+
 ## 0.5.29 — 2026-07-17
 
 ### Added
