@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.36 — 2026-07-17
+
+### Added
+- `white_balance_selection` / `clear_selection_effects` / `strip_selection_path_c_unmapped` + **WBSel** / **ClrFxSel** / **StripUC**
+
 ## 0.6.35 — 2026-07-17
 
 ### Added

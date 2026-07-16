@@ -8371,6 +8371,60 @@ def chroma_key_selection_api(body: ChromaKeySelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class WhiteBalanceSelectionBody(BaseModel):
+    clip_ids: list[str]
+    temperature: float = 5600.0
+    mix: float = 1.0
+
+
+@app.post("/api/edit/white_balance_selection")
+def white_balance_selection_api(body: WhiteBalanceSelectionBody) -> dict[str, Any]:
+    """White balance on selection."""
+    ed = _ed()
+    try:
+        r = ed.white_balance_selection(
+            body.clip_ids,
+            temperature=body.temperature,
+            mix=body.mix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"white_balance_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionEffectsBody(BaseModel):
+    clip_ids: list[str]
+    types: list[str] | None = None
+
+
+@app.post("/api/edit/clear_selection_effects")
+def clear_selection_effects_api(body: ClearSelectionEffectsBody) -> dict[str, Any]:
+    """Clear effects on selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_effects(body.clip_ids, types=body.types)
+    except Exception as e:
+        raise HTTPException(400, f"clear_selection_effects failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class StripSelectionPathCUnmappedBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/strip_selection_path_c_unmapped")
+def strip_selection_path_c_unmapped_api(
+    body: StripSelectionPathCUnmappedBody,
+) -> dict[str, Any]:
+    """Strip path-C unmapped FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.strip_selection_path_c_unmapped(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"strip_selection_path_c_unmapped failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

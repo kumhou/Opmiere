@@ -4956,6 +4956,33 @@ def chroma_key_selection(
 
 
 @mcp.tool()
+def white_balance_selection(
+    clip_ids: list[str],
+    temperature: float = 5600.0,
+    mix: float = 1.0,
+) -> dict:
+    """Apply white balance Kelvin to selection."""
+    return _require_editor().white_balance_selection(
+        clip_ids, temperature=temperature, mix=mix,
+    )
+
+
+@mcp.tool()
+def clear_selection_effects(
+    clip_ids: list[str],
+    types: list[str] | None = None,
+) -> dict:
+    """Clear effects on selection (optional type filter)."""
+    return _require_editor().clear_selection_effects(clip_ids, types=types)
+
+
+@mcp.tool()
+def strip_selection_path_c_unmapped(clip_ids: list[str]) -> dict:
+    """Remove path-C unmapped effect types from selection."""
+    return _require_editor().strip_selection_path_c_unmapped(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

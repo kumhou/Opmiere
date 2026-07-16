@@ -7208,6 +7208,108 @@ class Editor:
             "agent_note": "Chroma key on selection for overlay plates.",
         }
 
+    def white_balance_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        temperature: float = 5600.0,
+        mix: float = 1.0,
+    ) -> dict[str, Any]:
+        """apply_white_balance on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_white_balance(
+                    cid, temperature=float(temperature), mix=float(mix),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "temperature": float(temperature),
+            "mix": float(mix),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "White balance on selection; path-C approximates temperature.",
+        }
+
+    def clear_selection_effects(
+        self,
+        clip_ids: list[str],
+        *,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Remove effects from selection (optional type filter)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        r = self.clear_effects(clip_ids=list(dict.fromkeys(clip_ids)), types=types)
+        r["agent_note"] = "Selection FX cleared; types=None removes all."
+        return r
+
+    def strip_selection_path_c_unmapped(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Remove path-C unmapped effect types from selection (preview readiness).
+
+        Uses openshot_map per-clip unmapped list; does not pin adapter version.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        from .render.openshot_map import ADAPTER_VERSION, clip_path_c_support
+
+        stripped: list[dict[str, Any]] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                pc = clip_path_c_support(clip)
+                unmapped = set(pc.get("unmapped") or [])
+                if not unmapped:
+                    continue
+                before = list(clip.effects or [])
+                clip.effects = [
+                    e
+                    for e in before
+                    if not (
+                        isinstance(e, dict)
+                        and str(e.get("type") or "") in unmapped
+                    )
+                ]
+                removed = [
+                    str(e.get("type"))
+                    for e in before
+                    if isinstance(e, dict)
+                    and str(e.get("type") or "") in unmapped
+                ]
+                if removed:
+                    stripped.append(
+                        {
+                            "clip_id": cid,
+                            "removed": removed,
+                            "remaining": [
+                                str(e.get("type"))
+                                for e in (clip.effects or [])
+                                if isinstance(e, dict) and e.get("type")
+                            ],
+                        }
+                    )
+        return {
+            "adapter_version": int(ADAPTER_VERSION),
+            "count": len(stripped),
+            "stripped": stripped,
+            "agent_note": (
+                "Unmapped FX removed for path-C preview; ffmpeg export still "
+                "had them. adapter_version is floor."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

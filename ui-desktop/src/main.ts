@@ -10995,6 +10995,83 @@ async function chromaKeySelectionUi() {
   }
 }
 
+async function whiteBalanceSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for white balance";
+    return;
+  }
+  $("status-msg").textContent = "Applying white balance…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/white_balance_selection", {
+      clip_ids: ids,
+      temperature: 5600,
+      mix: 1.0,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WBSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`WBSel failed: ${e}`);
+    $("status-msg").textContent = `WBSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionEffectsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear FX";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection FX…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/clear_selection_effects", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClrFxSel · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ClrFxSel failed: ${e}`);
+    $("status-msg").textContent = `ClrFxSel failed: ${e}`;
+  }
+}
+
+async function stripSelectionPathCUnmappedUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to strip unmapped FX";
+    return;
+  }
+  $("status-msg").textContent = "Stripping path-C unmapped…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      adapter_version?: number;
+    }>("/api/edit/strip_selection_path_c_unmapped", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StripUC · ${r.count ?? 0} adapter≥${r.adapter_version ?? "?"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`StripUC failed: ${e}`);
+    $("status-msg").textContent = `StripUC failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14954,6 +15031,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-glow-sel", () => void glowSelectionUi());
   proBind("btn-curves-sel", () => void curvesSelectionUi());
   proBind("btn-chroma-sel", () => void chromaKeySelectionUi());
+  proBind("btn-wb-sel", () => void whiteBalanceSelectionUi());
+  proBind("btn-clr-fx-sel", () => void clearSelectionEffectsUi());
+  proBind("btn-strip-pathc-sel", () => void stripSelectionPathCUnmappedUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
