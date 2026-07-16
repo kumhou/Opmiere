@@ -10282,6 +10282,85 @@ async function selectionPathCPlanUi() {
   }
 }
 
+async function matchFrameSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for match frame";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = "Match frame selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/match_frame_selection", {
+      clip_ids: ids,
+      timeline_frame: ph,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MatchSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`MatchSel failed: ${e}`);
+    $("status-msg").textContent = `MatchSel failed: ${e}`;
+  }
+}
+
+async function rippleTrimSelectionEdgesUi(head: number, tail: number) {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to ripple-trim";
+    return;
+  }
+  $("status-msg").textContent = "Ripple-trimming selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/ripple_trim_selection_edges", {
+      clip_ids: ids,
+      head_src_frames: head,
+      tail_src_frames: tail,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RTrim · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RTrim failed: ${e}`);
+    $("status-msg").textContent = `RTrim failed: ${e}`;
+  }
+}
+
+async function exportSelectionPathCPlanUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to export path-C plan";
+    return;
+  }
+  $("status-msg").textContent = "Exporting path-C plan JSON…";
+  try {
+    const r = await postJson<{
+      output_path?: string;
+      clip_count?: number;
+      adapter_version?: number;
+    }>("/api/edit/export_selection_path_c_plan", {
+      clip_ids: ids,
+      height: 360,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PathC.json · ${r.clip_count ?? 0} → ${r.output_path ?? "?"}`;
+  } catch (e) {
+    setProOut(`PathC.json failed: ${e}`);
+    $("status-msg").textContent = `PathC.json failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14211,6 +14290,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-speed1-sel", () => void selectionSpeedUi(1.0));
   proBind("btn-speed2-sel", () => void selectionSpeedUi(2.0));
   proBind("btn-pathc-plan-sel", () => void selectionPathCPlanUi());
+  proBind("btn-match-sel", () => void matchFrameSelectionUi());
+  proBind("btn-rtrim-h-sel", () => void rippleTrimSelectionEdgesUi(3, 0));
+  proBind("btn-rtrim-t-sel", () => void rippleTrimSelectionEdgesUi(0, 3));
+  proBind("btn-export-pathc-sel", () => void exportSelectionPathCPlanUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

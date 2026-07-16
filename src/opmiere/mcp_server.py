@@ -4707,6 +4707,44 @@ def selection_path_c_plan(
 
 
 @mcp.tool()
+def match_frame_selection(
+    clip_ids: list[str],
+    timeline_frame: int | None = None,
+) -> dict:
+    """Batch match_frame for selection (mid-clip if frame outside)."""
+    return _require_editor().match_frame_selection(
+        clip_ids, timeline_frame=timeline_frame,
+    )
+
+
+@mcp.tool()
+def ripple_trim_selection_edges(
+    clip_ids: list[str],
+    head_src_frames: int = 0,
+    tail_src_frames: int = 0,
+) -> dict:
+    """Ripple-trim head/tail source frames on selection."""
+    return _require_editor().ripple_trim_selection_edges(
+        clip_ids,
+        head_src_frames=head_src_frames,
+        tail_src_frames=tail_src_frames,
+    )
+
+
+@mcp.tool()
+def export_selection_path_c_plan(
+    clip_ids: list[str],
+    output_path: str,
+    height: int = 360,
+    include_audio: bool = False,
+) -> dict:
+    """Write selection path-C OpenShot plan JSON to disk."""
+    return _require_editor().export_selection_path_c_plan(
+        clip_ids, output_path, height=height, include_audio=include_audio,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

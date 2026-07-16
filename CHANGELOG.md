@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.27 — 2026-07-17
+
+### Added
+- `match_frame_selection` / `ripple_trim_selection_edges` / `export_selection_path_c_plan` + **MatchSel** / **RTrimH** / **RTrimT** / **PathC.json**
+
 ## 0.6.26 — 2026-07-17
 
 ### Added

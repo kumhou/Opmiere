@@ -7883,6 +7883,71 @@ def selection_path_c_plan_api(body: SelectionPathCPlanBody) -> dict[str, Any]:
         raise HTTPException(400, f"selection_path_c_plan failed: {e}") from e
 
 
+class MatchFrameSelectionBody(BaseModel):
+    clip_ids: list[str]
+    timeline_frame: int | None = None
+
+
+@app.post("/api/edit/match_frame_selection")
+def match_frame_selection_api(body: MatchFrameSelectionBody) -> dict[str, Any]:
+    """Batch match_frame on selection."""
+    ed = _ed()
+    try:
+        return ed.match_frame_selection(
+            body.clip_ids, timeline_frame=body.timeline_frame,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"match_frame_selection failed: {e}") from e
+
+
+class RippleTrimSelectionEdgesBody(BaseModel):
+    clip_ids: list[str]
+    head_src_frames: int = 0
+    tail_src_frames: int = 0
+
+
+@app.post("/api/edit/ripple_trim_selection_edges")
+def ripple_trim_selection_edges_api(
+    body: RippleTrimSelectionEdgesBody,
+) -> dict[str, Any]:
+    """Ripple-trim head/tail of selection."""
+    ed = _ed()
+    try:
+        r = ed.ripple_trim_selection_edges(
+            body.clip_ids,
+            head_src_frames=body.head_src_frames,
+            tail_src_frames=body.tail_src_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ripple_trim_selection_edges failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionPathCPlanBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    height: int = 360
+    include_audio: bool = False
+
+
+@app.post("/api/edit/export_selection_path_c_plan")
+def export_selection_path_c_plan_api(
+    body: ExportSelectionPathCPlanBody,
+) -> dict[str, Any]:
+    """Write path-C selection plan JSON to disk."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "selection_path_c_plan.json")
+    try:
+        return ed.export_selection_path_c_plan(
+            body.clip_ids,
+            out,
+            height=body.height,
+            include_audio=body.include_audio,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_path_c_plan failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

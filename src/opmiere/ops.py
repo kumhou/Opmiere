@@ -6305,6 +6305,114 @@ class Editor:
         )
         return plan
 
+    def match_frame_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        timeline_frame: int | None = None,
+    ) -> dict[str, Any]:
+        """match_frame for each selected clip.
+
+        timeline_frame: if inside a clip use it; else clip midpoint.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                tf = timeline_frame
+                if tf is None or not (clip.start <= int(tf) < clip.end):
+                    tf = None  # mid-clip
+                r = self.match_frame(clip_id=cid, timeline_frame=tf)
+                rows.append(r)
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(rows),
+            "matches": rows,
+            "errors": errors,
+            "error_count": len(errors),
+            "timeline_frame": timeline_frame,
+            "agent_note": "Source frame map per selected clip (NLE Match Frame batch).",
+        }
+
+    def ripple_trim_selection_edges(
+        self,
+        clip_ids: list[str],
+        *,
+        head_src_frames: int = 0,
+        tail_src_frames: int = 0,
+    ) -> dict[str, Any]:
+        """Ripple-trim head/tail source frames on selection (speed=1 only).
+
+        Processed end→start per track so later ripples stay stable.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        hf = max(0, int(head_src_frames))
+        tf = max(0, int(tail_src_frames))
+        if hf == 0 and tf == 0:
+            raise ValueError("head_src_frames or tail_src_frames must be > 0")
+        by_track: dict[str, list[tuple[int, str]]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            by_track.setdefault(tr.id, []).append((int(clip.start), cid))
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for tid, items in by_track.items():
+            items.sort(key=lambda x: x[0], reverse=True)
+            for _, cid in items:
+                try:
+                    clip = self._find_clip(cid)
+                    new_in = int(clip.src_in) + hf if hf else None
+                    new_out = int(clip.src_out) - tf if tf else None
+                    r = self.ripple_trim(
+                        cid, new_src_in=new_in, new_src_out=new_out,
+                    )
+                    out.append(r if isinstance(r, dict) else {"clip_id": cid})
+                except Exception as e:
+                    errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "head_src_frames": hf,
+            "tail_src_frames": tf,
+            "count": len(out),
+            "trimmed": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Ripple edge trim; followers shift on each track.",
+        }
+
+    def export_selection_path_c_plan(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path,
+        *,
+        height: int = 360,
+        include_audio: bool = False,
+    ) -> dict[str, Any]:
+        """Write selection_path_c_plan JSON to disk for agents/desktop."""
+        import json
+        from pathlib import Path as _Path
+
+        plan = self.selection_path_c_plan(
+            clip_ids, height=height, include_audio=include_audio,
+        )
+        out = _Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(plan, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "output_path": str(out.resolve()),
+            "clip_count": len(plan.get("clips") or []),
+            "adapter_version": int(plan.get("adapter_version") or 0),
+            "selection_span": plan.get("selection_span"),
+            "agent_note": "path-C plan JSON written; adapter is floor not pin.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
