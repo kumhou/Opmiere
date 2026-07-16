@@ -49,7 +49,7 @@
         <button type="button" id="btn-os-plan" title="OpenShot multi-clip plan (path-C)">OS plan</button>
         <button type="button" id="btn-os-frame" title="OpenShot frame at playhead (needs install)">OS frame</button>
         <button type="button" id="btn-refresh">Refresh</button>
-        <button type="button" id="btn-open-probe">HTML probe</button>
+        <button type="button" id="btn-open-probe" class="btn-muted" title="Core API dogfood HTML (not product UX)">API dogfood</button>
       </header>
 
       <div class="main">
@@ -96,7 +96,7 @@
                 <span>Program monitor</span>
                 <span class="accent" id="preview-backend">preview: —</span>
                 <span style="font-size: 11px; max-width: 28em; text-align: center">
-                  Demo project → Space to play. No agent chat in GUI v1.
+                  Product shell · Demo / Open → Space to play · MCP for agents
                 </span>
               </div>
               <img id="program-img" class="program-img" alt="Program frame" hidden />
@@ -388,7 +388,7 @@
             <textarea id="notes-area" class="notes-area" rows="3" placeholder="Project notes…"></textarea>
             <button type="button" id="btn-notes-save" class="btn-mini">Save notes</button>
             <div class="note" id="agent-note">
-              No agent chat in GUI v1 — use MCP externally.
+              Dual surface: this shell + MCP on the same Editor. No in-GUI chat.
             </div>
           </aside>
         </div>
@@ -439,6 +439,15 @@
         <span class="pill" id="pill-validate">valid —</span>
         <span id="status-msg">Starting…</span>
       </footer>
+    </div>
+
+    <div id="clip-menu" class="clip-menu" hidden role="menu" aria-label="Clip actions">
+      <button type="button" data-act="rename" role="menuitem">Rename</button>
+      <button type="button" data-act="mute" role="menuitem">Mute / unmute</button>
+      <button type="button" data-act="razor" role="menuitem">Razor @ playhead</button>
+      <button type="button" data-act="copy" role="menuitem">Copy</button>
+      <button type="button" data-act="duplicate" role="menuitem">Duplicate</button>
+      <button type="button" data-act="delete" role="menuitem" class="danger">Delete</button>
     </div>
 
     <div id="help-overlay" class="help-overlay" aria-hidden="true">

@@ -1,8 +1,16 @@
 """Map Opmiere Project → OpenShot timeline plan (JSON-serializable).
 
 Engine-independent plan is built on the host; the OpenShot worker only
-consumes the plan (paths + seconds + layer). Effects / transitions /
-full speed curves are tracked as unsupported for incremental mapping.
+consumes the plan (paths + seconds + layer + visual props).
+
+Mapped for path-C frame grab (incremental):
+  - position / start / end / layer
+  - overlay transform (x, y, scale)
+  - opacity effect → alpha
+  - rotate effect → rotation degrees
+
+Still unsupported (listed in plan): speed ≠ 1, transitions, grade FX
+(color/curves/lut/…), audio effects, base-track position.
 """
 
 from __future__ import annotations
@@ -13,7 +21,17 @@ from typing import Any
 from ..bundle import Bundle
 from ..model import Project
 
-__all__ = ["build_openshot_plan", "plan_preview_size"]
+__all__ = ["build_openshot_plan", "plan_preview_size", "clip_visual_props"]
+
+# Effect types the OpenShot path-C adapter can approximate for still frames.
+_MAPPED_VISUAL = frozenset({"opacity", "rotate"})
+# Known effects we intentionally skip (not paintable on path-C yet).
+_UNMAPPED_VISUAL = frozenset({
+    "color", "fade", "gain", "text", "blur", "vignette", "chroma_key", "luma_key",
+    "curves", "crop", "sharpen", "film_grain", "glow", "lut3d", "ken_burns",
+    "white_balance", "shape_mask", "subtitles", "compression", "noise_reduction",
+    "audio_eq",
+})
 
 
 def plan_preview_size(
@@ -28,6 +46,42 @@ def plan_preview_size(
     w = max(320, int(round(h * aspect)) // 2 * 2)
     return w, h
 
+
+def clip_visual_props(clip: Any) -> dict[str, Any]:
+    """Derive OpenShot-friendly visual props + per-effect support notes."""
+    opacity = 1.0
+    rotation = 0.0
+    mapped: list[str] = []
+    unmapped: list[str] = []
+    for e in clip.effects or []:
+        if not isinstance(e, dict):
+            continue
+        et = e.get("type")
+        if et == "opacity":
+            try:
+                opacity = float(e.get("amount", 1.0))
+            except (TypeError, ValueError):
+                opacity = 1.0
+            opacity = max(0.0, min(1.0, opacity))
+            mapped.append("opacity")
+        elif et == "rotate":
+            try:
+                rotation = float(e.get("degrees", 0.0))
+            except (TypeError, ValueError):
+                rotation = 0.0
+            mapped.append("rotate")
+        elif et in _MAPPED_VISUAL:
+            mapped.append(str(et))
+        elif et:
+            unmapped.append(str(et))
+    return {
+        "opacity": opacity,
+        "rotation": rotation,
+        "mapped_effects": mapped,
+        "unmapped_effects": unmapped,
+    }
+
+
 def build_openshot_plan(
     project: Project,
     bundle: Bundle,
@@ -41,6 +95,8 @@ def build_openshot_plan(
       - Position  = timeline start (seconds)
       - Start/End = source trim (seconds, media fps ≈ project fps for conformed assets)
       - Layer     = track order (base track low; overlays higher = on top)
+      - transform = overlay PiP (x/y top-left fraction, scale width fraction)
+      - opacity / rotation from mapped effects
     """
     fps = float(project.timebase.fps or 30.0)
     if fps <= 0:
@@ -51,8 +107,12 @@ def build_openshot_plan(
     unsupported: list[str] = []
     clips_out: list[dict[str, Any]] = []
     missing: list[str] = []
+    mapped_notes: list[str] = []
 
-    video_tracks = [tr for tr in project.tracks if tr.kind == "video" and not getattr(tr, "muted", False)]
+    video_tracks = [
+        tr for tr in project.tracks
+        if tr.kind == "video" and not getattr(tr, "muted", False)
+    ]
     # Solo handling: if any video track is soloed, only those
     soloed = [tr for tr in video_tracks if getattr(tr, "solo", False)]
     if soloed:
@@ -84,6 +144,12 @@ def build_openshot_plan(
             # Windows builds — pull end in a half-frame.
             end_s = max(src_in_s + 1.0 / fps, src_out_s - (0.5 / fps))
 
+            vis = clip_visual_props(clip)
+            for ue in vis["unmapped_effects"]:
+                unsupported.append(f"{ue}:{clip.id}")
+            for me in vis["mapped_effects"]:
+                mapped_notes.append(f"{me}:{clip.id}")
+
             entry: dict[str, Any] = {
                 "id": clip.id,
                 "path": str(path.resolve()),
@@ -95,20 +161,20 @@ def build_openshot_plan(
                 "speed": float(clip.speed or 1.0),
                 "timeline_duration": timeline_dur_s,
                 "source_duration": source_dur_s,
+                "opacity": vis["opacity"],
+                "rotation": vis["rotation"],
             }
             if abs(float(clip.speed or 1.0) - 1.0) > 1e-3:
                 unsupported.append(f"speed:{clip.id}")
-            if clip.effects:
-                unsupported.append(f"effects:{clip.id}")
             if clip.transition_in:
                 unsupported.append(f"transition:{clip.id}")
             if clip.position and track_index > 0:
-                # overlay transform
                 entry["transform"] = {
                     "x": float(clip.position.get("x", 0.0)),
                     "y": float(clip.position.get("y", 0.0)),
                     "scale": float(clip.position.get("scale", 1.0)),
                 }
+                mapped_notes.append(f"transform:{clip.id}")
             elif clip.position and track_index == 0:
                 unsupported.append(f"base_position_ignored:{clip.id}")
             clips_out.append(entry)
@@ -123,7 +189,7 @@ def build_openshot_plan(
             duration_frames = max(duration_frames, c.end)
     duration_s = tb.frames_to_seconds(duration_frames)
 
-    # unique unsupported labels
+    # unique unsupported labels (kind only for summary)
     seen: set[str] = set()
     un_unique: list[str] = []
     for u in unsupported:
@@ -131,6 +197,14 @@ def build_openshot_plan(
         if kind not in seen:
             seen.add(kind)
             un_unique.append(kind)
+
+    mapped_kinds: list[str] = []
+    seen_m: set[str] = set()
+    for m in mapped_notes:
+        kind = m.split(":")[0]
+        if kind not in seen_m:
+            seen_m.add(kind)
+            mapped_kinds.append(kind)
 
     return {
         "width": w,
@@ -145,5 +219,8 @@ def build_openshot_plan(
         "missing_media": missing,
         "unsupported": un_unique,
         "unsupported_detail": unsupported[:40],
+        "mapped": mapped_kinds,
+        "mapped_detail": mapped_notes[:40],
         "mode": "openshot_project_plan",
+        "adapter_version": 2,
     }

@@ -60,8 +60,9 @@ Shell and agents share semantics (implementation later):
 3. **PreviewSession + S2 sidecar + multi-clip plan** — done (OpenShot install required)  
 4. **Core NLE gaps** as needed — ongoing  
 5. **Tauri product shell scaffold** — done: `ui-desktop/` + `scripts/dev-desktop.ps1`  
-6. **OpenShot adapter depth** — effects / speed / transform when stable  
-7. **Retire HTML as default UX** — keep for CI/smoke; product entry is Tauri  
+6. **OpenShot adapter depth** — partial (0.4.58: opacity / rotate / overlay transform;
+   speed + grade FX still unsupported)  
+7. **Retire HTML as default UX** — product entry is Tauri; HTML labeled API dogfood (0.4.58)  
 
 Do **not** run a parallel “HTML 0.3.x polish” track.
 

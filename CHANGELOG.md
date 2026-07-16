@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.58 — 2026-07-16
+
+### Added
+- **OpenShot adapter v2**: map opacity / rotate / overlay transform into plan;
+  runtime applies alpha, rotation, scale, location (best-effort Keyframes)
+- Plan reports `mapped` + `adapter_version`; OS plan UI shows summary
+- **Clip context menu** (right-click): rename, mute, razor, copy, dup, delete
+- Product shell copy: **API dogfood** (HTML probe demoted); program empty text
+- Test: `tests/test_openshot_adapter_098.py`
+
 ## 0.4.57 — 2026-07-16
 
 ### Added

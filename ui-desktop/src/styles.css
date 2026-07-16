@@ -744,6 +744,51 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.btn-muted {
+  opacity: 0.65;
+  font-size: 11px;
+}
+
+.clip-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 148px;
+  padding: 4px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.clip-menu[hidden] {
+  display: none !important;
+}
+
+.clip-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.clip-menu button:hover {
+  background: rgba(124, 156, 255, 0.15);
+}
+
+.clip-menu button.danger {
+  color: var(--color-destructive);
+}
+
 .sel-card {
   margin: var(--space-sm) 0 var(--space-md);
   padding: var(--space-md);

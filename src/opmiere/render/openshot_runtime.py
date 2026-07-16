@@ -365,6 +365,25 @@ layout = openshot.LAYOUT_STEREO
 timeline = openshot.Timeline(w, h, fps_frac, int(plan.get("sample_rate") or 44100), 2, layout)
 added = 0
 readers = []
+applied = []
+
+def _kf_set(obj, name, value):
+    \"\"\"Best-effort Keyframe write across libopenshot builds.\"\"\"
+    try:
+        kf = getattr(obj, name, None)
+        if kf is None:
+            return False
+        if hasattr(kf, "AddPoint"):
+            try:
+                kf.AddPoint(1.0, float(value), openshot.BEZIER)
+            except Exception:
+                kf.AddPoint(1.0, float(value))
+            return True
+        setattr(obj, name, float(value))
+        return True
+    except Exception:
+        return False
+
 for c in plan["clips"]:
     path = c["path"]
     if not os.path.exists(path):
@@ -378,6 +397,48 @@ for c in plan["clips"]:
     clip.Start(float(c["start"]))
     clip.End(float(c["end"]))
     clip.Layer(int(c["layer"]))
+    # opacity / alpha
+    op = c.get("opacity", 1.0)
+    try:
+        op = float(op)
+    except Exception:
+        op = 1.0
+    if abs(op - 1.0) > 1e-4:
+        if _kf_set(clip, "alpha", op):
+            applied.append("opacity")
+    # rotation degrees
+    rot = c.get("rotation", 0.0)
+    try:
+        rot = float(rot)
+    except Exception:
+        rot = 0.0
+    if abs(rot) > 1e-3:
+        if _kf_set(clip, "rotation", rot):
+            applied.append("rotate")
+    # overlay transform (PiP)
+    tf = c.get("transform") or {{}}
+    if isinstance(tf, dict) and tf:
+        try:
+            scale = float(tf.get("scale", 1.0))
+        except Exception:
+            scale = 1.0
+        try:
+            x = float(tf.get("x", 0.0))
+            y = float(tf.get("y", 0.0))
+        except Exception:
+            x, y = 0.0, 0.0
+        scale = max(0.05, min(4.0, scale))
+        if _kf_set(clip, "scale_x", scale) or _kf_set(clip, "scale_y", scale):
+            _kf_set(clip, "scale_x", scale)
+            _kf_set(clip, "scale_y", scale)
+            applied.append("scale")
+        # OpenShot location is offset from center (≈ -1..1 of half-frame)
+        lx = (x + scale * 0.5 - 0.5) * 2.0
+        ly = (y + scale * 0.5 - 0.5) * 2.0
+        if _kf_set(clip, "location_x", lx) or _kf_set(clip, "location_y", ly):
+            _kf_set(clip, "location_x", lx)
+            _kf_set(clip, "location_y", ly)
+            applied.append("location")
     timeline.AddClip(clip)
     added += 1
 if added == 0:
@@ -409,6 +470,9 @@ else:
         "size": os.path.getsize(outp) if os.path.exists(outp) else 0,
         "clips_added": added,
         "unsupported": plan.get("unsupported") or [],
+        "mapped": plan.get("mapped") or [],
+        "applied": list(dict.fromkeys(applied)),
+        "adapter_version": plan.get("adapter_version", 1),
     }}
 """
         try:

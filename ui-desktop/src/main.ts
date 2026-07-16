@@ -5122,15 +5122,73 @@ async function showOpenshotPlan() {
     const out = document.getElementById("review-out");
     if (out) {
       out.className = "review-out";
-      out.textContent = JSON.stringify(r, null, 2).slice(0, 6000);
+      const mapped = Array.isArray(r.mapped) ? r.mapped.join(",") : "—";
+      const unsup = Array.isArray(r.unsupported) ? r.unsupported.join(",") : "—";
+      const head =
+        `adapter v${r.adapter_version ?? "?"} · clips=${r.clip_count ?? "?"} · ` +
+        `mapped=[${mapped}] · unsupported=[${unsup}]\n\n`;
+      out.textContent = (head + JSON.stringify(r, null, 2)).slice(0, 6000);
     }
     const n =
       (Array.isArray(r.clips) && r.clips.length) ||
       (Array.isArray(r.layers) && r.layers.length) ||
+      r.clip_count ||
       "?";
-    $("status-msg").textContent = `OpenShot plan · items=${n}`;
+    $("status-msg").textContent =
+      `OpenShot plan · clips=${n} · mapped=${(r.mapped as string[] | undefined)?.length ?? 0}`;
   } catch (e) {
     $("status-msg").textContent = `OpenShot plan failed: ${e}`;
+  }
+}
+
+function hideClipMenu() {
+  const menu = document.getElementById("clip-menu");
+  if (menu) menu.hidden = true;
+}
+
+function openClipMenu(x: number, y: number) {
+  const menu = document.getElementById("clip-menu");
+  if (!menu) return;
+  menu.hidden = false;
+  const pad = 8;
+  const mw = menu.offsetWidth || 160;
+  const mh = menu.offsetHeight || 180;
+  const left = Math.min(x, window.innerWidth - mw - pad);
+  const top = Math.min(y, window.innerHeight - mh - pad);
+  menu.style.left = `${Math.max(pad, left)}px`;
+  menu.style.top = `${Math.max(pad, top)}px`;
+}
+
+async function runClipMenuAction(act: string) {
+  hideClipMenu();
+  const ids = selectionList();
+  if (!ids.length && act !== "razor") {
+    $("status-msg").textContent = "No clip selected";
+    return;
+  }
+  switch (act) {
+    case "rename":
+      void renameSelection();
+      break;
+    case "mute":
+      void muteSelection();
+      break;
+    case "razor":
+      stopPlay();
+      void razorAtPlayhead();
+      break;
+    case "copy":
+      void copySelection();
+      break;
+    case "duplicate":
+      void duplicateSelection();
+      break;
+    case "delete":
+      stopPlay();
+      void deleteSelection();
+      break;
+    default:
+      break;
   }
 }
 
@@ -6197,6 +6255,16 @@ function bindClipInteractions(
     void onUp(ev);
   });
   block.addEventListener("pointercancel", onCancel);
+  block.addEventListener("contextmenu", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!state.selected.has(c.id) || state.selected.size === 0) {
+      setSelection([c.id]);
+    } else if (!state.selected.has(c.id)) {
+      setSelection([c.id]);
+    }
+    openClipMenu(ev.clientX, ev.clientY);
+  });
 
   block.dataset.clipId = c.id;
   if (c.color) {
@@ -7186,6 +7254,11 @@ function onKey(ev: KeyboardEvent) {
     return;
   }
   if (ev.key === "Escape") {
+    const menu = document.getElementById("clip-menu");
+    if (menu && !menu.hidden) {
+      hideClipMenu();
+      return;
+    }
     const help = document.getElementById("help-overlay");
     if (help?.classList.contains("open")) {
       help.classList.remove("open");
@@ -7207,6 +7280,24 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-open-probe").addEventListener("click", () => {
     window.open(API_BASE + "/", "_blank");
   });
+  const clipMenu = document.getElementById("clip-menu");
+  if (clipMenu) {
+    clipMenu.addEventListener("click", (ev) => {
+      const btn = (ev.target as HTMLElement).closest("button[data-act]") as
+        | HTMLButtonElement
+        | null;
+      if (!btn?.dataset.act) return;
+      void runClipMenuAction(btn.dataset.act);
+    });
+  }
+  document.addEventListener("pointerdown", (ev) => {
+    const menu = document.getElementById("clip-menu");
+    if (!menu || menu.hidden) return;
+    if (menu.contains(ev.target as Node)) return;
+    hideClipMenu();
+  });
+  window.addEventListener("blur", () => hideClipMenu());
+  window.addEventListener("resize", () => hideClipMenu());
   $("btn-demo").addEventListener("click", () => {
     void createDemoProject();
   });
