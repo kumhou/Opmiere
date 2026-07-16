@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.74 — 2026-07-17
+
+### Added
+- `add_grade_layer` (overlay black slug + grade FX) + API/MCP/desktop **GradeL**
+
 ## 0.5.73 — 2026-07-17
 
 ### Added

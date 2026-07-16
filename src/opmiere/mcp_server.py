@@ -2536,6 +2536,26 @@ def bake_clip(
 
 
 @mcp.tool()
+def add_grade_layer(
+    effects: list[dict] | None = None,
+    start: int = 0,
+    end: int | None = None,
+    track_id: str | None = None,
+    opacity: float = 1.0,
+    name: str = "Grade",
+) -> dict:
+    """Add overlay video track with black slug for global grade/FX."""
+    return _require_editor().add_grade_layer(
+        effects,
+        start=start,
+        end=end,
+        track_id=track_id,
+        opacity=opacity,
+        name=name,
+    )
+
+
+@mcp.tool()
 def project_health_report() -> dict:
     """Read-only health: preflight + gaps + unused + path-C + stats."""
     return _require_editor().project_health_report()

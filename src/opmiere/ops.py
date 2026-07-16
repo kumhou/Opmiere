@@ -8622,6 +8622,86 @@ class Editor:
                 "skipped_count": len(skipped),
             }
 
+    def add_grade_layer(
+        self,
+        effects: list[dict[str, Any]] | None = None,
+        *,
+        start: int = 0,
+        end: int | None = None,
+        track_id: str | None = None,
+        opacity: float = 1.0,
+        name: str = "Grade",
+    ) -> dict[str, Any]:
+        """Add an overlay video track with a black slug for global grade/FX.
+
+        effects: applied to the slug clip (color/curves/lut/opacity/…).
+        end=None uses current sequence duration (min 1s). One undo for track+clip.
+        """
+        effects = list(effects or [])
+        if end is None:
+            end = max(int(self.duration_frames()), int(self.project.timebase.fps or 30))
+        start = max(0, int(start))
+        end = max(start + 1, int(end))
+        dur = end - start
+        if not (0.0 < float(opacity) <= 1.0):
+            raise ValueError("opacity must be in (0, 1]")
+
+        # Create/find slug outside place-mutate (avoid nested undo)
+        slug = self.ensure_slug_media("video")
+
+        with self._mutate():
+            if track_id is not None:
+                tr = self.project.track_by_id(track_id)
+                if tr.kind != "video":
+                    raise ValueError("grade layer requires a video track")
+                if tr.locked:
+                    raise ValueError(f"track {tr.id} is locked")
+            else:
+                tr = self.project.add_track("video")
+                tr.name = name
+            slug = self.project.media_by_id(slug.id)
+            max_src = max(1, slug.duration_frames)
+            src_out = min(dur, max_src)
+            clip = self.project.add_clip(tr, slug, start, 0, src_out)
+            if src_out < dur:
+                clip.src_out = max_src
+                raw_speed = max_src / float(dur)
+                if 0.25 <= raw_speed <= 4.0:
+                    clip.speed = raw_speed
+            clip.name = name
+            applied: list[str] = []
+            for fx in effects:
+                if isinstance(fx, dict) and fx.get("type"):
+                    try:
+                        self._apply_effect_unlocked(clip.id, dict(fx))
+                        applied.append(str(fx.get("type")))
+                    except Exception:
+                        if clip.effects is None:
+                            clip.effects = []
+                        clip.effects.append(dict(fx))
+                        applied.append(str(fx.get("type")))
+            if abs(float(opacity) - 1.0) > 1e-6:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "opacity"
+                ]
+                self._apply_effect_unlocked(
+                    clip.id, {"type": "opacity", "amount": float(opacity)},
+                )
+                applied.append("opacity")
+            return {
+                "track_id": tr.id,
+                "clip_id": clip.id,
+                "media_id": slug.id,
+                "start": clip.start,
+                "end": clip.end,
+                "effects": applied,
+                "opacity": float(opacity),
+                "agent_note": (
+                    "Grade layer on top video track. Export composites overlay. "
+                    "path-C maps opacity/color/curves when present."
+                ),
+            }
+
     def bake_clip(
         self,
         clip_id: str,

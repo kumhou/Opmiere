@@ -1076,6 +1076,34 @@ def bake_clip_api(body: BakeClipBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class GradeLayerBody(BaseModel):
+    effects: list[dict[str, Any]] | None = None
+    start: int = 0
+    end: int | None = None
+    track_id: str | None = None
+    opacity: float = 1.0
+    name: str = "Grade"
+
+
+@app.post("/api/edit/grade_layer")
+def grade_layer_api(body: GradeLayerBody | None = None) -> dict[str, Any]:
+    """Add overlay grade layer (black slug + effects)."""
+    body = body or GradeLayerBody()
+    ed = _ed()
+    try:
+        r = ed.add_grade_layer(
+            body.effects,
+            start=body.start,
+            end=body.end,
+            track_id=body.track_id,
+            opacity=body.opacity,
+            name=body.name,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"grade_layer failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/project/health")
 def project_health_api() -> dict[str, Any]:
     """Read-only project health: preflight + gaps + unused + path-C."""

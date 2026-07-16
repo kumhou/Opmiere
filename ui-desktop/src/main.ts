@@ -2386,6 +2386,37 @@ async function overwriteEditAtPlayhead() {
   }
 }
 
+async function gradeLayerUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Adding grade layer…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+      track_id?: string;
+    }>("/api/edit/grade_layer", {
+      effects: [
+        { type: "color", brightness: 0.05, contrast: 1.05, saturation: 1.05 },
+      ],
+      start: 0,
+      end: null,
+      opacity: 1.0,
+      name: "Grade",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `GradeL · ${r.clip_id || "ok"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`GradeL failed: ${e}`);
+    $("status-msg").textContent = `GradeL failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10640,6 +10671,13 @@ window.addEventListener("DOMContentLoaded", () => {
     btnOverEd.addEventListener("click", () => {
       stopPlay();
       void overwriteEditAtPlayhead();
+    });
+  }
+  const btnGradeL = document.getElementById("btn-grade-layer");
+  if (btnGradeL) {
+    btnGradeL.addEventListener("click", () => {
+      stopPlay();
+      void gradeLayerUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {
