@@ -3180,6 +3180,28 @@ def openshot_plan(height: int = 360) -> dict:
     """OpenShot multi-clip plan for the open project (no render)."""
     return _require_editor().openshot_plan(height=height)
 
+
+@mcp.tool()
+def path_c_effect_catalog() -> dict:
+    """What path-C (OpenShot still preview) can map vs skip for grade FX.
+
+    Prefer mapped effects when agents need WYSIWYG program-monitor feedback.
+    Unmapped effects still apply on ffmpeg export.
+    """
+    from .render.openshot_map import path_c_effect_catalog as _catalog
+
+    return _catalog()
+
+
+@mcp.tool()
+def clip_path_c(clip_id: str) -> dict:
+    """Per-clip path-C readiness for the current effect stack."""
+    from .render.openshot_map import clip_path_c_support
+
+    clip = _require_editor()._find_clip(clip_id)  # noqa: SLF001
+    return clip_path_c_support(clip)
+
+
 @mcp.tool()
 def frame_at(
     time_seconds: float,

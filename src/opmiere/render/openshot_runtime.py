@@ -553,6 +553,21 @@ for c in plan["clips"]:
                 applied.append("chroma_key")
         except Exception:
             pass
+    # luma_key → LumaKey when available
+    lk = c.get("luma_key") or {{}}
+    if isinstance(lk, dict) and lk:
+        try:
+            thr = float(lk.get("threshold", 0.1) or 0.1)
+            tol = float(lk.get("tolerance", 0.1) or 0.1)
+            if hasattr(openshot, "LumaKey"):
+                le = openshot.LumaKey(float(thr), float(tol))
+                clip.AddEffect(le)
+                applied.append("luma_key")
+            elif hasattr(openshot, "Brightness"):
+                # soft stand-in: slight alpha via brightness threshold not exact
+                pass
+        except Exception:
+            pass
     # vignette strength → Mask / edge darken when available
     try:
         vig = float(c.get("vignette", 0) or 0)

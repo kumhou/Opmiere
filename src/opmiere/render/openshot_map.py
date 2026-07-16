@@ -19,9 +19,10 @@ Mapped for path-C frame grab (incremental):
   - white_balance temperature → Hue/Sat approximation
   - film_grain amount (Noise when available)
   - chroma_key color/similarity (ChromaKey when available)
+  - luma_key threshold/tolerance (LumaKey when available)
 
 Still unsupported (listed in plan): transitions, complex grade FX
-(curves/lut/text/…), audio effects, luma key, base-track position.
+(curves/lut/text/…), audio effects, base-track position.
 """
 
 from __future__ import annotations
@@ -44,18 +45,18 @@ __all__ = [
 _MAPPED_VISUAL = frozenset({
     "opacity", "rotate", "crop", "blur", "color", "fade",
     "vignette", "sharpen", "ken_burns", "white_balance",
-    "film_grain", "chroma_key",
+    "film_grain", "chroma_key", "luma_key",
 })
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "gain", "text", "luma_key",
+    "gain", "text",
     "curves", "glow", "lut3d",
     "shape_mask", "subtitles", "compression", "noise_reduction",
     "audio_eq",
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 6
+ADAPTER_VERSION = 7
 
 
 def path_c_effect_catalog() -> dict[str, Any]:
@@ -72,6 +73,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "color": "brightness only on still frames",
             "film_grain": "Noise/grain when libopenshot exposes it",
             "chroma_key": "ChromaKey green/blue key when available",
+            "luma_key": "LumaKey threshold/tolerance when available",
         },
     }
 
@@ -126,6 +128,7 @@ def clip_visual_props(
     sharpen = 0.0
     film_grain = 0.0
     chroma_key: dict[str, Any] | None = None
+    luma_key: dict[str, float] | None = None
     ken_burns: dict[str, float] | None = None
     white_balance: dict[str, float] | None = None
     mapped: list[str] = []
@@ -245,6 +248,17 @@ def clip_visual_props(
                 mapped.append("chroma_key")
             except (TypeError, ValueError):
                 unmapped.append("chroma_key")
+        elif et == "luma_key":
+            try:
+                threshold = float(e.get("threshold", 0.1))
+                tolerance = float(e.get("tolerance", 0.1))
+                luma_key = {
+                    "threshold": max(0.0, min(1.0, threshold)),
+                    "tolerance": max(0.0, min(1.0, tolerance)),
+                }
+                mapped.append("luma_key")
+            except (TypeError, ValueError):
+                unmapped.append("luma_key")
         elif et == "crop":
             # Opmiere crop is pixel box; convert to fractions of project frame.
             try:
@@ -292,6 +306,7 @@ def clip_visual_props(
         "sharpen": sharpen,
         "film_grain": film_grain,
         "chroma_key": chroma_key,
+        "luma_key": luma_key,
         "ken_burns": ken_burns,
         "white_balance": white_balance,
         "mapped_effects": mapped,
@@ -402,6 +417,8 @@ def build_openshot_plan(
                 entry["white_balance"] = vis["white_balance"]
             if vis.get("chroma_key"):
                 entry["chroma_key"] = vis["chroma_key"]
+            if vis.get("luma_key"):
+                entry["luma_key"] = vis["luma_key"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {

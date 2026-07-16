@@ -69,3 +69,24 @@ def test_catalog_v6():
     assert "film_grain" in cat["mapped"]
     assert "chroma_key" in cat["mapped"]
     assert "curves" in cat["unmapped"]
+
+
+def test_adapter_v7_luma_key():
+    root = Path(tempfile.mkdtemp(prefix="opmiere_v7_"))
+    try:
+        v = root / "v.mp4"
+        _vid(v)
+        ed = Editor.create(root / "p.opm", fps=30, width=320, height=180)
+        tr = ed.add_track("video")
+        c = ed.place_from_file(v, "video", tr.id, 0)
+        ed.apply_effect(
+            c.id, {"type": "luma_key", "threshold": 0.2, "tolerance": 0.15}
+        )
+        vis = clip_visual_props(ed.project.tracks[0].clips[0])
+        assert "luma_key" in vis["mapped_effects"]
+        plan = build_openshot_plan(ed.project, ed.bundle, height=180)
+        assert int(plan.get("adapter_version") or 0) >= 7
+        assert plan["clips"][0].get("luma_key", {}).get("threshold") == 0.2
+        assert "luma_key" in plan.get("mapped", [])
+    finally:
+        shutil.rmtree(root, ignore_errors=True)

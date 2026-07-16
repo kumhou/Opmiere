@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.38 — 2026-07-17
+
+### Added
+- OpenShot path-C **adapter v7**: `luma_key` mapping
+- MCP tools `path_c_effect_catalog` + `clip_path_c` for agents
 ## 0.5.37 — 2026-07-17
 
 ### Added
@@ -1338,5 +1343,6 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
