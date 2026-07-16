@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.54 — 2026-07-17
+
+### Added
+- `delivery_check_selection` / `export_selection_path_c_plan_default` + **DelivSel** / **PathC.json2**
+
 ## 0.6.53 — 2026-07-17
 
 ### Added

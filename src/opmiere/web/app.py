@@ -9328,6 +9328,54 @@ def apply_silence_to_selection_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class DeliveryCheckSelectionBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_delivery.mp4"
+    preset: str = "streaming"
+    normalize_preset: str | None = None
+
+
+@app.post("/api/edit/delivery_check_selection")
+def delivery_check_selection_api(body: DeliveryCheckSelectionBody) -> dict[str, Any]:
+    """Export selection then delivery_check."""
+    ed = _ed()
+    try:
+        return ed.delivery_check_selection(
+            body.clip_ids,
+            filename=body.filename,
+            preset=body.preset,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"delivery_check_selection failed: {e}") from e
+
+
+class ExportSelectionPathCPlanDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_path_c_plan.json"
+    height: int = 360
+    include_audio: bool = False
+
+
+@app.post("/api/edit/export_selection_path_c_plan_default")
+def export_selection_path_c_plan_default_api(
+    body: ExportSelectionPathCPlanDefaultBody,
+) -> dict[str, Any]:
+    """Write path-C selection plan JSON under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_path_c_plan_default(
+            body.clip_ids,
+            filename=body.filename,
+            height=body.height,
+            include_audio=body.include_audio,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_path_c_plan_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

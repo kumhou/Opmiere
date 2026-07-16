@@ -5499,6 +5499,38 @@ def apply_silence_to_selection(
 
 
 @mcp.tool()
+def delivery_check_selection(
+    clip_ids: list[str],
+    filename: str = "selection_delivery.mp4",
+    preset: str = "streaming",
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export selection MP4 then run delivery_check gates."""
+    return _require_editor().delivery_check_selection(
+        clip_ids,
+        filename=filename,
+        preset=preset,
+        normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
+def export_selection_path_c_plan_default(
+    clip_ids: list[str],
+    filename: str = "selection_path_c_plan.json",
+    height: int = 360,
+    include_audio: bool = False,
+) -> dict:
+    """Write path-C OpenShot plan for selection under exports/."""
+    return _require_editor().export_selection_path_c_plan_default(
+        clip_ids,
+        filename=filename,
+        height=height,
+        include_audio=include_audio,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

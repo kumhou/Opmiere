@@ -9439,6 +9439,71 @@ class Editor:
             ),
         }
 
+    def delivery_check_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_delivery.mp4",
+        preset: str = "streaming",
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export selection MP4 then run delivery_check on the file.
+
+        Full-quality export of selection union; gates LUFS/geometry when possible.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        exp = self.export_selection_mp4_default(
+            clip_ids,
+            filename=filename,
+            normalize_preset=normalize_preset,
+        )
+        path = exp.get("path") or exp.get("output_path")
+        if not path:
+            path = str(
+                Path(self.bundle.root) / "exports" / (filename or "selection.mp4")
+            )
+        check = self.delivery_check(path, preset=preset, match_project=True)
+        span = {
+            "start_frame": exp.get("start_frame"),
+            "end_frame": exp.get("end_frame"),
+            "clip_ids": exp.get("clip_ids"),
+        }
+        if isinstance(check, dict):
+            check = dict(check)
+            check["export_path"] = path
+            check["selection_span"] = span
+            check["agent_note"] = (
+                "Selection union export + delivery gates. Not path-C preview."
+            )
+            return check
+        return {
+            "check": check,
+            "export_path": path,
+            "selection_span": span,
+        }
+
+    def export_selection_path_c_plan_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_path_c_plan.json",
+        height: int = 360,
+        include_audio: bool = False,
+    ) -> dict[str, Any]:
+        """export_selection_path_c_plan into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_path_c_plan.json")
+        return self.export_selection_path_c_plan(
+            clip_ids,
+            out,
+            height=int(height),
+            include_audio=bool(include_audio),
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
