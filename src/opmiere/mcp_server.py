@@ -146,15 +146,6 @@ def ensure_media_proxy(
 
 
 @mcp.tool()
-def ensure_all_media_proxies(
-    height: int = 480,
-    force: bool = False,
-) -> dict:
-    """Build missing proxies for all video media in the project."""
-    return _require_editor().ensure_all_media_proxies(height=height, force=force)
-
-
-@mcp.tool()
 def add_track(kind: TrackKind) -> dict:
     """Add a new track ('video' or 'audio') to the timeline.
 
@@ -2021,6 +2012,56 @@ def export_otio_json(path: str | None = None, title: str | None = None) -> dict:
 def export_edit_manifest(path: str | None = None) -> dict:
     """Compact JSON edit manifest (tracks/clips/effects/markers)."""
     return _require_editor().export_edit_manifest(path)
+
+
+@mcp.tool()
+def import_edit_manifest(
+    path: str | None = None,
+    text: str | None = None,
+    clear: bool = True,
+    import_missing_media: bool = True,
+    conform: bool = True,
+) -> dict:
+    """Import edit manifest JSON (pair of export_edit_manifest)."""
+    return _require_editor().import_edit_manifest(
+        path,
+        text=text,
+        clear=clear,
+        import_missing_media=import_missing_media,
+        conform=conform,
+    )
+
+
+@mcp.tool()
+def ensure_all_media_proxies(
+    height: int = 480,
+    force: bool = False,
+    kinds: list[str] | None = None,
+) -> dict:
+    """Build proxies for all video media in the bin."""
+    return _require_editor().ensure_all_media_proxies(
+        height=height, force=force, kinds=kinds,
+    )
+
+
+@mcp.tool()
+def agent_quick_assembly(
+    media_paths: list[str],
+    track_id: str | None = None,
+    rough_cut: bool = True,
+    title: str | None = None,
+    transition: str | None = "cross_dissolve",
+    build_proxies: bool = False,
+) -> dict:
+    """Import media paths → rough cut → optional title (agent first assembly)."""
+    return _require_editor().agent_quick_assembly(
+        media_paths,
+        track_id=track_id,
+        rough_cut=rough_cut,
+        title=title,
+        transition=transition,
+        build_proxies=build_proxies,
+    )
 
 
 @mcp.tool()

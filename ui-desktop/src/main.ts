@@ -6060,6 +6060,68 @@ async function exportManifestUi() {
   }
 }
 
+async function importManifestUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const picked = await pickImportFile({
+    title: "Import edit manifest",
+    extensions: ["json"],
+  });
+  if (!picked) return;
+  $("status-msg").textContent = "Importing manifest…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      markers_imported?: number;
+      skipped_count?: number;
+    }>("/api/import/manifest", {
+      path: picked.path || null,
+      text: picked.text || null,
+      clear: true,
+      import_missing_media: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ImpMan · ${r.count ?? "?"} clips · ${r.markers_imported ?? 0} mkr` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ImpMan failed: ${e}`);
+    $("status-msg").textContent = `ImpMan failed: ${e}`;
+  }
+}
+
+async function ensureAllProxiesUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Building all media proxies…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      skipped_count?: number;
+    }>("/api/media/proxies_all", {
+      height: 480,
+      force: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PxAll · ${r.count ?? 0}` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+  } catch (e) {
+    setProOut(`PxAll failed: ${e}`);
+    $("status-msg").textContent = `PxAll failed: ${e}`;
+  }
+}
+
 async function importOtioFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9933,6 +9995,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
   proBind("btn-manifest", () => void exportManifestUi());
+  proBind("btn-imp-manifest", () => void importManifestUi());
+  proBind("btn-proxies-all2", () => void ensureAllProxiesUi());
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());

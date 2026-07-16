@@ -9338,6 +9338,9 @@ class Editor:
                 {
                     "id": m.id,
                     "path": m.path,
+                    "abs_path": str(self.bundle.media_path(m.path).resolve())
+                    if self.bundle.media_path(m.path).exists()
+                    else m.path,
                     "kind": m.kind,
                     "duration_frames": m.duration_frames,
                     "has_audio": m.has_audio,
@@ -9361,6 +9364,279 @@ class Editor:
             "track_count": len(tracks),
             "agent_note": "Edit manifest v1 — pair with export_otio for interchange.",
         }
+
+    def import_edit_manifest(
+        self,
+        path: str | Path | None = None,
+        *,
+        text: str | None = None,
+        clear: bool = True,
+        import_missing_media: bool = True,
+        conform: bool = True,
+    ) -> dict[str, Any]:
+        """Import export_edit_manifest JSON (pair of export_edit_manifest).
+
+        Rebuilds tracks/clips/markers/effects. Media matched by abs_path,
+        path basename, or re-imported when on disk.
+        """
+        if text is None and path is None:
+            raise ValueError("pass text= or path=")
+        if text is None:
+            text = Path(path).read_text(encoding="utf-8")
+        assert text is not None
+        try:
+            doc = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"invalid manifest JSON: {e}") from e
+        if not isinstance(doc, dict):
+            raise ValueError("manifest root must be an object")
+        if doc.get("schema") not in (None, "opmiere.edit_manifest.v1"):
+            # allow missing schema for forward flexibility
+            if not str(doc.get("schema", "")).startswith("opmiere.edit_manifest"):
+                pass
+
+        media_rows = doc.get("media") or []
+        track_rows = doc.get("tracks") or []
+        marker_rows = doc.get("markers") or []
+
+        def _resolve_media_file(row: dict[str, Any]) -> Path | None:
+            for key in ("abs_path", "path", "media_path"):
+                p = row.get(key)
+                if not p:
+                    continue
+                pp = Path(str(p).replace("file:///", "").replace("file://", ""))
+                if pp.is_file():
+                    return pp
+            return None
+
+        def _match_existing(row: dict[str, Any]) -> Any | None:
+            candidates = []
+            for key in ("abs_path", "path", "media_path"):
+                if row.get(key):
+                    candidates.append(Path(str(row[key])).name.lower())
+            for m in self.project.media:
+                if Path(m.path).name.lower() in candidates:
+                    return m
+            return None
+
+        with self._mutate():
+            if clear:
+                for tr in list(self.project.tracks):
+                    tr.clips.clear()
+                self.project.markers.clear()
+                # keep existing media bin; rematch/import as needed
+
+            id_map: dict[str, str] = {}  # old media id → new media id
+            imported: list[str] = []
+            skipped_media: list[dict[str, Any]] = []
+
+            for row in media_rows:
+                if not isinstance(row, dict):
+                    continue
+                old_id = str(row.get("id") or "")
+                existing = _match_existing(row)
+                if existing is not None:
+                    if old_id:
+                        id_map[old_id] = existing.id
+                    continue
+                src = _resolve_media_file(row)
+                if src is None or not import_missing_media:
+                    skipped_media.append({
+                        "id": old_id, "path": row.get("path"), "reason": "media not found",
+                    })
+                    continue
+                kind = str(row.get("kind") or self.guess_media_kind(src))
+                if kind not in ("video", "audio", "image"):
+                    kind = self.guess_media_kind(src)
+                media = _ffmpeg_import_media(
+                    self.bundle,
+                    self.project,
+                    src,
+                    kind,  # type: ignore[arg-type]
+                    conform=conform,
+                    fit="none",
+                )
+                if old_id:
+                    id_map[old_id] = media.id
+                imported.append(media.id)
+
+            # rebuild tracks
+            # clear remaining empty tracks if clear
+            if clear:
+                # remove all tracks and recreate from manifest order
+                self.project.tracks.clear()
+
+            track_id_map: dict[str, str] = {}
+            placed: list[dict[str, Any]] = []
+            skipped_clips: list[dict[str, Any]] = []
+
+            for trow in track_rows:
+                if not isinstance(trow, dict):
+                    continue
+                kind = str(trow.get("kind") or "video")
+                if kind not in ("video", "audio"):
+                    kind = "video"
+                tr = self.project.add_track(kind)  # type: ignore[arg-type]
+                old_tid = str(trow.get("id") or "")
+                if old_tid:
+                    track_id_map[old_tid] = tr.id
+                if trow.get("name"):
+                    tr.name = str(trow["name"])
+                tr.muted = bool(trow.get("muted", False))
+                tr.solo = bool(trow.get("solo", False))
+                tr.locked = bool(trow.get("locked", False))
+                if isinstance(trow.get("duck"), dict):
+                    tr.duck = dict(trow["duck"])
+
+                for crow in trow.get("clips") or []:
+                    if not isinstance(crow, dict):
+                        continue
+                    mid_old = str(crow.get("media_id") or "")
+                    mid = id_map.get(mid_old)
+                    if mid is None:
+                        # try path on clip
+                        media = _match_existing({
+                            "path": crow.get("media_path"),
+                            "abs_path": crow.get("media_path"),
+                        })
+                        if media is None:
+                            skipped_clips.append({
+                                "name": crow.get("name"),
+                                "reason": f"no media for {mid_old or crow.get('media_path')}",
+                            })
+                            continue
+                        mid = media.id
+                    media = self.project.media_by_id(mid)
+                    start = max(0, int(crow.get("start") or 0))
+                    sin = max(0, int(crow.get("src_in") or 0))
+                    sout = int(crow.get("src_out") or media.duration_frames)
+                    sout = max(sin + 1, min(sout, media.duration_frames))
+                    clip = self.project.add_clip(tr, media, start, sin, sout)
+                    if crow.get("name"):
+                        clip.name = str(crow["name"])
+                    if crow.get("color"):
+                        clip.color = crow["color"]
+                    if crow.get("link_group"):
+                        clip.link_group = crow["link_group"]
+                    if crow.get("muted"):
+                        clip.muted = True
+                    try:
+                        sp = float(crow.get("speed") or 1.0)
+                        if 0.05 <= sp <= 16.0:
+                            clip.speed = sp
+                    except (TypeError, ValueError):
+                        pass
+                    if isinstance(crow.get("transition_in"), dict):
+                        clip.transition_in = dict(crow["transition_in"])
+                    if isinstance(crow.get("position"), dict):
+                        clip.position = dict(crow["position"])
+                    for fx in crow.get("effects") or []:
+                        if isinstance(fx, dict) and fx.get("type"):
+                            # skip validation-heavy path files that may not exist
+                            try:
+                                self._apply_effect_unlocked(clip.id, dict(fx))
+                            except Exception:
+                                # keep partial grade if possible via append
+                                if clip.effects is None:
+                                    clip.effects = []
+                                if fx.get("type") not in {
+                                    e.get("type") for e in clip.effects if isinstance(e, dict)
+                                }:
+                                    clip.effects.append(dict(fx))
+                    placed.append({
+                        "clip_id": clip.id,
+                        "media_id": mid,
+                        "track_id": tr.id,
+                        "start": clip.start,
+                    })
+
+            markers_in = 0
+            for mrow in marker_rows:
+                if not isinstance(mrow, dict):
+                    continue
+                try:
+                    fr = max(0, int(mrow.get("frame") or 0))
+                except (TypeError, ValueError):
+                    continue
+                lab = str(mrow.get("label") or f"m{fr}")
+                col = str(mrow.get("color") or "#7c9cff")
+                self.project.add_marker(fr, label=lab, color=col)
+                markers_in += 1
+
+            return {
+                "placed": placed,
+                "count": len(placed),
+                "markers_imported": markers_in,
+                "imported_media": imported,
+                "imported_media_count": len(imported),
+                "skipped_media": skipped_media[:40],
+                "skipped_clips": skipped_clips[:40],
+                "skipped_count": len(skipped_media) + len(skipped_clips),
+                "clear": clear,
+                "agent_note": "Manifest import reconstructs layout; verify offline media.",
+            }
+
+    def agent_quick_assembly(
+        self,
+        media_paths: list[str | Path],
+        *,
+        track_id: str | None = None,
+        rough_cut: bool = True,
+        title: str | None = None,
+        transition: str | None = "cross_dissolve",
+        build_proxies: bool = False,
+    ) -> dict[str, Any]:
+        """Import paths → optional rough_cut → optional title card (agent entry).
+
+        Creates a video track if needed. One high-level path for first assembly.
+        """
+        if not media_paths:
+            raise ValueError("media_paths is empty")
+        out: dict[str, Any] = {"imported": [], "errors": []}
+        media_ids: list[str] = []
+        for p in media_paths:
+            try:
+                path = Path(p)
+                kind = self.guess_media_kind(path)
+                m = self.import_media(
+                    path, kind, build_proxy=bool(build_proxies and kind == "video"),
+                )
+                media_ids.append(m.id)
+                out["imported"].append({"media_id": m.id, "path": str(path), "kind": kind})
+            except Exception as e:
+                out["errors"].append({"path": str(p), "error": str(e)[:300]})
+        if not media_ids:
+            out["agent_note"] = "No media imported."
+            return out
+
+        if track_id is None:
+            vids = [t for t in self.project.tracks if t.kind == "video"]
+            track_id = vids[0].id if vids else self.project.add_track("video").id
+        out["track_id"] = track_id
+
+        if rough_cut:
+            out["rough_cut"] = self.rough_cut(
+                track_id,
+                media_ids=media_ids,
+                use_unused=False,
+                transition=transition,
+                apply_edge_fades=True,
+            )
+        else:
+            out["sequence"] = self.sequence_from_media(
+                media_ids, track_id, transition=transition,
+            )
+
+        if title:
+            tr = self.project.track_by_id(track_id)
+            end_f = max((c.end for c in tr.clips), default=0)
+            out["title"] = self.create_title_card(
+                title, track_id, int(end_f), duration_frames=60, position="center",
+            )
+        out["agent_note"] = (
+            "Quick assembly done. Next: grade (match_grade), music_broll, prepare_export."
+        )
+        return out
 
     def agent_preflight(self) -> dict[str, Any]:
         """Single agent call: media + validate + proxy + duration + next steps.

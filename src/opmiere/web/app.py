@@ -3383,6 +3383,77 @@ def export_manifest_api(body: ExportManifestBody | None = None) -> dict[str, Any
         raise HTTPException(500, f"export_manifest failed: {e}") from e
 
 
+class ImportManifestBody(BaseModel):
+    path: str | None = None
+    text: str | None = None
+    clear: bool = True
+    import_missing_media: bool = True
+    conform: bool = True
+
+
+@app.post("/api/import/manifest")
+def import_manifest_api(body: ImportManifestBody) -> dict[str, Any]:
+    """Import edit manifest JSON (pair of export_manifest)."""
+    ed = _ed()
+    try:
+        r = ed.import_edit_manifest(
+            body.path,
+            text=body.text,
+            clear=body.clear,
+            import_missing_media=body.import_missing_media,
+            conform=body.conform,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"import_manifest failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class EnsureProxiesBody(BaseModel):
+    height: int = 480
+    force: bool = False
+    kinds: list[str] | None = None
+
+
+@app.post("/api/media/proxies_all")
+def ensure_all_proxies_api(body: EnsureProxiesBody | None = None) -> dict[str, Any]:
+    """Build proxies for all video media in the bin."""
+    body = body or EnsureProxiesBody()
+    ed = _ed()
+    try:
+        return ed.ensure_all_media_proxies(
+            height=body.height, force=body.force, kinds=body.kinds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"ensure_all_proxies failed: {e}") from e
+
+
+class QuickAssemblyBody(BaseModel):
+    media_paths: list[str]
+    track_id: str | None = None
+    rough_cut: bool = True
+    title: str | None = None
+    transition: str | None = "cross_dissolve"
+    build_proxies: bool = False
+
+
+@app.post("/api/edit/quick_assembly")
+def quick_assembly_api(body: QuickAssemblyBody) -> dict[str, Any]:
+    """Import paths → rough_cut → optional end title (agent bootstrap)."""
+    ed = _ed()
+    try:
+        r = ed.agent_quick_assembly(
+            body.media_paths,
+            track_id=body.track_id,
+            rough_cut=body.rough_cut,
+            title=body.title,
+            transition=body.transition,
+            build_proxies=body.build_proxies,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"quick_assembly failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/import/otio")
 def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
     """Import simplified OTIO-like JSON (pair of export_otio)."""

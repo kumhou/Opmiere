@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.63 — 2026-07-17
+
+### Added
+- `import_edit_manifest` round-trip (+ `abs_path` on export) + API/MCP/desktop **ImpMan**
+- `agent_quick_assembly` (import → rough_cut → end title) + API/MCP
+- `ensure_all_media_proxies` wired to API/MCP/desktop **PxAll** (`/api/media/proxies_all`)
+
+### Fixed
+- Deduped `ensure_all_media_proxies` (ops + MCP single definition)
+
 ## 0.5.62 — 2026-07-17
 
 ### Added
