@@ -2125,6 +2125,48 @@ def replace_media_everywhere(
 
 
 @mcp.tool()
+def import_image_sequence(
+    path: str,
+    fps: float | None = None,
+    glob: str = "*",
+    start_number: int | None = None,
+    max_frames: int | None = None,
+    place_track_id: str | None = None,
+    start: int = 0,
+    build_proxy: bool = False,
+) -> dict:
+    """Encode a still sequence (dir / pattern) to video and import."""
+    return _require_editor().import_image_sequence(
+        path,
+        fps=fps,
+        glob=glob,
+        start_number=start_number,
+        max_frames=max_frames,
+        place_track_id=place_track_id,
+        start=start,
+        build_proxy=build_proxy,
+    )
+
+
+@mcp.tool()
+def detach_audio_all(
+    track_id: str | None = None,
+    audio_track_id: str | None = None,
+    audio_start_offset_frames: int = 0,
+    link: bool = True,
+    only_with_audio: bool = True,
+) -> dict:
+    """Detach audio for every video clip on a track (or all video tracks)."""
+    return _require_editor().detach_audio_all(
+        track_id,
+        audio_track_id=audio_track_id,
+        audio_start_offset_frames=audio_start_offset_frames,
+        link=link,
+        only_with_audio=only_with_audio,
+    )
+
+
+@mcp.tool()
 def import_otio_json(
     path: str | None = None,
     text: str | None = None,

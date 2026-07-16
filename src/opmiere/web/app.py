@@ -3544,6 +3544,66 @@ def replace_media_everywhere_api(body: ReplaceMediaEverywhereBody) -> dict[str, 
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ImportImageSequenceBody(BaseModel):
+    path: str
+    fps: float | None = None
+    glob: str = "*"
+    start_number: int | None = None
+    max_frames: int | None = None
+    place_track_id: str | None = None
+    start: int = 0
+    build_proxy: bool = False
+
+
+@app.post("/api/import/image_sequence")
+def import_image_sequence_api(body: ImportImageSequenceBody) -> dict[str, Any]:
+    """Encode still sequence to video and import (optional place)."""
+    ed = _ed()
+    try:
+        r = ed.import_image_sequence(
+            body.path,
+            fps=body.fps,
+            glob=body.glob,
+            start_number=body.start_number,
+            max_frames=body.max_frames,
+            place_track_id=body.place_track_id,
+            start=body.start,
+            build_proxy=body.build_proxy,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"import_image_sequence failed: {e}") from e
+    out = {**r}
+    if r.get("clip_id"):
+        out["timeline"] = ed.timeline_view()
+    return out
+
+
+class DetachAudioAllBody(BaseModel):
+    track_id: str | None = None
+    audio_track_id: str | None = None
+    audio_start_offset_frames: int = 0
+    link: bool = True
+    only_with_audio: bool = True
+
+
+@app.post("/api/edit/detach_audio_all")
+def detach_audio_all_api(body: DetachAudioAllBody | None = None) -> dict[str, Any]:
+    """Detach audio for all video clips on a track (or all video tracks)."""
+    body = body or DetachAudioAllBody()
+    ed = _ed()
+    try:
+        r = ed.detach_audio_all(
+            body.track_id,
+            audio_track_id=body.audio_track_id,
+            audio_start_offset_frames=body.audio_start_offset_frames,
+            link=body.link,
+            only_with_audio=body.only_with_audio,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"detach_audio_all failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/import/otio")
 def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
     """Import simplified OTIO-like JSON (pair of export_otio)."""

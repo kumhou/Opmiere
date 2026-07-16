@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.66 — 2026-07-17
+
+### Added
+- `import_image_sequence` (dir/pattern → H.264 + optional place) + API/MCP/desktop **ImgSeq**
+- `detach_audio_all` (batch J/L detach) + API/MCP/desktop **DetAll**
+
 ## 0.5.65 — 2026-07-17
 
 ### Added

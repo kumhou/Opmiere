@@ -6211,6 +6211,69 @@ async function collectBundleUi() {
   }
 }
 
+async function importImageSequenceUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Image sequence folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Encoding image sequence…";
+  try {
+    const placeTrack = trackForKind("video");
+    const r = await postJson<{
+      media_id?: string;
+      clip_id?: string;
+      duration_frames?: number;
+      frame_count?: number;
+      timeline?: TimelineView;
+    }>("/api/import/image_sequence", {
+      path: dir,
+      fps: null,
+      place_track_id: placeTrack,
+      start: playheadFrame(),
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ImgSeq · ${r.frame_count ?? "?"} frames · ${r.duration_frames ?? "?"}f` +
+      (r.clip_id ? " · placed" : "");
+  } catch (e) {
+    setProOut(`ImgSeq failed: ${e}`);
+    $("status-msg").textContent = `ImgSeq failed: ${e}`;
+  }
+}
+
+async function detachAudioAllUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Detaching audio on video clips…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      skipped_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/detach_audio_all", {
+      track_id: trackForKind("video"),
+      link: true,
+      only_with_audio: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DetAll · ${r.count ?? 0}` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+  } catch (e) {
+    setProOut(`DetAll failed: ${e}`);
+    $("status-msg").textContent = `DetAll failed: ${e}`;
+  }
+}
+
 async function importOtioFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -10089,6 +10152,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-relink-off", () => void relinkOfflineUi());
   proBind("btn-handoff", () => void exportHandoffUi());
   proBind("btn-collect", () => void collectBundleUi());
+  proBind("btn-imgseq", () => void importImageSequenceUi());
+  proBind("btn-detach-all", () => void detachAudioAllUi());
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());

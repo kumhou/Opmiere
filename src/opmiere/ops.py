@@ -772,6 +772,194 @@ class Editor:
                 self.save()
         return self.project.media_by_id(media.id)
 
+    def import_image_sequence(
+        self,
+        path: str | Path,
+        *,
+        fps: float | None = None,
+        glob: str = "*",
+        start_number: int | None = None,
+        max_frames: int | None = None,
+        place_track_id: str | None = None,
+        start: int = 0,
+        build_proxy: bool = False,
+    ) -> dict[str, Any]:
+        """Encode a still sequence (dir or printf pattern) to video and import.
+
+        path: directory of images, a first-frame path (sibling frames discovered),
+        or an ffmpeg-style pattern like ``frame_%04d.png``.
+        fps defaults to project timebase. Optionally place on a video track.
+        """
+        import fnmatch
+        import re
+        import subprocess
+        import uuid
+
+        seq_fps = float(fps if fps is not None else (self.project.timebase.fps or 30.0))
+        if seq_fps <= 0 or seq_fps > 240:
+            raise ValueError("fps must be in (0, 240]")
+
+        p = Path(path)
+        pattern: str | None = None
+        start_num = start_number
+        frame_files: list[Path] = []
+        source_label = str(p)
+
+        img_exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".exr"}
+
+        if "%" in str(path) and not p.is_dir():
+            # ffmpeg image2 pattern — pass through
+            pattern = str(path)
+            if start_num is None:
+                start_num = 1
+        elif p.is_dir():
+            for f in sorted(p.iterdir()):
+                if f.is_file() and f.suffix.lower() in img_exts:
+                    if glob != "*" and not fnmatch.fnmatch(f.name, glob):
+                        continue
+                    frame_files.append(f)
+        elif p.is_file() and p.suffix.lower() in img_exts:
+            # discover siblings with same stem prefix + digits
+            stem = p.stem
+            m = re.match(r"^(.*?)(\d+)$", stem)
+            parent = p.parent
+            if m:
+                prefix, digits = m.group(1), m.group(2)
+                width = len(digits)
+                if start_num is None:
+                    start_num = int(digits)
+                # build printf pattern if contiguous
+                candidates = sorted(
+                    f for f in parent.iterdir()
+                    if f.is_file()
+                    and f.suffix.lower() == p.suffix.lower()
+                    and f.stem.startswith(prefix)
+                    and re.match(rf"^{re.escape(prefix)}\d+$", f.stem)
+                )
+                frame_files = candidates
+                if frame_files:
+                    # try ffmpeg pattern
+                    pattern = str(parent / f"{prefix}%0{width}d{p.suffix}")
+            else:
+                frame_files = [p]
+        else:
+            raise FileNotFoundError(f"image sequence not found: {path}")
+
+        if frame_files and max_frames is not None:
+            frame_files = frame_files[: max(1, int(max_frames))]
+
+        if not pattern and not frame_files:
+            raise ValueError(f"no images found under {path!r}")
+
+        import shutil
+        import tempfile
+
+        tmp_dir = Path(tempfile.mkdtemp(prefix="opmiere_imgseq_"))
+        out_path = tmp_dir / f"imgseq_{uuid.uuid4().hex[:8]}.mp4"
+        list_path: Path | None = None
+        n_frames: int | None = None
+        try:
+            if pattern and len(frame_files) == 0 and "%" in pattern:
+                cmd = [
+                    "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-framerate", str(seq_fps),
+                    "-start_number", str(int(start_num or 0)),
+                    "-i", pattern,
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-crf", "18",
+                    str(out_path),
+                ]
+                if max_frames is not None:
+                    # insert after -i pattern
+                    i = cmd.index(pattern)
+                    cmd[i + 1:i + 1] = ["-frames:v", str(int(max_frames))]
+                proc = subprocess.run(cmd, capture_output=True, text=True)
+                if proc.returncode != 0 or not out_path.exists():
+                    raise RuntimeError(
+                        f"image sequence encode failed:\n{(proc.stderr or '')[-1500:]}"
+                    )
+            else:
+                if not frame_files and pattern:
+                    parent = Path(pattern).parent
+                    frame_files = sorted(
+                        f for f in parent.iterdir()
+                        if f.is_file() and f.suffix.lower() in img_exts
+                    )
+                if not frame_files:
+                    raise ValueError(f"no images to encode for {path!r}")
+                if max_frames is not None:
+                    frame_files = frame_files[: max(1, int(max_frames))]
+                list_path = tmp_dir / "concat.txt"
+                lines: list[str] = []
+                dur = 1.0 / seq_fps
+                for f in frame_files:
+                    fp = str(f.resolve()).replace("'", r"'\''")
+                    lines.append(f"file '{fp}'")
+                    lines.append(f"duration {dur:.6f}")
+                last = str(frame_files[-1].resolve()).replace("'", r"'\''")
+                lines.append(f"file '{last}'")
+                list_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                proc = subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-f", "concat", "-safe", "0",
+                        "-i", str(list_path),
+                        "-vsync", "vfr",
+                        "-pix_fmt", "yuv420p",
+                        "-c:v", "libx264", "-crf", "18",
+                        str(out_path),
+                    ],
+                    capture_output=True, text=True,
+                )
+                if proc.returncode != 0 or not out_path.exists():
+                    raise RuntimeError(
+                        f"image sequence encode failed:\n{(proc.stderr or '')[-1500:]}"
+                    )
+                n_frames = len(frame_files)
+
+            media = self.import_media(
+                out_path,
+                "video",
+                conform=True,
+                fit="none",
+                origin={
+                    "image_sequence": True,
+                    "source": source_label,
+                    "fps": seq_fps,
+                    "frame_count": n_frames,
+                },
+                build_proxy=build_proxy,
+            )
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        result: dict[str, Any] = {
+            "media_id": media.id,
+            "path": media.path,
+            "duration_frames": media.duration_frames,
+            "fps": seq_fps,
+            "frame_count": n_frames,
+            "source": source_label,
+        }
+        if place_track_id is not None:
+            tr = self.project.track_by_id(place_track_id)
+            if tr.kind != "video":
+                raise ValueError("place_track_id must be a video track")
+            clip = self.add_clip(
+                place_track_id,
+                media.id,
+                int(start),
+                0,
+                media.duration_frames,
+            )
+            result["clip_id"] = clip.id
+            result["track_id"] = place_track_id
+            result["start"] = int(start)
+        result["agent_note"] = (
+            "Sequence encoded to H.264 in media/. Use place_track_id to auto-place."
+        )
+        return result
+
     def list_media_bin(self) -> dict[str, Any]:
         """Media bin status: source paths, proxy readiness, transcript cache."""
         items: list[dict[str, Any]] = []
@@ -3271,6 +3459,84 @@ class Editor:
                     "Negative offset = J-cut (audio leads). Embedded video "
                     "audio is suppressed while any audio-track clips exist."
                     + (" Clips are linked." if link else "")
+                ),
+            }
+
+    def detach_audio_all(
+        self,
+        track_id: str | None = None,
+        *,
+        audio_track_id: str | None = None,
+        audio_start_offset_frames: int = 0,
+        link: bool = True,
+        only_with_audio: bool = True,
+    ) -> dict[str, Any]:
+        """Detach audio for every video clip on a track (or all video tracks).
+
+        One undo. Same rules as detach_audio per clip.
+        """
+        with self._mutate():
+            results: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            if track_id is not None:
+                tracks = [self.project.track_by_id(track_id)]
+            else:
+                tracks = [t for t in self.project.tracks if t.kind == "video"]
+
+            shared_audio_track_id = audio_track_id
+            for tr in tracks:
+                if tr.kind != "video":
+                    skipped.append({"track_id": tr.id, "reason": "not video"})
+                    continue
+                if tr.locked:
+                    skipped.append({"track_id": tr.id, "reason": "locked"})
+                    continue
+                for clip in list(tr.clips_in_order()):
+                    media = self.project.media_by_id(clip.media)
+                    if only_with_audio and not media.has_audio:
+                        skipped.append({"clip_id": clip.id, "reason": "no audio"})
+                        continue
+                    audio_tracks = [t for t in self.project.tracks if t.kind == "audio"]
+                    if shared_audio_track_id is not None:
+                        atrack = self.project.track_by_id(shared_audio_track_id)
+                        if atrack.kind != "audio":
+                            raise ValueError(f"{shared_audio_track_id} is not audio")
+                    else:
+                        if not audio_tracks:
+                            self.project.add_track("audio")
+                            atrack = self.project.add_track("audio")
+                        elif len(audio_tracks) == 1:
+                            atrack = self.project.add_track("audio")
+                        else:
+                            atrack = audio_tracks[-1]
+                        shared_audio_track_id = atrack.id
+                    a_start = max(0, clip.start + int(audio_start_offset_frames))
+                    audio_clip = self.project.add_clip(
+                        atrack, media, a_start, clip.src_in, clip.src_out,
+                    )
+                    if clip.speed != 1.0:
+                        audio_clip.speed = clip.speed
+                    link_group = None
+                    if link:
+                        link_group = clip.link_group or new_id("lnk")
+                        clip.link_group = link_group
+                        audio_clip.link_group = link_group
+                    results.append({
+                        "video_clip_id": clip.id,
+                        "audio_clip_id": audio_clip.id,
+                        "audio_track_id": atrack.id,
+                        "audio_start": a_start,
+                        "link_group": link_group,
+                    })
+            return {
+                "count": len(results),
+                "detached": results,
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+                "offset_frames": int(audio_start_offset_frames),
+                "agent_note": (
+                    "Batch detach done. Negative offset = J-cut lead. "
+                    "Embedded video audio suppressed when audio tracks have clips."
                 ),
             }
 
