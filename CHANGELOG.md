@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.40 — 2026-07-17
+
+### Added
+- `export_selection_webm_default` / `export_selection_gif_default` / `work_area_from_selection` + **WebmSel** / **GifSel** / **WA←Sel2**
+
 ## 0.6.39 — 2026-07-17
 
 ### Added

@@ -11312,6 +11312,84 @@ async function exportSelectionMp4DefaultUi() {
   }
 }
 
+async function exportSelectionWebmDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for WebM export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection WebM…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+    }>("/api/edit/export_selection_webm_default", {
+      clip_ids: ids,
+      filename: "selection.webm",
+      crf: 32,
+      width: 720,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WebmSel · ${String(r.path || r.output_path || "ok")}`;
+  } catch (e) {
+    setProOut(`WebmSel failed: ${e}`);
+    $("status-msg").textContent = `WebmSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionGifDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for GIF export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection GIF…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+    }>("/api/edit/export_selection_gif_default", {
+      clip_ids: ids,
+      filename: "selection.gif",
+      fps: 12,
+      width: 480,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GifSel · ${String(r.path || r.output_path || "ok")}`;
+  } catch (e) {
+    setProOut(`GifSel failed: ${e}`);
+    $("status-msg").textContent = `GifSel failed: ${e}`;
+  }
+}
+
+async function workAreaFromSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for work area";
+    return;
+  }
+  $("status-msg").textContent = "Setting work area from selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      in_frame?: number;
+      out_frame?: number;
+      start_frame?: number;
+      end_frame?: number;
+    }>("/api/edit/work_area_from_selection", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "WA←Sel2 · work area set";
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`WA←Sel2 failed: ${e}`);
+    $("status-msg").textContent = `WA←Sel2 failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15283,6 +15361,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-proxy-sel", () => void selectionProxyReportUi());
   proBind("btn-mk-proxy-sel", () => void ensureSelectionMediaProxiesUi());
   proBind("btn-mp4-sel", () => void exportSelectionMp4DefaultUi());
+  proBind("btn-webm-sel", () => void exportSelectionWebmDefaultUi());
+  proBind("btn-gif-sel", () => void exportSelectionGifDefaultUi());
+  proBind("btn-wa-from-sel", () => void workAreaFromSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

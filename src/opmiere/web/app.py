@@ -8612,6 +8612,71 @@ def export_selection_mp4_default_api(
         raise HTTPException(400, f"export_selection_mp4_default failed: {e}") from e
 
 
+class ExportSelectionWebmDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection.webm"
+    crf: int = 32
+    width: int | None = None
+
+
+@app.post("/api/edit/export_selection_webm_default")
+def export_selection_webm_default_api(
+    body: ExportSelectionWebmDefaultBody,
+) -> dict[str, Any]:
+    """Export selection span WebM to exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_webm_default(
+            body.clip_ids,
+            filename=body.filename,
+            crf=body.crf,
+            width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_webm_default failed: {e}") from e
+
+
+class ExportSelectionGifDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection.gif"
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 12.0
+
+
+@app.post("/api/edit/export_selection_gif_default")
+def export_selection_gif_default_api(
+    body: ExportSelectionGifDefaultBody,
+) -> dict[str, Any]:
+    """Export selection span GIF to exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_gif_default(
+            body.clip_ids,
+            filename=body.filename,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_gif_default failed: {e}") from e
+
+
+class WorkAreaFromSelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/work_area_from_selection")
+def work_area_from_selection_api(body: WorkAreaFromSelectionBody) -> dict[str, Any]:
+    """Set work area In/Out from selection union."""
+    ed = _ed()
+    try:
+        r = ed.work_area_from_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"work_area_from_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -7647,6 +7647,56 @@ class Editor:
             clip_ids, out, normalize_preset=normalize_preset,
         )
 
+    def export_selection_webm_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection.webm",
+        crf: int = 32,
+        width: int | None = None,
+    ) -> dict[str, Any]:
+        """export_selection_webm into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection.webm")
+        return self.export_selection_webm(
+            clip_ids, out, crf=crf, width=width,
+        )
+
+    def export_selection_gif_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection.gif",
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 12.0,
+    ) -> dict[str, Any]:
+        """export_selection_gif into project exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection.gif")
+        return self.export_selection_gif(
+            clip_ids,
+            out,
+            fps=fps,
+            width=width,
+            max_duration_seconds=max_duration_seconds,
+        )
+
+    def work_area_from_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Set In/Out to selection union (alias set_work_area_from_selection)."""
+        r = self.set_work_area_from_selection(clip_ids)
+        r["agent_note"] = "Work area = selection union; export WA next."
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

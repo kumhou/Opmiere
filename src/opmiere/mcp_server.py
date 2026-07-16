@@ -5092,6 +5092,43 @@ def export_selection_mp4_default(
 
 
 @mcp.tool()
+def export_selection_webm_default(
+    clip_ids: list[str],
+    filename: str = "selection.webm",
+    crf: int = 32,
+    width: int | None = None,
+) -> dict:
+    """Export selection union span as WebM under project exports/."""
+    return _require_editor().export_selection_webm_default(
+        clip_ids, filename=filename, crf=crf, width=width,
+    )
+
+
+@mcp.tool()
+def export_selection_gif_default(
+    clip_ids: list[str],
+    filename: str = "selection.gif",
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 12.0,
+) -> dict:
+    """Export selection union span as GIF under project exports/."""
+    return _require_editor().export_selection_gif_default(
+        clip_ids,
+        filename=filename,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
+def work_area_from_selection(clip_ids: list[str]) -> dict:
+    """Set timeline In/Out work area to selection union span."""
+    return _require_editor().work_area_from_selection(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
