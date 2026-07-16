@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.68 — 2026-07-17
+
+### Added
+- `set_j_l_offset` (linked audio J/L cut) + API/MCP/desktop **J−15** / **L+15**
+
 ## 0.5.67 — 2026-07-17
 
 ### Added

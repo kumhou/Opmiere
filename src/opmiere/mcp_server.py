@@ -2189,6 +2189,18 @@ def detach_audio_all(
 
 
 @mcp.tool()
+def set_j_l_offset(
+    video_clip_id: str,
+    offset_frames: int,
+    relative: bool = False,
+) -> dict:
+    """Shift linked audio peer(s): negative=J-cut lead, positive=L-cut lag."""
+    return _require_editor().set_j_l_offset(
+        video_clip_id, offset_frames, relative=relative,
+    )
+
+
+@mcp.tool()
 def import_otio_json(
     path: str | None = None,
     text: str | None = None,

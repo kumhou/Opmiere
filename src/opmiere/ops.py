@@ -3540,6 +3540,63 @@ class Editor:
                 ),
             }
 
+    def set_j_l_offset(
+        self,
+        video_clip_id: str,
+        offset_frames: int,
+        *,
+        relative: bool = False,
+    ) -> dict[str, Any]:
+        """Shift linked audio peer(s) for a video clip (J/L cut).
+
+        offset_frames: absolute audio.start = video.start + offset when
+        relative=False. Negative = J-cut (audio leads); positive = L-cut lag.
+        relative=True: add delta to current audio starts.
+        """
+        vtrack, vclip = self._find_clip_and_track(video_clip_id)
+        if vtrack.kind != "video":
+            raise ValueError("set_j_l_offset expects a video-track clip")
+        if not vclip.link_group:
+            raise ValueError(
+                "clip has no link_group — run detach_audio first"
+            )
+        offset_frames = int(offset_frames)
+        with self._mutate():
+            moved: list[dict[str, Any]] = []
+            for tr in self.project.tracks:
+                if tr.kind != "audio" or tr.locked:
+                    continue
+                for ac in tr.clips:
+                    if ac.link_group != vclip.link_group:
+                        continue
+                    old = ac.start
+                    if relative:
+                        ac.start = max(0, ac.start + offset_frames)
+                    else:
+                        ac.start = max(0, vclip.start + offset_frames)
+                    moved.append({
+                        "audio_clip_id": ac.id,
+                        "track_id": tr.id,
+                        "from": old,
+                        "to": ac.start,
+                    })
+            if not moved:
+                raise ValueError(
+                    "no linked audio peers found for this video clip"
+                )
+            return {
+                "video_clip_id": video_clip_id,
+                "link_group": vclip.link_group,
+                "offset_frames": offset_frames,
+                "relative": relative,
+                "moved": moved,
+                "count": len(moved),
+                "agent_note": (
+                    "J-cut: offset < 0 (audio earlier). L-cut: offset > 0. "
+                    "Picture start unchanged."
+                ),
+            }
+
     def get_clip_gain_db(self, clip_id: str) -> float:
         """Return the last gain effect dB on the clip, or 0.0 if none."""
         clip = self._find_clip(clip_id)

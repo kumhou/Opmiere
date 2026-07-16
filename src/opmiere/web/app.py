@@ -3632,6 +3632,27 @@ def detach_audio_all_api(body: DetachAudioAllBody | None = None) -> dict[str, An
     return {**r, "timeline": ed.timeline_view()}
 
 
+class JLOffsetBody(BaseModel):
+    video_clip_id: str
+    offset_frames: int
+    relative: bool = False
+
+
+@app.post("/api/edit/j_l_offset")
+def j_l_offset_api(body: JLOffsetBody) -> dict[str, Any]:
+    """Shift linked audio for J/L cut (negative = J lead)."""
+    ed = _ed()
+    try:
+        r = ed.set_j_l_offset(
+            body.video_clip_id,
+            body.offset_frames,
+            relative=body.relative,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"j_l_offset failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.post("/api/import/otio")
 def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
     """Import simplified OTIO-like JSON (pair of export_otio)."""

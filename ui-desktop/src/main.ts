@@ -6303,6 +6303,36 @@ async function detachAudioAllUi() {
   }
 }
 
+async function jlOffsetUi(offset: number) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const clipId = [...state.selected][0];
+  if (!clipId) {
+    $("status-msg").textContent = "Select a video clip first";
+    return;
+  }
+  $("status-msg").textContent = `J/L offset ${offset}f…`;
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/j_l_offset", {
+      video_clip_id: clipId,
+      offset_frames: offset,
+      relative: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `JL · offset ${offset}f · peers ${r.count ?? 0}`;
+  } catch (e) {
+    setProOut(`JL failed: ${e}`);
+    $("status-msg").textContent = `JL failed: ${e}`;
+  }
+}
+
 async function importOtioFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -10184,6 +10214,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-imgseq", () => void importImageSequenceUi());
   proBind("btn-frameseq", () => void exportFrameSequenceUi());
   proBind("btn-detach-all", () => void detachAudioAllUi());
+  proBind("btn-jl-cut", () => void jlOffsetUi(-15));
+  proBind("btn-ll-cut", () => void jlOffsetUi(15));
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());
