@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 — 2026-07-17
+
+### Added
+- `apply_noise_reduction` (clip) + **NR-c**
+- `export_clip_mp4` + **ClipMP4**
+- `add_countdown` (3-2-1 titles, ripple) + **3-2-1**
+
 ## 0.6.0 — 2026-07-17
 
 ### Added

@@ -5110,6 +5110,139 @@ class Editor:
         r["end_frame"] = clip.end
         return r
 
+    def apply_noise_reduction(
+        self,
+        clip_id: str,
+        *,
+        amount: float = 12.0,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply noise_reduction (afftdn-style) to a single clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        amt = float(amount)
+        if not (0.01 <= amt <= 97.0):
+            raise ValueError("amount must be in [0.01, 97]")
+        fx = {"type": "noise_reduction", "amount": amt}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if e.get("type") != "noise_reduction"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "NR on clip; reduce amount if watery.",
+            }
+
+    def export_clip_mp4(
+        self,
+        clip_id: str,
+        output_path: str | Path,
+        *,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export a single clip's timeline span as MP4 (full render + trim)."""
+        clip = self._find_clip(clip_id)
+        fps_tb = float(self.project.timebase.fps or 30.0)
+        start_s = float(clip.start) / fps_tb
+        end_s = float(clip.end) / fps_tb
+        output_path = Path(output_path)
+        if output_path.suffix.lower() not in (".mp4", ".mov", ".mkv"):
+            output_path = output_path.with_suffix(".mp4")
+        r = self.export_range(
+            output_path,
+            start_s,
+            end_s,
+            normalize_preset=normalize_preset,
+            run_delivery_check=False,
+        )
+        r["clip_id"] = clip_id
+        r["start_frame"] = clip.start
+        r["end_frame"] = clip.end
+        return r
+
+    def add_countdown(
+        self,
+        *,
+        seconds: int = 3,
+        frames_per_digit: int | None = None,
+        track_id: str | None = None,
+        size: int = 96,
+        ripple_all_tracks: bool = True,
+    ) -> dict[str, Any]:
+        """Prepend a 3-2-1… title countdown (one card per second by default).
+
+        Ripples existing clips right by total duration when ripple_all_tracks.
+        """
+        n = int(seconds)
+        if n < 1 or n > 10:
+            raise ValueError("seconds must be in [1, 10]")
+        fps = float(self.project.timebase.fps or 30.0)
+        per = int(frames_per_digit) if frames_per_digit is not None else max(1, int(round(fps)))
+        if per < 1:
+            raise ValueError("frames_per_digit must be >= 1")
+        total = n * per
+
+        vids = [t for t in self.project.tracks if t.kind == "video"]
+        if track_id is None:
+            if not vids:
+                with self._mutate():
+                    track_id = self.project.add_track("video").id
+            else:
+                track_id = vids[0].id
+
+        moved_total = 0
+        if ripple_all_tracks:
+            for tr in list(self.project.tracks):
+                if tr.locked:
+                    continue
+                try:
+                    m = self.insert_time(tr.id, 0, total)
+                    moved_total += int(m.get("count") or 0)
+                except Exception:
+                    pass
+            try:
+                if self.project.markers:
+                    self.shift_markers(total)
+            except Exception:
+                pass
+        else:
+            try:
+                m = self.insert_time(track_id, 0, total)
+                moved_total = int(m.get("count") or 0)
+            except Exception:
+                pass
+
+        cards: list[dict[str, Any]] = []
+        for i, digit in enumerate(range(n, 0, -1)):
+            start_f = i * per
+            r = self.create_title_card(
+                str(digit),
+                track_id,
+                start_f,
+                duration_frames=per,
+                position="center",
+                size=int(size),
+            )
+            cards.append({
+                "clip_id": r.get("clip_id"),
+                "digit": digit,
+                "start": start_f,
+                "duration_frames": per,
+            })
+        return {
+            "seconds": n,
+            "frames_per_digit": per,
+            "total_frames": total,
+            "track_id": track_id,
+            "cards": cards,
+            "ripple_moved": moved_total,
+            "agent_note": "Countdown at head; later content shifted when ripple on.",
+        }
+
     def export_webm(
         self,
         output_path: str | Path,

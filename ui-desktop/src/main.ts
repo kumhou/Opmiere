@@ -8315,6 +8315,78 @@ async function exportClipAudioUi() {
   }
 }
 
+async function noiseReductionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for NR";
+    return;
+  }
+  $("status-msg").textContent = "Applying noise reduction…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/noise_reduction", {
+      clip_id: ids[0],
+      amount: 12,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `NR-c · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`NR failed: ${e}`);
+    $("status-msg").textContent = `NR failed: ${e}`;
+  }
+}
+
+async function exportClipMp4Ui() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for ClipMP4";
+    return;
+  }
+  $("status-msg").textContent = "Exporting clip MP4…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clip_mp4", {
+      clip_id: ids[0],
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClipMP4 → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`ClipMP4 failed: ${e}`);
+    $("status-msg").textContent = `ClipMP4 failed: ${e}`;
+  }
+}
+
+async function countdownUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Adding countdown…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      total_frames?: number;
+      cards?: unknown[];
+    }>("/api/edit/countdown", {
+      seconds: 3,
+      ripple_all_tracks: true,
+      size: 96,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `3-2-1 · ${r.total_frames ?? "?"}f`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Countdown failed: ${e}`);
+    $("status-msg").textContent = `Countdown failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12159,6 +12231,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-comp", () => void compressionUi());
   proBind("btn-eq", () => void audioEqUi());
   proBind("btn-clip-aud", () => void exportClipAudioUi());
+  proBind("btn-nr", () => void noiseReductionUi());
+  proBind("btn-clip-mp4", () => void exportClipMp4Ui());
+  proBind("btn-countdown", () => void countdownUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

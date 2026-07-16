@@ -3846,6 +3846,48 @@ def export_clip_audio(
 
 
 @mcp.tool()
+def apply_noise_reduction(
+    clip_id: str,
+    amount: float = 12.0,
+    replace: bool = True,
+) -> dict:
+    """Apply noise reduction to a single clip."""
+    return _require_editor().apply_noise_reduction(
+        clip_id, amount=amount, replace=replace,
+    )
+
+
+@mcp.tool()
+def export_clip_mp4(
+    clip_id: str,
+    output_path: str,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export a clip's timeline span as MP4."""
+    return _require_editor().export_clip_mp4(
+        clip_id, output_path, normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
+def add_countdown(
+    seconds: int = 3,
+    frames_per_digit: int | None = None,
+    track_id: str | None = None,
+    size: int = 96,
+    ripple_all_tracks: bool = True,
+) -> dict:
+    """Prepend a 3-2-1 title countdown (ripples content by default)."""
+    return _require_editor().add_countdown(
+        seconds=seconds,
+        frames_per_digit=frames_per_digit,
+        track_id=track_id,
+        size=size,
+        ripple_all_tracks=ripple_all_tracks,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

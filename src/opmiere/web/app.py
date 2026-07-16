@@ -6354,6 +6354,69 @@ def export_clip_audio_api(body: ExportClipAudioBody) -> dict[str, Any]:
         raise HTTPException(400, f"clip_audio failed: {e}") from e
 
 
+class NoiseReductionBody(BaseModel):
+    clip_id: str
+    amount: float = 12.0
+    replace: bool = True
+
+
+@app.post("/api/clip/noise_reduction")
+def noise_reduction_api(body: NoiseReductionBody) -> dict[str, Any]:
+    """Apply noise reduction to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_noise_reduction(
+            body.clip_id, amount=body.amount, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"noise_reduction failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportClipMp4Body(BaseModel):
+    clip_id: str
+    output_path: str | None = None
+    normalize_preset: str | None = None
+
+
+@app.post("/api/export/clip_mp4")
+def export_clip_mp4_api(body: ExportClipMp4Body) -> dict[str, Any]:
+    """Export one clip span as MP4."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "clip.mp4")
+    try:
+        return ed.export_clip_mp4(
+            body.clip_id, out, normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clip_mp4 failed: {e}") from e
+
+
+class CountdownBody(BaseModel):
+    seconds: int = 3
+    frames_per_digit: int | None = None
+    track_id: str | None = None
+    size: int = 96
+    ripple_all_tracks: bool = True
+
+
+@app.post("/api/edit/countdown")
+def countdown_api(body: CountdownBody) -> dict[str, Any]:
+    """Prepend 3-2-1 countdown title cards."""
+    ed = _ed()
+    try:
+        r = ed.add_countdown(
+            seconds=body.seconds,
+            frames_per_digit=body.frames_per_digit,
+            track_id=body.track_id,
+            size=body.size,
+            ripple_all_tracks=body.ripple_all_tracks,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"countdown failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
