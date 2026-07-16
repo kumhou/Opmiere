@@ -4080,6 +4080,39 @@ def set_clips_flip(
 
 
 @mcp.tool()
+def paste_crop(
+    source_clip_id: str,
+    target_clip_ids: list[str],
+    replace: bool = True,
+) -> dict:
+    """Copy crop effect from source clip to targets."""
+    return _require_editor().paste_crop(
+        source_clip_id, target_clip_ids, replace=replace,
+    )
+
+
+@mcp.tool()
+def clear_effects(
+    clip_ids: list[str],
+    types: list[str] | None = None,
+) -> dict:
+    """Clear effects on clips; optional types filter (e.g. ['blur','vignette'])."""
+    return _require_editor().clear_effects(clip_ids, types=types)
+
+
+@mcp.tool()
+def apply_lut_to_clips(
+    clip_ids: list[str],
+    path: str,
+    replace: bool = True,
+) -> dict:
+    """Apply a .cube/.3dl LUT to many clips."""
+    return _require_editor().apply_lut_to_clips(
+        clip_ids, path, replace=replace,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -6738,6 +6738,62 @@ def set_clips_flip_api(body: ClipsFlipBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class PasteCropBody(BaseModel):
+    source_clip_id: str
+    target_clip_ids: list[str]
+    replace: bool = True
+
+
+@app.post("/api/clip/paste_crop")
+def paste_crop_api(body: PasteCropBody) -> dict[str, Any]:
+    """Paste crop effect from source to targets."""
+    ed = _ed()
+    try:
+        r = ed.paste_crop(
+            body.source_clip_id,
+            body.target_clip_ids,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"paste_crop failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearEffectsBody(BaseModel):
+    clip_ids: list[str]
+    types: list[str] | None = None
+
+
+@app.post("/api/clip/clear_effects")
+def clear_effects_api(body: ClearEffectsBody) -> dict[str, Any]:
+    """Clear effects on clips (optional type filter)."""
+    ed = _ed()
+    try:
+        r = ed.clear_effects(body.clip_ids, types=body.types)
+    except Exception as e:
+        raise HTTPException(400, f"clear_effects failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LutClipsBody(BaseModel):
+    clip_ids: list[str]
+    path: str
+    replace: bool = True
+
+
+@app.post("/api/clip/apply_lut")
+def apply_lut_to_clips_api(body: LutClipsBody) -> dict[str, Any]:
+    """Apply 3D LUT to many clips."""
+    ed = _ed()
+    try:
+        r = ed.apply_lut_to_clips(
+            body.clip_ids, body.path, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_lut failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.7 — 2026-07-17
+
+### Added
+- `paste_crop` / `clear_effects` / `apply_lut_to_clips` + **PasteCrop** / **ClrFX**
+
 ## 0.6.6 — 2026-07-17
 
 ### Added

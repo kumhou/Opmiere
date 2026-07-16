@@ -3478,6 +3478,120 @@ class Editor:
             "agent_note": "Batch flip; path-C maps hflip/vflip.",
         }
 
+    def paste_crop(
+        self,
+        source_clip_id: str,
+        target_clip_ids: list[str],
+        *,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Copy crop effect from source onto targets."""
+        if not target_clip_ids:
+            raise ValueError("target_clip_ids is empty")
+        src = self._find_clip(source_clip_id)
+        crop = None
+        for e in src.effects or []:
+            if isinstance(e, dict) and e.get("type") == "crop":
+                crop = dict(e)
+                break
+        if crop is None:
+            return {
+                "source_clip_id": source_clip_id,
+                "count": 0,
+                "targets": [],
+                "agent_note": "Source has no crop effect.",
+            }
+        applied: list[str] = []
+        with self._mutate():
+            for tid in dict.fromkeys(target_clip_ids):
+                if tid == source_clip_id:
+                    continue
+                self._assert_clip_track_unlocked(tid)
+                clip = self._find_clip(tid)
+                if replace:
+                    clip.effects = [
+                        e for e in (clip.effects or [])
+                        if not (isinstance(e, dict) and e.get("type") == "crop")
+                    ]
+                self._apply_effect_unlocked(tid, dict(crop))
+                applied.append(tid)
+        return {
+            "source_clip_id": source_clip_id,
+            "crop": crop,
+            "count": len(applied),
+            "targets": applied,
+            "agent_note": "Crop pasted; resolution must still make sense for canvas.",
+        }
+
+    def clear_effects(
+        self,
+        clip_ids: list[str],
+        *,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Remove effects from clips. types=None clears all effects."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        cleared: list[dict[str, Any]] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                before = len(clip.effects or [])
+                if types is None:
+                    clip.effects = []
+                else:
+                    allow = set(types)
+                    clip.effects = [
+                        e for e in (clip.effects or [])
+                        if not (isinstance(e, dict) and e.get("type") in allow)
+                    ]
+                after = len(clip.effects or [])
+                cleared.append({
+                    "clip_id": cid,
+                    "removed": before - after,
+                    "remaining": after,
+                })
+        return {
+            "count": len(cleared),
+            "clips": cleared,
+            "types": types,
+            "agent_note": "Effects cleared; position/transitions untouched.",
+        }
+
+    def apply_lut_to_clips(
+        self,
+        clip_ids: list[str],
+        path: str,
+        *,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply lut3d effect to many clips from a .cube/.3dl path."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"LUT not found: {path}")
+        fx = {"type": "lut3d", "path": str(p.resolve())}
+        applied: list[str] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                if replace:
+                    clip.effects = [
+                        e for e in (clip.effects or [])
+                        if not (isinstance(e, dict) and e.get("type") == "lut3d")
+                    ]
+                self._apply_effect_unlocked(cid, dict(fx))
+                applied.append(cid)
+        return {
+            "count": len(applied),
+            "clip_ids": applied,
+            "path": str(p.resolve()),
+            "agent_note": "LUT applied; path must stay valid through export.",
+        }
+
     def slip_clip(self, clip_id: str, delta_src_frames: int) -> dict[str, Any]:
         """Slip: slide source in/out together; timeline start/duration unchanged.
 

@@ -8767,6 +8767,58 @@ async function flipHSelectionUi() {
   }
 }
 
+async function pasteCropUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select source + targets (source first)";
+    return;
+  }
+  $("status-msg").textContent = "Pasting crop…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clip/paste_crop", {
+      source_clip_id: ids[0],
+      target_clip_ids: ids.slice(1),
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `PasteCrop · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`PasteCrop failed: ${e}`);
+    $("status-msg").textContent = `PasteCrop failed: ${e}`;
+  }
+}
+
+async function clearEffectsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear effects";
+    return;
+  }
+  $("status-msg").textContent = "Clearing effects…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/clip/clear_effects", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClrFX · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ClrFX failed: ${e}`);
+    $("status-msg").textContent = `ClrFX failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -12631,6 +12683,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-join", () => void joinClipsUi());
   proBind("btn-paste-pos", () => void pastePositionUi());
   proBind("btn-flip-h", () => void flipHSelectionUi());
+  proBind("btn-paste-crop", () => void pasteCropUi());
+  proBind("btn-clr-fx", () => void clearEffectsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
