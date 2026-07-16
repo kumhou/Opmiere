@@ -951,14 +951,31 @@ async function deleteSelection() {
   const ripple = rippleEnabled();
   $("status-msg").textContent = `Delete ${ids.length} clip(s)${ripple ? " (ripple)" : ""}…`;
   try {
-    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/delete", {
-      clip_ids: ids,
-      ripple,
-      follow_links: true,
-    });
+    let last: TimelineView | undefined;
+    // Single + ripple → dedicated /api/ripple_delete (track-local magnetic hole close)
+    if (ripple && ids.length === 1) {
+      const r = await postJson<{
+        timeline?: TimelineView;
+        deleted_id?: string;
+        frames_closed?: number;
+      }>("/api/ripple_delete", { clip_id: ids[0] });
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clips/delete",
+        {
+          clip_ids: ids,
+          ripple,
+          follow_links: true,
+        },
+      );
+      if (r.timeline) last = r.timeline;
+    }
     state.selected.clear();
-    if (r.timeline) applyTimelineView(r.timeline);
+    if (last) applyTimelineView(last);
+    else await refresh();
     $("sel-count").textContent = "0";
+    updateSelectionCard();
     $("status-msg").textContent = `Deleted ${ids.length}${ripple ? " ripple" : ""}`;
     void seekTo(state.t);
     scheduleProxyRefresh();
@@ -1531,11 +1548,21 @@ async function muteSelection(force?: boolean) {
   }
   $("status-msg").textContent = `${muted ? "Mute" : "Unmute"} ${ids.length}…`;
   try {
-    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/mute", {
-      clip_ids: ids,
-      muted,
-    });
-    if (r.timeline) applyTimelineView(r.timeline);
+    let last: TimelineView | undefined;
+    if (ids.length === 1) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/mute", {
+        clip_id: ids[0],
+        muted,
+      });
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clips/mute", {
+        clip_ids: ids,
+        muted,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
     $("status-msg").textContent = `${muted ? "Muted" : "Unmuted"} ${ids.length}`;
   } catch (e) {
     $("status-msg").textContent = `Mute failed: ${e}`;
@@ -4324,17 +4351,53 @@ async function exportWorkArea() {
   const btn = document.getElementById("btn-export-work") as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
   try {
-    const r = await postJson<{
-      ok?: boolean;
-      path?: string;
-      error?: string;
-      warning?: string;
-    }>("/api/desktop/export_work", {});
-    if (!r.ok) {
-      $("status-msg").textContent = `Export work failed: ${r.error || "see log"}`;
-    } else {
-      $("status-msg").textContent = `Work export: ${r.path}${r.warning ? " (warn)" : ""}`;
+    // Prefer desktop temp path; fall back to core /api/export_work with explicit path.
+    try {
+      const r = await postJson<{
+        ok?: boolean;
+        path?: string;
+        error?: string;
+        warning?: string;
+      }>("/api/desktop/export_work", {});
+      if (r.ok && r.path) {
+        $("status-msg").textContent =
+          `Work export: ${r.path}${r.warning ? " (warn)" : ""}`;
+        return;
+      }
+      if (r.error && !r.path) {
+        // continue to core fallback
+        $("status-msg").textContent = `Desktop export: ${r.error} — trying core…`;
+      }
+    } catch {
+      /* core fallback */
     }
+    let outDir = "";
+    try {
+      const d = await getJson<{ path?: string }>("/api/desktop/export_dir");
+      outDir = d.path || "";
+    } catch {
+      outDir = "";
+    }
+    const defaultPath = outDir
+      ? `${outDir.replace(/[\\/]+$/, "")}/export_work.mp4`
+      : "export_work.mp4";
+    const outputPath =
+      window.prompt("Export work area to path", defaultPath) || "";
+    if (!outputPath.trim()) {
+      $("status-msg").textContent = "Export work cancelled";
+      return;
+    }
+    const r2 = await postJson<{
+      path?: string;
+      output_path?: string;
+      written?: string;
+    }>("/api/export_work", {
+      output_path: outputPath.trim(),
+      normalize_preset: null,
+      run_delivery_check: false,
+    });
+    $("status-msg").textContent =
+      `Work export: ${r2.path || r2.output_path || r2.written || outputPath.trim()}`;
   } catch (e) {
     $("status-msg").textContent = `Export work failed: ${e}`;
   } finally {
@@ -4469,11 +4532,21 @@ async function setSelectionSpeed(speed: number) {
     return;
   }
   try {
-    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/speed", {
-      clip_ids: ids,
-      speed,
-    });
-    if (r.timeline) applyTimelineView(r.timeline);
+    let last: TimelineView | undefined;
+    if (ids.length === 1) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/speed", {
+        clip_id: ids[0],
+        speed,
+      });
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clips/speed", {
+        clip_ids: ids,
+        speed,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
     $("status-msg").textContent = `Speed ${speed}x → ${ids.length}`;
     void seekTo(state.t);
   } catch (e) {
@@ -4588,11 +4661,22 @@ async function setSelectionGain(db: number) {
     return;
   }
   try {
-    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/gain", {
-      clip_ids: ids,
-      db,
-    });
-    if (r.timeline) applyTimelineView(r.timeline);
+    let last: TimelineView | undefined;
+    if (ids.length === 1) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/gain", {
+        clip_id: ids[0],
+        db,
+        refresh_preview: false,
+      });
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clips/gain", {
+        clip_ids: ids,
+        db,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
     $("status-msg").textContent = `Gain ${db} dB → ${ids.length}`;
   } catch (e) {
     $("status-msg").textContent = `Gain failed: ${e}`;
@@ -4606,12 +4690,24 @@ async function setSelectionFades(fadeIn: number, fadeOut: number) {
     return;
   }
   try {
-    const r = await postJson<{ timeline?: TimelineView }>("/api/clips/fades", {
-      clip_ids: ids,
-      fade_in_frames: fadeIn,
-      fade_out_frames: fadeOut,
-    });
-    if (r.timeline) applyTimelineView(r.timeline);
+    let last: TimelineView | undefined;
+    if (ids.length === 1) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/fades", {
+        clip_id: ids[0],
+        fade_in_frames: fadeIn,
+        fade_out_frames: fadeOut,
+      });
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clips/fades", {
+        clip_ids: ids,
+        fade_in_frames: fadeIn,
+        fade_out_frames: fadeOut,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    if (ids.length === 1) void enrichSelectionFades(ids[0]);
     $("status-msg").textContent = `Fades in=${fadeIn} out=${fadeOut} → ${ids.length}`;
   } catch (e) {
     $("status-msg").textContent = `Fades failed: ${e}`;
@@ -4625,11 +4721,21 @@ async function setSelectionOpacity(amount: number) {
     return;
   }
   try {
-    const r = await postJson<{ timeline?: TimelineView }>(
-      "/api/clips/opacity",
-      { clip_ids: ids, amount },
-    );
-    if (r.timeline) applyTimelineView(r.timeline);
+    let last: TimelineView | undefined;
+    if (ids.length === 1) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/opacity",
+        { clip_id: ids[0], amount },
+      );
+      if (r.timeline) last = r.timeline;
+    } else {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clips/opacity",
+        { clip_ids: ids, amount },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
     $("status-msg").textContent = `Opacity ${amount} → ${ids.length}`;
   } catch (e) {
     $("status-msg").textContent = `Opacity failed: ${e}`;
@@ -4954,6 +5060,16 @@ async function applyFxPreset(kind: string) {
     sharpen: { type: "sharpen", amount: 1.2 },
     warm: { type: "white_balance", temperature: 5600, mix: 0.65 },
     cool: { type: "white_balance", temperature: 7500, mix: 0.55 },
+    glow: { type: "glow", amount: 10, intensity: 0.55 },
+    ken: {
+      type: "ken_burns",
+      zoom_start: 1.0,
+      zoom_end: 1.15,
+      x_start: 0.5,
+      y_start: 0.5,
+      x_end: 0.48,
+      y_end: 0.45,
+    },
   };
   let effect = effects[kind];
   if (kind === "text") {
@@ -5064,27 +5180,46 @@ async function grabOpenshotFrame() {
   }
 }
 
-async function ensureProxy() {
+async function ensureProxy(force = false) {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
     return;
   }
   stopPlay();
-  $("status-msg").textContent = "Building preview proxy…";
+  $("status-msg").textContent = force
+    ? "Force-building preview proxy…"
+    : "Building preview proxy…";
   const btn = document.getElementById("btn-proxy") as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
   try {
-    const r = await postJson<{
-      path?: string;
-      fresh?: boolean;
-      cache_hit?: boolean;
-      height?: number;
-      fps?: number;
-    }>("/api/preview/ensure", { height: 360, fps: 12, force: false });
-    state.proxyFresh = !!r.fresh || !!r.cache_hit;
-    $("status-msg").textContent = r.cache_hit
-      ? `Proxy cache hit (${r.height}p @ ${r.fps}fps)`
-      : `Proxy ready: ${r.path || "ok"}`;
+    if (force) {
+      // Full export_preview path (rebuild graph even if cache looks fresh).
+      const r = await postJson<{
+        path?: string;
+        output_path?: string;
+        height?: number;
+        fps?: number;
+      }>("/api/preview/build", {
+        height: 360,
+        fps: 12,
+        force: true,
+      });
+      state.proxyFresh = true;
+      $("status-msg").textContent =
+        `Proxy rebuilt: ${r.path || r.output_path || "ok"}`;
+    } else {
+      const r = await postJson<{
+        path?: string;
+        fresh?: boolean;
+        cache_hit?: boolean;
+        height?: number;
+        fps?: number;
+      }>("/api/preview/ensure", { height: 360, fps: 12, force: false });
+      state.proxyFresh = !!r.fresh || !!r.cache_hit;
+      $("status-msg").textContent = r.cache_hit
+        ? `Proxy cache hit (${r.height}p @ ${r.fps}fps)`
+        : `Proxy ready: ${r.path || "ok"}`;
+    }
     await refresh();
     void seekTo(state.t);
   } catch (e) {
@@ -7231,8 +7366,9 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-export-work").addEventListener("click", () => {
     void exportWorkArea();
   });
-  $("btn-proxy").addEventListener("click", () => {
-    void ensureProxy();
+  $("btn-proxy").addEventListener("click", (ev) => {
+    const force = (ev as MouseEvent).shiftKey;
+    void ensureProxy(force);
   });
   $("btn-proxy-refresh").addEventListener("click", (ev) => {
     const full = (ev as MouseEvent).shiftKey;

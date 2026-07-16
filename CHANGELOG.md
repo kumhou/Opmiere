@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.57 — 2026-07-16
+
+### Added
+- Single-clip paths: gain / mute / opacity / speed / fades when selection=1
+- **Ripple Del** single → `/api/ripple_delete` (now returns `timeline`)
+- **Proxy** Shift-click force rebuild via `/api/preview/build`
+- **Export I/O** falls back to core `/api/export_work` with path prompt
+- Grade: **Glow** / **Ken** Burns
+- Test: `tests/test_desktop_single_api_097.py`
+
 ## 0.4.56 — 2026-07-16
 
 ### Added

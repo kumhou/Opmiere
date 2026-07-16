@@ -697,7 +697,9 @@ def filler_cuts(body: FillerBody) -> dict[str, Any]:
 
 @app.post("/api/ripple_delete")
 def ripple_delete(body: RippleDeleteBody) -> dict[str, Any]:
-    return _ed().ripple_delete(body.clip_id)
+    ed = _ed()
+    r = ed.ripple_delete(body.clip_id)
+    return {**r, "timeline": ed.timeline_view()}
 
 
 def _maybe_refresh(ed: Editor, *, enabled: bool, quick: bool) -> dict[str, Any] | None:
