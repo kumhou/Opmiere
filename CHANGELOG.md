@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.61 — 2026-07-16
+
+### Added
+- **Pro agent API surface**: preflight/finish, analyze, silence/scenes, FCPXML/OTIO,
+  still/audio export, track delete, hard_cut_all, batch_relink, split_at_beats,
+  snap_points, preview invalidate, recent clear, write_srt, normalize_file
+- Desktop **Pro / Agent**: Preflight + Agent finish
+- Test: `tests/test_desktop_agent_pro_101.py`
 ## 0.4.60 — 2026-07-16
 
 ### Added

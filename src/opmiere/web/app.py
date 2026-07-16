@@ -3076,6 +3076,339 @@ def license_report_api() -> dict[str, Any]:
     return _ed().get_license_report()
 
 
+# --- Agent session / pro analysis / interchange (0.4.61+) ---
+
+
+class AgentFinishBody(BaseModel):
+    export_path: str | None = None
+    prepare: bool = True
+    ensure_proxy: bool = True
+    run_review: bool = True
+    normalize_preset: str | None = None
+    delivery_preset: str = "streaming"
+    run_delivery_check: bool = True
+
+
+class AnalyzeTimelineBody(BaseModel):
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.5
+
+
+class AnalyzeAudioBody(BaseModel):
+    path: str
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.5
+
+
+class SilenceCutsBody(BaseModel):
+    path: str
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.4
+    pad_seconds: float = 0.08
+    min_keep_seconds: float = 0.2
+
+
+class DetectScenesBody(BaseModel):
+    path: str
+    threshold: float = 27.0
+    min_scene_len: int = 15
+    backend: str = "auto"
+
+
+class InterchangeExportBody(BaseModel):
+    path: str | None = None
+    title: str | None = None
+
+
+class ExportStillBody(BaseModel):
+    output_path: str | None = None
+    frame: int | None = None
+    width: int = 1280
+
+
+class ExportAudioBody(BaseModel):
+    output_path: str | None = None
+    start_frame: int | None = None
+    end_frame: int | None = None
+
+
+class DeleteTrackBody(BaseModel):
+    track_id: str
+
+
+class HardCutAllBody(BaseModel):
+    track_id: str | None = None
+
+
+class BatchRelinkBody(BaseModel):
+    mapping: dict[str, str] = Field(default_factory=dict)
+    keep_source_range: bool = True
+
+
+class SplitAtBeatsBody(BaseModel):
+    track_id: str
+    media_id: str | None = None
+    path: str | None = None
+    max_splits: int = 64
+
+
+class WriteSrtBody(BaseModel):
+    path: str | None = None
+    segments: list[dict[str, Any]] = Field(default_factory=list)
+    from_markers: bool = False
+
+
+class NormalizeFileBody(BaseModel):
+    path: str
+    output_path: str | None = None
+    preset: str = "streaming"
+
+
+def _desktop_export_dir() -> Path:
+    import tempfile
+
+    out_dir = Path(tempfile.gettempdir()) / "opmiere_desktop_export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+@app.get("/api/agent/preflight")
+def agent_preflight_api() -> dict[str, Any]:
+    return _ed().agent_preflight()
+
+
+@app.post("/api/agent/finish")
+def agent_finish_api(body: AgentFinishBody) -> dict[str, Any]:
+    ed = _ed()
+    export_path = body.export_path
+    if not export_path:
+        export_path = str(_desktop_export_dir() / "agent_finish.mp4")
+    try:
+        return ed.agent_finish_session(
+            export_path,
+            prepare=body.prepare,
+            ensure_proxy=body.ensure_proxy,
+            run_review=body.run_review,
+            normalize_preset=body.normalize_preset,
+            delivery_preset=body.delivery_preset,
+            run_delivery_check=body.run_delivery_check,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"agent_finish failed: {e}") from e
+
+
+@app.post("/api/analyze/timeline")
+def analyze_timeline_api(body: AnalyzeTimelineBody | None = None) -> dict[str, Any]:
+    body = body or AnalyzeTimelineBody()
+    try:
+        return _ed().analyze_timeline(
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"analyze_timeline failed: {e}") from e
+
+
+@app.post("/api/analyze/audio")
+def analyze_audio_api(body: AnalyzeAudioBody) -> dict[str, Any]:
+    try:
+        return _ed().analyze_audio(
+            body.path,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"analyze_audio failed: {e}") from e
+
+
+@app.post("/api/suggest/silence_cuts")
+def silence_cuts_api(body: SilenceCutsBody) -> dict[str, Any]:
+    try:
+        return _ed().suggest_silence_cuts(
+            body.path,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            pad_seconds=body.pad_seconds,
+            min_keep_seconds=body.min_keep_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"silence_cuts failed: {e}") from e
+
+
+@app.post("/api/detect/scenes")
+def detect_scenes_api(body: DetectScenesBody) -> dict[str, Any]:
+    try:
+        return _ed().detect_scenes(
+            body.path,
+            threshold=body.threshold,
+            min_scene_len=body.min_scene_len,
+            backend=body.backend,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"detect_scenes failed: {e}") from e
+
+
+@app.post("/api/export/fcpxml")
+def export_fcpxml_api(body: InterchangeExportBody | None = None) -> dict[str, Any]:
+    body = body or InterchangeExportBody()
+    ed = _ed()
+    path = body.path or str(_desktop_export_dir() / "export.fcpxml")
+    try:
+        return ed.export_fcpxml(path, title=body.title)
+    except Exception as e:
+        raise HTTPException(500, f"export_fcpxml failed: {e}") from e
+
+
+@app.post("/api/export/otio")
+def export_otio_api(body: InterchangeExportBody | None = None) -> dict[str, Any]:
+    body = body or InterchangeExportBody()
+    ed = _ed()
+    path = body.path or str(_desktop_export_dir() / "export.otio.json")
+    try:
+        return ed.export_otio_json(path, title=body.title)
+    except Exception as e:
+        raise HTTPException(500, f"export_otio failed: {e}") from e
+
+
+@app.post("/api/export/still")
+def export_still_api(body: ExportStillBody) -> dict[str, Any]:
+    ed = _ed()
+    frame = body.frame if body.frame is not None else 0
+    out = body.output_path or str(
+        _desktop_export_dir() / f"still_f{frame}.jpg"
+    )
+    try:
+        return ed.export_still(out, frame, width=body.width)
+    except Exception as e:
+        raise HTTPException(500, f"export_still failed: {e}") from e
+
+
+@app.post("/api/export/audio")
+def export_audio_api(body: ExportAudioBody | None = None) -> dict[str, Any]:
+    body = body or ExportAudioBody()
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "mix.wav")
+    try:
+        return ed.export_audio(
+            out,
+            start_frame=body.start_frame,
+            end_frame=body.end_frame,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"export_audio failed: {e}") from e
+
+
+@app.post("/api/track/delete")
+def delete_track_api(body: DeleteTrackBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        tr = ed.delete_track(body.track_id)
+    except Exception as e:
+        raise HTTPException(400, f"delete_track failed: {e}") from e
+    return {
+        "track": tr.to_dict() if hasattr(tr, "to_dict") else {"id": body.track_id},
+        "timeline": ed.timeline_view(),
+    }
+
+
+@app.post("/api/hard_cut_all")
+def hard_cut_all_api(body: HardCutAllBody | None = None) -> dict[str, Any]:
+    body = body or HardCutAllBody()
+    ed = _ed()
+    try:
+        r = ed.hard_cut_all(track_id=body.track_id)
+    except Exception as e:
+        raise HTTPException(400, f"hard_cut_all failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/media/batch_relink")
+def batch_relink_api(body: BatchRelinkBody) -> dict[str, Any]:
+    if not body.mapping:
+        raise HTTPException(400, "mapping required {old_media_id: new_media_id}")
+    ed = _ed()
+    try:
+        r = ed.batch_relink(body.mapping, keep_source_range=body.keep_source_range)
+    except Exception as e:
+        raise HTTPException(400, f"batch_relink failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.post("/api/split_at_beats")
+def split_at_beats_api(body: SplitAtBeatsBody) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        r = ed.split_at_beats(
+            body.track_id,
+            media_id=body.media_id,
+            path=body.path,
+            max_splits=body.max_splits,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"split_at_beats failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/snap_points")
+def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
+    return _ed().snap_points(include_markers=include_markers)
+
+
+@app.post("/api/preview/invalidate")
+def preview_invalidate_api() -> dict[str, Any]:
+    ed = _ed()
+    ed.invalidate_preview_proxy()
+    return {"ok": True, "proxy": ed.preview_proxy_status()}
+
+
+@app.post("/api/recent/clear")
+def recent_clear_api() -> dict[str, Any]:
+    return _ed().clear_recent_projects()
+
+
+@app.post("/api/write_srt")
+def write_srt_api(body: WriteSrtBody) -> dict[str, Any]:
+    ed = _ed()
+    segs = list(body.segments or [])
+    if body.from_markers and not segs:
+        # markers → crude SRT segments (1s each)
+        fps = float(ed.project.timebase.fps or 30.0)
+        markers = sorted(
+            ed.project.markers or [],
+            key=lambda m: int(getattr(m, "frame", 0) or 0),
+        )
+        for i, m in enumerate(markers):
+            f0 = int(getattr(m, "frame", 0) or 0)
+            f1 = f0 + max(1, int(round(fps)))
+            if i + 1 < len(markers):
+                f1 = max(f0 + 1, int(getattr(markers[i + 1], "frame", f1) or f1))
+            segs.append({
+                "start": f0 / fps,
+                "end": f1 / fps,
+                "text": getattr(m, "label", None) or f"M{f0}",
+            })
+    if not segs:
+        raise HTTPException(400, "segments required (or from_markers with markers)")
+    out = body.path or str(_desktop_export_dir() / "markers.srt")
+    try:
+        written = ed.write_srt(out, segs)
+    except Exception as e:
+        raise HTTPException(400, f"write_srt failed: {e}") from e
+    return {"path": str(written), "count": len(segs)}
+
+
+@app.post("/api/normalize_file")
+def normalize_file_api(body: NormalizeFileBody) -> dict[str, Any]:
+    ed = _ed()
+    out = body.output_path or str(
+        _desktop_export_dir() / (Path(body.path).stem + "_norm.wav")
+    )
+    try:
+        return ed.normalize_loudness(body.path, out, preset=body.preset)
+    except Exception as e:
+        raise HTTPException(400, f"normalize failed: {e}") from e
+
+
 if _STATIC.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 

@@ -5314,6 +5314,363 @@ async function showLicenseReport() {
   }
 }
 
+function setProOut(text: string, muted = false) {
+  const el = document.getElementById("pro-out");
+  if (!el) return;
+  el.className = muted ? "review-out muted" : "review-out";
+  el.textContent = text.slice(0, 5000);
+}
+
+async function runAgentPreflight() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Preflight…";
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/agent/preflight");
+    setProOut(JSON.stringify(r, null, 2));
+    const ready = r.ready === true;
+    $("status-msg").textContent = ready
+      ? "Preflight OK"
+      : `Preflight: ${(r.next_steps as string[] | undefined)?.[0] || "issues"}`;
+  } catch (e) {
+    setProOut(`Preflight failed: ${e}`);
+    $("status-msg").textContent = `Preflight failed: ${e}`;
+  }
+}
+
+async function runAgentFinish() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (
+    !window.confirm(
+      "Agent finish session? prepare → proxy → export → delivery check (to export dir).",
+    )
+  ) {
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = "Agent finish…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/agent/finish", {
+      prepare: true,
+      ensure_proxy: true,
+      run_review: true,
+      normalize_preset: null,
+      delivery_preset: "streaming",
+      run_delivery_check: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = r.ok
+      ? `Agent finish OK → ${r.export_path || "export"}`
+      : `Agent finish: ${JSON.stringify(r).slice(0, 120)}`;
+  } catch (e) {
+    setProOut(`Agent finish failed: ${e}`);
+    $("status-msg").textContent = `Agent finish failed: ${e}`;
+  }
+}
+
+async function runAnalyzeTimeline() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Analyze timeline…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/analyze/timeline", {
+      silence_threshold_db: -40,
+      min_silence_seconds: 0.5,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Timeline analysis done";
+  } catch (e) {
+    setProOut(`Analyze failed: ${e}`);
+    $("status-msg").textContent = `Analyze failed: ${e}`;
+  }
+}
+
+async function runAnalyzeBinAudio() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin";
+    return;
+  }
+  try {
+    const media = await getJson<{
+      media?: Array<{ id?: string; abs_path?: string; path?: string }>;
+    }>("/api/media");
+    const m = (media.media || []).find((x) => x.id === state.binMediaId);
+    const path = m?.abs_path || m?.path;
+    if (!path) throw new Error("no path for bin media");
+    $("status-msg").textContent = "Analyze audio…";
+    const r = await postJson<Record<string, unknown>>("/api/analyze/audio", {
+      path,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Audio analysis done";
+  } catch (e) {
+    setProOut(`Analyze audio failed: ${e}`);
+    $("status-msg").textContent = `Analyze audio failed: ${e}`;
+  }
+}
+
+async function runSilenceCutsPlan() {
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin for silence cuts";
+    return;
+  }
+  try {
+    const media = await getJson<{
+      media?: Array<{ id?: string; abs_path?: string; path?: string }>;
+    }>("/api/media");
+    const m = (media.media || []).find((x) => x.id === state.binMediaId);
+    const path = m?.abs_path || m?.path;
+    if (!path) throw new Error("no path");
+    const r = await postJson<Record<string, unknown>>(
+      "/api/suggest/silence_cuts",
+      { path },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Silence cuts plan ready";
+  } catch (e) {
+    setProOut(`Silence cuts failed: ${e}`);
+    $("status-msg").textContent = `Silence cuts failed: ${e}`;
+  }
+}
+
+async function runDetectScenes() {
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin for scene detect";
+    return;
+  }
+  try {
+    const media = await getJson<{
+      media?: Array<{ id?: string; abs_path?: string; path?: string }>;
+    }>("/api/media");
+    const m = (media.media || []).find((x) => x.id === state.binMediaId);
+    const path = m?.abs_path || m?.path;
+    if (!path) throw new Error("no path");
+    const r = await postJson<Record<string, unknown>>("/api/detect/scenes", {
+      path,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Scene detect done";
+  } catch (e) {
+    setProOut(`Scenes failed: ${e}`);
+    $("status-msg").textContent = `Scenes failed: ${e}`;
+  }
+}
+
+async function exportFcpxmlUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/fcpxml", {});
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FCPXML → ${r.path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `FCPXML failed: ${e}`;
+  }
+}
+
+async function exportOtioUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/otio", {});
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `OTIO → ${r.path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `OTIO failed: ${e}`;
+  }
+}
+
+async function exportStillUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const frame = playheadFrame();
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/still", {
+      frame,
+      width: 1280,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Still f${frame} → ${r.path || r.output_path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Still failed: ${e}`;
+  }
+}
+
+async function exportAudioUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/audio", {});
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Audio mix → ${r.path || r.output_path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Audio export failed: ${e}`;
+  }
+}
+
+async function deleteTrackOfSelection() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip on the track to delete";
+    return;
+  }
+  const c = state.clips.get(ids[0]);
+  if (!c?.trackId) {
+    $("status-msg").textContent = "No track for selection";
+    return;
+  }
+  if (!window.confirm(`Delete track ${c.trackId}?`)) return;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/track/delete", {
+      track_id: c.trackId,
+    });
+    state.selected.clear();
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `Deleted track ${c.trackId}`;
+  } catch (e) {
+    $("status-msg").textContent = `Delete track failed: ${e}`;
+  }
+}
+
+async function hardCutAllUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const trackId = ids.length
+    ? state.clips.get(ids[0])?.trackId || null
+    : null;
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>("/api/hard_cut_all", {
+      track_id: trackId,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = "Hard-cut all transitions";
+  } catch (e) {
+    $("status-msg").textContent = `Hard cut failed: ${e}`;
+  }
+}
+
+async function splitAtBeatsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip on track for beat splits";
+    return;
+  }
+  const c = state.clips.get(ids[0]);
+  if (!c?.trackId) {
+    $("status-msg").textContent = "No track";
+    return;
+  }
+  try {
+    const r = await postJson<{ timeline?: TimelineView }>(
+      "/api/split_at_beats",
+      {
+        track_id: c.trackId,
+        media_id: c.mediaId || state.binMediaId || null,
+        max_splits: 64,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Split at beats done";
+  } catch (e) {
+    setProOut(`Beats failed: ${e}`);
+    $("status-msg").textContent = `Beats failed: ${e}`;
+  }
+}
+
+async function showSnapPoints() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>(
+      "/api/snap_points?include_markers=true",
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    const n = Array.isArray(r.frames)
+      ? r.frames.length
+      : Array.isArray(r.snap_frames)
+        ? r.snap_frames.length
+        : "?";
+    $("status-msg").textContent = `Snap points ×${n}`;
+  } catch (e) {
+    $("status-msg").textContent = `Snap points failed: ${e}`;
+  }
+}
+
+async function invalidatePreviewUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/preview/invalidate",
+      {},
+    );
+    state.proxyFresh = false;
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Preview proxy invalidated";
+  } catch (e) {
+    $("status-msg").textContent = `Invalidate failed: ${e}`;
+  }
+}
+
+async function clearRecentUi() {
+  if (!window.confirm("Clear recent projects list?")) return;
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/recent/clear", {});
+    await refreshRecent();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Recent cleared";
+  } catch (e) {
+    $("status-msg").textContent = `Clear recent failed: ${e}`;
+  }
+}
+
+async function writeSrtFromMarkersUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/write_srt", {
+      from_markers: true,
+      segments: [],
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SRT → ${r.path || "ok"} (${r.count ?? "?"} cues)`;
+  } catch (e) {
+    $("status-msg").textContent = `SRT failed: ${e}`;
+  }
+}
+
 /** Dump OpenShot multi-clip plan (path-C diagnostics, no render). */
 async function showOpenshotPlan() {
   if (!state.projectOpen) {
@@ -7722,6 +8079,32 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-gen-license").addEventListener("click", () => {
     void showLicenseReport();
   });
+  $("btn-preflight").addEventListener("click", () => {
+    void runAgentPreflight();
+  });
+  $("btn-agent-finish").addEventListener("click", () => {
+    void runAgentFinish();
+  });
+  // Pro buttons added in later 0.4.6x slices (guard missing ids)
+  const proBind = (id: string, fn: () => void) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  };
+  proBind("btn-analyze-tl", () => void runAnalyzeTimeline());
+  proBind("btn-analyze-aud", () => void runAnalyzeBinAudio());
+  proBind("btn-silence", () => void runSilenceCutsPlan());
+  proBind("btn-scenes", () => void runDetectScenes());
+  proBind("btn-fcpxml", () => void exportFcpxmlUi());
+  proBind("btn-otio", () => void exportOtioUi());
+  proBind("btn-still", () => void exportStillUi());
+  proBind("btn-audio-out", () => void exportAudioUi());
+  proBind("btn-del-trk", () => void deleteTrackOfSelection());
+  proBind("btn-hard-cut", () => void hardCutAllUi());
+  proBind("btn-beats", () => void splitAtBeatsUi());
+  proBind("btn-snaps", () => void showSnapPoints());
+  proBind("btn-px-inval", () => void invalidatePreviewUi());
+  proBind("btn-recent-clr", () => void clearRecentUi());
+  proBind("btn-srt", () => void writeSrtFromMarkersUi());
   document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
     b.addEventListener("click", () => {
       const kind = b.dataset.fx || "";
