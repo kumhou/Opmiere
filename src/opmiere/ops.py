@@ -9708,6 +9708,123 @@ class Editor:
         out = out_dir / (filename or "selection_manifest.json")
         return self.export_selection_manifest(clip_ids, path=out)
 
+    def export_selection_markers_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str | None = None,
+        format: str = "json",
+    ) -> dict[str, Any]:
+        """Export markers inside selection span to project exports/.
+
+        format: youtube | csv | json (same as export_markers). Relative times
+        stay project-absolute (full timeline frame/seconds).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if format not in ("youtube", "csv", "json"):
+            raise ValueError("format must be youtube|csv|json")
+        hits = self.markers_in_selection_span(clip_ids)
+        span = hits.get("span") or self.selection_span(clip_ids)
+        fps = float(self.project.timebase.fps or 30.0)
+        markers_full = {
+            int(m.frame): m for m in self.project.markers
+        }
+        selected = []
+        for row in hits.get("markers") or []:
+            fr = int(row["frame"])
+            m = markers_full.get(fr)
+            if m is not None:
+                selected.append(m)
+            else:
+                # fallback by id
+                mid = row.get("marker_id")
+                for mm in self.project.markers:
+                    if mm.id == mid:
+                        selected.append(mm)
+                        break
+        selected.sort(key=lambda m: int(m.frame))
+
+        if format == "youtube":
+            lines: list[str] = []
+            if not selected or int(selected[0].frame) > 0:
+                lines.append("0:00 Intro")
+            for m in selected:
+                total_s = int(round(m.frame / fps))
+                hh = total_s // 3600
+                mm = (total_s % 3600) // 60
+                ss = total_s % 60
+                stamp = (
+                    f"{hh}:{mm:02d}:{ss:02d}" if hh > 0 else f"{mm}:{ss:02d}"
+                )
+                label = (m.label or m.id).strip() or "Chapter"
+                lines.append(f"{stamp} {label}")
+            body = "\n".join(lines) + ("\n" if lines else "")
+            ext = "txt"
+        elif format == "csv":
+            rows = ["frame,seconds,tc,label,color,id"]
+            for m in selected:
+                tc = self.frames_to_tc(m.frame)["tc"]
+                sec = round(m.frame / fps, 3)
+                lab = (m.label or "").replace(",", " ")
+                rows.append(
+                    f"{m.frame},{sec},{tc},{lab},{m.color},{m.id}"
+                )
+            body = "\n".join(rows) + "\n"
+            ext = "csv"
+        else:
+            body = json.dumps(
+                {
+                    "fps": fps,
+                    "selection_span": span,
+                    "selection_clip_ids": list(dict.fromkeys(clip_ids)),
+                    "markers": [
+                        {
+                            **m.to_dict(),
+                            "time_seconds": round(m.frame / fps, 3),
+                            "tc": self.frames_to_tc(m.frame)["tc"],
+                        }
+                        for m in selected
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            ) + "\n"
+            ext = "json"
+
+        if not filename:
+            filename = f"selection_markers.{ext}"
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / filename
+        out.write_text(body, encoding="utf-8")
+        return {
+            "format": format,
+            "count": len(selected),
+            "path": str(out.resolve()),
+            "span": span,
+            "agent_note": "Markers in selection span only; times are project-absolute.",
+        }
+
+    def export_work_area_mp4_default(
+        self,
+        *,
+        filename: str = "work_area.mp4",
+        normalize_preset: str | None = "streaming",
+        run_delivery_check: bool = True,
+        delivery_preset: str = "streaming",
+    ) -> dict[str, Any]:
+        """export_work_area into project exports/ (requires in/out)."""
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "work_area.mp4")
+        return self.export_work_area(
+            out,
+            normalize_preset=normalize_preset,
+            run_delivery_check=run_delivery_check,
+            delivery_preset=delivery_preset,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

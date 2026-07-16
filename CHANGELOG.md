@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.57 — 2026-07-17
+
+### Added
+- `export_selection_markers_default` / `export_work_area_mp4_default` + **MkrSelExp** / **WA-MP4**
+
 ## 0.6.56 — 2026-07-17
 
 ### Added

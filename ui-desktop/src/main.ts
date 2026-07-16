@@ -12357,6 +12357,56 @@ async function exportSelectionManifestDefaultUi() {
   }
 }
 
+async function exportSelectionMarkersDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for marker export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection markers…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+      format?: string;
+    }>("/api/edit/export_selection_markers_default", {
+      clip_ids: ids,
+      format: "json",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkrSelExp · n=${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`MkrSelExp failed: ${e}`);
+    $("status-msg").textContent = `MkrSelExp failed: ${e}`;
+  }
+}
+
+async function exportWorkAreaMp4DefaultUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting work-area MP4…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+      ok?: boolean;
+    }>("/api/edit/export_work_area_mp4_default", {
+      filename: "work_area.mp4",
+      normalize_preset: "streaming",
+      run_delivery_check: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WA-MP4 · ${r.ok === false ? "check" : "done"} → ${r.path || r.output_path || "?"}`;
+  } catch (e) {
+    setProOut(`WA-MP4 failed: ${e}`);
+    $("status-msg").textContent = `WA-MP4 failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16372,6 +16422,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-otio-sel", () => void exportSelectionOtioDefaultUi());
   proBind("btn-agent-pre-sel", () => void selectionAgentPreflightUi());
   proBind("btn-manif-def-sel", () => void exportSelectionManifestDefaultUi());
+  proBind("btn-mkr-sel-exp", () => void exportSelectionMarkersDefaultUi());
+  proBind("btn-wa-mp4-def", () => void exportWorkAreaMp4DefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

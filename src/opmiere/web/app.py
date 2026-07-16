@@ -9484,6 +9484,56 @@ def export_selection_manifest_default_api(
         ) from e
 
 
+class ExportSelectionMarkersDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str | None = None
+    format: str = "json"
+
+
+@app.post("/api/edit/export_selection_markers_default")
+def export_selection_markers_default_api(
+    body: ExportSelectionMarkersDefaultBody,
+) -> dict[str, Any]:
+    """Export markers inside selection span under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_markers_default(
+            body.clip_ids,
+            filename=body.filename,
+            format=body.format,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_markers_default failed: {e}",
+        ) from e
+
+
+class ExportWorkAreaMp4DefaultBody(BaseModel):
+    filename: str = "work_area.mp4"
+    normalize_preset: str | None = "streaming"
+    run_delivery_check: bool = True
+    delivery_preset: str = "streaming"
+
+
+@app.post("/api/edit/export_work_area_mp4_default")
+def export_work_area_mp4_default_api(
+    body: ExportWorkAreaMp4DefaultBody,
+) -> dict[str, Any]:
+    """Export in/out work area MP4 under exports/."""
+    ed = _ed()
+    try:
+        return ed.export_work_area_mp4_default(
+            filename=body.filename,
+            normalize_preset=body.normalize_preset,
+            run_delivery_check=body.run_delivery_check,
+            delivery_preset=body.delivery_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_work_area_mp4_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

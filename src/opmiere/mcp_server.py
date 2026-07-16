@@ -5599,6 +5599,36 @@ def export_selection_manifest_default(
 
 
 @mcp.tool()
+def export_selection_markers_default(
+    clip_ids: list[str],
+    filename: str | None = None,
+    format: str = "json",
+) -> dict:
+    """Export markers inside selection span to exports/ (youtube|csv|json)."""
+    return _require_editor().export_selection_markers_default(
+        clip_ids,
+        filename=filename,
+        format=format,
+    )
+
+
+@mcp.tool()
+def export_work_area_mp4_default(
+    filename: str = "work_area.mp4",
+    normalize_preset: str | None = "streaming",
+    run_delivery_check: bool = True,
+    delivery_preset: str = "streaming",
+) -> dict:
+    """Export in/out work area MP4 under project exports/."""
+    return _require_editor().export_work_area_mp4_default(
+        filename=filename,
+        normalize_preset=normalize_preset,
+        run_delivery_check=run_delivery_check,
+        delivery_preset=delivery_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
