@@ -810,6 +810,56 @@ button.btn-muted {
   line-height: 1.1;
 }
 
+.pro-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+#pro-body.collapsed {
+  display: none;
+}
+
+.num-mini {
+  width: 48px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-foreground);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  padding: 1px 3px;
+  font-family: var(--font-mono);
+}
+
+.gen-params label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+}
+
+.track-lane.compact .clip-block {
+  min-height: 18px;
+  font-size: 9px;
+}
+
+.pill.pulse {
+  animation: pill-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pill-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+#session-stats {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+  margin-left: 6px;
+}
+
 .sel-card {
   margin: var(--space-sm) 0 var(--space-md);
   padding: var(--space-md);

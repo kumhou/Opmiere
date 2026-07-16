@@ -406,6 +406,66 @@ for c in plan["clips"]:
     if abs(op - 1.0) > 1e-4:
         if _kf_set(clip, "alpha", op):
             applied.append("opacity")
+    # brightness (color effect) → Brightness effect or scale alpha slightly
+    try:
+        br = float(c.get("brightness", 0) or 0)
+    except Exception:
+        br = 0.0
+    if abs(br) > 1e-4:
+        try:
+            if hasattr(openshot, "Brightness"):
+                # B value ~ -1..1 in some builds
+                be = openshot.Brightness(float(br), 0.0)
+                clip.AddEffect(be)
+                applied.append("brightness")
+            else:
+                # fallback: nudge alpha toward brighter look
+                op2 = max(0.0, min(1.0, op * (1.0 + br * 0.35)))
+                if _kf_set(clip, "alpha", op2):
+                    applied.append("brightness")
+        except Exception:
+            pass
+    # blur
+    try:
+        bl = float(c.get("blur", 0) or 0)
+    except Exception:
+        bl = 0.0
+    if bl > 0.05:
+        try:
+            if hasattr(openshot, "Blur"):
+                be = openshot.Blur(float(bl), float(bl))
+                clip.AddEffect(be)
+                applied.append("blur")
+        except Exception:
+            pass
+    # fade in/out → alpha keyframes at clip ends (best-effort)
+    try:
+        fi = int(c.get("fade_in_frames") or 0)
+        fo = int(c.get("fade_out_frames") or 0)
+        if fi > 0 or fo > 0:
+            kf = getattr(clip, "alpha", None)
+            if kf is not None and hasattr(kf, "AddPoint"):
+                # frame 1 transparent if fade in
+                if fi > 0:
+                    try:
+                        kf.AddPoint(1.0, 0.0)
+                        kf.AddPoint(float(fi) + 1.0, float(op))
+                    except Exception:
+                        pass
+                if fo > 0:
+                    # end of clip ~ source duration in frames
+                    try:
+                        end_f = max(
+                            fi + 2.0,
+                            (float(c.get("end", 0)) - float(c.get("start", 0))) * fps_f,
+                        )
+                        kf.AddPoint(max(2.0, end_f - fo), float(op))
+                        kf.AddPoint(end_f, 0.0)
+                    except Exception:
+                        pass
+                applied.append("fade")
+    except Exception:
+        pass
     # rotation degrees
     rot = c.get("rotation", 0.0)
     try:

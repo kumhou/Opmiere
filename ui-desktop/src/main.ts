@@ -641,6 +641,13 @@ async function startStepPlay() {
 function applyTimelineView(view: TimelineView) {
   renderTimeline(view);
   setPlayheadUi();
+  if (view.dirty) bumpSessionStats("edit");
+  const dirtyPill = document.getElementById("pill-dirty");
+  if (dirtyPill && view.dirty) {
+    dirtyPill.classList.add("pulse");
+  } else if (dirtyPill) {
+    dirtyPill.classList.remove("pulse");
+  }
 }
 
 function selectionList(): string[] {
@@ -1319,6 +1326,14 @@ async function saveProject() {
   $("status-msg").textContent = "Saving…";
   try {
     await postJson<{ saved?: boolean }>("/api/save", {});
+    state.dirty = false;
+    const dirtyPill = document.getElementById("pill-dirty");
+    if (dirtyPill) {
+      dirtyPill.className = "pill ok";
+      dirtyPill.textContent = "clean";
+    }
+    bumpSessionStats("save");
+    void refreshValidate();
     $("status-msg").textContent = "Saved";
   } catch (e) {
     $("status-msg").textContent = `Save failed: ${e}`;
@@ -5144,6 +5159,21 @@ function setGenOut(text: string, muted = false) {
   el.textContent = text.slice(0, 4000);
 }
 
+function collectGenParams(kind: string): Record<string, unknown> {
+  const stepsEl = document.getElementById("gen-steps") as HTMLInputElement | null;
+  const wEl = document.getElementById("gen-w") as HTMLInputElement | null;
+  const hEl = document.getElementById("gen-h") as HTMLInputElement | null;
+  const steps = Math.max(1, Math.min(80, Number(stepsEl?.value) || 20));
+  const width = Math.max(256, Math.min(2048, Number(wEl?.value) || 512));
+  const height = Math.max(256, Math.min(2048, Number(hEl?.value) || 512));
+  const params: Record<string, unknown> = { steps };
+  if (kind === "image" || kind === "video") {
+    params.width = width;
+    params.height = height;
+  }
+  return params;
+}
+
 async function submitGeneration() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -5165,7 +5195,7 @@ async function submitGeneration() {
       kind?: string;
       prompt?: string;
       agent_note?: string;
-    }>("/api/generate", { kind, prompt, params: {} });
+    }>("/api/generate", { kind, prompt, params: collectGenParams(kind) });
     state.genJobId = r.job_id || "";
     state.genResultPath = "";
     state.genStatus = "queued";
@@ -5177,6 +5207,7 @@ async function submitGeneration() {
       ].join("\n"),
     );
     $("status-msg").textContent = `Job ${state.genJobId.slice(0, 8)}…`;
+    bumpSessionStats("gen");
     void pollGeneration(true);
   } catch (e) {
     setGenOut(`Generate failed: ${e}`);
@@ -6315,6 +6346,75 @@ async function prepareForExportUi() {
   } catch (e) {
     $("status-msg").textContent = `Prepare failed: ${e}`;
   }
+}
+
+async function showDoctorFull() {
+  try {
+    const r = await getJson<Record<string, unknown>>(
+      "/api/doctor?check_comfy=true",
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = r.ok ? "Doctor OK" : "Doctor issues";
+  } catch (e) {
+    $("status-msg").textContent = `Doctor failed: ${e}`;
+  }
+}
+
+async function selectSharingMedia() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip first";
+    return;
+  }
+  const c = state.clips.get(ids[0]);
+  const mid = c?.mediaId;
+  if (!mid) {
+    $("status-msg").textContent = "Selection has no media_id";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      clip_ids?: string[];
+      clips?: Array<{ id?: string }>;
+    }>(`/api/media/${encodeURIComponent(mid)}/clips`);
+    const list =
+      r.clip_ids ||
+      (r.clips || []).map((x) => x.id || "").filter(Boolean);
+    if (!list.length) {
+      // local fallback: all clips with same media
+      const local: string[] = [];
+      state.clips.forEach((info, id) => {
+        if (info.mediaId === mid) local.push(id);
+      });
+      setSelection(local);
+      $("status-msg").textContent = `Selected ${local.length} sharing media`;
+      return;
+    }
+    setSelection(list);
+    $("status-msg").textContent = `Selected ${list.length} sharing media`;
+  } catch (e) {
+    $("status-msg").textContent = `Select share failed: ${e}`;
+  }
+}
+
+function toggleLaneCompact() {
+  document.querySelectorAll(".track-lane").forEach((el) => {
+    el.classList.toggle("compact");
+  });
+  const on = document.querySelector(".track-lane.compact") != null;
+  $("status-msg").textContent = on ? "Lanes compact" : "Lanes normal";
+}
+
+function bumpSessionStats(kind: "edit" | "save" | "gen") {
+  const key = `opmiere_sess_${kind}`;
+  const n = Number(sessionStorage.getItem(key) || "0") + 1;
+  sessionStorage.setItem(key, String(n));
+  const el = document.getElementById("session-stats");
+  if (!el) return;
+  const edits = Number(sessionStorage.getItem("opmiere_sess_edit") || "0");
+  const saves = Number(sessionStorage.getItem("opmiere_sess_save") || "0");
+  const gens = Number(sessionStorage.getItem("opmiere_sess_gen") || "0");
+  el.textContent = `e${edits}/s${saves}/g${gens}`;
 }
 
 /** Dump OpenShot multi-clip plan (path-C diagnostics, no render). */
@@ -7650,7 +7750,21 @@ function renderTimeline(view: TimelineView | null) {
       if (c.media_id) block.dataset.mediaId = c.media_id;
       const hasAudio = !!c.has_audio_media || tr.kind === "audio";
       if (hasAudio) block.dataset.hasAudio = "1";
-      block.title = `${c.id}${c.muted ? " [muted]" : ""}${c.link_group ? " [linked]" : ""} · drag · edges · Shift+M mute`;
+      {
+        const t0 = framesToTc(start, state.fps);
+        const t1 = framesToTc(start + dur, state.fps);
+        const nm = c.name || c.label || c.id;
+        block.title = [
+          nm,
+          `${t0} → ${t1} (${dur}f)`,
+          `spd ${c.speed ?? 1}× · gain ${c.gain_db ?? 0}dB · α ${c.opacity ?? 1}`,
+          c.muted ? "muted" : "",
+          c.link_group ? `link ${c.link_group}` : "",
+          "drag · edges · right-click menu",
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
       if (hasAudio && c.media_id) {
         const wave = document.createElement("canvas");
         wave.className = "clip-wave";
@@ -8788,6 +8902,16 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-stems", () => void separateStemsUi());
   proBind("btn-frame-bin", () => void extractFrameBinUi());
   proBind("btn-prep-exp2", () => void prepareForExportUi());
+  proBind("btn-pro-toggle", () => {
+    const body = document.getElementById("pro-body");
+    const btn = document.getElementById("btn-pro-toggle");
+    if (!body) return;
+    body.classList.toggle("collapsed");
+    if (btn) btn.textContent = body.classList.contains("collapsed") ? "▸" : "▾";
+  });
+  proBind("btn-doctor-full", () => void showDoctorFull());
+  proBind("btn-sel-share", () => void selectSharingMedia());
+  proBind("btn-lane-compact", () => toggleLaneCompact());
   document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
     b.addEventListener("click", () => {
       const kind = b.dataset.fx || "";

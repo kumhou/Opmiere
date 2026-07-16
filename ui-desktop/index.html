@@ -306,13 +306,23 @@
               <button type="button" id="btn-gen-poll" class="btn-mini" title="Poll last job">Poll</button>
               <button type="button" id="btn-gen-place" class="btn-mini" title="Place done job @ playhead">Place</button>
             </div>
+            <div class="speed-row gen-params">
+              <label class="muted" title="steps">st <input type="number" id="gen-steps" min="1" max="80" value="20" class="num-mini" /></label>
+              <label class="muted" title="width">w <input type="number" id="gen-w" min="256" max="2048" step="64" value="512" class="num-mini" /></label>
+              <label class="muted" title="height">h <input type="number" id="gen-h" min="256" max="2048" step="64" value="512" class="num-mini" /></label>
+            </div>
             <div class="speed-row">
               <button type="button" id="btn-gen-qc" class="btn-mini" title="quality_check last result path">QC</button>
               <button type="button" id="btn-gen-license" class="btn-mini" title="License report for generated media">Licenses</button>
             </div>
             <textarea id="gen-prompt" class="notes-area" rows="2" placeholder="Prompt for local ComfyUI…"></textarea>
             <div id="gen-out" class="review-out muted">Gen — needs ComfyUI :8188</div>
-            <h2 class="subh">Pro / Agent</h2>
+            <h2 class="subh pro-head">
+              Pro / Agent
+              <button type="button" id="btn-pro-toggle" class="btn-mini" title="Collapse Pro panel">▾</button>
+              <button type="button" id="btn-doctor-full" class="btn-mini" title="Full doctor dump">Doctor</button>
+            </h2>
+            <div id="pro-body">
             <div class="speed-row">
               <button type="button" id="btn-preflight" class="btn-mini" title="agent_preflight">Preflight</button>
               <button type="button" id="btn-agent-finish" class="btn-mini" title="agent_finish_session → export dir">Agent fin</button>
@@ -421,8 +431,11 @@
             </div>
                         <div class="speed-row">
               <button type="button" id="btn-prep-exp2" class="btn-mini" title="prepare_for_export">Prep2</button>
+              <button type="button" id="btn-sel-share" class="btn-mini" title="Select all clips sharing media">SelShare</button>
+              <button type="button" id="btn-lane-compact" class="btn-mini" title="Toggle compact lanes">Compact</button>
             </div>
             <div id="pro-out" class="review-out muted">Pro —</div>
+            </div>
             <h2 class="subh">Review</h2>
             <div class="speed-row">
               <button type="button" id="btn-review" class="btn-mini" title="review_cut">Review</button>
@@ -566,6 +579,7 @@
         <span class="pill" id="pill-preview">preview</span>
         <span class="pill" id="pill-comfy" title="ComfyUI generation server">comfy —</span>
         <span class="pill" id="pill-dirty">clean</span>
+        <span id="session-stats" title="session edits/saves/gens">e0/s0/g0</span>
         <span class="pill" id="pill-history">↕ 0/0</span>
         <span class="pill" id="pill-validate">valid —</span>
         <span id="status-msg">Starting…</span>

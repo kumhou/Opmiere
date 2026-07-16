@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.91 — 2026-07-17
+
+### Added
+- Pro panel **collapse** toggle + **Doctor** full dump button
+- `#pro-body` collapsible container
+
 ## 0.4.90 — 2026-07-17
 
 ### Added

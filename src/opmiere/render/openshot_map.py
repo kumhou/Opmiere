@@ -10,9 +10,12 @@ Mapped for path-C frame grab (incremental):
   - rotate effect → rotation degrees
   - speed ≠ 1 → time_remap (source ↔ timeline) + correct fallback seek
   - crop effect → left/right/top/bottom fractions (best-effort)
+  - blur amount (Brightness/Blur effects when available)
+  - color brightness → approximate alpha/brightness keyframe
+  - fade in/out → alpha keyframe ramps (best-effort)
 
-Still unsupported (listed in plan): transitions, grade FX
-(color/curves/lut/…), audio effects, base-track position, fades as alpha ramps.
+Still unsupported (listed in plan): transitions, complex grade FX
+(curves/lut/text/…), audio effects, base-track position.
 """
 
 from __future__ import annotations
@@ -26,10 +29,10 @@ from ..model import Project
 __all__ = ["build_openshot_plan", "plan_preview_size", "clip_visual_props"]
 
 # Effect types the OpenShot path-C adapter can approximate for still frames.
-_MAPPED_VISUAL = frozenset({"opacity", "rotate", "crop"})
+_MAPPED_VISUAL = frozenset({"opacity", "rotate", "crop", "blur", "color", "fade"})
 # Known effects we intentionally skip (not paintable on path-C yet).
 _UNMAPPED_VISUAL = frozenset({
-    "color", "fade", "gain", "text", "blur", "vignette", "chroma_key", "luma_key",
+    "gain", "text", "vignette", "chroma_key", "luma_key",
     "curves", "sharpen", "film_grain", "glow", "lut3d", "ken_burns",
     "white_balance", "shape_mask", "subtitles", "compression", "noise_reduction",
     "audio_eq",
@@ -59,6 +62,10 @@ def clip_visual_props(
     opacity = 1.0
     rotation = 0.0
     crop: dict[str, float] | None = None
+    blur = 0.0
+    brightness = 0.0
+    fade_in = 0
+    fade_out = 0
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -78,6 +85,36 @@ def clip_visual_props(
             except (TypeError, ValueError):
                 rotation = 0.0
             mapped.append("rotate")
+        elif et == "blur":
+            try:
+                blur = float(e.get("amount", 0) or 0)
+            except (TypeError, ValueError):
+                blur = 0.0
+            if blur > 0:
+                mapped.append("blur")
+            else:
+                unmapped.append("blur")
+        elif et == "color":
+            try:
+                brightness = float(e.get("brightness", 0) or 0)
+            except (TypeError, ValueError):
+                brightness = 0.0
+            # only brightness is approximated on path-C stills
+            mapped.append("color")
+        elif et == "fade":
+            try:
+                d = int(e.get("duration_frames") or 0)
+            except (TypeError, ValueError):
+                d = 0
+            direction = e.get("direction")
+            if direction == "in" and d > 0:
+                fade_in = d
+                mapped.append("fade")
+            elif direction == "out" and d > 0:
+                fade_out = d
+                mapped.append("fade")
+            else:
+                unmapped.append("fade")
         elif et == "crop":
             # Opmiere crop is pixel box; convert to fractions of project frame.
             try:
@@ -117,6 +154,10 @@ def clip_visual_props(
         "opacity": opacity,
         "rotation": rotation,
         "crop": crop,
+        "blur": blur,
+        "brightness": brightness,
+        "fade_in_frames": fade_in,
+        "fade_out_frames": fade_out,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -209,6 +250,10 @@ def build_openshot_plan(
                 "source_duration": source_dur_s,
                 "opacity": vis["opacity"],
                 "rotation": vis["rotation"],
+                "blur": vis.get("blur") or 0.0,
+                "brightness": vis.get("brightness") or 0.0,
+                "fade_in_frames": vis.get("fade_in_frames") or 0,
+                "fade_out_frames": vis.get("fade_out_frames") or 0,
             }
             if vis.get("crop"):
                 entry["crop"] = vis["crop"]
@@ -278,5 +323,5 @@ def build_openshot_plan(
         "mapped": mapped_kinds,
         "mapped_detail": mapped_notes[:40],
         "mode": "openshot_project_plan",
-        "adapter_version": 3,
+        "adapter_version": 4,
     }
