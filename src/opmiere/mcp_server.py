@@ -3618,6 +3618,36 @@ def apply_ken_burns(
 
 
 @mcp.tool()
+def apply_vignette(
+    clip_id: str,
+    strength: float = 0.45,
+    replace: bool = True,
+) -> dict:
+    """Apply vignette effect to a clip."""
+    return _require_editor().apply_vignette(
+        clip_id, strength=strength, replace=replace,
+    )
+
+
+@mcp.tool()
+def export_clip_gif(
+    clip_id: str,
+    output_path: str,
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 12.0,
+) -> dict:
+    """Export a clip's timeline span as animated GIF."""
+    return _require_editor().export_clip_gif(
+        clip_id,
+        output_path,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
 def apply_ken_burns_to_images(
     track_id: str | None = None,
     zoom_end: float = 1.12,

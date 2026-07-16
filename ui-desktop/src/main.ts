@@ -7912,6 +7912,54 @@ async function kenBurnsImagesUi() {
   }
 }
 
+async function vignetteUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for vignette";
+    return;
+  }
+  $("status-msg").textContent = "Applying vignette…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+    }>("/api/clip/vignette", {
+      clip_id: ids[0],
+      strength: 0.45,
+      replace: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Vig · ${r.clip_id || ids[0]}`;
+  } catch (e) {
+    setProOut(`Vig failed: ${e}`);
+    $("status-msg").textContent = `Vig failed: ${e}`;
+  }
+}
+
+async function exportClipGifUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip for ClipGIF";
+    return;
+  }
+  $("status-msg").textContent = "Exporting clip GIF…";
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/export/clip_gif", {
+      clip_id: ids[0],
+      fps: 12,
+      width: 480,
+      max_duration_seconds: 10,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClipGIF → ${String(r.path || "ok")}`;
+  } catch (e) {
+    setProOut(`ClipGIF failed: ${e}`);
+    $("status-msg").textContent = `ClipGIF failed: ${e}`;
+  }
+}
+
 async function exportAudioUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -11722,6 +11770,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-solid", () => void solidUi());
   proBind("btn-kb", () => void kenBurnsUi());
   proBind("btn-kb-img", () => void kenBurnsImagesUi());
+  proBind("btn-vig", () => void vignetteUi());
+  proBind("btn-clip-gif", () => void exportClipGifUi());
   proBind("btn-audio-out", () => void exportAudioUi());
   proBind("btn-del-trk", () => void deleteTrackOfSelection());
   proBind("btn-hard-cut", () => void hardCutAllUi());

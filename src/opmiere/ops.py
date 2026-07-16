@@ -4648,6 +4648,59 @@ class Editor:
         with self._mutate():
             return self._apply_effect_unlocked(clip_id, effect)
 
+    def apply_vignette(
+        self,
+        clip_id: str,
+        *,
+        strength: float = 0.45,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply vignette effect to a clip."""
+        self._assert_clip_track_unlocked(clip_id)
+        s = float(strength)
+        if s <= 0:
+            raise ValueError("strength must be positive")
+        fx = {"type": "vignette", "strength": s}
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            if replace:
+                clip.effects = [
+                    e for e in (clip.effects or []) if e.get("type") != "vignette"
+                ]
+            self._apply_effect_unlocked(clip_id, fx)
+            return {
+                "clip_id": clip_id,
+                "effect": fx,
+                "agent_note": "Vignette strength applied (ffmpeg vignette).",
+            }
+
+    def export_clip_gif(
+        self,
+        clip_id: str,
+        output_path: str | Path,
+        *,
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 12.0,
+    ) -> dict[str, Any]:
+        """Export a single clip's timeline span as GIF."""
+        clip = self._find_clip(clip_id)
+        fps_tb = float(self.project.timebase.fps or 30.0)
+        start_s = float(clip.start) / fps_tb
+        end_s = float(clip.end) / fps_tb
+        r = self.export_gif(
+            output_path,
+            start_seconds=start_s,
+            end_seconds=end_s,
+            fps=fps,
+            width=width,
+            max_duration_seconds=max_duration_seconds,
+        )
+        r["clip_id"] = clip_id
+        r["start_frame"] = clip.start
+        r["end_frame"] = clip.end
+        return r
+
     def apply_ken_burns(
         self,
         clip_id: str,

@@ -6020,6 +6020,50 @@ def ken_burns_api(body: KenBurnsBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class VignetteBody(BaseModel):
+    clip_id: str
+    strength: float = 0.45
+    replace: bool = True
+
+
+@app.post("/api/clip/vignette")
+def vignette_api(body: VignetteBody) -> dict[str, Any]:
+    """Apply vignette to a clip."""
+    ed = _ed()
+    try:
+        r = ed.apply_vignette(
+            body.clip_id, strength=body.strength, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"vignette failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportClipGifBody(BaseModel):
+    clip_id: str
+    output_path: str | None = None
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 12.0
+
+
+@app.post("/api/export/clip_gif")
+def export_clip_gif_api(body: ExportClipGifBody) -> dict[str, Any]:
+    """Export one clip span as GIF."""
+    ed = _ed()
+    out = body.output_path or str(_desktop_export_dir() / "clip.gif")
+    try:
+        return ed.export_clip_gif(
+            body.clip_id,
+            out,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clip_gif failed: {e}") from e
+
+
 @app.post("/api/edit/ken_burns_images")
 def ken_burns_images_api(body: KenBurnsImagesBody) -> dict[str, Any]:
     """Apply Ken Burns to all image stills."""

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.95 — 2026-07-17
+
+### Added
+- `apply_vignette` + **Vig**
+- `export_clip_gif` (clip span → GIF) + **ClipGIF**
+
 ## 0.5.94 — 2026-07-17
 
 ### Added
