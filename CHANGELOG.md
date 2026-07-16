@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — 2026-07-17
+
+### Added
+- **Milestone 0.5.0**: dual-surface NLE craft complete arc (API + desktop Pro + gen + path-C v4)
+- README Status 0.5.0
+
 ## 0.4.99 — 2026-07-17
 
 ### Added
