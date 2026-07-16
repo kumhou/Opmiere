@@ -4630,6 +4630,30 @@ def set_selection_position(
 
 
 @mcp.tool()
+def clear_selection_position(clip_ids: list[str]) -> dict:
+    """Clear PiP position on selection (full-frame)."""
+    return _require_editor().clear_selection_position(clip_ids)
+
+
+@mcp.tool()
+def reverse_selection_order(clip_ids: list[str]) -> dict:
+    """Reverse timeline order of selected clips per track."""
+    return _require_editor().reverse_selection_order(clip_ids)
+
+
+@mcp.tool()
+def link_selection(clip_ids: list[str], group_id: str | None = None) -> dict:
+    """Link selection into one link_group."""
+    return _require_editor().link_selection(clip_ids, group_id=group_id)
+
+
+@mcp.tool()
+def unlink_selection(clip_ids: list[str]) -> dict:
+    """Clear link_group on selection."""
+    return _require_editor().unlink_selection(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

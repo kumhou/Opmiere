@@ -10038,6 +10038,99 @@ async function pipSelectionUi() {
   }
 }
 
+async function clearPipSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear PiP";
+    return;
+  }
+  $("status-msg").textContent = "Clearing PiP…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/clear_selection_position", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClrPiP · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ClrPiP failed: ${e}`);
+    $("status-msg").textContent = `ClrPiP failed: ${e}`;
+  }
+}
+
+async function reverseSelectionOrderUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips to reverse order";
+    return;
+  }
+  $("status-msg").textContent = "Reversing selection order…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/reverse_selection_order", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RevOrd · moved ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RevOrd failed: ${e}`);
+    $("status-msg").textContent = `RevOrd failed: ${e}`;
+  }
+}
+
+async function linkSelectionUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select ≥2 clips to link";
+    return;
+  }
+  $("status-msg").textContent = "Linking selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      link_group?: string;
+    }>("/api/edit/link_selection", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `LinkSel · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`LinkSel failed: ${e}`);
+    $("status-msg").textContent = `LinkSel failed: ${e}`;
+  }
+}
+
+async function unlinkSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to unlink";
+    return;
+  }
+  $("status-msg").textContent = "Unlinking selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/unlink_selection", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `UnlinkSel · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`UnlinkSel failed: ${e}`);
+    $("status-msg").textContent = `UnlinkSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13955,6 +14048,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-extract-sel", () => void extractSelectionUi());
   proBind("btn-join-sel", () => void joinSelectionUi());
   proBind("btn-pip-sel", () => void pipSelectionUi());
+  proBind("btn-clear-pip-sel", () => void clearPipSelectionUi());
+  proBind("btn-rev-ord-sel", () => void reverseSelectionOrderUi());
+  proBind("btn-link-sel", () => void linkSelectionUi());
+  proBind("btn-unlink-sel", () => void unlinkSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.24 — 2026-07-17
+
+### Added
+- `clear_selection_position` / `reverse_selection_order` / `link_selection` / `unlink_selection` + **ClrPiP** / **RevOrd** / **LinkSel** / **UnlinkSel**
+
 ## 0.6.23 — 2026-07-17
 
 ### Added

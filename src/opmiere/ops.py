@@ -5987,6 +5987,91 @@ class Editor:
                 "agent_note": "PiP effective on overlay video tracks only.",
             }
 
+    def clear_selection_position(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Clear PiP position on selection (full-frame again). One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        with self._mutate():
+            cleared: list[str] = []
+            for cid in dict.fromkeys(clip_ids):
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                clip.position = None
+                cleared.append(cid)
+            return {
+                "count": len(cleared),
+                "clip_ids": cleared,
+                "agent_note": "position=None → full-frame on export.",
+            }
+
+    def reverse_selection_order(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Reverse timeline order of selected clips per track (swap starts).
+
+        Uses the original start times of the selected set: leftmost becomes
+        rightmost, etc. Durations unchanged; may overlap non-selected clips.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        if len(ids) < 2:
+            raise ValueError("reverse_selection_order needs at least 2 clips")
+        with self._mutate():
+            by_track: dict[str, list[Any]] = {}
+            for cid in ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                by_track.setdefault(track.id, []).append(clip)
+            moved: list[dict[str, Any]] = []
+            for tid, clips in by_track.items():
+                if len(clips) < 2:
+                    continue
+                ordered = sorted(clips, key=lambda c: (int(c.start), c.id))
+                starts = [int(c.start) for c in ordered]
+                for c, new_start in zip(ordered, reversed(starts)):
+                    old = int(c.start)
+                    c.start = new_start
+                    if old != new_start:
+                        moved.append(
+                            {
+                                "clip_id": c.id,
+                                "track_id": tid,
+                                "from": old,
+                                "to": new_start,
+                            }
+                        )
+            return {
+                "count": len(moved),
+                "moved": moved,
+                "tracks": list(by_track.keys()),
+                "agent_note": "Order reversed via start swap; check overlaps.",
+            }
+
+    def link_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        group_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Link selection into one link_group (alias link_clips)."""
+        return self.link_clips(clip_ids, group_id=group_id)
+
+    def unlink_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Clear link_group on selection."""
+        r = self.unlink_clips(clip_ids)
+        r["agent_note"] = "Selection unlinked; peers no longer expand together."
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

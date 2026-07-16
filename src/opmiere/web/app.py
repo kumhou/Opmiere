@@ -7717,6 +7717,67 @@ def selection_position_api(body: SelectionPositionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClearSelectionPositionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/clear_selection_position")
+def clear_selection_position_api(body: ClearSelectionPositionBody) -> dict[str, Any]:
+    """Clear PiP on selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_position(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"clear_selection_position failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ReverseSelectionOrderBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/reverse_selection_order")
+def reverse_selection_order_api(body: ReverseSelectionOrderBody) -> dict[str, Any]:
+    """Reverse order of selected clips per track."""
+    ed = _ed()
+    try:
+        r = ed.reverse_selection_order(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"reverse_selection_order failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LinkSelectionBody(BaseModel):
+    clip_ids: list[str]
+    group_id: str | None = None
+
+
+@app.post("/api/edit/link_selection")
+def link_selection_api(body: LinkSelectionBody) -> dict[str, Any]:
+    """Link selection into one group."""
+    ed = _ed()
+    try:
+        r = ed.link_selection(body.clip_ids, group_id=body.group_id)
+    except Exception as e:
+        raise HTTPException(400, f"link_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class UnlinkSelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/unlink_selection")
+def unlink_selection_api(body: UnlinkSelectionBody) -> dict[str, Any]:
+    """Unlink selection."""
+    ed = _ed()
+    try:
+        r = ed.unlink_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"unlink_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
