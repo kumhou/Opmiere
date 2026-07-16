@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.76 — 2026-07-16
+
+### Added
+- Desktop **Fmt?** — suggest project fps + resolution from bin
+
 ## 0.4.75 — 2026-07-16
 
 ### Added
