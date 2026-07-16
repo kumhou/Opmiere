@@ -3757,6 +3757,59 @@ def export_handoff_api(body: HandoffPackageBody) -> dict[str, Any]:
         raise HTTPException(400, f"export_handoff failed: {e}") from e
 
 
+class ReviewPackageBody(BaseModel):
+    out_dir: str
+    include_handoff: bool = True
+    include_storyboard: bool = True
+    include_social: bool = False
+    social_variants: list[str] | None = None
+    watermark: str | None = None
+
+
+@app.post("/api/export/review_package")
+def export_review_package_api(body: ReviewPackageBody) -> dict[str, Any]:
+    """Handoff + storyboard (+ optional social) in one folder."""
+    ed = _ed()
+    try:
+        return ed.export_review_package(
+            body.out_dir,
+            include_handoff=body.include_handoff,
+            include_storyboard=body.include_storyboard,
+            include_social=body.include_social,
+            social_variants=body.social_variants,
+            watermark=body.watermark,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_review_package failed: {e}") from e
+
+
+class WatermarkTrackBody(BaseModel):
+    track_id: str
+    content: str = "© Opmiere"
+    position: str = "bottom"
+    size: int = 22
+    alpha: float = 0.55
+    color: str = "white"
+
+
+@app.post("/api/track/watermark")
+def watermark_track_api(body: WatermarkTrackBody) -> dict[str, Any]:
+    """Apply watermark to every clip on a track."""
+    ed = _ed()
+    try:
+        r = ed.apply_watermark_to_track(
+            body.track_id,
+            body.content,
+            position=body.position,
+            size=body.size,
+            alpha=body.alpha,
+            color=body.color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"watermark_track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class CollectBundleBody(BaseModel):
     dest_path: str
     used_only: bool = True

@@ -2745,6 +2745,65 @@ async function listCutsUi() {
   }
 }
 
+async function watermarkTrackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  $("status-msg").textContent = "Watermark track…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/track/watermark",
+      {
+        track_id: trackId,
+        content: "© Opmiere",
+        position: "bottom",
+        size: 22,
+        alpha: 0.55,
+      },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `©Trk · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`©Trk failed: ${e}`);
+    $("status-msg").textContent = `©Trk failed: ${e}`;
+  }
+}
+
+async function exportReviewPackageUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Review package output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting review package…";
+  try {
+    const r = await postJson<{ path?: string; meta?: string }>(
+      "/api/export/review_package",
+      {
+        out_dir: dir,
+        include_handoff: true,
+        include_storyboard: true,
+        include_social: false,
+      },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Review · → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`Review failed: ${e}`);
+    $("status-msg").textContent = `Review failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11081,6 +11140,20 @@ window.addEventListener("DOMContentLoaded", () => {
   if (btnCuts) {
     btnCuts.addEventListener("click", () => {
       void listCutsUi();
+    });
+  }
+  const btnWmTrk = document.getElementById("btn-wm-trk");
+  if (btnWmTrk) {
+    btnWmTrk.addEventListener("click", () => {
+      stopPlay();
+      void watermarkTrackUi();
+    });
+  }
+  const btnReviewPkg = document.getElementById("btn-review-pkg");
+  if (btnReviewPkg) {
+    btnReviewPkg.addEventListener("click", () => {
+      stopPlay();
+      void exportReviewPackageUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

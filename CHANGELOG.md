@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.81 — 2026-07-17
+
+### Added
+- `export_review_package` (handoff + storyboard + optional social) + **Review**
+- `apply_watermark_to_track` + **©Trk**
+
 ## 0.5.80 — 2026-07-17
 
 ### Added

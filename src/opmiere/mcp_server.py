@@ -2191,6 +2191,41 @@ def export_handoff_package(
 
 
 @mcp.tool()
+def export_review_package(
+    out_dir: str,
+    include_handoff: bool = True,
+    include_storyboard: bool = True,
+    include_social: bool = False,
+    social_variants: list[str] | None = None,
+    watermark: str | None = None,
+) -> dict:
+    """Handoff + storyboard (+ optional social pack) in one review folder."""
+    return _require_editor().export_review_package(
+        out_dir,
+        include_handoff=include_handoff,
+        include_storyboard=include_storyboard,
+        include_social=include_social,
+        social_variants=social_variants,
+        watermark=watermark,
+    )
+
+
+@mcp.tool()
+def apply_watermark_to_track(
+    track_id: str,
+    content: str = "© Opmiere",
+    position: str = "bottom",
+    size: int = 22,
+    alpha: float = 0.55,
+    color: str = "white",
+) -> dict:
+    """Apply text watermark to every clip on a track."""
+    return _require_editor().apply_watermark_to_track(
+        track_id, content, position=position, size=size, alpha=alpha, color=color,
+    )
+
+
+@mcp.tool()
 def collect_to_bundle(
     dest_path: str,
     used_only: bool = True,

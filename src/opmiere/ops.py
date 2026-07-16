@@ -11002,6 +11002,62 @@ class Editor:
             ),
         }
 
+    def export_review_package(
+        self,
+        out_dir: str | Path,
+        *,
+        include_handoff: bool = True,
+        include_storyboard: bool = True,
+        include_social: bool = False,
+        social_variants: list[str] | None = None,
+        watermark: str | None = None,
+    ) -> dict[str, Any]:
+        """One-shot review deliverable pack: handoff + storyboard + optional social.
+
+        If watermark is set, applies text watermark to all video-track clips first
+        (one undo) before exports.
+        """
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        parts: dict[str, Any] = {}
+        if watermark:
+            vids = [t for t in self.project.tracks if t.kind == "video"]
+            wm_applied = []
+            for tr in vids:
+                for c in tr.clips_in_order():
+                    try:
+                        self.set_clip_watermark(c.id, watermark)
+                        wm_applied.append(c.id)
+                    except Exception:
+                        pass
+            parts["watermark_clips"] = wm_applied
+
+        if include_handoff:
+            parts["handoff"] = self.export_handoff_package(out / "handoff")
+        if include_storyboard:
+            parts["storyboard"] = self.export_storyboard(out / "storyboard")
+        if include_social:
+            parts["social"] = self.export_social_pack(
+                out / "social",
+                variants=social_variants or ["youtube", "reels", "square"],
+                name_prefix="review",
+            )
+        meta = {
+            "schema": "opmiere.review_package.v1",
+            "path": str(out.resolve()),
+            "parts": {k: (v.get("path") if isinstance(v, dict) else v) for k, v in parts.items()},
+        }
+        meta_path = out / "review_package.json"
+        meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        return {
+            "path": str(out.resolve()),
+            "parts": parts,
+            "meta": str(meta_path.resolve()),
+            "agent_note": (
+                "Review package assembled. include_social=True is expensive (full renders)."
+            ),
+        }
+
     def export_handoff_package(
         self,
         out_dir: str | Path,
@@ -12020,6 +12076,27 @@ class Editor:
                 "alpha": float(alpha),
                 "agent_note": "Text watermark via drawtext; apply_effects_to_track for whole track.",
             }
+
+    def apply_watermark_to_track(
+        self,
+        track_id: str,
+        content: str,
+        *,
+        position: str = "bottom",
+        size: int = 22,
+        alpha: float = 0.55,
+        color: str = "white",
+    ) -> dict[str, Any]:
+        """Apply the same text watermark to every clip on a track (one undo)."""
+        fx = {
+            "type": "watermark",
+            "content": content.strip(),
+            "position": position,
+            "size": int(size),
+            "alpha": float(alpha),
+            "color": color,
+        }
+        return self.apply_effects_to_track(track_id, [fx], replace_types=True)
 
     def list_cuts(
         self,
