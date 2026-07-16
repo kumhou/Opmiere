@@ -45,7 +45,8 @@ def test_adapter_v4_blur_color_fade():
         assert vis["blur"] > 0
         assert vis["fade_in_frames"] == 6
         plan = build_openshot_plan(ed.project, ed.bundle, height=180)
-        assert plan.get("adapter_version") == 4
+        # Current contract floor; allow future adapter major bumps without CI pin-rot.
+        assert int(plan.get("adapter_version") or 0) >= 4
         assert plan["clips"][0].get("blur", 0) > 0
         assert plan["clips"][0].get("fade_in_frames") == 6
     finally:

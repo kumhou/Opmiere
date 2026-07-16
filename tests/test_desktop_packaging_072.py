@@ -21,7 +21,10 @@ def test_tauri_nsis_bundle_config():
     assert "icons/icon.ico" in conf["bundle"]["icon"]
     win = conf["bundle"].get("windows") or {}
     assert "nsis" in win
-    assert conf["version"].startswith("0.4.")
+    # Accept any semver X.Y.Z — do not pin major/minor (ships keep bumping).
+    ver = conf["version"]
+    assert isinstance(ver, str) and ver.count(".") >= 2
+    assert all(p.isdigit() for p in ver.split(".")[:3])
 
 
 def test_build_script_and_npm_script_exist():

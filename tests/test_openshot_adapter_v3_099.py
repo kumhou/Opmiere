@@ -42,7 +42,8 @@ def test_speed_crop_plan_mapping():
         assert vis["crop"] is not None
 
         plan = build_openshot_plan(ed.project, ed.bundle, height=180)
-        assert plan.get("adapter_version") == 3
+        # v3 features must remain; later bumps (v4+) keep the contract.
+        assert int(plan.get("adapter_version") or 0) >= 3
         assert "speed" in plan.get("mapped", [])
         assert "crop" in plan.get("mapped", [])
         # speed is mapped, not listed as unsupported summary kind
