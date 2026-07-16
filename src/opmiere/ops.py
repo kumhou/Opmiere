@@ -7411,6 +7411,140 @@ class Editor:
             "agent_note": "Parametric EQ band on selection; replace clears prior bands.",
         }
 
+    def razor_selection_at_markers(
+        self,
+        clip_ids: list[str],
+        *,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Razor selected clips at every marker frame that falls inside them.
+
+        marker_ids=None → all project markers. Frames processed high→low.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            frames = sorted(
+                {
+                    int(m.frame)
+                    for m in self.project.markers
+                    if m.id in wanted
+                },
+                reverse=True,
+            )
+        else:
+            frames = sorted(
+                {int(m.frame) for m in self.project.markers},
+                reverse=True,
+            )
+        if not frames:
+            return {
+                "count": 0,
+                "splits": [],
+                "frames": [],
+                "agent_note": "No markers to razor at.",
+            }
+        splits: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        active = set(ids)
+        for fr in frames:
+            # refresh clip list: only still-active selected lineage
+            targets = []
+            for cid in list(active):
+                try:
+                    clip = self._find_clip(cid)
+                except Exception:
+                    active.discard(cid)
+                    continue
+                if int(clip.start) < fr < int(clip.end):
+                    targets.append(cid)
+            for cid in targets:
+                try:
+                    left, right = self.split_clip(cid, fr)
+                    active.discard(cid)
+                    active.add(left.id)
+                    active.add(right.id)
+                    splits.append(
+                        {
+                            "at_frame": fr,
+                            "left_id": left.id,
+                            "right_id": right.id,
+                            "from_clip_id": cid,
+                        }
+                    )
+                except Exception as e:
+                    skipped.append(
+                        {"clip_id": cid, "at_frame": fr, "error": str(e)[:200]}
+                    )
+        return {
+            "frames": sorted(frames),
+            "count": len(splits),
+            "splits": splits,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "agent_note": "Selection razored at marker frames (high→low).",
+        }
+
+    def freeze_selection_at(
+        self,
+        clip_ids: list[str],
+        timeline_frame: int,
+        *,
+        duration_frames: int = 30,
+    ) -> dict[str, Any]:
+        """freeze_frame for each selected video clip spanning timeline_frame."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ph = int(timeline_frame)
+        dur = max(1, int(duration_frames))
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                if not (int(clip.start) <= ph < int(clip.end)):
+                    errors.append(
+                        {"clip_id": cid, "error": "playhead outside clip"}
+                    )
+                    continue
+                r = self.freeze_frame(
+                    cid,
+                    at_timeline_frame=ph,
+                    duration_frames=dur,
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "timeline_frame": ph,
+            "duration_frames": dur,
+            "count": len(out),
+            "freezes": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Still placed after each spanning selected clip.",
+        }
+
+    def export_selection_audio_default(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_mix.wav",
+        sample_rate: int | None = None,
+    ) -> dict[str, Any]:
+        """export_selection_audio into project exports/ (or bundle parent)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        base = Path(self.bundle.root)
+        out_dir = base / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_mix.wav")
+        return self.export_selection_audio(
+            clip_ids, out, sample_rate=sample_rate,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

@@ -8493,6 +8493,69 @@ def audio_eq_selection_api(body: AudioEqSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RazorSelectionMarkersBody(BaseModel):
+    clip_ids: list[str]
+    marker_ids: list[str] | None = None
+
+
+@app.post("/api/edit/razor_selection_at_markers")
+def razor_selection_at_markers_api(
+    body: RazorSelectionMarkersBody,
+) -> dict[str, Any]:
+    """Razor selection at marker frames."""
+    ed = _ed()
+    try:
+        r = ed.razor_selection_at_markers(
+            body.clip_ids, marker_ids=body.marker_ids,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"razor_selection_at_markers failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FreezeSelectionAtBody(BaseModel):
+    clip_ids: list[str]
+    timeline_frame: int
+    duration_frames: int = 30
+
+
+@app.post("/api/edit/freeze_selection_at")
+def freeze_selection_at_api(body: FreezeSelectionAtBody) -> dict[str, Any]:
+    """Freeze stills from selection at timeline frame."""
+    ed = _ed()
+    try:
+        r = ed.freeze_selection_at(
+            body.clip_ids,
+            body.timeline_frame,
+            duration_frames=body.duration_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"freeze_selection_at failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionAudioDefaultBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_mix.wav"
+    sample_rate: int | None = None
+
+
+@app.post("/api/edit/export_selection_audio_default")
+def export_selection_audio_default_api(
+    body: ExportSelectionAudioDefaultBody,
+) -> dict[str, Any]:
+    """Export selection mix audio to exports/."""
+    ed = _ed()
+    try:
+        return ed.export_selection_audio_default(
+            body.clip_ids,
+            filename=body.filename,
+            sample_rate=body.sample_rate,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_audio_default failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

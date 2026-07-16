@@ -11160,6 +11160,87 @@ async function audioEqSelectionUi() {
   }
 }
 
+async function razorSelectionAtMarkersUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to razor at markers";
+    return;
+  }
+  $("status-msg").textContent = "Razor selection @ markers…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+    }>("/api/edit/razor_selection_at_markers", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Razor@Mkr · ${r.count ?? 0} skip ${r.skipped_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Razor@Mkr failed: ${e}`);
+    $("status-msg").textContent = `Razor@Mkr failed: ${e}`;
+  }
+}
+
+async function freezeSelectionAtPlayheadUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to freeze";
+    return;
+  }
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Freeze selection @ f${ph}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/freeze_selection_at", {
+      clip_ids: ids,
+      timeline_frame: ph,
+      duration_frames: 30,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Frz@ · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Frz@ failed: ${e}`);
+    $("status-msg").textContent = `Frz@ failed: ${e}`;
+  }
+}
+
+async function exportSelectionAudioDefaultUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for audio export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection audio…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      output_path?: string;
+      start_frame?: number;
+      end_frame?: number;
+    }>("/api/edit/export_selection_audio_default", {
+      clip_ids: ids,
+      filename: "selection_mix.wav",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AudSel · ${String(r.path || r.output_path || "ok")}`;
+  } catch (e) {
+    setProOut(`AudSel failed: ${e}`);
+    $("status-msg").textContent = `AudSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15125,6 +15206,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-comp-sel", () => void compressionSelectionUi());
   proBind("btn-nr-sel", () => void noiseReductionSelectionUi());
   proBind("btn-eq-sel", () => void audioEqSelectionUi());
+  proBind("btn-razor-mkr-sel", () => void razorSelectionAtMarkersUi());
+  proBind("btn-freeze-ph-sel", () => void freezeSelectionAtPlayheadUi());
+  proBind("btn-aud-sel", () => void exportSelectionAudioDefaultUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -5027,6 +5027,41 @@ def audio_eq_selection(
 
 
 @mcp.tool()
+def razor_selection_at_markers(
+    clip_ids: list[str],
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Razor selected clips at marker frames inside them."""
+    return _require_editor().razor_selection_at_markers(
+        clip_ids, marker_ids=marker_ids,
+    )
+
+
+@mcp.tool()
+def freeze_selection_at(
+    clip_ids: list[str],
+    timeline_frame: int,
+    duration_frames: int = 30,
+) -> dict:
+    """Place freeze stills for selection clips spanning timeline_frame."""
+    return _require_editor().freeze_selection_at(
+        clip_ids, timeline_frame, duration_frames=duration_frames,
+    )
+
+
+@mcp.tool()
+def export_selection_audio_default(
+    clip_ids: list[str],
+    filename: str = "selection_mix.wav",
+    sample_rate: int | None = None,
+) -> dict:
+    """Export selection span audio mix to project exports/."""
+    return _require_editor().export_selection_audio_default(
+        clip_ids, filename=filename, sample_rate=sample_rate,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

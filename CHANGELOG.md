@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.38 — 2026-07-17
+
+### Added
+- `razor_selection_at_markers` / `freeze_selection_at` / `export_selection_audio_default` + **Razor@Mkr** / **Frz@** / **AudSel**
+
 ## 0.6.37 — 2026-07-17
 
 ### Added
