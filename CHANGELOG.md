@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.29 — 2026-07-17
+
+### Added
+- `align_selection_ends` / `selection_media_report` / `rename_selection_from_media` + **AlignEnds** / **Media?** / **NameMedia**
+
 ## 0.6.28 — 2026-07-17
 
 ### Added

@@ -6537,6 +6537,133 @@ class Editor:
             "agent_note": "Rigid block copy after selection union.",
         }
 
+    def align_selection_ends(
+        self,
+        clip_ids: list[str],
+        *,
+        to_frame: int | None = None,
+    ) -> dict[str, Any]:
+        """Shift each selected clip so its end meets to_frame (default max end)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        with self._mutate():
+            clips: list[Any] = []
+            for cid in ids:
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                clips.append(clip)
+            target = (
+                max(int(c.end) for c in clips)
+                if to_frame is None
+                else max(0, int(to_frame))
+            )
+            moved: list[dict[str, Any]] = []
+            for c in clips:
+                old = int(c.start)
+                new_start = max(0, target - int(c.timeline_duration_frames))
+                c.start = new_start
+                if old != new_start:
+                    moved.append(
+                        {
+                            "clip_id": c.id,
+                            "from": old,
+                            "to": new_start,
+                            "end": int(c.end),
+                        }
+                    )
+            return {
+                "to_frame": target,
+                "count": len(moved),
+                "moved": moved,
+                "agent_note": "Ends aligned; may overlap non-selected clips.",
+            }
+
+    def selection_media_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Media inventory for selection (ids, paths, proxy, usage count)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        by_media: dict[str, dict[str, Any]] = {}
+        rows: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            track, clip = self._find_clip_and_track(cid)
+            media = self.project.media_by_id(clip.media)
+            abs_path = str(self.bundle.media_path(media.path))
+            proxy = None
+            if media.proxy_path:
+                pp = self.bundle.root / media.proxy_path
+                if pp.exists():
+                    proxy = str(pp)
+            rows.append(
+                {
+                    "clip_id": cid,
+                    "track_id": track.id,
+                    "media_id": media.id,
+                    "media_kind": media.kind,
+                    "path": abs_path,
+                    "proxy_path": proxy,
+                    "start": int(clip.start),
+                    "end": int(clip.end),
+                    "src_in": int(clip.src_in),
+                    "src_out": int(clip.src_out),
+                    "speed": float(clip.speed),
+                }
+            )
+            entry = by_media.setdefault(
+                media.id,
+                {
+                    "media_id": media.id,
+                    "kind": media.kind,
+                    "path": abs_path,
+                    "proxy_path": proxy,
+                    "duration_frames": int(media.duration_frames),
+                    "clip_ids": [],
+                    "count": 0,
+                },
+            )
+            entry["clip_ids"].append(cid)
+            entry["count"] += 1
+        return {
+            "count": len(rows),
+            "media_count": len(by_media),
+            "clips": rows,
+            "media": list(by_media.values()),
+            "agent_note": "Selection media map for relink/retarget/export prep.",
+        }
+
+    def rename_selection_from_media(
+        self,
+        clip_ids: list[str],
+        *,
+        suffix_index: bool = False,
+    ) -> dict[str, Any]:
+        """Set clip.name from media filename stem (optional _001 suffix)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        with self._mutate():
+            renamed: list[dict[str, Any]] = []
+            for i, cid in enumerate(dict.fromkeys(clip_ids), start=1):
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                media = self.project.media_by_id(clip.media)
+                stem = Path(media.path).stem
+                name = f"{stem}_{i:03d}" if suffix_index else stem
+                old = clip.name
+                clip.name = name
+                renamed.append(
+                    {"clip_id": cid, "from": old, "to": name, "media_id": media.id}
+                )
+            return {
+                "count": len(renamed),
+                "renamed": renamed,
+                "agent_note": "Names from media stems; does not affect render.",
+            }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

@@ -10441,6 +10441,78 @@ async function duplicateSelectionBlockUi() {
   }
 }
 
+async function alignSelectionEndsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to align ends";
+    return;
+  }
+  $("status-msg").textContent = "Aligning ends…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      to_frame?: number;
+    }>("/api/edit/align_selection_ends", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AlignEnds · moved ${r.count ?? 0} @${r.to_frame ?? "?"}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`AlignEnds failed: ${e}`);
+    $("status-msg").textContent = `AlignEnds failed: ${e}`;
+  }
+}
+
+async function selectionMediaReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for media report";
+    return;
+  }
+  $("status-msg").textContent = "Selection media…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      media_count?: number;
+    }>("/api/edit/selection_media_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Media? · ${r.count ?? 0} clips / ${r.media_count ?? 0} media`;
+  } catch (e) {
+    setProOut(`Media? failed: ${e}`);
+    $("status-msg").textContent = `Media? failed: ${e}`;
+  }
+}
+
+async function renameSelectionFromMediaUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to rename from media";
+    return;
+  }
+  $("status-msg").textContent = "Renaming from media…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/rename_selection_from_media", {
+      clip_ids: ids,
+      suffix_index: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `NameMedia · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`NameMedia failed: ${e}`);
+    $("status-msg").textContent = `NameMedia failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14377,6 +14449,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fill-gaps-sel", () => void fillSelectionGapsUi());
   proBind("btn-swap-sel", () => void swapSelectionPairUi());
   proBind("btn-dup-block-sel", () => void duplicateSelectionBlockUi());
+  proBind("btn-align-ends-sel", () => void alignSelectionEndsUi());
+  proBind("btn-media-sel", () => void selectionMediaReportUi());
+  proBind("btn-rename-media-sel", () => void renameSelectionFromMediaUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

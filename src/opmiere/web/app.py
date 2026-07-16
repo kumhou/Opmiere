@@ -8003,6 +8003,56 @@ def duplicate_selection_block_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class AlignSelectionEndsBody(BaseModel):
+    clip_ids: list[str]
+    to_frame: int | None = None
+
+
+@app.post("/api/edit/align_selection_ends")
+def align_selection_ends_api(body: AlignSelectionEndsBody) -> dict[str, Any]:
+    """Align ends of selected clips."""
+    ed = _ed()
+    try:
+        r = ed.align_selection_ends(body.clip_ids, to_frame=body.to_frame)
+    except Exception as e:
+        raise HTTPException(400, f"align_selection_ends failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionMediaReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_media_report")
+def selection_media_report_api(body: SelectionMediaReportBody) -> dict[str, Any]:
+    """Media inventory for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_media_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_media_report failed: {e}") from e
+
+
+class RenameSelectionFromMediaBody(BaseModel):
+    clip_ids: list[str]
+    suffix_index: bool = False
+
+
+@app.post("/api/edit/rename_selection_from_media")
+def rename_selection_from_media_api(
+    body: RenameSelectionFromMediaBody,
+) -> dict[str, Any]:
+    """Rename selection from media stems."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection_from_media(
+            body.clip_ids, suffix_index=body.suffix_index,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rename_selection_from_media failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

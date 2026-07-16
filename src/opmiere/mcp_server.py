@@ -4774,6 +4774,34 @@ def duplicate_selection_block(
 
 
 @mcp.tool()
+def align_selection_ends(
+    clip_ids: list[str],
+    to_frame: int | None = None,
+) -> dict:
+    """Align each selected clip end to to_frame (default max end)."""
+    return _require_editor().align_selection_ends(
+        clip_ids, to_frame=to_frame,
+    )
+
+
+@mcp.tool()
+def selection_media_report(clip_ids: list[str]) -> dict:
+    """Media inventory for selection (paths, proxy, usage)."""
+    return _require_editor().selection_media_report(clip_ids)
+
+
+@mcp.tool()
+def rename_selection_from_media(
+    clip_ids: list[str],
+    suffix_index: bool = False,
+) -> dict:
+    """Rename selection clips from media filename stems."""
+    return _require_editor().rename_selection_from_media(
+        clip_ids, suffix_index=suffix_index,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
