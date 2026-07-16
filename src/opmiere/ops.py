@@ -8753,6 +8753,183 @@ class Editor:
             ),
         }
 
+    def make_selection_contact_sheet(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path | None = None,
+        *,
+        max_tiles: int = 12,
+        tile_width: int = 160,
+        tile_height: int = 90,
+        cols: int | None = None,
+    ) -> dict[str, Any]:
+        """Grid of mid-source frames from selected video clips (timeline order)."""
+        import math
+        import subprocess
+        import tempfile
+
+        from .render.probe import require_ffmpeg_tools
+
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        require_ffmpeg_tools()
+        items: list[Any] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            if tr.kind != "video":
+                continue
+            media = self.project.media_by_id(clip.media)
+            if media.kind == "audio":
+                continue
+            items.append(clip)
+        items.sort(key=lambda c: (int(c.start), c.id))
+        if not items:
+            raise ValueError("no video clips in selection for contact sheet")
+        max_n = max(1, int(max_tiles))
+        if len(items) > max_n:
+            step = len(items) / max_n
+            chosen = [items[int(i * step)] for i in range(max_n)]
+        else:
+            chosen = list(items)
+        n = len(chosen)
+        if cols is None:
+            cols_n = min(4, max(1, n))
+        else:
+            cols_n = max(1, int(cols))
+        rows = int(math.ceil(n / cols_n))
+        tw, th = int(tile_width), int(tile_height)
+        cell = f"{tw}x{th}"
+        scale_pad = (
+            f"scale={tw}:{th}:force_original_aspect_ratio=decrease,"
+            f"pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2"
+        )
+        if output_path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            output_path = out_dir / "selection_contact.jpg"
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        labels: list[dict[str, Any]] = []
+        with tempfile.TemporaryDirectory(prefix="opmiere_sel_cs_") as tmp:
+            tmp_path = Path(tmp)
+            thumbs: list[Path] = []
+            for i, clip in enumerate(chosen):
+                media = self.project.media_by_id(clip.media)
+                media_file = self.bundle.media_path(media.path)
+                mid_frame = (int(clip.src_in) + int(clip.src_out)) // 2
+                t = self.project.timebase.frames_to_seconds(mid_frame)
+                thumb = tmp_path / f"t{i:03d}.png"
+                ok = False
+                for ss_args in (
+                    ["-ss", f"{t:.3f}", "-i", str(media_file)],
+                    ["-i", str(media_file)],
+                ):
+                    proc = subprocess.run(
+                        [
+                            "ffmpeg", "-y", "-hide_banner",
+                            *ss_args,
+                            "-frames:v", "1",
+                            "-vf", scale_pad,
+                            str(thumb),
+                        ],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if (
+                        proc.returncode == 0
+                        and thumb.exists()
+                        and thumb.stat().st_size > 0
+                    ):
+                        ok = True
+                        break
+                if not ok:
+                    raise RuntimeError(
+                        f"failed thumb for clip {clip.id} from {media_file}"
+                    )
+                thumbs.append(thumb)
+                labels.append(
+                    {
+                        "index": i,
+                        "clip_id": clip.id,
+                        "media_id": media.id,
+                        "timeline_start": int(clip.start),
+                        "src_mid_seconds": round(t, 3),
+                    }
+                )
+            while len(thumbs) < cols_n * rows:
+                pad = tmp_path / f"pad{len(thumbs)}.png"
+                subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-f", "lavfi",
+                        "-i", f"color=c=black:s={cell}",
+                        "-frames:v", "1", str(pad),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                thumbs.append(pad)
+            cmd: list[str] = ["ffmpeg", "-y", "-hide_banner"]
+            for thp in thumbs:
+                cmd += ["-i", str(thp)]
+            n_in = len(thumbs)
+            labels_in = "".join(f"[{i}:v]" for i in range(n_in))
+            fc = f"{labels_in}concat=n={n_in}:v=1:a=0,tile={cols_n}x{rows}[vout]"
+            cmd += [
+                "-filter_complex", fc,
+                "-map", "[vout]",
+                "-frames:v", "1",
+                str(output_path),
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0 or not output_path.exists():
+                raise RuntimeError(
+                    f"selection contact sheet failed:\n{(proc.stderr or '')[-2000:]}"
+                )
+        return {
+            "path": str(output_path.resolve()),
+            "cols": cols_n,
+            "rows": rows,
+            "tile_count": n,
+            "tiles": labels,
+            "agent_note": "Selection mid-source grid; not full composite mix.",
+        }
+
+    def analyze_selection_audio(
+        self,
+        clip_ids: list[str],
+        *,
+        image_path: str | Path | None = None,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.5,
+        filename: str = "selection_mix_analyze.wav",
+    ) -> dict[str, Any]:
+        """Export selection mix audio then run analyze_audio meters."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        exp = self.export_selection_audio_default(
+            clip_ids, filename=filename,
+        )
+        path = exp.get("path") or exp.get("output_path")
+        if not path:
+            # try known exports location
+            path = str(
+                Path(self.bundle.root) / "exports" / (filename or "selection_mix.wav")
+            )
+        r = self.analyze_audio(
+            path,
+            image_path=image_path,
+            silence_threshold_db=silence_threshold_db,
+            min_silence_seconds=min_silence_seconds,
+        )
+        if isinstance(r, dict):
+            r["selection_audio_path"] = path
+            r["selection_span"] = self.selection_span(list(dict.fromkeys(clip_ids)))
+            r["agent_note"] = (
+                "Meters on selection union mix (full program in span)."
+            )
+        return r if isinstance(r, dict) else {"result": r, "path": path}
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

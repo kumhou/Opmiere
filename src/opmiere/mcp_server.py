@@ -5336,6 +5336,44 @@ def selection_path_c_stills_plan(
 
 
 @mcp.tool()
+def make_selection_contact_sheet(
+    clip_ids: list[str],
+    output_path: str | None = None,
+    max_tiles: int = 12,
+    tile_width: int = 160,
+    tile_height: int = 90,
+    cols: int | None = None,
+) -> dict:
+    """Build a contact sheet grid from selected video clip mid-frames."""
+    return _require_editor().make_selection_contact_sheet(
+        clip_ids,
+        output_path=output_path,
+        max_tiles=max_tiles,
+        tile_width=tile_width,
+        tile_height=tile_height,
+        cols=cols,
+    )
+
+
+@mcp.tool()
+def analyze_selection_audio(
+    clip_ids: list[str],
+    image_path: str | None = None,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.5,
+    filename: str = "selection_mix_analyze.wav",
+) -> dict:
+    """Export selection mix then analyze loudness/silence meters."""
+    return _require_editor().analyze_selection_audio(
+        clip_ids,
+        image_path=image_path,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        filename=filename,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -9077,6 +9077,58 @@ def selection_path_c_stills_plan_api(
         raise HTTPException(400, f"selection_path_c_stills_plan failed: {e}") from e
 
 
+class SelectionContactSheetBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    max_tiles: int = 12
+    tile_width: int = 160
+    tile_height: int = 90
+    cols: int | None = None
+
+
+@app.post("/api/edit/make_selection_contact_sheet")
+def make_selection_contact_sheet_api(
+    body: SelectionContactSheetBody,
+) -> dict[str, Any]:
+    """Contact sheet grid from selection mid-frames."""
+    ed = _ed()
+    try:
+        return ed.make_selection_contact_sheet(
+            body.clip_ids,
+            output_path=body.output_path,
+            max_tiles=body.max_tiles,
+            tile_width=body.tile_width,
+            tile_height=body.tile_height,
+            cols=body.cols,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"make_selection_contact_sheet failed: {e}") from e
+
+
+class AnalyzeSelectionAudioBody(BaseModel):
+    clip_ids: list[str]
+    image_path: str | None = None
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.5
+    filename: str = "selection_mix_analyze.wav"
+
+
+@app.post("/api/edit/analyze_selection_audio")
+def analyze_selection_audio_api(body: AnalyzeSelectionAudioBody) -> dict[str, Any]:
+    """Meter selection union mix audio."""
+    ed = _ed()
+    try:
+        return ed.analyze_selection_audio(
+            body.clip_ids,
+            image_path=body.image_path,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"analyze_selection_audio failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

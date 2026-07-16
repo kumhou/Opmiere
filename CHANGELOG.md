@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.49 — 2026-07-17
+
+### Added
+- `make_selection_contact_sheet` / `analyze_selection_audio` + **SheetSel** / **AnaAudSel**
+
 ## 0.6.48 — 2026-07-17
 
 ### Added
