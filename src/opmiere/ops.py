@@ -5891,6 +5891,102 @@ class Editor:
         r["agent_note"] = "Muted clips render black/silence; duration unchanged."
         return r
 
+    def extract_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Premiere Extract: remove selection and close gaps (ripple per track)."""
+        r = self.ripple_delete_selection(clip_ids)
+        r["agent_note"] = "Premiere Extract: removed + gaps closed (ripple)."
+        return r
+
+    def join_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Join adjacent joinable pairs within selection (left→right per track).
+
+        Same rules as join_clips: same media/speed, hard-cut adjacent, contiguous source.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        by_track: dict[str, list[Any]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            by_track.setdefault(tr.id, []).append(clip)
+        joined: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for tid, clips in by_track.items():
+            ordered = sorted(clips, key=lambda c: (int(c.start), c.id))
+            i = 0
+            while i < len(ordered) - 1:
+                a, b = ordered[i], ordered[i + 1]
+                try:
+                    r = self.join_clips(a.id, b.id)
+                    joined.append(r)
+                    a = self._find_clip(a.id)
+                    ordered[i] = a
+                    ordered.pop(i + 1)
+                except Exception as e:
+                    errors.append(
+                        {
+                            "clip_id_a": a.id,
+                            "clip_id_b": b.id,
+                            "track_id": tid,
+                            "error": str(e)[:200],
+                        }
+                    )
+                    i += 1
+        return {
+            "count": len(joined),
+            "joined": joined,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Only hard-cut contiguous same-media pairs merge.",
+        }
+
+    def set_selection_position(
+        self,
+        clip_ids: list[str],
+        x: float,
+        y: float,
+        scale: float,
+    ) -> dict[str, Any]:
+        """set_position on every selected clip (PiP box). One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(scale, (int, float)) or not (0.0 < float(scale) <= 1.0):
+            raise ValueError(f"scale must be in (0, 1], got {scale!r}")
+        if not isinstance(x, (int, float)) or not (0.0 <= float(x) <= 1.0):
+            raise ValueError(f"x must be in [0, 1], got {x!r}")
+        if not isinstance(y, (int, float)) or not (0.0 <= float(y) <= 1.0):
+            raise ValueError(f"y must be in [0, 1], got {y!r}")
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                track, clip = self._find_clip_and_track(cid)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                clip.position = {
+                    "x": float(x),
+                    "y": float(y),
+                    "scale": float(scale),
+                }
+                out.append(
+                    {
+                        "clip_id": cid,
+                        "position": dict(clip.position),
+                    }
+                )
+            return {
+                "count": len(out),
+                "clips": out,
+                "x": float(x),
+                "y": float(y),
+                "scale": float(scale),
+                "agent_note": "PiP effective on overlay video tracks only.",
+            }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

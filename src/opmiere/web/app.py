@@ -7667,6 +7667,56 @@ def mute_selection_api(body: MuteSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExtractSelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/extract_selection")
+def extract_selection_api(body: ExtractSelectionBody) -> dict[str, Any]:
+    """Extract selection (ripple remove)."""
+    ed = _ed()
+    try:
+        r = ed.extract_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"extract_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class JoinSelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/join_selection")
+def join_selection_api(body: JoinSelectionBody) -> dict[str, Any]:
+    """Join adjacent joinable pairs in selection."""
+    ed = _ed()
+    try:
+        r = ed.join_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"join_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionPositionBody(BaseModel):
+    clip_ids: list[str]
+    x: float = 1.0
+    y: float = 1.0
+    scale: float = 0.35
+
+
+@app.post("/api/edit/selection_position")
+def selection_position_api(body: SelectionPositionBody) -> dict[str, Any]:
+    """Set PiP position/scale on selection."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_position(
+            body.clip_ids, body.x, body.y, body.scale,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_position failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

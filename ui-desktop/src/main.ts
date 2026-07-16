@@ -9962,6 +9962,82 @@ async function muteSelectionUi(muted: boolean) {
   }
 }
 
+async function extractSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to extract";
+    return;
+  }
+  $("status-msg").textContent = "Extracting selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/extract_selection", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ExtractSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ExtractSel failed: ${e}`);
+    $("status-msg").textContent = `ExtractSel failed: ${e}`;
+  }
+}
+
+async function joinSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select adjacent clips to join";
+    return;
+  }
+  $("status-msg").textContent = "Joining selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/join_selection", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `JoinSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`JoinSel failed: ${e}`);
+    $("status-msg").textContent = `JoinSel failed: ${e}`;
+  }
+}
+
+async function pipSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for PiP";
+    return;
+  }
+  $("status-msg").textContent = "Setting PiP on selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/selection_position", {
+      clip_ids: ids,
+      x: 1.0,
+      y: 1.0,
+      scale: 0.35,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `PiPSel · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`PiPSel failed: ${e}`);
+    $("status-msg").textContent = `PiPSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13876,6 +13952,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pack-sel", () => void packSelectionUi());
   proBind("btn-mute-sel", () => void muteSelectionUi(true));
   proBind("btn-unmute-sel", () => void muteSelectionUi(false));
+  proBind("btn-extract-sel", () => void extractSelectionUi());
+  proBind("btn-join-sel", () => void joinSelectionUi());
+  proBind("btn-pip-sel", () => void pipSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

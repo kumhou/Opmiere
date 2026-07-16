@@ -4607,6 +4607,29 @@ def mute_selection(clip_ids: list[str], muted: bool = True) -> dict:
 
 
 @mcp.tool()
+def extract_selection(clip_ids: list[str]) -> dict:
+    """Premiere Extract: remove selection and close gaps (ripple)."""
+    return _require_editor().extract_selection(clip_ids)
+
+
+@mcp.tool()
+def join_selection(clip_ids: list[str]) -> dict:
+    """Join adjacent hard-cut same-media pairs within selection."""
+    return _require_editor().join_selection(clip_ids)
+
+
+@mcp.tool()
+def set_selection_position(
+    clip_ids: list[str],
+    x: float = 1.0,
+    y: float = 1.0,
+    scale: float = 0.35,
+) -> dict:
+    """Set PiP position/scale on selection (overlay tracks)."""
+    return _require_editor().set_selection_position(clip_ids, x, y, scale)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

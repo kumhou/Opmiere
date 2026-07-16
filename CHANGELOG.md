@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.23 — 2026-07-17
+
+### Added
+- `extract_selection` / `join_selection` / `set_selection_position` + **ExtractSel** / **JoinSel** / **PiPSel**
+
 ## 0.6.22 — 2026-07-17
 
 ### Added
