@@ -5945,6 +5945,55 @@ async function transitionsNearMarkersUi() {
   }
 }
 
+async function placeAtMarkersUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in the bin first";
+    return;
+  }
+  const ids = selectionList();
+  let trackId = ids.length ? state.clips.get(ids[0])?.trackId : "";
+  if (!trackId) {
+    // first video track from timeline state if available
+    const tracks = (state as { tracks?: { id: string; kind?: string }[] }).tracks;
+    const vt = Array.isArray(tracks)
+      ? tracks.find((t) => t.kind === "video") || tracks[0]
+      : null;
+    trackId = vt?.id || "";
+  }
+  if (!trackId) {
+    $("status-msg").textContent = "Select a clip on target track (or open project with tracks)";
+    return;
+  }
+  $("status-msg").textContent = "Placing bin media @ markers…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+      marker_count?: number;
+    }>("/api/place/at_markers", {
+      media_ids: [state.binMediaId],
+      track_id: trackId,
+      mode: "overwrite",
+      cycle: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `@Mkr · placed ${r.count ?? 0}/${r.marker_count ?? "?"}` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`@Mkr failed: ${e}`);
+    $("status-msg").textContent = `@Mkr failed: ${e}`;
+  }
+}
+
 async function showSnapPoints() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9309,6 +9358,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-beat-grid", () => void beatGridUi());
   proBind("btn-scene-grid", () => void sceneGridUi());
   proBind("btn-x-near-mkr", () => void transitionsNearMarkersUi());
+  proBind("btn-place-mkr", () => void placeAtMarkersUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());
   proBind("btn-recent-clr", () => void clearRecentUi());

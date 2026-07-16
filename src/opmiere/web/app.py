@@ -3612,6 +3612,33 @@ def transitions_near_markers_api(body: TransitionsNearMarkersBody) -> dict[str, 
     return {**r, "timeline": ed.timeline_view()}
 
 
+class PlaceAtMarkersBody(BaseModel):
+    media_ids: list[str]
+    track_id: str
+    marker_ids: list[str] | None = None
+    duration_frames: int | None = None
+    mode: str = "overwrite"
+    cycle: bool = True
+
+
+@app.post("/api/place/at_markers")
+def place_at_markers_api(body: PlaceAtMarkersBody) -> dict[str, Any]:
+    """Lay bin media onto track at each timeline marker (B-roll grid)."""
+    ed = _ed()
+    try:
+        r = ed.place_media_at_markers(
+            body.media_ids,
+            body.track_id,
+            marker_ids=body.marker_ids,
+            duration_frames=body.duration_frames,
+            mode=body.mode,
+            cycle=body.cycle,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"place_at_markers failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)

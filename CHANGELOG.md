@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.51 — 2026-07-17
+
+### Added
+- `place_media_at_markers` B-roll grid + `POST /api/place/at_markers` + MCP + desktop **@Mkr**
 ## 0.5.50 — 2026-07-17
 
 ### Added
@@ -1402,6 +1406,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

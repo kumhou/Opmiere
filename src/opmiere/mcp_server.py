@@ -1396,6 +1396,30 @@ def apply_transitions_near_markers(
 
 
 @mcp.tool()
+def place_media_at_markers(
+    media_ids: list[str],
+    track_id: str,
+    marker_ids: list[str] | None = None,
+    duration_frames: int | None = None,
+    mode: str = "overwrite",
+    cycle: bool = True,
+) -> dict:
+    """Place bin media at each timeline marker (music B-roll grid).
+
+    media_ids cycle across markers when cycle=True. duration_frames=None uses
+    media length clamped to next marker gap.
+    """
+    return _require_editor().place_media_at_markers(
+        media_ids,
+        track_id,
+        marker_ids=marker_ids,
+        duration_frames=duration_frames,
+        mode=mode,
+        cycle=cycle,
+    )
+
+
+@mcp.tool()
 def quantize_clips(
     clip_ids: list[str],
     grid_frames: int,

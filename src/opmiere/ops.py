@@ -6574,6 +6574,101 @@ class Editor:
         }.get(mode, mode)
         return result
 
+    def place_media_at_markers(
+        self,
+        media_ids: list[str],
+        track_id: str,
+        *,
+        marker_ids: list[str] | None = None,
+        duration_frames: int | None = None,
+        mode: str = "overwrite",
+        cycle: bool = True,
+    ) -> dict[str, Any]:
+        """Place bin media onto a track starting at each timeline marker.
+
+        Music B-roll / multi-shot workflow: beat_grid markers → drop clips on
+        the grid. media_ids cycle if more markers than media (cycle=True).
+        duration_frames=None uses each media's full length (clamped to gap
+        before next marker when present).
+        mode: overwrite (lift range first) | insert (place only, may overlap).
+        """
+        if not media_ids:
+            raise ValueError("media_ids is empty")
+        if mode not in ("overwrite", "insert"):
+            raise ValueError("mode must be overwrite|insert")
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        marks = sorted(marks, key=lambda m: m.frame)
+        if not marks:
+            raise ValueError("no markers — add markers or markers_from_beats first")
+
+        ids = list(dict.fromkeys(media_ids))
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            placed: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            for i, mk in enumerate(marks):
+                if not cycle and i >= len(ids):
+                    break
+                mid = ids[i % len(ids)]
+                try:
+                    media = self.project.media_by_id(mid)
+                except Exception as e:
+                    skipped.append({"marker_id": mk.id, "media_id": mid, "reason": str(e)})
+                    continue
+                start = int(mk.frame)
+                # duration: fixed, or media length, optionally clamped to next marker
+                if duration_frames is not None:
+                    dur = max(1, int(duration_frames))
+                else:
+                    dur = max(1, int(media.duration_frames))
+                if i + 1 < len(marks):
+                    gap = int(marks[i + 1].frame) - start
+                    if gap > 0:
+                        dur = min(dur, gap)
+                if dur <= 0:
+                    skipped.append({
+                        "marker_id": mk.id, "media_id": mid, "reason": "zero duration slot",
+                    })
+                    continue
+                src_in = 0
+                src_out = min(media.duration_frames, src_in + dur)
+                if src_out <= src_in:
+                    skipped.append({
+                        "marker_id": mk.id, "media_id": mid, "reason": "media too short",
+                    })
+                    continue
+                if mode == "overwrite":
+                    self._extract_time_unlocked(
+                        track_id, start, start + (src_out - src_in), ripple=False,
+                    )
+                clip = self.project.add_clip(
+                    track, media, start, src_in, src_out,
+                )
+                clip.name = f"{Path(media.path).stem}@{mk.label or mk.id}"
+                placed.append({
+                    "clip_id": clip.id,
+                    "media_id": media.id,
+                    "marker_id": mk.id,
+                    "start": clip.start,
+                    "end": clip.end,
+                    "label": mk.label,
+                })
+            return {
+                "track_id": track_id,
+                "mode": mode,
+                "count": len(placed),
+                "placed": placed,
+                "skipped": skipped[:40],
+                "skipped_count": len(skipped),
+                "marker_count": len(marks),
+                "agent_note": "Media laid on marker grid; adjust trims with slip/roll.",
+            }
+
     def apply_transitions_near_markers(
         self,
         track_id: str,
