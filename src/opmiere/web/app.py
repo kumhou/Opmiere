@@ -4046,6 +4046,77 @@ def list_cuts_post_api(body: ListCutsBody | None = None) -> dict[str, Any]:
     return _ed().list_cuts(body.track_id, kind=body.kind)
 
 
+class SafeAreaBody(BaseModel):
+    clip_id: str
+    enabled: bool = True
+    action: float = 0.90
+    title: float = 0.80
+    thickness: int = 2
+
+
+@app.post("/api/clip/safe_area")
+def clip_safe_area_api(body: SafeAreaBody) -> dict[str, Any]:
+    """Burn action/title safe rectangles on a clip."""
+    ed = _ed()
+    try:
+        r = ed.set_clip_safe_area(
+            body.clip_id,
+            enabled=body.enabled,
+            action=body.action,
+            title=body.title,
+            thickness=body.thickness,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"safe_area failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SafeAreaTrackBody(BaseModel):
+    track_id: str
+    action: float = 0.90
+    title: float = 0.80
+    thickness: int = 2
+
+
+@app.post("/api/track/safe_area")
+def track_safe_area_api(body: SafeAreaTrackBody) -> dict[str, Any]:
+    """Apply safe_area to every clip on a track."""
+    ed = _ed()
+    try:
+        r = ed.apply_safe_area_to_track(
+            body.track_id,
+            action=body.action,
+            title=body.title,
+            thickness=body.thickness,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"safe_area track failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportCutsReportBody(BaseModel):
+    path: str | None = None
+    track_id: str | None = None
+    kind: str | None = "video"
+    format: str = "json"
+
+
+@app.post("/api/export/cuts_report")
+def export_cuts_report_api(body: ExportCutsReportBody | None = None) -> dict[str, Any]:
+    """Export cut list as JSON/CSV."""
+    body = body or ExportCutsReportBody()
+    ed = _ed()
+    try:
+        return ed.export_cuts_report(
+            body.path,
+            track_id=body.track_id,
+            kind=body.kind,
+            format=body.format,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_cuts_report failed: {e}") from e
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str

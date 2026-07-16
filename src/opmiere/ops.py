@@ -4372,6 +4372,15 @@ class Editor:
             alpha = effect.get("alpha", effect.get("opacity", 0.55))
             if not isinstance(alpha, (int, float)) or not (0.0 < float(alpha) <= 1.0):
                 raise ValueError("watermark effect alpha/opacity must be in (0, 1]")
+        elif etype == "safe_area":
+            action = effect.get("action", 0.90)
+            title = effect.get("title", 0.80)
+            if not isinstance(action, (int, float)) or not (0.5 <= float(action) <= 0.99):
+                raise ValueError("safe_area 'action' must be in [0.5, 0.99]")
+            if not isinstance(title, (int, float)) or not (0.4 <= float(title) <= 0.99):
+                raise ValueError("safe_area 'title' must be in [0.4, 0.99]")
+            if float(title) > float(action):
+                raise ValueError("safe_area 'title' must be <= 'action'")
         elif etype == "subtitles":
             path = effect.get("path")
             if not isinstance(path, str) or not path.strip():
@@ -12097,6 +12106,106 @@ class Editor:
             "color": color,
         }
         return self.apply_effects_to_track(track_id, [fx], replace_types=True)
+
+    def set_clip_safe_area(
+        self,
+        clip_id: str,
+        *,
+        enabled: bool = True,
+        action: float = 0.90,
+        title: float = 0.80,
+        thickness: int = 2,
+    ) -> dict[str, Any]:
+        """Burn action/title safe rectangles on a clip (review overlay)."""
+        self._assert_clip_track_unlocked(clip_id)
+        with self._mutate():
+            clip = self._find_clip(clip_id)
+            clip.effects = [
+                e for e in (clip.effects or [])
+                if not (isinstance(e, dict) and e.get("type") == "safe_area")
+            ]
+            if enabled:
+                self._apply_effect_unlocked(
+                    clip_id,
+                    {
+                        "type": "safe_area",
+                        "action": float(action),
+                        "title": float(title),
+                        "thickness": int(thickness),
+                    },
+                )
+            return {
+                "clip_id": clip_id,
+                "enabled": enabled,
+                "action": float(action),
+                "title": float(title),
+                "agent_note": "Safe-area burn-in for review; remove before final deliverable.",
+            }
+
+    def apply_safe_area_to_track(
+        self,
+        track_id: str,
+        *,
+        action: float = 0.90,
+        title: float = 0.80,
+        thickness: int = 2,
+    ) -> dict[str, Any]:
+        """Apply safe_area overlay to every clip on a track (one undo)."""
+        fx = {
+            "type": "safe_area",
+            "action": float(action),
+            "title": float(title),
+            "thickness": int(thickness),
+        }
+        return self.apply_effects_to_track(track_id, [fx], replace_types=True)
+
+    def export_cuts_report(
+        self,
+        path: str | Path | None = None,
+        *,
+        track_id: str | None = None,
+        kind: str | None = "video",
+        format: str = "json",
+    ) -> dict[str, Any]:
+        """Write cut list as JSON or CSV (production / agent interchange)."""
+        if format not in ("json", "csv"):
+            raise ValueError("format must be json|csv")
+        data = self.list_cuts(track_id, kind=kind)
+        cuts = data.get("cuts") or []
+        if format == "json":
+            body = json.dumps(
+                {
+                    "schema": "opmiere.cuts.v1",
+                    "hard_cut_count": data.get("hard_cut_count"),
+                    "cuts": cuts,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        else:
+            rows = ["frame,kind,track_id,clip_id,name,is_hard_cut,has_transition"]
+            for c in cuts:
+                lab = str(c.get("name") or "").replace(",", " ")
+                rows.append(
+                    f"{c.get('frame')},{c.get('kind')},{c.get('track_id')},"
+                    f"{c.get('clip_id')},{lab},{int(bool(c.get('is_hard_cut')))},"
+                    f"{int(bool(c.get('has_transition')))}"
+                )
+            body = "\n".join(rows) + "\n"
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "path": written,
+            "format": format,
+            "count": len(cuts),
+            "hard_cut_count": data.get("hard_cut_count"),
+            "body": body if path is None else None,
+            "agent_note": "Cut list for transitions/razor planning; pair with list_cuts.",
+        }
 
     def list_cuts(
         self,

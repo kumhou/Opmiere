@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.82 — 2026-07-17
+
+### Added
+- `safe_area` effect (action/title safe boxes) + path-C **adapter v23** + **Safe** / **SafeT**
+- `export_cuts_report` JSON/CSV + **CutsOut**
+
 ## 0.5.81 — 2026-07-17
 
 ### Added

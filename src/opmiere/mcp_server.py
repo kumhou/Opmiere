@@ -2378,6 +2378,46 @@ def list_cuts(track_id: str | None = None, kind: str | None = "video") -> dict:
 
 
 @mcp.tool()
+def set_clip_safe_area(
+    clip_id: str,
+    enabled: bool = True,
+    action: float = 0.90,
+    title: float = 0.80,
+    thickness: int = 2,
+) -> dict:
+    """Burn action/title safe rectangles on a clip (review overlay)."""
+    return _require_editor().set_clip_safe_area(
+        clip_id, enabled=enabled, action=action, title=title, thickness=thickness,
+    )
+
+
+@mcp.tool()
+def apply_safe_area_to_track(
+    track_id: str,
+    action: float = 0.90,
+    title: float = 0.80,
+    thickness: int = 2,
+) -> dict:
+    """Apply safe_area overlay to every clip on a track."""
+    return _require_editor().apply_safe_area_to_track(
+        track_id, action=action, title=title, thickness=thickness,
+    )
+
+
+@mcp.tool()
+def export_cuts_report(
+    path: str | None = None,
+    track_id: str | None = None,
+    kind: str | None = "video",
+    format: str = "json",
+) -> dict:
+    """Export cut list as JSON or CSV file (or body when path is None)."""
+    return _require_editor().export_cuts_report(
+        path, track_id=track_id, kind=kind, format=format,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

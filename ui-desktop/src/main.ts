@@ -2804,6 +2804,89 @@ async function exportReviewPackageUi() {
   }
 }
 
+async function safeAreaSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for safe area";
+    return;
+  }
+  $("status-msg").textContent = `Safe area ×${ids.length}…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const id of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>("/api/clip/safe_area", {
+        clip_id: id,
+        enabled: true,
+        action: 0.9,
+        title: 0.8,
+      });
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent = `Safe · ${ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Safe failed: ${e}`);
+    $("status-msg").textContent = `Safe failed: ${e}`;
+  }
+}
+
+async function safeAreaTrackUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  $("status-msg").textContent = "Safe area track…";
+  try {
+    const r = await postJson<{ timeline?: TimelineView; count?: number }>(
+      "/api/track/safe_area",
+      { track_id: trackId, action: 0.9, title: 0.8 },
+    );
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    $("status-msg").textContent = `SafeT · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SafeT failed: ${e}`);
+    $("status-msg").textContent = `SafeT failed: ${e}`;
+  }
+}
+
+async function exportCutsReportUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Cuts report folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting cuts report…";
+  try {
+    const tid = trackForKind("video");
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+      hard_cut_count?: number;
+    }>("/api/export/cuts_report", {
+      path: `${dir.replace(/[\\/]+$/, "")}/cuts_report.json`,
+      track_id: tid,
+      kind: "video",
+      format: "json",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CutsOut · ${r.count ?? 0} · hard ${r.hard_cut_count ?? 0} → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`CutsOut failed: ${e}`);
+    $("status-msg").textContent = `CutsOut failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -11154,6 +11237,27 @@ window.addEventListener("DOMContentLoaded", () => {
     btnReviewPkg.addEventListener("click", () => {
       stopPlay();
       void exportReviewPackageUi();
+    });
+  }
+  const btnSafe = document.getElementById("btn-safe");
+  if (btnSafe) {
+    btnSafe.addEventListener("click", () => {
+      stopPlay();
+      void safeAreaSelectionUi();
+    });
+  }
+  const btnSafeT = document.getElementById("btn-safe-trk");
+  if (btnSafeT) {
+    btnSafeT.addEventListener("click", () => {
+      stopPlay();
+      void safeAreaTrackUi();
+    });
+  }
+  const btnCutsExp = document.getElementById("btn-cuts-exp");
+  if (btnCutsExp) {
+    btnCutsExp.addEventListener("click", () => {
+      stopPlay();
+      void exportCutsReportUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

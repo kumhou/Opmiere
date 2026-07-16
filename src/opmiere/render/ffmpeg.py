@@ -206,6 +206,35 @@ def _effect_filters(
                 f"borderw={border_width}:bordercolor={border_color}:"
                 f"x={x_expr}:y={y_expr}:expansion=none"
             )
+        elif etype == "safe_area":
+            if stream != "video":
+                continue
+            # SMPTE-style action (~90%) and title (~80%) safe rectangles.
+            try:
+                action = float(effect.get("action", 0.90))
+                title = float(effect.get("title", 0.80))
+            except (TypeError, ValueError):
+                raise ValueError("safe_area action/title must be numeric fractions") from None
+            action = max(0.5, min(0.99, action))
+            title = max(0.4, min(action, title))
+            try:
+                thickness = int(effect.get("thickness", 2))
+            except (TypeError, ValueError):
+                thickness = 2
+            thickness = max(1, min(8, thickness))
+            action_color = str(effect.get("action_color") or "green@0.55")
+            title_color = str(effect.get("title_color") or "yellow@0.45")
+
+            def _box(frac: float, color: str) -> str:
+                m = (1.0 - frac) / 2.0
+                return (
+                    f"drawbox=x=iw*{m:.4f}:y=ih*{m:.4f}:"
+                    f"w=iw*{frac:.4f}:h=ih*{frac:.4f}:"
+                    f"color={color}:t={thickness}"
+                )
+
+            parts.append(_box(action, action_color))
+            parts.append(_box(title, title_color))
         elif etype == "subtitles":
             if stream != "video":
                 continue
