@@ -691,6 +691,34 @@ def overwrite_edit(
 
 
 @mcp.tool()
+def three_point_edit(
+    media_id: str,
+    track_id: str,
+    mode: str = "overwrite",
+    fit: str = "stretch",
+    src_in: int = 0,
+    src_out: int | None = None,
+    name: str | None = None,
+) -> dict:
+    """Three-point edit: place media into work area [in, out)."""
+    return _require_editor().three_point_edit(
+        media_id,
+        track_id,
+        mode=mode,
+        fit=fit,
+        src_in=src_in,
+        src_out=src_out,
+        name=name,
+    )
+
+
+@mcp.tool()
+def media_usage_report() -> dict:
+    """Per-media usage: clip counts and timeline frames."""
+    return _require_editor().media_usage_report()
+
+
+@mcp.tool()
 def extract_time(
     track_id: str,
     start_frame: int,

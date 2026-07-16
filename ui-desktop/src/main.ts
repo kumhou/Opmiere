@@ -2417,6 +2417,70 @@ async function gradeLayerUi() {
   }
 }
 
+async function threePointEditUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin first";
+    return;
+  }
+  if (!state.workIO.ready) {
+    $("status-msg").textContent = "Set In/Out (work area) first";
+    return;
+  }
+  const trackId = trackForKind("video");
+  if (!trackId) {
+    $("status-msg").textContent = "No video track";
+    return;
+  }
+  $("status-msg").textContent = "Three-point edit…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_id?: string;
+      speed?: number;
+      dest_duration?: number;
+    }>("/api/edit/three_point", {
+      media_id: state.binMediaId,
+      track_id: trackId,
+      mode: "overwrite",
+      fit: "stretch",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `3-pt · ${r.clip_id || "ok"} · ${r.dest_duration ?? "?"}f @ ${r.speed?.toFixed?.(2) ?? r.speed ?? "?"}x`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`3-pt failed: ${e}`);
+    $("status-msg").textContent = `3-pt failed: ${e}`;
+  }
+}
+
+async function mediaUsageUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Media usage…";
+  try {
+    const r = await getJson<{
+      used_count?: number;
+      unused_count?: number;
+      count?: number;
+    }>("/api/media/usage");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Usage · used ${r.used_count ?? "?"} · unused ${r.unused_count ?? "?"} / ${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`Usage failed: ${e}`);
+    $("status-msg").textContent = `Usage failed: ${e}`;
+  }
+}
+
 async function resetTransformSelection() {
   const ids = selectionList();
   if (!ids.length) {
@@ -10678,6 +10742,19 @@ window.addEventListener("DOMContentLoaded", () => {
     btnGradeL.addEventListener("click", () => {
       stopPlay();
       void gradeLayerUi();
+    });
+  }
+  const btn3pt = document.getElementById("btn-3pt");
+  if (btn3pt) {
+    btn3pt.addEventListener("click", () => {
+      stopPlay();
+      void threePointEditUi();
+    });
+  }
+  const btnUsage = document.getElementById("btn-usage");
+  if (btnUsage) {
+    btnUsage.addEventListener("click", () => {
+      void mediaUsageUi();
     });
   }
   $("btn-snap-prev").addEventListener("click", () => {

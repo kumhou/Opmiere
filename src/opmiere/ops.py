@@ -1865,6 +1865,171 @@ class Editor:
                 "agent_note": "Overwrite edit: hole lifted then filled (no ripple).",
             }
 
+    def three_point_edit(
+        self,
+        media_id: str,
+        track_id: str,
+        *,
+        mode: str = "overwrite",
+        fit: str = "stretch",
+        src_in: int = 0,
+        src_out: int | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        """Three-point edit into the session work area [in, out).
+
+        Destination duration comes from In/Out. Source range defaults to full
+        media (or src_in/src_out). fit:
+          - stretch: rate-stretch source to fill the window (speed clamp 0.25–4)
+          - trim: use speed=1 and as much source as fits the window
+        mode: overwrite (lift window) | insert (ripple at In).
+        """
+        if mode not in ("overwrite", "insert"):
+            raise ValueError("mode must be overwrite|insert")
+        if fit not in ("stretch", "trim"):
+            raise ValueError("fit must be stretch|trim")
+        io = self.get_in_out()
+        if not io.get("ready"):
+            raise ValueError("set in and out points first (set_in_point / set_out_point)")
+        dest_start = int(io["in_frame"])
+        dest_end = int(io["out_frame"])
+        dest_dur = dest_end - dest_start
+        if dest_dur <= 0:
+            raise ValueError("work area duration must be positive")
+
+        media = self.project.media_by_id(media_id)
+        track = self.project.track_by_id(track_id)
+        if track.locked:
+            raise ValueError(f"track {track.id} is locked")
+        if track.kind == "video" and media.kind == "audio":
+            raise ValueError("cannot place audio media on video track")
+        if track.kind == "audio" and media.kind == "image":
+            raise ValueError("cannot place image media on audio track")
+
+        sin = max(0, int(src_in))
+        max_out = max(1, int(media.duration_frames or 1))
+        sout = int(src_out) if src_out is not None else max_out
+        sout = max(sin + 1, min(sout, max_out))
+        src_len = sout - sin
+        speed = 1.0
+        used_src_out = sout
+        if fit == "stretch":
+            raw = src_len / float(dest_dur)
+            speed = max(0.25, min(4.0, raw))
+            # with speed, timeline footprint = src_len / speed ≈ dest_dur when in range
+            # place full source range; set speed so footprint matches dest_dur
+            speed = src_len / float(dest_dur)
+            speed = max(0.25, min(4.0, speed))
+        else:
+            # trim: take first dest_dur source frames (or all if shorter)
+            used_src_out = min(sout, sin + dest_dur)
+            src_len = used_src_out - sin
+            if src_len < dest_dur:
+                # short source — stretch up to fill if possible
+                speed = max(0.25, min(4.0, src_len / float(dest_dur)))
+            else:
+                speed = 1.0
+                used_src_out = sin + dest_dur
+
+        with self._mutate():
+            if mode == "overwrite":
+                lifted = self._extract_time_unlocked(
+                    track_id, dest_start, dest_end, ripple=False,
+                )
+            else:
+                lifted = None
+                # ripple hole for dest_dur
+                for c in track.clips_in_order():
+                    if c.start >= dest_start:
+                        c.start = c.start + dest_dur
+                        if c.transition_in is not None:
+                            c.transition_in = None
+                    elif c.start < dest_start < c.end:
+                        _left, right = self._split_clip_unlocked(c.id, dest_start)
+                        right.start = dest_start + dest_dur
+                        if right.transition_in is not None:
+                            right.transition_in = None
+
+            clip = self.project.add_clip(
+                track, media, dest_start, sin, used_src_out,
+            )
+            clip.speed = float(speed)
+            if name:
+                clip.name = name
+            elif media.path:
+                clip.name = Path(media.path).stem
+            # if stretch left a shorter footprint due to clamp, note it
+            footprint = clip.timeline_duration_frames
+            return {
+                "clip_id": clip.id,
+                "track_id": track_id,
+                "media_id": media_id,
+                "mode": mode,
+                "fit": fit,
+                "dest_start": dest_start,
+                "dest_end": dest_end,
+                "dest_duration": dest_dur,
+                "src_in": sin,
+                "src_out": used_src_out,
+                "speed": clip.speed,
+                "timeline_duration": footprint,
+                "lift": lifted,
+                "agent_note": (
+                    "Three-point edit into work area. "
+                    "Verify speed clamp if source/dest ratio extreme."
+                ),
+            }
+
+    def media_usage_report(self) -> dict[str, Any]:
+        """Per-media usage: clips, total timeline frames, tracks (read-only)."""
+        usage: dict[str, dict[str, Any]] = {}
+        for m in self.project.media:
+            usage[m.id] = {
+                "media_id": m.id,
+                "path": m.path,
+                "kind": m.kind,
+                "duration_frames": m.duration_frames,
+                "clip_count": 0,
+                "timeline_frames": 0,
+                "tracks": [],
+                "clip_ids": [],
+            }
+        for tr in self.project.tracks:
+            for c in tr.clips:
+                row = usage.get(c.media)
+                if row is None:
+                    row = {
+                        "media_id": c.media,
+                        "path": None,
+                        "kind": "missing",
+                        "duration_frames": 0,
+                        "clip_count": 0,
+                        "timeline_frames": 0,
+                        "tracks": [],
+                        "clip_ids": [],
+                    }
+                    usage[c.media] = row
+                row["clip_count"] += 1
+                row["timeline_frames"] += int(c.timeline_duration_frames)
+                row["clip_ids"].append(c.id)
+                if tr.id not in row["tracks"]:
+                    row["tracks"].append(tr.id)
+        items = sorted(
+            usage.values(),
+            key=lambda r: (-int(r["timeline_frames"]), -int(r["clip_count"])),
+        )
+        unused = [r for r in items if r["clip_count"] == 0]
+        return {
+            "count": len(items),
+            "used_count": len(items) - len(unused),
+            "unused_count": len(unused),
+            "media": items,
+            "unused_ids": [r["media_id"] for r in unused],
+            "agent_note": (
+                "Bin inventory by timeline usage. purge_unused_media for unused_ids."
+            ),
+        }
+
     def _extract_time_unlocked(
         self,
         track_id: str,

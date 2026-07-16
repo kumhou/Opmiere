@@ -1850,6 +1850,47 @@ def overwrite_edit_api(body: OverwriteEditBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ThreePointBody(BaseModel):
+    media_id: str
+    track_id: str | None = None
+    mode: str = "overwrite"
+    fit: str = "stretch"
+    src_in: int = 0
+    src_out: int | None = None
+    name: str | None = None
+
+
+@app.post("/api/edit/three_point")
+def three_point_edit_api(body: ThreePointBody) -> dict[str, Any]:
+    """Three-point edit into work area [in, out)."""
+    ed = _ed()
+    tid = body.track_id
+    if not tid:
+        vids = [t for t in ed.project.tracks if t.kind == "video"]
+        if not vids:
+            raise HTTPException(400, "no video track")
+        tid = vids[0].id
+    try:
+        r = ed.three_point_edit(
+            body.media_id,
+            tid,
+            mode=body.mode,
+            fit=body.fit,
+            src_in=body.src_in,
+            src_out=body.src_out,
+            name=body.name,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"three_point_edit failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/media/usage")
+def media_usage_api() -> dict[str, Any]:
+    """Per-media timeline usage report."""
+    return _ed().media_usage_report()
+
+
 @app.post("/api/extract_time")
 def extract_time_api(body: ExtractTimeBody) -> dict[str, Any]:
     ed = _ed()

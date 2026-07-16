@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.75 — 2026-07-17
+
+### Added
+- `three_point_edit` (work area In/Out + bin media, stretch/trim) + API/MCP/desktop **3-pt**
+- `media_usage_report` + **Usage**
+
 ## 0.5.74 — 2026-07-17
 
 ### Added
