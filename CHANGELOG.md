@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.37 — 2026-07-17
+
+### Added
+- `compression_selection` / `noise_reduction_selection` / `audio_eq_selection` + **CompSel** / **NRSel** / **EQSel**
+
 ## 0.6.36 — 2026-07-17
 
 ### Added

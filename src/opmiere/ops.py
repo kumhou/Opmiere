@@ -7310,6 +7310,107 @@ class Editor:
             ),
         }
 
+    def compression_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        ratio: float = 4.0,
+        threshold_db: float = -18.0,
+        attack_ms: float = 20.0,
+        release_ms: float = 250.0,
+        makeup_db: float = 0.0,
+    ) -> dict[str, Any]:
+        """apply_compression on each selected clip (dialogue leveling)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_compression(
+                    cid,
+                    ratio=float(ratio),
+                    threshold_db=float(threshold_db),
+                    attack_ms=float(attack_ms),
+                    release_ms=float(release_ms),
+                    makeup_db=float(makeup_db),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "ratio": float(ratio),
+            "threshold_db": float(threshold_db),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Compression on selection; best on audio/dialogue clips.",
+        }
+
+    def noise_reduction_selection(
+        self,
+        clip_ids: list[str],
+        amount: float = 12.0,
+    ) -> dict[str, Any]:
+        """apply_noise_reduction on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_noise_reduction(cid, amount=float(amount))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "amount": float(amount),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Noise reduction on selection (afftdn-style).",
+        }
+
+    def audio_eq_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        frequency_hz: float = 1000.0,
+        gain_db: float = 0.0,
+        q: float = 1.0,
+        replace: bool = False,
+    ) -> dict[str, Any]:
+        """apply_audio_eq band on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_audio_eq(
+                    cid,
+                    frequency_hz=float(frequency_hz),
+                    gain_db=float(gain_db),
+                    q=float(q),
+                    replace=bool(replace),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "frequency_hz": float(frequency_hz),
+            "gain_db": float(gain_db),
+            "q": float(q),
+            "replace": bool(replace),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Parametric EQ band on selection; replace clears prior bands.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

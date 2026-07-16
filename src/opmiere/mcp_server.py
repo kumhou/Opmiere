@@ -4983,6 +4983,50 @@ def strip_selection_path_c_unmapped(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def compression_selection(
+    clip_ids: list[str],
+    ratio: float = 4.0,
+    threshold_db: float = -18.0,
+    attack_ms: float = 20.0,
+    release_ms: float = 250.0,
+    makeup_db: float = 0.0,
+) -> dict:
+    """Apply audio compression to selection."""
+    return _require_editor().compression_selection(
+        clip_ids,
+        ratio=ratio,
+        threshold_db=threshold_db,
+        attack_ms=attack_ms,
+        release_ms=release_ms,
+        makeup_db=makeup_db,
+    )
+
+
+@mcp.tool()
+def noise_reduction_selection(clip_ids: list[str], amount: float = 12.0) -> dict:
+    """Apply noise reduction to selection."""
+    return _require_editor().noise_reduction_selection(clip_ids, amount=amount)
+
+
+@mcp.tool()
+def audio_eq_selection(
+    clip_ids: list[str],
+    frequency_hz: float = 1000.0,
+    gain_db: float = 0.0,
+    q: float = 1.0,
+    replace: bool = False,
+) -> dict:
+    """Apply parametric EQ band to selection."""
+    return _require_editor().audio_eq_selection(
+        clip_ids,
+        frequency_hz=frequency_hz,
+        gain_db=gain_db,
+        q=q,
+        replace=replace,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

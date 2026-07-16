@@ -8425,6 +8425,74 @@ def strip_selection_path_c_unmapped_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class CompressionSelectionBody(BaseModel):
+    clip_ids: list[str]
+    ratio: float = 4.0
+    threshold_db: float = -18.0
+    attack_ms: float = 20.0
+    release_ms: float = 250.0
+    makeup_db: float = 0.0
+
+
+@app.post("/api/edit/compression_selection")
+def compression_selection_api(body: CompressionSelectionBody) -> dict[str, Any]:
+    """Audio compression on selection."""
+    ed = _ed()
+    try:
+        r = ed.compression_selection(
+            body.clip_ids,
+            ratio=body.ratio,
+            threshold_db=body.threshold_db,
+            attack_ms=body.attack_ms,
+            release_ms=body.release_ms,
+            makeup_db=body.makeup_db,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"compression_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class NoiseReductionSelectionBody(BaseModel):
+    clip_ids: list[str]
+    amount: float = 12.0
+
+
+@app.post("/api/edit/noise_reduction_selection")
+def noise_reduction_selection_api(body: NoiseReductionSelectionBody) -> dict[str, Any]:
+    """Noise reduction on selection."""
+    ed = _ed()
+    try:
+        r = ed.noise_reduction_selection(body.clip_ids, amount=body.amount)
+    except Exception as e:
+        raise HTTPException(400, f"noise_reduction_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class AudioEqSelectionBody(BaseModel):
+    clip_ids: list[str]
+    frequency_hz: float = 1000.0
+    gain_db: float = 0.0
+    q: float = 1.0
+    replace: bool = False
+
+
+@app.post("/api/edit/audio_eq_selection")
+def audio_eq_selection_api(body: AudioEqSelectionBody) -> dict[str, Any]:
+    """Parametric EQ band on selection."""
+    ed = _ed()
+    try:
+        r = ed.audio_eq_selection(
+            body.clip_ids,
+            frequency_hz=body.frequency_hz,
+            gain_db=body.gain_db,
+            q=body.q,
+            replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"audio_eq_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

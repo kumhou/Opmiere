@@ -11072,6 +11072,94 @@ async function stripSelectionPathCUnmappedUi() {
   }
 }
 
+async function compressionSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for compression";
+    return;
+  }
+  $("status-msg").textContent = "Applying compression…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/compression_selection", {
+      clip_ids: ids,
+      ratio: 4.0,
+      threshold_db: -18.0,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CompSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`CompSel failed: ${e}`);
+    $("status-msg").textContent = `CompSel failed: ${e}`;
+  }
+}
+
+async function noiseReductionSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for noise reduction";
+    return;
+  }
+  $("status-msg").textContent = "Applying noise reduction…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/noise_reduction_selection", {
+      clip_ids: ids,
+      amount: 12.0,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `NRSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`NRSel failed: ${e}`);
+    $("status-msg").textContent = `NRSel failed: ${e}`;
+  }
+}
+
+async function audioEqSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for EQ";
+    return;
+  }
+  $("status-msg").textContent = "Applying EQ…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/audio_eq_selection", {
+      clip_ids: ids,
+      frequency_hz: 1000,
+      gain_db: 3.0,
+      q: 1.0,
+      replace: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `EQSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`EQSel failed: ${e}`);
+    $("status-msg").textContent = `EQSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15034,6 +15122,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-wb-sel", () => void whiteBalanceSelectionUi());
   proBind("btn-clr-fx-sel", () => void clearSelectionEffectsUi());
   proBind("btn-strip-pathc-sel", () => void stripSelectionPathCUnmappedUi());
+  proBind("btn-comp-sel", () => void compressionSelectionUi());
+  proBind("btn-nr-sel", () => void noiseReductionSelectionUi());
+  proBind("btn-eq-sel", () => void audioEqSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
