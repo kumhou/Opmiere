@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.77 — 2026-07-16
+
+### Added
+- Desktop **Limits** — check_delivery_limits for honest fps/res claims
+
 ## 0.4.76 — 2026-07-16
 
 ### Added
