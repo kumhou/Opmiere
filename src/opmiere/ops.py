@@ -8537,6 +8537,120 @@ class Editor:
             "agent_note": "Track mix state for selection lanes.",
         }
 
+    def _selection_track_ids(self, clip_ids: list[str]) -> list[str]:
+        ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in ids:
+                ids.append(tr.id)
+        return ids
+
+    def raise_selection_tracks(
+        self,
+        clip_ids: list[str],
+        *,
+        steps: int = 1,
+    ) -> dict[str, Any]:
+        """Move selection tracks later in list (video z-order up). One undo per step."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        n = max(1, int(steps))
+        track_ids = self._selection_track_ids(clip_ids)
+        # raise high indices first so lower ones can follow
+        order_ids = [t.id for t in self.project.tracks]
+        ranked = sorted(
+            track_ids,
+            key=lambda tid: order_ids.index(tid) if tid in order_ids else 0,
+            reverse=True,
+        )
+        moves: list[dict[str, Any]] = []
+        for _ in range(n):
+            for tid in ranked:
+                r = self.move_track(tid, delta=1)
+                moves.append(r)
+        return {
+            "steps": n,
+            "track_ids": track_ids,
+            "count": len(moves),
+            "moves": moves,
+            "order": [t.id for t in self.project.tracks],
+            "agent_note": "Later list index = higher overlay for video tracks.",
+        }
+
+    def lower_selection_tracks(
+        self,
+        clip_ids: list[str],
+        *,
+        steps: int = 1,
+    ) -> dict[str, Any]:
+        """Move selection tracks earlier in list (video z-order down)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        n = max(1, int(steps))
+        track_ids = self._selection_track_ids(clip_ids)
+        # lower low indices first
+        order_ids = [t.id for t in self.project.tracks]
+        ranked = sorted(
+            track_ids,
+            key=lambda tid: order_ids.index(tid) if tid in order_ids else 0,
+        )
+        moves: list[dict[str, Any]] = []
+        for _ in range(n):
+            for tid in ranked:
+                r = self.move_track(tid, delta=-1)
+                moves.append(r)
+        return {
+            "steps": n,
+            "track_ids": track_ids,
+            "count": len(moves),
+            "moves": moves,
+            "order": [t.id for t in self.project.tracks],
+            "agent_note": "Earlier list index = lower underlays for video tracks.",
+        }
+
+    def rename_selection_tracks(
+        self,
+        clip_ids: list[str],
+        *,
+        name: str | None = None,
+        prefix: str | None = None,
+        suffix: str | None = None,
+    ) -> dict[str, Any]:
+        """Rename tracks touched by selection.
+
+        name: set all to same label.
+        prefix/suffix: prepend/append to existing name or track id.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if name is None and prefix is None and suffix is None:
+            raise ValueError("provide name and/or prefix/suffix")
+        track_ids = self._selection_track_ids(clip_ids)
+        with self._mutate():
+            renamed: list[dict[str, Any]] = []
+            for tid in track_ids:
+                tr = self.project.track_by_id(tid)
+                old = tr.name
+                if name is not None:
+                    new = str(name).strip() or None
+                else:
+                    base = old or tid
+                    new = f"{prefix or ''}{base}{suffix or ''}".strip() or None
+                tr.name = new
+                renamed.append(
+                    {
+                        "track_id": tid,
+                        "from": old,
+                        "to": new,
+                        "kind": tr.kind,
+                    }
+                )
+            return {
+                "count": len(renamed),
+                "renamed": renamed,
+                "agent_note": "Track labels are UI-only; render uses kind/order.",
+            }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

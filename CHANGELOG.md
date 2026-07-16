@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.47 — 2026-07-17
+
+### Added
+- `raise_selection_tracks` / `lower_selection_tracks` / `rename_selection_tracks` + **RaiseTrk** / **LowerTrk** / **NameTrk**
+
 ## 0.6.46 — 2026-07-17
 
 ### Added

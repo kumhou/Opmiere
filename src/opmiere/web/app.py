@@ -8979,6 +8979,61 @@ def selection_track_states_api(body: SelectionTrackStatesBody) -> dict[str, Any]
         raise HTTPException(400, f"selection_track_states failed: {e}") from e
 
 
+class RaiseSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+    steps: int = 1
+
+
+@app.post("/api/edit/raise_selection_tracks")
+def raise_selection_tracks_api(body: RaiseSelectionTracksBody) -> dict[str, Any]:
+    """Raise selection tracks in z-order."""
+    ed = _ed()
+    try:
+        r = ed.raise_selection_tracks(body.clip_ids, steps=body.steps)
+    except Exception as e:
+        raise HTTPException(400, f"raise_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LowerSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+    steps: int = 1
+
+
+@app.post("/api/edit/lower_selection_tracks")
+def lower_selection_tracks_api(body: LowerSelectionTracksBody) -> dict[str, Any]:
+    """Lower selection tracks in z-order."""
+    ed = _ed()
+    try:
+        r = ed.lower_selection_tracks(body.clip_ids, steps=body.steps)
+    except Exception as e:
+        raise HTTPException(400, f"lower_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RenameSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+    name: str | None = None
+    prefix: str | None = None
+    suffix: str | None = None
+
+
+@app.post("/api/edit/rename_selection_tracks")
+def rename_selection_tracks_api(body: RenameSelectionTracksBody) -> dict[str, Any]:
+    """Rename tracks touched by selection."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection_tracks(
+            body.clip_ids,
+            name=body.name,
+            prefix=body.prefix,
+            suffix=body.suffix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rename_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

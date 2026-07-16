@@ -11806,6 +11806,78 @@ async function selectionTrackStatesUi() {
   }
 }
 
+async function raiseSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to raise tracks";
+    return;
+  }
+  $("status-msg").textContent = "Raising selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/raise_selection_tracks", { clip_ids: ids, steps: 1 });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RaiseTrk · moves ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`RaiseTrk failed: ${e}`);
+    $("status-msg").textContent = `RaiseTrk failed: ${e}`;
+  }
+}
+
+async function lowerSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to lower tracks";
+    return;
+  }
+  $("status-msg").textContent = "Lowering selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/lower_selection_tracks", { clip_ids: ids, steps: 1 });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `LowerTrk · moves ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`LowerTrk failed: ${e}`);
+    $("status-msg").textContent = `LowerTrk failed: ${e}`;
+  }
+}
+
+async function renameSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to rename tracks";
+    return;
+  }
+  $("status-msg").textContent = "Renaming selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/rename_selection_tracks", {
+      clip_ids: ids,
+      prefix: "Sel-",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `NameTrk · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`NameTrk failed: ${e}`);
+    $("status-msg").textContent = `NameTrk failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15799,6 +15871,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-solo-trk-sel", () => void soloSelectionTracksUi());
   proBind("btn-unsolo-trk-sel", () => void unsoloSelectionTracksUi());
   proBind("btn-trk-state-sel", () => void selectionTrackStatesUi());
+  proBind("btn-raise-trk-sel", () => void raiseSelectionTracksUi());
+  proBind("btn-lower-trk-sel", () => void lowerSelectionTracksUi());
+  proBind("btn-rename-trk-sel", () => void renameSelectionTracksUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

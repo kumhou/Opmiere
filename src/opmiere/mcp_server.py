@@ -5282,6 +5282,31 @@ def selection_track_states(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def raise_selection_tracks(clip_ids: list[str], steps: int = 1) -> dict:
+    """Raise selection tracks later in list (higher video z-order)."""
+    return _require_editor().raise_selection_tracks(clip_ids, steps=steps)
+
+
+@mcp.tool()
+def lower_selection_tracks(clip_ids: list[str], steps: int = 1) -> dict:
+    """Lower selection tracks earlier in list (lower video z-order)."""
+    return _require_editor().lower_selection_tracks(clip_ids, steps=steps)
+
+
+@mcp.tool()
+def rename_selection_tracks(
+    clip_ids: list[str],
+    name: str | None = None,
+    prefix: str | None = None,
+    suffix: str | None = None,
+) -> dict:
+    """Rename tracks touched by selection."""
+    return _require_editor().rename_selection_tracks(
+        clip_ids, name=name, prefix=prefix, suffix=suffix,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
