@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "opmiere-desktop"
-version = "0.5.34"
+version = "0.5.35"
 dependencies = [
  "serde",
  "serde_json",

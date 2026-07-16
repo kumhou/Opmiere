@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.35 — 2026-07-17
+
+### Added
+- Baseline **0.5.35**: dual-surface NLE shell production-ready for dogfood
+
 ## 0.5.34 — 2026-07-17
 
 ### Added
