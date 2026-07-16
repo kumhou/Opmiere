@@ -8932,6 +8932,53 @@ def mute_selection_tracks_api(body: MuteSelectionTracksBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SoloSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+    exclusive: bool = True
+
+
+@app.post("/api/edit/solo_selection_tracks")
+def solo_selection_tracks_api(body: SoloSelectionTracksBody) -> dict[str, Any]:
+    """Solo tracks touched by selection."""
+    ed = _ed()
+    try:
+        r = ed.solo_selection_tracks(
+            body.clip_ids, exclusive=body.exclusive,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"solo_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class UnsoloSelectionTracksBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/unsolo_selection_tracks")
+def unsolo_selection_tracks_api(body: UnsoloSelectionTracksBody) -> dict[str, Any]:
+    """Clear solo on selection tracks."""
+    ed = _ed()
+    try:
+        r = ed.unsolo_selection_tracks(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"unsolo_selection_tracks failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionTrackStatesBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_track_states")
+def selection_track_states_api(body: SelectionTrackStatesBody) -> dict[str, Any]:
+    """Track mute/solo/lock for selection lanes."""
+    ed = _ed()
+    try:
+        return ed.selection_track_states(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_track_states failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

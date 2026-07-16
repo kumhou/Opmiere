@@ -8432,6 +8432,111 @@ class Editor:
                 "agent_note": "Track-level mute (not clip.muted).",
             }
 
+    def solo_selection_tracks(
+        self,
+        clip_ids: list[str],
+        *,
+        exclusive: bool = True,
+    ) -> dict[str, Any]:
+        """Solo tracks touched by selection.
+
+        exclusive=True: clear solo on other tracks of each involved kind first.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        track_ids: list[str] = []
+        kinds: set[str] = set()
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in track_ids:
+                track_ids.append(tr.id)
+                kinds.add(tr.kind)
+        with self._mutate():
+            if exclusive:
+                for t in self.project.tracks:
+                    if t.kind in kinds:
+                        t.solo = t.id in track_ids
+            else:
+                for tid in track_ids:
+                    self.project.track_by_id(tid).solo = True
+            out = [
+                {
+                    "track_id": tid,
+                    "solo": bool(self.project.track_by_id(tid).solo),
+                    "kind": self.project.track_by_id(tid).kind,
+                }
+                for tid in track_ids
+            ]
+            return {
+                "exclusive": bool(exclusive),
+                "count": len(out),
+                "tracks": out,
+                "agent_note": "Track solo for selection lanes; path-C respects solo.",
+            }
+
+    def unsolo_selection_tracks(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Clear solo on tracks touched by selection. One undo."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        track_ids: list[str] = []
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id not in track_ids:
+                track_ids.append(tr.id)
+        with self._mutate():
+            out: list[dict[str, Any]] = []
+            for tid in track_ids:
+                tr = self.project.track_by_id(tid)
+                was = bool(tr.solo)
+                tr.solo = False
+                out.append(
+                    {
+                        "track_id": tid,
+                        "was_solo": was,
+                        "solo": False,
+                        "kind": tr.kind,
+                    }
+                )
+            return {
+                "count": len(out),
+                "tracks": out,
+                "agent_note": "Selection tracks unsoloed.",
+            }
+
+    def selection_track_states(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Muted/solo/locked state for tracks touched by selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for cid in dict.fromkeys(clip_ids):
+            tr, _ = self._find_clip_and_track(cid)
+            if tr.id in seen:
+                continue
+            seen.add(tr.id)
+            rows.append(
+                {
+                    "track_id": tr.id,
+                    "kind": tr.kind,
+                    "name": tr.name,
+                    "muted": bool(tr.muted),
+                    "solo": bool(tr.solo),
+                    "locked": bool(tr.locked),
+                    "clip_count": len(tr.clips),
+                }
+            )
+        return {
+            "count": len(rows),
+            "tracks": rows,
+            "agent_note": "Track mix state for selection lanes.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

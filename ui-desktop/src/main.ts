@@ -11732,6 +11732,80 @@ async function muteSelectionTracksUi(muted: boolean) {
   }
 }
 
+async function soloSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to solo tracks";
+    return;
+  }
+  $("status-msg").textContent = "Soloing selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/solo_selection_tracks", {
+      clip_ids: ids,
+      exclusive: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SoloTrk · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SoloTrk failed: ${e}`);
+    $("status-msg").textContent = `SoloTrk failed: ${e}`;
+  }
+}
+
+async function unsoloSelectionTracksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to unsolo tracks";
+    return;
+  }
+  $("status-msg").textContent = "Unsoloing selection tracks…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/unsolo_selection_tracks", { clip_ids: ids });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `UnsoloTrk · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`UnsoloTrk failed: ${e}`);
+    $("status-msg").textContent = `UnsoloTrk failed: ${e}`;
+  }
+}
+
+async function selectionTrackStatesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for track state";
+    return;
+  }
+  $("status-msg").textContent = "Selection track states…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      tracks?: Array<{ muted?: boolean; solo?: boolean; locked?: boolean }>;
+    }>("/api/edit/selection_track_states", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    const n = r.count ?? 0;
+    const m = (r.tracks || []).filter((t) => t.muted).length;
+    const s = (r.tracks || []).filter((t) => t.solo).length;
+    const l = (r.tracks || []).filter((t) => t.locked).length;
+    $("status-msg").textContent =
+      `Trk? · ${n} mute ${m} solo ${s} lock ${l}`;
+  } catch (e) {
+    setProOut(`Trk? failed: ${e}`);
+    $("status-msg").textContent = `Trk? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15722,6 +15796,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-lock-trk-sel", () => void lockSelectionTracksUi());
   proBind("btn-mute-trk-sel", () => void muteSelectionTracksUi(true));
   proBind("btn-unmute-trk-sel", () => void muteSelectionTracksUi(false));
+  proBind("btn-solo-trk-sel", () => void soloSelectionTracksUi());
+  proBind("btn-unsolo-trk-sel", () => void unsoloSelectionTracksUi());
+  proBind("btn-trk-state-sel", () => void selectionTrackStatesUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

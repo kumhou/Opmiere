@@ -5259,6 +5259,29 @@ def mute_selection_tracks(clip_ids: list[str], muted: bool = True) -> dict:
 
 
 @mcp.tool()
+def solo_selection_tracks(
+    clip_ids: list[str],
+    exclusive: bool = True,
+) -> dict:
+    """Solo tracks touched by selection."""
+    return _require_editor().solo_selection_tracks(
+        clip_ids, exclusive=exclusive,
+    )
+
+
+@mcp.tool()
+def unsolo_selection_tracks(clip_ids: list[str]) -> dict:
+    """Clear solo on tracks touched by selection."""
+    return _require_editor().unsolo_selection_tracks(clip_ids)
+
+
+@mcp.tool()
+def selection_track_states(clip_ids: list[str]) -> dict:
+    """Report mute/solo/locked for tracks touched by selection."""
+    return _require_editor().selection_track_states(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

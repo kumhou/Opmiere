@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.46 — 2026-07-17
+
+### Added
+- `solo_selection_tracks` / `unsolo_selection_tracks` / `selection_track_states` + **SoloTrk** / **UnsoloTrk** / **Trk?**
+
 ## 0.6.45 — 2026-07-17
 
 ### Added
