@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.92 — 2026-07-17
+
+### Added
+- OpenShot adapter **v4**: blur, color brightness, fade alpha ramps
+- Test: `tests/test_openshot_adapter_v4_104.py`
+
 ## 0.4.91 — 2026-07-17
 
 ### Added
