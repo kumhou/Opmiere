@@ -2018,6 +2018,12 @@ def export_otio_json(path: str | None = None, title: str | None = None) -> dict:
 
 
 @mcp.tool()
+def export_edit_manifest(path: str | None = None) -> dict:
+    """Compact JSON edit manifest (tracks/clips/effects/markers)."""
+    return _require_editor().export_edit_manifest(path)
+
+
+@mcp.tool()
 def import_otio_json(
     path: str | None = None,
     text: str | None = None,

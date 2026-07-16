@@ -3367,6 +3367,22 @@ def export_otio_api(body: InterchangeExportBody | None = None) -> dict[str, Any]
         raise HTTPException(500, f"export_otio failed: {e}") from e
 
 
+class ExportManifestBody(BaseModel):
+    path: str | None = None
+
+
+@app.post("/api/export/manifest")
+def export_manifest_api(body: ExportManifestBody | None = None) -> dict[str, Any]:
+    """Export compact JSON edit manifest (tracks/clips/effects/markers)."""
+    body = body or ExportManifestBody()
+    ed = _ed()
+    path = body.path or str(_desktop_export_dir() / "edit_manifest.json")
+    try:
+        return ed.export_edit_manifest(path)
+    except Exception as e:
+        raise HTTPException(500, f"export_manifest failed: {e}") from e
+
+
 @app.post("/api/import/otio")
 def import_otio_api(body: ImportOtioBody) -> dict[str, Any]:
     """Import simplified OTIO-like JSON (pair of export_otio)."""

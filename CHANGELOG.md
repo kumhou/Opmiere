@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.62 — 2026-07-17
+
+### Added
+- `export_edit_manifest` + API/MCP/desktop **Manifest**
+- path-C **adapter v19**: compression / noise_reduction / audio_eq in plan
 ## 0.5.61 — 2026-07-17
 
 ### Added
@@ -1467,6 +1472,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

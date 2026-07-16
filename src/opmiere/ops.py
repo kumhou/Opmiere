@@ -9273,6 +9273,95 @@ class Editor:
                 ),
             }
 
+    def export_edit_manifest(
+        self,
+        path: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """JSON edit manifest: tracks, clips, markers, effects (agent handoff).
+
+        Not a full OTIO — compact SoT snapshot for review/debug/CI golden tests.
+        """
+        fps = float(self.project.timebase.fps or 30.0)
+        tracks: list[dict[str, Any]] = []
+        for tr in self.project.tracks:
+            clips: list[dict[str, Any]] = []
+            for c in tr.clips_in_order():
+                media = self.project.media_by_id(c.media)
+                clips.append({
+                    "id": c.id,
+                    "name": c.name,
+                    "media_id": c.media,
+                    "media_path": media.path,
+                    "media_kind": media.kind,
+                    "start": c.start,
+                    "end": c.end,
+                    "src_in": c.src_in,
+                    "src_out": c.src_out,
+                    "speed": c.speed,
+                    "muted": c.muted,
+                    "color": c.color,
+                    "link_group": c.link_group,
+                    "transition_in": dict(c.transition_in) if c.transition_in else None,
+                    "position": dict(c.position) if c.position else None,
+                    "effects": [dict(e) for e in (c.effects or []) if isinstance(e, dict)],
+                })
+            tracks.append({
+                "id": tr.id,
+                "kind": tr.kind,
+                "name": tr.name,
+                "muted": tr.muted,
+                "solo": tr.solo,
+                "locked": tr.locked,
+                "duck": dict(tr.duck) if tr.duck else None,
+                "clips": clips,
+            })
+        markers = [
+            {
+                "id": m.id,
+                "frame": m.frame,
+                "label": m.label,
+                "color": m.color,
+                "time_seconds": round(m.frame / fps, 3),
+            }
+            for m in sorted(self.project.markers, key=lambda x: x.frame)
+        ]
+        doc = {
+            "schema": "opmiere.edit_manifest.v1",
+            "project_id": self.project.id,
+            "fps": fps,
+            "width": self.project.resolution.w,
+            "height": self.project.resolution.h,
+            "duration_frames": self.duration_frames(),
+            "tracks": tracks,
+            "markers": markers,
+            "media": [
+                {
+                    "id": m.id,
+                    "path": m.path,
+                    "kind": m.kind,
+                    "duration_frames": m.duration_frames,
+                    "has_audio": m.has_audio,
+                    "origin": m.origin,
+                }
+                for m in self.project.media
+            ],
+        }
+        body = json.dumps(doc, indent=2, ensure_ascii=False)
+        written = None
+        if path is not None:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+            written = str(p.resolve())
+        return {
+            "path": written,
+            "body": body,
+            "clip_count": sum(len(t["clips"]) for t in tracks),
+            "marker_count": len(markers),
+            "track_count": len(tracks),
+            "agent_note": "Edit manifest v1 — pair with export_otio for interchange.",
+        }
+
     def agent_preflight(self) -> dict[str, Any]:
         """Single agent call: media + validate + proxy + duration + next steps.
 

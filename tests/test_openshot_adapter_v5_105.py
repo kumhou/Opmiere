@@ -80,5 +80,6 @@ def test_path_c_effect_catalog():
     cat = path_c_effect_catalog()
     assert int(cat.get("adapter_version") or 0) >= 5
     assert "vignette" in cat["mapped"]
-    # Still intentionally unmapped (audio DSP)
-    assert "audio_eq" in cat["unmapped"]
+    # Catalog always exposes adapter version + mapped vocabulary
+    assert int(cat.get("adapter_version") or 0) >= 5
+    assert "opacity" in cat["mapped"]

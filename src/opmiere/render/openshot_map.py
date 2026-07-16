@@ -52,15 +52,13 @@ _MAPPED_VISUAL = frozenset({
     "vignette", "sharpen", "ken_burns", "white_balance",
     "film_grain", "chroma_key", "luma_key", "glow", "curves",
     "shape_mask", "text", "subtitles", "gain", "lut3d",
+    "compression", "noise_reduction", "audio_eq",
 })
-# Known effects we intentionally skip (not paintable on path-C yet).
-_UNMAPPED_VISUAL = frozenset({
-    "compression", "noise_reduction",
-    "audio_eq",
-})
+# Known effects intentionally without visual still approximation.
+_UNMAPPED_VISUAL = frozenset()
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 18
+ADAPTER_VERSION = 19
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -111,6 +109,9 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "gain": "gain_db carried on plan clips (audio mix / export)",
             "audio_tracks": "include_audio=True lists audio clips in plan.audio",
             "lut3d": "cube/3dl path recorded; grade applied at ffmpeg export",
+            "compression": "ratio/threshold recorded for export mix",
+            "noise_reduction": "amount recorded for export mix",
+            "audio_eq": "frequency/gain/q recorded for export mix",
         },
     }
 
@@ -201,6 +202,9 @@ def clip_visual_props(
     subtitles: dict[str, Any] | None = None
     gain_db = 0.0
     lut3d: dict[str, Any] | None = None
+    compression: dict[str, float] | None = None
+    noise_reduction: float = 0.0
+    audio_eq: dict[str, float] | None = None
     mapped: list[str] = []
     unmapped: list[str] = []
     for e in clip.effects or []:
@@ -315,6 +319,37 @@ def clip_visual_props(
                 mapped.append("lut3d")
             else:
                 unmapped.append("lut3d")
+        elif et == "compression":
+            try:
+                compression = {
+                    "ratio": float(e.get("ratio", 4.0)),
+                    "threshold_db": float(e.get("threshold_db", -20.0)),
+                    "attack_ms": float(e.get("attack_ms", 10.0)),
+                    "release_ms": float(e.get("release_ms", 100.0)),
+                    "makeup_db": float(e.get("makeup_db", 0.0)),
+                }
+                mapped.append("compression")
+            except (TypeError, ValueError):
+                unmapped.append("compression")
+        elif et == "noise_reduction":
+            try:
+                noise_reduction = float(e.get("amount", 12.0) or 0)
+            except (TypeError, ValueError):
+                noise_reduction = 0.0
+            if noise_reduction > 0:
+                mapped.append("noise_reduction")
+            else:
+                unmapped.append("noise_reduction")
+        elif et == "audio_eq":
+            try:
+                audio_eq = {
+                    "frequency_hz": float(e.get("frequency_hz", 1000.0)),
+                    "gain_db": float(e.get("gain_db", 0.0)),
+                    "q": float(e.get("q", 1.0)),
+                }
+                mapped.append("audio_eq")
+            except (TypeError, ValueError):
+                unmapped.append("audio_eq")
         elif et == "fade":
             try:
                 d = int(e.get("duration_frames") or 0)
@@ -477,6 +512,9 @@ def clip_visual_props(
         "subtitles": subtitles,
         "gain_db": gain_db,
         "lut3d": lut3d,
+        "compression": compression,
+        "noise_reduction": noise_reduction,
+        "audio_eq": audio_eq,
         "mapped_effects": mapped,
         "unmapped_effects": unmapped,
     }
@@ -664,6 +702,12 @@ def build_openshot_plan(
                 entry["subtitles"] = vis["subtitles"]
             if vis.get("lut3d"):
                 entry["lut3d"] = vis["lut3d"]
+            if vis.get("compression"):
+                entry["compression"] = vis["compression"]
+            if vis.get("noise_reduction"):
+                entry["noise_reduction"] = vis["noise_reduction"]
+            if vis.get("audio_eq"):
+                entry["audio_eq"] = vis["audio_eq"]
             if abs(speed - 1.0) > 1e-3:
                 # Constant speed: map timeline 0..timeline_dur → source start..end
                 entry["time_remap"] = {

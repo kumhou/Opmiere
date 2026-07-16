@@ -41,15 +41,14 @@ def test_project_path_c_report():
         tr = ed.add_track("video")
         c = ed.place_from_file(v, "video", tr.id, 0)
         ed.apply_effect(c.id, {"type": "blur", "amount": 1.0})
-        # audio_eq stays unmapped on path-C stills
-        ed.apply_effect(
-            c.id,
-            {"type": "audio_eq", "frequency_hz": 1000.0, "gain_db": 3.0, "q": 1.0},
+        # unknown/custom type still unmapped
+        ed.project.tracks[0].clips[0].effects.append(
+            {"type": "custom_agent_fx", "amount": 1}
         )
         rep = project_path_c_report(ed.project)
         assert rep["clips_with_effects"] == 1
         assert rep["not_ready_count"] == 1
         assert rep["path_c_ready"] is False
-        assert "audio_eq" in rep["clips"][0]["unmapped"]
+        assert "custom_agent_fx" in rep["clips"][0]["unmapped"]
     finally:
         shutil.rmtree(root, ignore_errors=True)

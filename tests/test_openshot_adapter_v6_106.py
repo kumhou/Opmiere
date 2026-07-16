@@ -68,7 +68,8 @@ def test_catalog_v6():
     assert int(cat.get("adapter_version") or 0) >= 6
     assert "film_grain" in cat["mapped"]
     assert "chroma_key" in cat["mapped"]
-    assert "audio_eq" in cat["unmapped"]
+    assert "film_grain" in cat["mapped"]
+    assert "chroma_key" in cat["mapped"]
 
 
 def test_adapter_v7_luma_key():

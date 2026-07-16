@@ -6041,6 +6041,25 @@ async function exportOtioUi() {
   }
 }
 
+async function exportManifestUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      path?: string;
+      clip_count?: number;
+      marker_count?: number;
+    }>("/api/export/manifest", {});
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Manifest · ${r.clip_count ?? "?"} clips · ${r.marker_count ?? "?"} mkr → ${r.path || "ok"}`;
+  } catch (e) {
+    $("status-msg").textContent = `Manifest failed: ${e}`;
+  }
+}
+
 async function importOtioFile() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9913,6 +9932,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-stills-mkr", () => void stillsAtMarkersUi());
   proBind("btn-otio", () => void exportOtioUi());
   proBind("btn-import-otio", () => void importOtioFile());
+  proBind("btn-manifest", () => void exportManifestUi());
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());
   proBind("btn-audio-out", () => void exportAudioUi());
