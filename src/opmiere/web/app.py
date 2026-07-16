@@ -2951,6 +2951,131 @@ def preview_keyframes(count: int = 5, width: int = 480) -> dict[str, Any]:
     return ed.review_keyframes(out, count=count, width=width, ensure_proxy=True)
 
 
+# --- Generation (ComfyUI) — dual surface with MCP generate / job_status ---
+
+
+class GenerateBody(BaseModel):
+    kind: str = "image"
+    prompt: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class JobStatusBody(BaseModel):
+    job_id: str
+
+
+class PlaceGeneratedBody(BaseModel):
+    job_id: str
+    track_id: str | None = None
+    start: int | None = None
+    duration_frames: int | None = None
+
+
+class QualityCheckBody(BaseModel):
+    path: str
+
+
+def _job_to_dict(job: Any) -> dict[str, Any]:
+    status = job.status.value if hasattr(job.status, "value") else str(job.status)
+    out: dict[str, Any] = {
+        "job_id": job.id,
+        "status": status,
+        "kind": job.kind,
+        "prompt": job.prompt,
+        "result_path": str(job.result_path) if job.result_path else None,
+        "error": job.error,
+    }
+    if job.license is not None:
+        out["license"] = (
+            job.license.to_dict()
+            if hasattr(job.license, "to_dict")
+            else job.license
+        )
+    return out
+
+
+@app.post("/api/generate")
+def generate_api(body: GenerateBody) -> dict[str, Any]:
+    """Submit async generation (ComfyUI). Poll GET /api/generate/job/{id}."""
+    ed = _ed()
+    prompt = (body.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(400, "prompt required")
+    kind = (body.kind or "image").strip().lower()
+    try:
+        job_id = ed.generate(kind, prompt, body.params or {})
+    except Exception as e:
+        raise HTTPException(503, f"generate failed: {e}") from e
+    return {
+        "job_id": job_id,
+        "kind": kind,
+        "prompt": prompt,
+        "agent_note": "Poll GET /api/generate/job/{job_id} until status=done|error",
+    }
+
+
+@app.get("/api/generate/job/{job_id}")
+def generate_job_get(job_id: str) -> dict[str, Any]:
+    ed = _ed()
+    try:
+        job = ed.job_status(job_id)
+    except Exception as e:
+        raise HTTPException(404, f"job status failed: {e}") from e
+    return _job_to_dict(job)
+
+
+@app.post("/api/generate/status")
+def generate_status_post(body: JobStatusBody) -> dict[str, Any]:
+    """POST twin of GET job status (for agents that prefer JSON body)."""
+    return generate_job_get(body.job_id)
+
+
+@app.post("/api/place_generated")
+def place_generated_api(body: PlaceGeneratedBody) -> dict[str, Any]:
+    ed = _ed()
+    track_id = body.track_id
+    if not track_id:
+        # default: first video track, else first track
+        tracks = ed.project.tracks
+        if not tracks:
+            raise HTTPException(400, "no tracks — add a track first")
+        vid = next((t for t in tracks if t.kind == "video"), None)
+        track_id = (vid or tracks[0]).id
+    start = body.start if body.start is not None else ed.duration_frames()
+    try:
+        clip = ed.place_generated(
+            body.job_id,
+            track_id,
+            int(start),
+            duration_frames=body.duration_frames,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        raise HTTPException(500, f"place_generated failed: {e}") from e
+    return {
+        "clip": clip.to_dict() if hasattr(clip, "to_dict") else {"id": clip.id},
+        "timeline": ed.timeline_view(),
+        "track_id": track_id,
+        "start": start,
+    }
+
+
+@app.post("/api/quality_check")
+def quality_check_api(body: QualityCheckBody) -> dict[str, Any]:
+    if not body.path or not str(body.path).strip():
+        raise HTTPException(400, "path required")
+    try:
+        return _ed().quality_check(body.path)
+    except Exception as e:
+        raise HTTPException(400, f"quality_check failed: {e}") from e
+
+
+@app.get("/api/license_report")
+def license_report_api() -> dict[str, Any]:
+    return _ed().get_license_report()
+
+
 if _STATIC.is_dir():
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 

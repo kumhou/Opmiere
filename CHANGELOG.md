@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.60 — 2026-07-16
+
+### Added
+- **Generation HTTP API** (dual surface with MCP):
+  `POST /api/generate`, `GET /api/generate/job/{id}`,
+  `POST /api/generate/status`, `POST /api/place_generated`,
+  `POST /api/quality_check`, `GET /api/license_report`
+- Desktop **Generate** panel: kind + prompt, Gen / Poll / Place @ PH, QC, Licenses
+- Test: `tests/test_desktop_generate_100.py` (mock provider)
+
 ## 0.4.59 — 2026-07-16
 
 ### Added

@@ -183,6 +183,10 @@ const state = {
   editMode: "insert" as "insert" | "overwrite",
   /** Single-select media in bin (for relink). */
   binMediaId: "" as string,
+  /** Last generation job (desktop Generate panel). */
+  genJobId: "" as string,
+  genResultPath: "" as string,
+  genStatus: "" as string,
 };
 
 function currentEditMode(): "insert" | "overwrite" {
@@ -5132,6 +5136,184 @@ async function applyFxPreset(kind: string) {
   }
 }
 
+function setGenOut(text: string, muted = false) {
+  const el = document.getElementById("gen-out");
+  if (!el) return;
+  el.className = muted ? "review-out muted" : "review-out";
+  el.textContent = text.slice(0, 4000);
+}
+
+async function submitGeneration() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const kindEl = document.getElementById("gen-kind") as HTMLSelectElement | null;
+  const promptEl = document.getElementById("gen-prompt") as HTMLTextAreaElement | null;
+  const kind = kindEl?.value || "image";
+  const prompt = (promptEl?.value || "").trim();
+  if (!prompt) {
+    $("status-msg").textContent = "Enter a generation prompt";
+    return;
+  }
+  $("status-msg").textContent = `Generate ${kind}…`;
+  setGenOut(`Submitting ${kind}…`);
+  try {
+    const r = await postJson<{
+      job_id?: string;
+      kind?: string;
+      prompt?: string;
+      agent_note?: string;
+    }>("/api/generate", { kind, prompt, params: {} });
+    state.genJobId = r.job_id || "";
+    state.genResultPath = "";
+    state.genStatus = "queued";
+    setGenOut(
+      [
+        `job ${state.genJobId}`,
+        `kind ${r.kind || kind}`,
+        r.agent_note || "Poll until done",
+      ].join("\n"),
+    );
+    $("status-msg").textContent = `Job ${state.genJobId.slice(0, 8)}…`;
+    void pollGeneration(true);
+  } catch (e) {
+    setGenOut(`Generate failed: ${e}`);
+    $("status-msg").textContent = `Generate failed: ${e}`;
+  }
+}
+
+async function pollGeneration(silent = false) {
+  if (!state.genJobId) {
+    if (!silent) $("status-msg").textContent = "No generation job yet";
+    return;
+  }
+  try {
+    const r = await getJson<{
+      job_id?: string;
+      status?: string;
+      kind?: string;
+      prompt?: string;
+      result_path?: string | null;
+      error?: string | null;
+      license?: Record<string, string>;
+    }>(`/api/generate/job/${encodeURIComponent(state.genJobId)}`);
+    state.genStatus = r.status || "";
+    state.genResultPath = r.result_path || "";
+    const lines = [
+      `job ${r.job_id || state.genJobId}`,
+      `status ${r.status || "?"}`,
+      `kind ${r.kind || "?"}`,
+      r.result_path ? `path ${r.result_path}` : "",
+      r.error ? `error ${r.error}` : "",
+      r.license
+        ? `license ${r.license.name || "?"} commercial=${r.license.commercial_use || "?"}`
+        : "",
+    ].filter(Boolean);
+    setGenOut(lines.join("\n"));
+    if (!silent) {
+      $("status-msg").textContent = `Job ${r.status || "?"}`;
+    }
+    if (r.status === "queued" || r.status === "running") {
+      window.setTimeout(() => void pollGeneration(true), 2000);
+    }
+  } catch (e) {
+    setGenOut(`Poll failed: ${e}`);
+    if (!silent) $("status-msg").textContent = `Poll failed: ${e}`;
+  }
+}
+
+async function placeGeneratedAtPlayhead() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.genJobId) {
+    $("status-msg").textContent = "No generation job to place";
+    return;
+  }
+  if (state.genStatus && state.genStatus !== "done") {
+    $("status-msg").textContent = `Job not done (${state.genStatus}) — Poll first`;
+    return;
+  }
+  const start = playheadFrame();
+  // prefer selected track if any, else API defaults to first video
+  let trackId: string | null = null;
+  const ids = selectionList();
+  if (ids.length) {
+    const c = state.clips.get(ids[0]);
+    if (c?.trackId) trackId = c.trackId;
+  }
+  $("status-msg").textContent = `Place gen @ f${start}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip?: { id?: string };
+      track_id?: string;
+    }>("/api/place_generated", {
+      job_id: state.genJobId,
+      track_id: trackId,
+      start,
+      duration_frames: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMediaBin();
+    setGenOut(
+      `Placed ${r.clip?.id || "clip"} on ${r.track_id || "?"} @ f${start}`,
+    );
+    $("status-msg").textContent = `Placed gen @ f${start}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setGenOut(`Place failed: ${e}`);
+    $("status-msg").textContent = `Place gen failed: ${e}`;
+  }
+}
+
+async function qualityCheckLastGen() {
+  let path = state.genResultPath;
+  if (!path) {
+    // try poll once
+    if (state.genJobId) await pollGeneration(true);
+    path = state.genResultPath;
+  }
+  if (!path) {
+    $("status-msg").textContent = "No result path — finish a job first";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/quality_check", {
+      path,
+    });
+    setGenOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = "Quality check done";
+  } catch (e) {
+    setGenOut(`QC failed: ${e}`);
+    $("status-msg").textContent = `QC failed: ${e}`;
+  }
+}
+
+async function showLicenseReport() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  try {
+    const r = await getJson<Record<string, unknown>>("/api/license_report");
+    setGenOut(JSON.stringify(r, null, 2));
+    const safe = r.safe_for_commercial_use;
+    $("status-msg").textContent =
+      safe === true
+        ? "Licenses OK for commercial"
+        : safe === false
+          ? "Licenses flagged — review"
+          : "License report";
+  } catch (e) {
+    setGenOut(`License report failed: ${e}`);
+    $("status-msg").textContent = `Licenses failed: ${e}`;
+  }
+}
+
 /** Dump OpenShot multi-clip plan (path-C diagnostics, no render). */
 async function showOpenshotPlan() {
   if (!state.projectOpen) {
@@ -7523,6 +7705,22 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-os-frame").addEventListener("click", () => {
     void grabOpenshotFrame();
+  });
+  $("btn-gen-go").addEventListener("click", () => {
+    void submitGeneration();
+  });
+  $("btn-gen-poll").addEventListener("click", () => {
+    void pollGeneration(false);
+  });
+  $("btn-gen-place").addEventListener("click", () => {
+    stopPlay();
+    void placeGeneratedAtPlayhead();
+  });
+  $("btn-gen-qc").addEventListener("click", () => {
+    void qualityCheckLastGen();
+  });
+  $("btn-gen-license").addEventListener("click", () => {
+    void showLicenseReport();
   });
   document.querySelectorAll<HTMLButtonElement>("[data-fx]").forEach((b) => {
     b.addEventListener("click", () => {

@@ -293,6 +293,25 @@
               <button type="button" class="btn-mini" data-fx="ken" title="Ken Burns slow zoom">Ken</button>
             </div>
             <div id="effects-list" class="effects-list muted">No selection</div>
+            <h2 class="subh">Generate</h2>
+            <div class="speed-row">
+              <select id="gen-kind" class="export-preset" title="Generation kind">
+                <option value="image">image</option>
+                <option value="video">video</option>
+                <option value="speech">speech</option>
+                <option value="sfx">sfx</option>
+                <option value="music">music</option>
+              </select>
+              <button type="button" id="btn-gen-go" class="btn-mini" title="Submit ComfyUI job">Gen</button>
+              <button type="button" id="btn-gen-poll" class="btn-mini" title="Poll last job">Poll</button>
+              <button type="button" id="btn-gen-place" class="btn-mini" title="Place done job @ playhead">Place</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-gen-qc" class="btn-mini" title="quality_check last result path">QC</button>
+              <button type="button" id="btn-gen-license" class="btn-mini" title="License report for generated media">Licenses</button>
+            </div>
+            <textarea id="gen-prompt" class="notes-area" rows="2" placeholder="Prompt for local ComfyUI…"></textarea>
+            <div id="gen-out" class="review-out muted">Gen — needs ComfyUI :8188</div>
             <h2 class="subh">Review</h2>
             <div class="speed-row">
               <button type="button" id="btn-review" class="btn-mini" title="review_cut">Review</button>
