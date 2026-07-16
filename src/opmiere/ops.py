@@ -9308,6 +9308,137 @@ class Editor:
             result["path"] = str(out.resolve())
         return result
 
+    def split_selection_at_silences(
+        self,
+        clip_ids: list[str],
+        *,
+        noise_db: float = -30.0,
+        min_duration: float = 0.25,
+        max_splits: int = 40,
+        mark: str = "start",
+    ) -> dict[str, Any]:
+        """split_at_silences for each selected clip (right-to-left by start)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            c = self._find_clip(cid)
+            items.append((int(c.start), cid))
+        items.sort(key=lambda x: x[0], reverse=True)
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        total_splits = 0
+        for _, cid in items:
+            try:
+                r = self.split_at_silences(
+                    cid,
+                    noise_db=float(noise_db),
+                    min_duration=float(min_duration),
+                    max_splits=int(max_splits),
+                    mark=str(mark),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+                total_splits += int(
+                    (r.get("count") if isinstance(r, dict) else 0) or 0
+                )
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(out),
+            "total_splits": total_splits,
+            "results": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Silence razors on selection; processed end→start.",
+        }
+
+    def suggest_silence_cuts_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.4,
+        pad_seconds: float = 0.08,
+        min_keep_seconds: float = 0.2,
+    ) -> dict[str, Any]:
+        """suggest_silence_cuts for each selected clip's media (no timeline edit)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        plans: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                media = self.project.media_by_id(clip.media)
+                path = self.bundle.media_path(media.path)
+                if not path.exists():
+                    raise FileNotFoundError(f"offline: {media.path}")
+                plan = self.suggest_silence_cuts(
+                    path,
+                    silence_threshold_db=float(silence_threshold_db),
+                    min_silence_seconds=float(min_silence_seconds),
+                    pad_seconds=float(pad_seconds),
+                    min_keep_seconds=float(min_keep_seconds),
+                )
+                if isinstance(plan, dict):
+                    plan = dict(plan)
+                    plan["clip_id"] = cid
+                    plan["media_id"] = media.id
+                    plan["path"] = str(path)
+                plans.append(plan if isinstance(plan, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(plans),
+            "plans": plans,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Dry plans only — use split_selection_at_silences or apply_silence.",
+        }
+
+    def apply_silence_to_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.4,
+        pad_seconds: float = 0.08,
+        min_keep_seconds: float = 0.2,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        """apply_silence_to_clip on each selected clip (default dry_run)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        applied_n = 0
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_silence_to_clip(
+                    cid,
+                    silence_threshold_db=float(silence_threshold_db),
+                    min_silence_seconds=float(min_silence_seconds),
+                    pad_seconds=float(pad_seconds),
+                    min_keep_seconds=float(min_keep_seconds),
+                    dry_run=bool(dry_run),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+                if isinstance(r, dict) and r.get("applied"):
+                    applied_n += 1
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "dry_run": bool(dry_run),
+            "count": len(out),
+            "applied_count": applied_n,
+            "results": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": (
+                "dry_run=True suggests keep_ranges only; set dry_run=False to trim."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

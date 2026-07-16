@@ -9246,6 +9246,88 @@ def export_selection_manifest_api(
         raise HTTPException(400, f"export_selection_manifest failed: {e}") from e
 
 
+class SplitSelectionSilencesBody(BaseModel):
+    clip_ids: list[str]
+    noise_db: float = -30.0
+    min_duration: float = 0.25
+    max_splits: int = 40
+    mark: str = "start"
+
+
+@app.post("/api/edit/split_selection_at_silences")
+def split_selection_at_silences_api(
+    body: SplitSelectionSilencesBody,
+) -> dict[str, Any]:
+    """Razor selection at silence edges."""
+    ed = _ed()
+    try:
+        r = ed.split_selection_at_silences(
+            body.clip_ids,
+            noise_db=body.noise_db,
+            min_duration=body.min_duration,
+            max_splits=body.max_splits,
+            mark=body.mark,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"split_selection_at_silences failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SuggestSilenceCutsSelectionBody(BaseModel):
+    clip_ids: list[str]
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.4
+    pad_seconds: float = 0.08
+    min_keep_seconds: float = 0.2
+
+
+@app.post("/api/edit/suggest_silence_cuts_selection")
+def suggest_silence_cuts_selection_api(
+    body: SuggestSilenceCutsSelectionBody,
+) -> dict[str, Any]:
+    """Suggest silence keep_ranges for selection media."""
+    ed = _ed()
+    try:
+        return ed.suggest_silence_cuts_selection(
+            body.clip_ids,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            pad_seconds=body.pad_seconds,
+            min_keep_seconds=body.min_keep_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"suggest_silence_cuts_selection failed: {e}") from e
+
+
+class ApplySilenceSelectionBody(BaseModel):
+    clip_ids: list[str]
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.4
+    pad_seconds: float = 0.08
+    min_keep_seconds: float = 0.2
+    dry_run: bool = True
+
+
+@app.post("/api/edit/apply_silence_to_selection")
+def apply_silence_to_selection_api(
+    body: ApplySilenceSelectionBody,
+) -> dict[str, Any]:
+    """Suggest or apply silence trims on selection."""
+    ed = _ed()
+    try:
+        r = ed.apply_silence_to_selection(
+            body.clip_ids,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            pad_seconds=body.pad_seconds,
+            min_keep_seconds=body.min_keep_seconds,
+            dry_run=body.dry_run,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_silence_to_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

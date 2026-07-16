@@ -5443,6 +5443,62 @@ def export_selection_manifest(
 
 
 @mcp.tool()
+def split_selection_at_silences(
+    clip_ids: list[str],
+    noise_db: float = -30.0,
+    min_duration: float = 0.25,
+    max_splits: int = 40,
+    mark: str = "start",
+) -> dict:
+    """Razor each selected clip at silence starts/ends."""
+    return _require_editor().split_selection_at_silences(
+        clip_ids,
+        noise_db=noise_db,
+        min_duration=min_duration,
+        max_splits=max_splits,
+        mark=mark,
+    )
+
+
+@mcp.tool()
+def suggest_silence_cuts_selection(
+    clip_ids: list[str],
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.4,
+    pad_seconds: float = 0.08,
+    min_keep_seconds: float = 0.2,
+) -> dict:
+    """Suggest silence keep_ranges for selection media (no edit)."""
+    return _require_editor().suggest_silence_cuts_selection(
+        clip_ids,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        pad_seconds=pad_seconds,
+        min_keep_seconds=min_keep_seconds,
+    )
+
+
+@mcp.tool()
+def apply_silence_to_selection(
+    clip_ids: list[str],
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.4,
+    pad_seconds: float = 0.08,
+    min_keep_seconds: float = 0.2,
+    dry_run: bool = True,
+) -> dict:
+    """Suggest or apply silence-based trims on selection."""
+    return _require_editor().apply_silence_to_selection(
+        clip_ids,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        pad_seconds=pad_seconds,
+        min_keep_seconds=min_keep_seconds,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

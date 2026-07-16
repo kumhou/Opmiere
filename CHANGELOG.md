@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.53 — 2026-07-17
+
+### Added
+- `split_selection_at_silences` / `suggest_silence_cuts_selection` / `apply_silence_to_selection` + **SilSplit** / **SilPlan** / **SilDry**
+
 ## 0.6.52 — 2026-07-17
 
 ### Added

@@ -12125,6 +12125,81 @@ async function exportSelectionManifestUi() {
   }
 }
 
+async function splitSelectionAtSilencesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for silence razor";
+    return;
+  }
+  $("status-msg").textContent = "Splitting selection at silences…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      total_splits?: number;
+      error_count?: number;
+    }>("/api/edit/split_selection_at_silences", {
+      clip_ids: ids,
+      noise_db: -30,
+      min_duration: 0.25,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilSplit · splits ${r.total_splits ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SilSplit failed: ${e}`);
+    $("status-msg").textContent = `SilSplit failed: ${e}`;
+  }
+}
+
+async function suggestSilenceCutsSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for silence plan";
+    return;
+  }
+  $("status-msg").textContent = "Silence cut plans…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/suggest_silence_cuts_selection", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilPlan · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`SilPlan failed: ${e}`);
+    $("status-msg").textContent = `SilPlan failed: ${e}`;
+  }
+}
+
+async function applySilenceSelectionDryUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for silence dry-run";
+    return;
+  }
+  $("status-msg").textContent = "Silence dry-run…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      dry_run?: boolean;
+    }>("/api/edit/apply_silence_to_selection", {
+      clip_ids: ids,
+      dry_run: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilDry · ${r.count ?? 0} dry=${r.dry_run ?? true}`;
+  } catch (e) {
+    setProOut(`SilDry failed: ${e}`);
+    $("status-msg").textContent = `SilDry failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16131,6 +16206,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-prep-sel", () => void prepareSelectionExportUi());
   proBind("btn-wave-sel", () => void selectionWaveformsUi());
   proBind("btn-manif-sel", () => void exportSelectionManifestUi());
+  proBind("btn-sil-split-sel", () => void splitSelectionAtSilencesUi());
+  proBind("btn-sil-plan-sel", () => void suggestSilenceCutsSelectionUi());
+  proBind("btn-sil-dry-sel", () => void applySilenceSelectionDryUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
