@@ -5129,6 +5129,34 @@ def work_area_from_selection(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def copy_selection(clip_ids: list[str]) -> dict:
+    """Copy selection into multi-clip session clipboard."""
+    return _require_editor().copy_selection(clip_ids)
+
+
+@mcp.tool()
+def paste_selection(
+    start: int | None = None,
+    at_playhead: bool = False,
+    playhead_frame: int | None = None,
+    prefer_source_tracks: bool = True,
+) -> dict:
+    """Paste multi-clip clipboard as a rigid block."""
+    return _require_editor().paste_selection(
+        start=start,
+        at_playhead=at_playhead,
+        playhead_frame=playhead_frame,
+        prefer_source_tracks=prefer_source_tracks,
+    )
+
+
+@mcp.tool()
+def selection_clipboard_status() -> dict:
+    """Status of multi-clip and single clipboards."""
+    return _require_editor().selection_clipboard_status()
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

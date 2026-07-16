@@ -11390,6 +11390,69 @@ async function workAreaFromSelectionUi() {
   }
 }
 
+async function copySelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to copy";
+    return;
+  }
+  $("status-msg").textContent = "Copying selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      span_frames?: number;
+    }>("/api/edit/copy_selection", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CopySel · ${r.count ?? ids.length} span ${r.span_frames ?? "?"}`;
+  } catch (e) {
+    setProOut(`CopySel failed: ${e}`);
+    $("status-msg").textContent = `CopySel failed: ${e}`;
+  }
+}
+
+async function pasteSelectionAtPlayheadUi() {
+  const ph = playheadFrame();
+  $("status-msg").textContent = `Pasting selection @ f${ph}…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/paste_selection", {
+      at_playhead: true,
+      playhead_frame: ph,
+      prefer_source_tracks: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PasteSel@ · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`PasteSel@ failed: ${e}`);
+    $("status-msg").textContent = `PasteSel@ failed: ${e}`;
+  }
+}
+
+async function selectionClipboardStatusUi() {
+  $("status-msg").textContent = "Clipboard status…";
+  try {
+    const r = await getJson<{
+      has_selection_clipboard?: boolean;
+      selection_count?: number;
+      has_clipboard?: boolean;
+    }>("/api/edit/selection_clipboard_status");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Clip? · multi ${r.selection_count ?? 0} single ${r.has_clipboard ? "y" : "n"}`;
+  } catch (e) {
+    setProOut(`Clip? failed: ${e}`);
+    $("status-msg").textContent = `Clip? failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -15364,6 +15427,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-webm-sel", () => void exportSelectionWebmDefaultUi());
   proBind("btn-gif-sel", () => void exportSelectionGifDefaultUi());
   proBind("btn-wa-from-sel", () => void workAreaFromSelectionUi());
+  proBind("btn-copy-sel", () => void copySelectionUi());
+  proBind("btn-paste-sel", () => void pasteSelectionAtPlayheadUi());
+  proBind("btn-clip-status", () => void selectionClipboardStatusUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

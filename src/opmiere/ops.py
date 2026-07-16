@@ -123,6 +123,7 @@ class Editor:
         self._redo_stack: list[dict] = []
         # Session clipboard + work in/out (not persisted in project.json)
         self._clipboard: dict[str, Any] | None = None
+        self._selection_clipboard: list[dict[str, Any]] | None = None
         self._effects_clipboard: list[dict[str, Any]] | None = None
         self._attributes_clipboard: dict[str, Any] | None = None
         self._in_point: int | None = None
@@ -7696,6 +7697,172 @@ class Editor:
         r = self.set_work_area_from_selection(clip_ids)
         r["agent_note"] = "Work area = selection union; export WA next."
         return r
+
+    def copy_selection(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Copy selection blueprints into session multi-clip clipboard.
+
+        Relative starts are stored from earliest selected start (rigid block).
+        Also seeds single-clip clipboard with the first (leftmost) clip.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        items: list[tuple[int, str, Any, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            track, clip = self._find_clip_and_track(cid)
+            items.append((int(clip.start), cid, track, clip))
+        items.sort(key=lambda x: (x[0], x[1]))
+        origin = items[0][0]
+        blueprints: list[dict[str, Any]] = []
+        for start, cid, track, clip in items:
+            blueprints.append(
+                {
+                    "media": clip.media,
+                    "src_in": int(clip.src_in),
+                    "src_out": int(clip.src_out),
+                    "speed": float(clip.speed or 1.0),
+                    "effects": [dict(e) for e in (clip.effects or [])],
+                    "position": dict(clip.position) if clip.position else None,
+                    "name": clip.name,
+                    "color": clip.color,
+                    "muted": bool(clip.muted),
+                    "source_track_id": track.id,
+                    "source_track_kind": track.kind,
+                    "source_clip_id": cid,
+                    "rel_start": int(start) - origin,
+                    "duration_frames": int(clip.timeline_duration_frames),
+                }
+            )
+        self._selection_clipboard = blueprints
+        # single-clip compat
+        first = dict(blueprints[0])
+        first.pop("rel_start", None)
+        first.pop("source_track_id", None)
+        first.pop("muted", None)
+        self._clipboard = first
+        return {
+            "count": len(blueprints),
+            "origin_frame": origin,
+            "span_frames": (
+                max(b["rel_start"] + b["duration_frames"] for b in blueprints)
+            ),
+            "clip_ids": [b["source_clip_id"] for b in blueprints],
+            "agent_note": "Session multi-clip clipboard — paste_selection. Not in .opm.",
+        }
+
+    def paste_selection(
+        self,
+        *,
+        start: int | None = None,
+        at_playhead: bool = False,
+        playhead_frame: int | None = None,
+        prefer_source_tracks: bool = True,
+    ) -> dict[str, Any]:
+        """Paste multi-clip clipboard as a rigid block.
+
+        start / playhead sets the left edge of the block (rel_start=0).
+        Clips land on their source tracks when prefer_source_tracks and track exists.
+        """
+        if not self._selection_clipboard:
+            raise ValueError("selection clipboard empty — copy_selection first")
+        bps = list(self._selection_clipboard)
+        if start is not None:
+            base = max(0, int(start))
+        elif at_playhead and playhead_frame is not None:
+            base = max(0, int(playhead_frame))
+        else:
+            # after last clip on first blueprint track or 0
+            tid0 = bps[0].get("source_track_id")
+            try:
+                tr0 = self.project.track_by_id(str(tid0))
+                ordered = tr0.clips_in_order()
+                base = ordered[-1].end if ordered else 0
+            except Exception:
+                base = 0
+        placed: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        with self._mutate():
+            for bp in bps:
+                try:
+                    kind = bp.get("source_track_kind") or "video"
+                    tid = None
+                    if prefer_source_tracks and bp.get("source_track_id"):
+                        try:
+                            tr = self.project.track_by_id(str(bp["source_track_id"]))
+                            if tr.kind == kind and not tr.locked:
+                                tid = tr.id
+                        except Exception:
+                            tid = None
+                    if tid is None:
+                        tracks = [t for t in self.project.tracks if t.kind == kind]
+                        if not tracks:
+                            tid = self.project.add_track(kind).id  # type: ignore[arg-type]
+                        else:
+                            tid = next(
+                                (t.id for t in tracks if not t.locked),
+                                tracks[0].id,
+                            )
+                    track = self.project.track_by_id(tid)
+                    if track.locked:
+                        raise ValueError(f"track {tid} is locked")
+                    media = self.project.media_by_id(bp["media"])
+                    place_at = base + int(bp.get("rel_start") or 0)
+                    clip = self.project.add_clip(
+                        track,
+                        media,
+                        place_at,
+                        int(bp["src_in"]),
+                        int(bp["src_out"]),
+                    )
+                    clip.speed = float(bp.get("speed") or 1.0) or 1.0
+                    clip.effects = [dict(e) for e in (bp.get("effects") or [])]
+                    if bp.get("position"):
+                        clip.position = dict(bp["position"])
+                    if bp.get("name"):
+                        clip.name = bp["name"]
+                    if bp.get("color"):
+                        clip.color = bp["color"]
+                    if bp.get("muted"):
+                        clip.muted = True
+                    placed.append(
+                        {
+                            "clip_id": clip.id,
+                            "track_id": tid,
+                            "start": int(clip.start),
+                            "end": int(clip.end),
+                            "from": bp.get("source_clip_id"),
+                        }
+                    )
+                except Exception as e:
+                    errors.append(
+                        {
+                            "from": bp.get("source_clip_id"),
+                            "error": str(e)[:200],
+                        }
+                    )
+        return {
+            "base_frame": base,
+            "count": len(placed),
+            "placed": placed,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Rigid multi-paste; check overlaps on freeform tracks.",
+        }
+
+    def selection_clipboard_status(self) -> dict[str, Any]:
+        """Read-only status of multi-clip + single clipboards."""
+        sc = self._selection_clipboard or []
+        return {
+            "has_selection_clipboard": bool(sc),
+            "selection_count": len(sc),
+            "has_clipboard": bool(self._clipboard),
+            "single_media_id": (
+                self._clipboard.get("media") if self._clipboard else None
+            ),
+            "agent_note": "Session only — cleared on process exit.",
+        }
 
     def detach_audio_all(
         self,

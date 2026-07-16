@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.41 — 2026-07-17
+
+### Added
+- `copy_selection` / `paste_selection` / `selection_clipboard_status` + **CopySel** / **PasteSel@** / **Clip?**
+
 ## 0.6.40 — 2026-07-17
 
 ### Added

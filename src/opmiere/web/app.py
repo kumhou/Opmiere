@@ -8677,6 +8677,49 @@ def work_area_from_selection_api(body: WorkAreaFromSelectionBody) -> dict[str, A
     return {**r, "timeline": ed.timeline_view()}
 
 
+class CopySelectionBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/copy_selection")
+def copy_selection_api(body: CopySelectionBody) -> dict[str, Any]:
+    """Copy selection to multi-clip clipboard."""
+    ed = _ed()
+    try:
+        return ed.copy_selection(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"copy_selection failed: {e}") from e
+
+
+class PasteSelectionBody(BaseModel):
+    start: int | None = None
+    at_playhead: bool = False
+    playhead_frame: int | None = None
+    prefer_source_tracks: bool = True
+
+
+@app.post("/api/edit/paste_selection")
+def paste_selection_api(body: PasteSelectionBody) -> dict[str, Any]:
+    """Paste multi-clip clipboard as rigid block."""
+    ed = _ed()
+    try:
+        r = ed.paste_selection(
+            start=body.start,
+            at_playhead=body.at_playhead,
+            playhead_frame=body.playhead_frame,
+            prefer_source_tracks=body.prefer_source_tracks,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"paste_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/edit/selection_clipboard_status")
+def selection_clipboard_status_api() -> dict[str, Any]:
+    """Multi-clip clipboard status."""
+    return _ed().selection_clipboard_status()
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
