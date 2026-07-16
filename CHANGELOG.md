@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.88 — 2026-07-17
+
+### Added
+- Desktop **RT?** / **RT↓** / **RT@** room tone pipeline
+
 ## 0.4.87 — 2026-07-17
 
 ### Added
