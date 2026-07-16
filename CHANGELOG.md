@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.82 — 2026-07-17
+
+### Added
+- Desktop **Slug** / **Slug@** ensure_slug_media (+ place @ playhead)
+
 ## 0.4.81 — 2026-07-17
 
 ### Added
