@@ -11,7 +11,7 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: 0.4.0.** Headless NLE + MCP + path-C OpenShot preview (install optional) + **Tauri product shell scaffold** (`ui-desktop/`). HTML `opmiere-web` remains a dogfood probe.
+> **Status: 0.4.54.** Headless NLE + MCP + path-C OpenShot preview (install optional) + **Tauri product shell** (`ui-desktop/` — primary human GUI). HTML `opmiere web` remains a dogfood / API host.
 > Product is the **NLE**; director/style is a **hero feature**. Dual surface: human GUI + agent MCP on one Editor.
 > See [CHANGELOG.md](CHANGELOG.md), [docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md), [docs/TOOLS.md](docs/TOOLS.md).
 
@@ -24,8 +24,12 @@ From a clone of this repo (Python 3.10+ and [FFmpeg](https://ffmpeg.org/download
 powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Extras web
 
 opmiere doctor          # must report core ok
-opmiere web             # http://127.0.0.1:8787
+opmiere web             # Core API :8787 (desktop auto-starts this)
 opmiere mcp             # MCP stdio server for agents
+
+# Product shell (human GUI) — needs Node/Rust for first build
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-desktop.ps1
+# Release NSIS: .\scripts\build-desktop.ps1
 
 # Remove the install (keeps this git checkout)
 powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
@@ -46,8 +50,9 @@ Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stem
 |---------|---------|
 | `opmiere doctor` | ffmpeg, Python, extras, ComfyUI port |
 | `opmiere version` | package version |
-| `opmiere web` | browser GUI (doctor / look / review / delivery export) |
+| `opmiere web` | Core API + HTML dogfood probe (`:8787`) |
 | `opmiere mcp` | MCP server (same as `opmiere-mcp`) |
+| `scripts/dev-desktop.ps1` | Tauri product shell + ensure Core API |
 
 ### Pro pipeline dogfood (no ComfyUI)
 

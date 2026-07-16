@@ -701,6 +701,44 @@ button:disabled {
   background: #000;
 }
 
+.keyframe-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: var(--space-md);
+  max-height: 14vh;
+  overflow: auto;
+}
+
+.keyframe-strip.muted {
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.keyframe-strip .kf-cell {
+  flex: 0 0 auto;
+  width: 72px;
+  text-align: center;
+}
+
+.keyframe-strip .kf-cell img {
+  display: block;
+  width: 72px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #000;
+  cursor: pointer;
+}
+
+.keyframe-strip .kf-cell .kf-t {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+  margin-top: 1px;
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;

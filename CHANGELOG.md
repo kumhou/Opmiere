@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.54 — 2026-07-16
+
+### Added
+- **Trim I/O**: selection → `/api/clip/trim_range` (I/O work area, normal|ripple)
+- **Proxy 1**: single bin media proxy via `/api/media/proxy`
+- **Style assets**: list LUTs / audio beds (`/api/style_assets`)
+- **Keyframes**: review strip from `/api/preview/keyframes` + click-to-seek thumbs
+- README status → 0.4.54; install messaging prefers desktop + Core API
+- Test: `tests/test_desktop_keyframes_trim_094.py`
+
 ## 0.4.53 — 2026-07-16
 
 ### Added

@@ -136,8 +136,9 @@ $docExit = $LASTEXITCODE
 Write-Host ""
 Write-Host "Install complete." -ForegroundColor Green
 Write-Host "  opmiere doctor"
-Write-Host "  opmiere web          # if [web] installed"
-Write-Host "  opmiere mcp          # MCP stdio server"
+Write-Host "  opmiere web          # Core API :8787 (desktop auto-starts)"
+Write-Host "  opmiere mcp          # MCP stdio server for agents"
+Write-Host "  desktop:  powershell -File `"$PSScriptRoot\dev-desktop.ps1`""
 Write-Host "  uninstall:  powershell -File `"$PSScriptRoot\uninstall.ps1`""
 if ($docExit -ne 0) {
     Write-Warn "doctor reported core issues — fix ffmpeg/PATH then re-run: opmiere doctor"

@@ -9840,13 +9840,14 @@ class Editor:
         if dur_s <= 0:
             raise ValueError("empty timeline — nothing to review")
         frames: list[dict[str, Any]] = []
+        # pad ≥2 proxy frames so -ss never lands past last decoded frame
+        pad = max(0.12, 2.0 / max(fps, 1.0))
         for i in range(count):
             if count == 1:
                 t = 0.0
             else:
                 t = dur_s * i / (count - 1)
-            # avoid exact end EOF on some demuxers
-            t = min(t, max(0.0, dur_s - 0.05))
+            t = min(t, max(0.0, dur_s - pad))
             out = output_dir / f"keyframe_{i:02d}_{t:.2f}s.jpg"
             r = self.frame_at(t, out, width=width, prefer_proxy=True)
             frames.append({
@@ -10004,16 +10005,22 @@ class Editor:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         t = max(0.0, float(time_seconds))
         w = max(16, int(width))
-        # -ss before -i for fast seek; fine for proxy scrub
+        # -ss before -i for fast seek; fine for proxy scrub.
+        # Full-range yuvj420p avoids mjpeg "Non full-range YUV" on modern ffmpeg.
+        out_s = str(output_path)
+        is_jpg = out_s.lower().endswith((".jpg", ".jpeg"))
+        cmd = [
+            "ffmpeg", "-y", "-hide_banner",
+            "-ss", f"{t:.3f}",
+            "-i", str(path),
+            "-frames:v", "1",
+            "-vf", f"scale={w}:-1",
+        ]
+        if is_jpg:
+            cmd += ["-pix_fmt", "yuvj420p", "-q:v", "3"]
+        cmd.append(out_s)
         proc = subprocess.run(
-            [
-                "ffmpeg", "-y", "-hide_banner",
-                "-ss", f"{t:.3f}",
-                "-i", str(path),
-                "-frames:v", "1",
-                "-vf", f"scale={w}:-1",
-                str(output_path),
-            ],
+            cmd,
             capture_output=True, text=True,
         )
         if proc.returncode != 0 or not output_path.exists():

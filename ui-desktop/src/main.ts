@@ -5239,6 +5239,192 @@ async function ensureAllMediaProxies(force = false) {
   }
 }
 
+/** Build proxy for the single media selected in the bin. */
+async function ensureBinMediaProxy(force = false) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (!state.binMediaId) {
+    $("status-msg").textContent = "Select media in bin first";
+    return;
+  }
+  $("status-msg").textContent = `Proxy ${state.binMediaId}…`;
+  try {
+    const r = await postJson<{
+      media_id?: string;
+      path?: string;
+      ready?: boolean;
+      built?: boolean;
+      height?: number;
+    }>("/api/media/proxy", {
+      media_id: state.binMediaId,
+      height: 480,
+      force,
+    });
+    await refreshMediaBin();
+    $("status-msg").textContent =
+      `Proxy ${r.media_id || state.binMediaId}: ${r.path ? "ready" : JSON.stringify(r).slice(0, 80)}`;
+  } catch (e) {
+    $("status-msg").textContent = `Media proxy failed: ${e}`;
+  }
+}
+
+/** Inventory LUTs / audio beds on style asset search path. */
+async function showStyleAssets() {
+  try {
+    const r = await getJson<{
+      search_dirs?: string[];
+      luts?: string[];
+      audio?: string[];
+    }>("/api/style_assets");
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      const luts = r.luts || [];
+      const audio = r.audio || [];
+      const dirs = r.search_dirs || [];
+      const lines = [
+        `dirs (${dirs.length}):`,
+        ...dirs.map((d) => `  ${d}`),
+        `luts (${luts.length}):`,
+        ...luts.slice(0, 24).map((p) => `  ${p.split(/[/\\]/).pop() || p}`),
+        `audio (${audio.length}):`,
+        ...audio.slice(0, 24).map((p) => `  ${p.split(/[/\\]/).pop() || p}`),
+      ];
+      out.textContent = lines.join("\n").slice(0, 4000);
+    }
+    $("status-msg").textContent =
+      `Style assets: ${(r.luts || []).length} LUT · ${(r.audio || []).length} audio`;
+  } catch (e) {
+    $("status-msg").textContent = `Style assets failed: ${e}`;
+  }
+}
+
+/** Evenly spaced review keyframes — agent API + visual strip via frame.jpg. */
+async function reviewKeyframesUi(count = 5) {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  if (state.durationSec <= 0) {
+    $("status-msg").textContent = "Empty timeline — nothing to review";
+    return;
+  }
+  stopPlay();
+  $("status-msg").textContent = "Building keyframes…";
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/preview/keyframes?count=${count}&width=320`,
+      { method: "POST", headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status}: ${t.slice(0, 160)}`);
+    }
+    const body = (await res.json()) as {
+      count?: number;
+      duration_seconds?: number;
+      frames?: Array<{ index?: number; time_seconds?: number; path?: string }>;
+      agent_note?: string;
+    };
+    const frames = body.frames || [];
+    const out = document.getElementById("review-out");
+    if (out) {
+      out.className = "review-out";
+      out.textContent = [
+        `keyframes ×${body.count ?? frames.length} · ${body.duration_seconds ?? "?"}s`,
+        ...frames.map(
+          (f) =>
+            `  #${f.index ?? "?"}  t=${f.time_seconds ?? "?"}s  ${f.path || ""}`,
+        ),
+        body.agent_note || "",
+      ]
+        .join("\n")
+        .slice(0, 4000);
+    }
+    const strip = document.getElementById("keyframe-strip");
+    if (strip) {
+      strip.hidden = false;
+      strip.className = "keyframe-strip";
+      strip.innerHTML = "";
+      for (const f of frames) {
+        const t = Number(f.time_seconds ?? 0);
+        const cell = document.createElement("div");
+        cell.className = "kf-cell";
+        const img = document.createElement("img");
+        img.alt = `t=${t}`;
+        img.loading = "lazy";
+        const q = new URLSearchParams({
+          t: String(t),
+          width: "160",
+          engine: "proxy",
+          _: String(Date.now()),
+        });
+        img.src = `${API_BASE}/api/preview/frame.jpg?${q.toString()}`;
+        img.title = `Seek ${t.toFixed(2)}s`;
+        img.addEventListener("click", () => {
+          stopPlay();
+          void seekTo(t);
+        });
+        const lab = document.createElement("div");
+        lab.className = "kf-t";
+        lab.textContent = `${t.toFixed(2)}s`;
+        cell.appendChild(img);
+        cell.appendChild(lab);
+        strip.appendChild(cell);
+      }
+      if (!frames.length) {
+        strip.className = "keyframe-strip muted";
+        strip.textContent = "No frames";
+      }
+    }
+    $("status-msg").textContent =
+      `Keyframes ×${body.count ?? frames.length} (click strip to seek)`;
+  } catch (e) {
+    $("status-msg").textContent = `Keyframes failed: ${e}`;
+  }
+}
+
+/** Trim each selected clip to the current I/O range on the timeline. */
+async function trimSelectionToIO() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clip(s) for Trim I/O";
+    return;
+  }
+  const a = state.workIO.in_frame;
+  const b = state.workIO.out_frame;
+  if (a == null || b == null || b <= a) {
+    $("status-msg").textContent = "Set I and O first (I/O range)";
+    return;
+  }
+  const mode = rippleEnabled() ? "ripple" : "normal";
+  $("status-msg").textContent = `Trim I/O f${a}–${b} (${mode})…`;
+  try {
+    let last: TimelineView | undefined;
+    for (const clipId of ids) {
+      const r = await postJson<{ timeline?: TimelineView }>(
+        "/api/clip/trim_range",
+        {
+          clip_id: clipId,
+          start_frame: a,
+          end_frame: b,
+          mode,
+        },
+      );
+      if (r.timeline) last = r.timeline;
+    }
+    if (last) applyTimelineView(last);
+    else await refresh();
+    $("status-msg").textContent =
+      `Trim I/O f${a}–${b} ×${ids.length} (${mode})`;
+    void seekTo(state.t);
+  } catch (e) {
+    $("status-msg").textContent = `Trim I/O failed: ${e}`;
+  }
+}
+
 async function showWorkflow() {
   try {
     const r = await getJson<Record<string, unknown>>("/api/workflow");
@@ -6685,6 +6871,19 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   $("btn-proxies-all").addEventListener("click", () => {
     void ensureAllMediaProxies(false);
+  });
+  $("btn-proxy-one").addEventListener("click", () => {
+    void ensureBinMediaProxy(false);
+  });
+  $("btn-style-assets").addEventListener("click", () => {
+    void showStyleAssets();
+  });
+  $("btn-trim-io").addEventListener("click", () => {
+    stopPlay();
+    void trimSelectionToIO();
+  });
+  $("btn-keyframes").addEventListener("click", () => {
+    void reviewKeyframesUi(5);
   });
   $("btn-workflow").addEventListener("click", () => {
     void showWorkflow();

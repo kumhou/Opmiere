@@ -278,8 +278,10 @@
             <div class="speed-row">
               <button type="button" id="btn-review" class="btn-mini" title="review_cut">Review</button>
               <button type="button" id="btn-sheet" class="btn-mini" title="Sequence contact sheet">Sheet</button>
+              <button type="button" id="btn-keyframes" class="btn-mini" title="Evenly spaced review keyframes across cut">Keyframes</button>
             </div>
             <div id="review-out" class="review-out muted">—</div>
+            <div id="keyframe-strip" class="keyframe-strip muted" hidden></div>
             <img id="sheet-preview" class="sheet-preview" alt="sequence sheet" hidden />
             <div class="speed-row">
               <span class="muted" style="font-size:10px">Gain</span>
@@ -340,8 +342,13 @@
             </div>
             <div class="speed-row">
               <button type="button" id="btn-proxies-all" class="btn-mini" title="Build proxies for all bin media">Proxies</button>
+              <button type="button" id="btn-proxy-one" class="btn-mini" title="Proxy selected bin media only">Proxy 1</button>
               <button type="button" id="btn-workflow" class="btn-mini" title="Show film session workflow">Workflow</button>
               <button type="button" id="btn-brief" class="btn-mini" title="Director brief + session plan">Brief</button>
+            </div>
+            <div class="speed-row">
+              <button type="button" id="btn-style-assets" class="btn-mini" title="List LUTs / audio beds on style search path">Style assets</button>
+              <button type="button" id="btn-trim-io" class="btn-mini" title="Trim selection to I/O range">Trim I/O</button>
             </div>
             <h2 class="subh">Markers</h2>
             <div class="speed-row">
