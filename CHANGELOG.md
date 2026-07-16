@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.62 — 2026-07-17
+
+### Added
+- `export_selection_to_size` / `export_selection_social_pack` + **SizeSel** / **SocialSel**
+
 ## 0.6.61 — 2026-07-17
 
 ### Added

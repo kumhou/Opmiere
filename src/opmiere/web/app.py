@@ -9743,6 +9743,66 @@ def export_selection_contact_sheet_default_api(
         ) from e
 
 
+class ExportSelectionToSizeBody(BaseModel):
+    clip_ids: list[str]
+    output_path: str | None = None
+    width: int = 1080
+    height: int = 1920
+    fit: str = "cover"
+    normalize_preset: str | None = None
+    filename: str = "selection_sized.mp4"
+
+
+@app.post("/api/edit/export_selection_to_size")
+def export_selection_to_size_api(
+    body: ExportSelectionToSizeBody,
+) -> dict[str, Any]:
+    """Export selection then scale to a social canvas size."""
+    ed = _ed()
+    try:
+        return ed.export_selection_to_size(
+            body.clip_ids,
+            body.output_path,
+            width=body.width,
+            height=body.height,
+            fit=body.fit,
+            normalize_preset=body.normalize_preset,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_to_size failed: {e}",
+        ) from e
+
+
+class ExportSelectionSocialPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    variants: list[str] | None = None
+    normalize_preset: str | None = None
+    name_prefix: str = "selection"
+
+
+@app.post("/api/edit/export_selection_social_pack")
+def export_selection_social_pack_api(
+    body: ExportSelectionSocialPackBody,
+) -> dict[str, Any]:
+    """Export selection to youtube/reels/square (or custom) pack."""
+    ed = _ed()
+    try:
+        return ed.export_selection_social_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            variants=body.variants,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_social_pack failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

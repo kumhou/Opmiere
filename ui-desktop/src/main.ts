@@ -12610,6 +12610,60 @@ async function exportSelectionContactSheetDefaultUi() {
   }
 }
 
+async function exportSelectionToSizeUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for sized export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection to size…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      width?: number;
+      height?: number;
+    }>("/api/edit/export_selection_to_size", {
+      clip_ids: ids,
+      width: 1080,
+      height: 1920,
+      fit: "cover",
+      filename: "selection_reels.mp4",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SizeSel · ${r.width ?? "?"}x${r.height ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SizeSel failed: ${e}`);
+    $("status-msg").textContent = `SizeSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionSocialPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for social pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection social pack…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      out_dir?: string;
+      error_count?: number;
+    }>("/api/edit/export_selection_social_pack", {
+      clip_ids: ids,
+      variants: ["youtube", "reels", "square"],
+      name_prefix: "selection",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SocialSel · n=${r.count ?? "?"} err=${r.error_count ?? 0} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SocialSel failed: ${e}`);
+    $("status-msg").textContent = `SocialSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16635,6 +16689,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-mkr-srt-sel", () => void exportSelectionMarkersSrtUi());
   proBind("btn-proxy-sel", () => void ensureSelectionProxiesUi());
   proBind("btn-cs-def-sel", () => void exportSelectionContactSheetDefaultUi());
+  proBind("btn-size-sel", () => void exportSelectionToSizeUi());
+  proBind("btn-social-sel", () => void exportSelectionSocialPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -10168,6 +10168,170 @@ class Editor:
             cols=cols,
         )
 
+    def export_selection_to_size(
+        self,
+        clip_ids: list[str],
+        output_path: str | Path | None = None,
+        *,
+        width: int = 1080,
+        height: int = 1920,
+        fit: str = "cover",
+        normalize_preset: str | None = None,
+        filename: str = "selection_sized.mp4",
+    ) -> dict[str, Any]:
+        """Export selection union then scale to width×height (social canvas).
+
+        Uses export_selection_mp4 then ffmpeg scale/crop. Project resolution
+        unchanged. fit: cover|contain|stretch.
+        """
+        import subprocess
+        import tempfile
+
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if fit not in ("cover", "contain", "stretch"):
+            raise ValueError("fit must be cover|contain|stretch")
+        if not isinstance(width, int) or width < 16:
+            raise ValueError("width must be int >= 16")
+        if not isinstance(height, int) or height < 16:
+            raise ValueError("height must be int >= 16")
+        # even dimensions for yuv420
+        width = int(width) // 2 * 2
+        height = int(height) // 2 * 2
+        if output_path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            output_path = out_dir / (filename or "selection_sized.mp4")
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, raw = tempfile.mkstemp(prefix="opmiere_sel_size_", suffix=".mp4")
+        import os
+        os.close(fd)
+        full = Path(raw)
+        try:
+            exp = self.export_selection_mp4(
+                list(dict.fromkeys(clip_ids)),
+                full,
+                normalize_preset=None,
+            )
+            if fit == "stretch":
+                vf = f"scale={width}:{height}"
+            elif fit == "contain":
+                vf = (
+                    f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                    f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
+                )
+            else:  # cover
+                vf = (
+                    f"scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height}"
+                )
+            proc = subprocess.run(
+                [
+                    "ffmpeg", "-y", "-hide_banner",
+                    "-i", str(full),
+                    "-vf", vf,
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-preset", "veryfast", "-crf", "20",
+                    "-c:a", "aac", "-b:a", "192k",
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode != 0 or not output_path.exists():
+                raise RuntimeError(
+                    f"export_selection_to_size scale failed:\n{(proc.stderr or '')[-1500:]}"
+                )
+            final = output_path
+            if normalize_preset:
+                loud = output_path.with_name(
+                    output_path.stem + "_loud" + output_path.suffix
+                )
+                self.normalize_loudness(
+                    output_path, loud, preset=normalize_preset,
+                )
+                final = loud
+            span = exp.get("selection_span") if isinstance(exp, dict) else None
+            if span is None:
+                span = self.selection_span(list(dict.fromkeys(clip_ids)))
+            return {
+                "path": str(final.resolve()),
+                "width": width,
+                "height": height,
+                "fit": fit,
+                "normalize_preset": normalize_preset,
+                "selection_span": span,
+                "agent_note": "Selection export + scale; project resolution unchanged.",
+            }
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def export_selection_social_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        variants: list[str] | None = None,
+        normalize_preset: str | None = None,
+        name_prefix: str = "selection",
+    ) -> dict[str, Any]:
+        """Export selection union to multiple social canvases under exports/.
+
+        variants default: youtube, reels, square (SOCIAL_PRESETS keys).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_social"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        names = variants or ["youtube", "reels", "square"]
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for name in names:
+            key = str(name).lower().strip()
+            preset = self.SOCIAL_PRESETS.get(key)
+            if not preset:
+                errors.append({"variant": key, "error": "unknown social preset"})
+                continue
+            dest = root / f"{name_prefix}_{key}.mp4"
+            try:
+                r = self.export_selection_to_size(
+                    ids,
+                    dest,
+                    width=int(preset["width"]),
+                    height=int(preset["height"]),
+                    fit=str(preset.get("fit") or "cover"),
+                    normalize_preset=normalize_preset,
+                )
+                written.append(
+                    {
+                        "variant": key,
+                        "path": r.get("path"),
+                        "width": r.get("width"),
+                        "height": r.get("height"),
+                        "fit": r.get("fit"),
+                    }
+                )
+            except Exception as e:
+                errors.append({"variant": key, "error": str(e)[:240]})
+        return {
+            "out_dir": str(root.resolve()),
+            "count": len(written),
+            "variants": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "clip_ids": ids,
+            "agent_note": "Selection social pack; reels/shorts share 9:16 canvas.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

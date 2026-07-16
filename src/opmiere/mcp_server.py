@@ -5761,6 +5761,46 @@ def export_selection_contact_sheet_default(
 
 
 @mcp.tool()
+def export_selection_to_size(
+    clip_ids: list[str],
+    output_path: str | None = None,
+    width: int = 1080,
+    height: int = 1920,
+    fit: str = "cover",
+    normalize_preset: str | None = None,
+    filename: str = "selection_sized.mp4",
+) -> dict:
+    """Export selection union then scale to width×height (social canvas)."""
+    return _require_editor().export_selection_to_size(
+        clip_ids,
+        output_path,
+        width=width,
+        height=height,
+        fit=fit,
+        normalize_preset=normalize_preset,
+        filename=filename,
+    )
+
+
+@mcp.tool()
+def export_selection_social_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    variants: list[str] | None = None,
+    normalize_preset: str | None = None,
+    name_prefix: str = "selection",
+) -> dict:
+    """Export selection to multiple social canvases (youtube/reels/square…)."""
+    return _require_editor().export_selection_social_pack(
+        clip_ids,
+        out_dir=out_dir,
+        variants=variants,
+        normalize_preset=normalize_preset,
+        name_prefix=name_prefix,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
