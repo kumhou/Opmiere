@@ -6371,6 +6371,292 @@ class Editor:
         }.get(mode, mode)
         return result
 
+    def _scene_frames_from_media(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        threshold: float = 27.0,
+        min_scene_len: int = 15,
+        backend: str = "auto",
+        max_scenes: int = 128,
+        include_start: bool = False,
+    ) -> dict[str, Any]:
+        """Resolve video source → scene cut frames."""
+        if media_id is None and path is None:
+            vids = [m for m in self.project.media if m.kind == "video"]
+            if not vids:
+                raise ValueError("pass media_id or path, or import video first")
+            media_id = vids[0].id
+        if path is not None:
+            src = Path(path)
+            mid = None
+        else:
+            media = self.project.media_by_id(media_id)  # type: ignore[arg-type]
+            src = self.bundle.media_path(media.path)
+            mid = media.id
+        if not src.exists():
+            raise FileNotFoundError(str(src))
+        det = _detect_scenes(
+            src,
+            threshold=threshold,
+            min_scene_len=min_scene_len,
+            backend=backend,
+        )
+        fps = float(self.project.timebase.fps or 30.0)
+        frames: list[int] = []
+        for sc in det.get("scenes") or []:
+            try:
+                # prefer source frame scaled to project fps when available
+                if "start_frame" in sc and sc.get("start") is not None:
+                    fr = int(round(float(sc["start"]) * fps))
+                else:
+                    fr = int(sc.get("start_frame") or 0)
+            except (TypeError, ValueError):
+                continue
+            if fr <= 0 and not include_start:
+                continue
+            frames.append(max(0, fr))
+        frames = sorted(set(frames))[: max(0, int(max_scenes))]
+        return {
+            "media_id": mid,
+            "path": str(src),
+            "frames": frames,
+            "scenes": det.get("scenes") or [],
+            "backend": det.get("backend"),
+            "fps": fps,
+            "detect": det,
+        }
+
+    def markers_from_scenes(
+        self,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        threshold: float = 27.0,
+        min_scene_len: int = 15,
+        backend: str = "auto",
+        max_markers: int = 128,
+        label_prefix: str = "Scene",
+        color: str = "#ff9800",
+        clear_existing_prefix: bool = False,
+        include_start: bool = False,
+    ) -> dict[str, Any]:
+        """Detect shot boundaries and place timeline markers. One undo.
+
+        media_id/path optional — first video in bin. Frames mapped to project fps.
+        """
+        info = self._scene_frames_from_media(
+            media_id,
+            path=path,
+            threshold=threshold,
+            min_scene_len=min_scene_len,
+            backend=backend,
+            max_scenes=max_markers,
+            include_start=include_start,
+        )
+        frames: list[int] = list(info["frames"])
+        if not frames:
+            return {
+                "count": 0,
+                "markers": [],
+                "frames": [],
+                "backend": info.get("backend"),
+                "media_id": info.get("media_id"),
+                "agent_note": "No scene cuts detected.",
+            }
+        with self._mutate():
+            if clear_existing_prefix:
+                pref = label_prefix.strip().lower()
+                self.project.markers = [
+                    m for m in self.project.markers
+                    if not (m.label or "").lower().startswith(pref)
+                ]
+            added: list[dict[str, Any]] = []
+            existing = {int(m.frame) for m in self.project.markers}
+            for i, fr in enumerate(frames, start=1):
+                if fr in existing:
+                    continue
+                m = self.project.add_marker(
+                    fr, label=f"{label_prefix} {i}", color=color,
+                )
+                existing.add(fr)
+                added.append(m.to_dict())
+            return {
+                "count": len(added),
+                "markers": added,
+                "frames": frames,
+                "backend": info.get("backend"),
+                "media_id": info.get("media_id"),
+                "path": info.get("path"),
+                "agent_note": "Scene markers placed; use split_at_markers or scene_grid.",
+            }
+
+    def scene_grid(
+        self,
+        track_id: str | None = None,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        mode: str = "markers",
+        threshold: float = 27.0,
+        min_scene_len: int = 15,
+        backend: str = "auto",
+        max_scenes: int = 128,
+        label_prefix: str = "Scene",
+        color: str = "#ff9800",
+        clear_existing_prefix: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot scene grid: detect shots → markers and/or razor track.
+
+        mode: markers | split | both
+        split razors track_id at scene frames without markers.
+        """
+        if mode not in ("markers", "split", "both"):
+            raise ValueError("mode must be markers|split|both")
+        if mode in ("split", "both") and not track_id:
+            raise ValueError("track_id required for mode split|both")
+
+        result: dict[str, Any] = {"mode": mode}
+        if mode == "split":
+            assert track_id is not None
+            info = self._scene_frames_from_media(
+                media_id,
+                path=path,
+                threshold=threshold,
+                min_scene_len=min_scene_len,
+                backend=backend,
+                max_scenes=max_scenes,
+            )
+            frames = list(info["frames"])
+            with self._mutate():
+                track = self.project.track_by_id(track_id)
+                if track.locked:
+                    raise ValueError(f"track {track.id} is locked")
+                splits: list[dict[str, Any]] = []
+                for fr in frames:
+                    for clip in list(track.clips_in_order()):
+                        if clip.start < fr < clip.end:
+                            left, right = self._split_clip_unlocked(clip.id, fr)
+                            splits.append({
+                                "frame": fr,
+                                "left_id": left.id,
+                                "right_id": right.id,
+                            })
+            result["split"] = {
+                "track_id": track_id,
+                "frames": frames,
+                "splits": splits,
+                "count": len(splits),
+                "backend": info.get("backend"),
+            }
+            return result
+
+        mkr = self.markers_from_scenes(
+            media_id,
+            path=path,
+            threshold=threshold,
+            min_scene_len=min_scene_len,
+            backend=backend,
+            max_markers=max_scenes,
+            label_prefix=label_prefix,
+            color=color,
+            clear_existing_prefix=clear_existing_prefix,
+        )
+        result["markers"] = mkr
+        result["backend"] = mkr.get("backend")
+        if mode == "both":
+            assert track_id is not None
+            result["split"] = self.split_at_markers(track_ids=[track_id])
+        result["agent_note"] = {
+            "markers": "Scene markers only",
+            "both": "Scene markers + razor",
+        }.get(mode, mode)
+        return result
+
+    def apply_transitions_near_markers(
+        self,
+        track_id: str,
+        *,
+        transition_type: str = "cross_dissolve",
+        duration_frames: int = 12,
+        max_delta_frames: int = 2,
+        max_count: int | None = None,
+        marker_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Add transitions on hard cuts that land near a timeline marker.
+
+        Music/scene workflow after beat_grid/scene_grid + razor: only decorate
+        cuts that align with markers (within max_delta_frames).
+        """
+        if transition_type not in KNOWN_TRANSITION_TYPES:
+            raise ValueError(
+                f"unknown transition type {transition_type!r}; "
+                f"supported: {sorted(KNOWN_TRANSITION_TYPES)}"
+            )
+        if not isinstance(duration_frames, int) or duration_frames <= 0:
+            raise ValueError("duration_frames must be positive int")
+        marks = list(self.project.markers)
+        if marker_ids is not None:
+            wanted = set(marker_ids)
+            marks = [m for m in marks if m.id in wanted]
+        mark_frames = sorted({int(m.frame) for m in marks})
+        if not mark_frames:
+            raise ValueError("no markers — add markers or markers_from_beats first")
+
+        def _near(frame: int) -> bool:
+            return any(abs(frame - mf) <= int(max_delta_frames) for mf in mark_frames)
+
+        with self._mutate():
+            track = self.project.track_by_id(track_id)
+            if track.locked:
+                raise ValueError(f"track {track.id} is locked")
+            ordered = track.clips_in_order()
+            applied: list[dict[str, Any]] = []
+            skipped: list[dict[str, Any]] = []
+            for prev, nxt in zip(ordered, ordered[1:]):
+                if max_count is not None and len(applied) >= max_count:
+                    break
+                cut = int(nxt.start)
+                if not _near(cut) and not _near(int(prev.end)):
+                    skipped.append({"clip_id": nxt.id, "reason": "cut not near marker"})
+                    continue
+                if nxt.transition_in is not None:
+                    skipped.append({"clip_id": nxt.id, "reason": "already has transition"})
+                    continue
+                if nxt.start != prev.end:
+                    skipped.append({"clip_id": nxt.id, "reason": "not hard cut"})
+                    continue
+                if (
+                    prev.timeline_duration_frames <= duration_frames
+                    or nxt.timeline_duration_frames <= duration_frames
+                ):
+                    skipped.append({"clip_id": nxt.id, "reason": "clips too short"})
+                    continue
+                nxt.transition_in = {
+                    "type": transition_type,
+                    "duration_frames": duration_frames,
+                }
+                nxt.start = prev.end - duration_frames
+                applied.append({
+                    "clip_id": nxt.id,
+                    "prev_id": prev.id,
+                    "cut_frame": cut,
+                    "duration_frames": duration_frames,
+                    "type": transition_type,
+                })
+            return {
+                "track_id": track_id,
+                "type": transition_type,
+                "duration_frames": duration_frames,
+                "max_delta_frames": max_delta_frames,
+                "marker_count": len(mark_frames),
+                "count": len(applied),
+                "applied": applied,
+                "skipped": skipped[:40],
+                "skipped_count": len(skipped),
+            }
+
     def split_at_beats(
         self,
         track_id: str,

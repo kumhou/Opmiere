@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.50 — 2026-07-17
+
+### Added
+- `markers_from_scenes` + `scene_grid` + API/MCP/desktop **SceneGrid**
+- `apply_transitions_near_markers` + **X@Mkr** (dissolve only cuts near markers)
+- OpenShot path-C **adapter v13**: wipe_* transitions mapped (fade + wipe tag)
 ## 0.5.49 — 2026-07-17
 
 ### Added
@@ -1396,6 +1402,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 

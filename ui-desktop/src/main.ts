@@ -5870,6 +5870,81 @@ async function beatGridUi() {
   }
 }
 
+async function sceneGridUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const c = ids.length ? state.clips.get(ids[0]) : null;
+  if (!c?.trackId) {
+    $("status-msg").textContent = "Select a clip on the track to scene-grid";
+    return;
+  }
+  $("status-msg").textContent = "Scene grid (markers + razor)…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      backend?: string;
+      markers?: { count?: number };
+      split?: { count?: number };
+    }>("/api/edit/scene_grid", {
+      track_id: c.trackId,
+      media_id: c.mediaId || state.binMediaId || null,
+      mode: "both",
+      max_scenes: 128,
+      clear_existing_prefix: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SceneGrid · mkr ${r.markers?.count ?? "?"} · cuts ${r.split?.count ?? "?"}` +
+      (r.backend ? ` · ${r.backend}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`SceneGrid failed: ${e}`);
+    $("status-msg").textContent = `SceneGrid failed: ${e}`;
+  }
+}
+
+async function transitionsNearMarkersUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select a clip on the track for X@Mkr";
+    return;
+  }
+  const c = state.clips.get(ids[0]);
+  if (!c?.trackId) {
+    $("status-msg").textContent = "No track";
+    return;
+  }
+  $("status-msg").textContent = "Dissolves near markers…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      skipped_count?: number;
+    }>("/api/transitions/near_markers", {
+      track_id: c.trackId,
+      transition_type: "cross_dissolve",
+      duration_frames: 12,
+      max_delta_frames: 2,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `X@Mkr · ${r.count ?? 0} dissolves` +
+      (r.skipped_count ? ` · skip ${r.skipped_count}` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`X@Mkr failed: ${e}`);
+    $("status-msg").textContent = `X@Mkr failed: ${e}`;
+  }
+}
+
 async function showSnapPoints() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9232,6 +9307,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-beats", () => void splitAtBeatsUi());
   proBind("btn-beat-mkr", () => void markersFromBeatsUi());
   proBind("btn-beat-grid", () => void beatGridUi());
+  proBind("btn-scene-grid", () => void sceneGridUi());
+  proBind("btn-x-near-mkr", () => void transitionsNearMarkersUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());
   proBind("btn-recent-clr", () => void clearRecentUi());

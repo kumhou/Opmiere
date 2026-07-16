@@ -62,7 +62,7 @@ _UNMAPPED_VISUAL = frozenset({
 })
 
 # Current plan schema version (floors only in tests — never pin exact equality).
-ADAPTER_VERSION = 12
+ADAPTER_VERSION = 13
 
 # curves preset → approximate brightness delta for still path-C preview
 _CURVES_BRIGHTNESS = {
@@ -83,6 +83,10 @@ _DISSOLVE_TYPES = frozenset({
     "dip_to_black", "dip_to_white",
 })
 
+_WIPE_TYPES = frozenset({
+    "wipe_left", "wipe_right", "wipe_up", "wipe_down",
+})
+
 
 def path_c_effect_catalog() -> dict[str, Any]:
     """Agent/desktop catalog of what path-C can approximate vs skip."""
@@ -101,6 +105,7 @@ def path_c_effect_catalog() -> dict[str, Any]:
             "luma_key": "LumaKey threshold/tolerance when available",
             "glow": "soft Blur + Brightness stand-in",
             "transition_dissolve": "cross_dissolve/dip_* → fade_in/out on neighbors",
+            "transition_wipe": "wipe_* → fade ramps + wipe direction tag",
             "curves": "preset → brightness stand-in only",
             "shape_mask": "circle/rect → crop fractions (no feather)",
         },
@@ -503,7 +508,8 @@ def build_openshot_plan(
             fade_in = int(vis.get("fade_in_frames") or 0)
             fade_out = int(vis.get("fade_out_frames") or 0)
             dip_color: str | None = None
-            # cross_dissolve / dip-style transition_in → alpha ramps on neighbors
+            wipe_dir: str | None = None
+            # dissolve / dip / wipe transition_in → alpha ramps (+ tags)
             if clip.transition_in and isinstance(clip.transition_in, dict):
                 ti = clip.transition_in
                 ttype = str(
@@ -513,12 +519,14 @@ def build_openshot_plan(
                     tdur = int(ti.get("duration_frames") or 0)
                 except (TypeError, ValueError):
                     tdur = 0
-                if tdur > 0 and (
+                is_dissolve = (
                     ttype in _DISSOLVE_TYPES
                     or "dissolve" in ttype
                     or ttype.startswith("fade")
                     or ttype.startswith("dip_")
-                ):
+                )
+                is_wipe = ttype in _WIPE_TYPES or ttype.startswith("wipe_")
+                if tdur > 0 and (is_dissolve or is_wipe):
                     fade_in = max(fade_in, tdur)
                     prev = last_entry_by_layer.get(layer)
                     if prev is not None:
@@ -532,6 +540,11 @@ def build_openshot_plan(
                         if prev is not None:
                             prev["dip_out"] = dip_color
                         mapped_notes.append(f"transition_dip:{clip.id}")
+                    if is_wipe:
+                        wipe_dir = ttype.replace("wipe_", "") or "left"
+                        if prev is not None:
+                            prev["wipe_out"] = wipe_dir
+                        mapped_notes.append(f"transition_wipe:{clip.id}")
                     mapped_notes.append(f"transition:{clip.id}")
                 else:
                     unsupported.append(f"transition:{clip.id}")
@@ -559,6 +572,8 @@ def build_openshot_plan(
             }
             if dip_color:
                 entry["dip_in"] = dip_color
+            if wipe_dir:
+                entry["wipe_in"] = wipe_dir
             if vis.get("crop"):
                 entry["crop"] = vis["crop"]
             if vis.get("ken_burns"):

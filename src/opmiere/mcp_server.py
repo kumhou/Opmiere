@@ -1318,6 +1318,84 @@ def beat_grid(
 
 
 @mcp.tool()
+def markers_from_scenes(
+    media_id: str | None = None,
+    path: str | None = None,
+    threshold: float = 27.0,
+    min_scene_len: int = 15,
+    backend: str = "auto",
+    max_markers: int = 128,
+    label_prefix: str = "Scene",
+    color: str = "#ff9800",
+    clear_existing_prefix: bool = False,
+    include_start: bool = False,
+) -> dict:
+    """Detect shot boundaries and place timeline markers."""
+    return _require_editor().markers_from_scenes(
+        media_id,
+        path=path,
+        threshold=threshold,
+        min_scene_len=min_scene_len,
+        backend=backend,
+        max_markers=max_markers,
+        label_prefix=label_prefix,
+        color=color,
+        clear_existing_prefix=clear_existing_prefix,
+        include_start=include_start,
+    )
+
+
+@mcp.tool()
+def scene_grid(
+    track_id: str | None = None,
+    media_id: str | None = None,
+    path: str | None = None,
+    mode: str = "markers",
+    threshold: float = 27.0,
+    min_scene_len: int = 15,
+    backend: str = "auto",
+    max_scenes: int = 128,
+    label_prefix: str = "Scene",
+    color: str = "#ff9800",
+    clear_existing_prefix: bool = True,
+) -> dict:
+    """One-shot scene grid: markers | split | both."""
+    return _require_editor().scene_grid(
+        track_id,
+        media_id,
+        path=path,
+        mode=mode,
+        threshold=threshold,
+        min_scene_len=min_scene_len,
+        backend=backend,
+        max_scenes=max_scenes,
+        label_prefix=label_prefix,
+        color=color,
+        clear_existing_prefix=clear_existing_prefix,
+    )
+
+
+@mcp.tool()
+def apply_transitions_near_markers(
+    track_id: str,
+    transition_type: str = "cross_dissolve",
+    duration_frames: int = 12,
+    max_delta_frames: int = 2,
+    max_count: int | None = None,
+    marker_ids: list[str] | None = None,
+) -> dict:
+    """Add transitions only on hard cuts near timeline markers."""
+    return _require_editor().apply_transitions_near_markers(
+        track_id,
+        transition_type=transition_type,
+        duration_frames=duration_frames,
+        max_delta_frames=max_delta_frames,
+        max_count=max_count,
+        marker_ids=marker_ids,
+    )
+
+
+@mcp.tool()
 def quantize_clips(
     clip_ids: list[str],
     grid_frames: int,

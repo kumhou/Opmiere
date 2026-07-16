@@ -3514,6 +3514,104 @@ def beat_grid_api(body: BeatGridBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MarkersFromScenesBody(BaseModel):
+    media_id: str | None = None
+    path: str | None = None
+    threshold: float = 27.0
+    min_scene_len: int = 15
+    backend: str = "auto"
+    max_markers: int = 128
+    label_prefix: str = "Scene"
+    color: str = "#ff9800"
+    clear_existing_prefix: bool = False
+    include_start: bool = False
+
+
+@app.post("/api/markers/from_scenes")
+def markers_from_scenes_api(body: MarkersFromScenesBody | None = None) -> dict[str, Any]:
+    body = body or MarkersFromScenesBody()
+    ed = _ed()
+    try:
+        return ed.markers_from_scenes(
+            body.media_id,
+            path=body.path,
+            threshold=body.threshold,
+            min_scene_len=body.min_scene_len,
+            backend=body.backend,
+            max_markers=body.max_markers,
+            label_prefix=body.label_prefix,
+            color=body.color,
+            clear_existing_prefix=body.clear_existing_prefix,
+            include_start=body.include_start,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"markers_from_scenes failed: {e}") from e
+
+
+class SceneGridBody(BaseModel):
+    track_id: str | None = None
+    media_id: str | None = None
+    path: str | None = None
+    mode: str = "markers"
+    threshold: float = 27.0
+    min_scene_len: int = 15
+    backend: str = "auto"
+    max_scenes: int = 128
+    label_prefix: str = "Scene"
+    color: str = "#ff9800"
+    clear_existing_prefix: bool = True
+
+
+@app.post("/api/edit/scene_grid")
+def scene_grid_api(body: SceneGridBody) -> dict[str, Any]:
+    """One-shot scene grid: markers / split / both."""
+    ed = _ed()
+    try:
+        r = ed.scene_grid(
+            body.track_id,
+            body.media_id,
+            path=body.path,
+            mode=body.mode,
+            threshold=body.threshold,
+            min_scene_len=body.min_scene_len,
+            backend=body.backend,
+            max_scenes=body.max_scenes,
+            label_prefix=body.label_prefix,
+            color=body.color,
+            clear_existing_prefix=body.clear_existing_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"scene_grid failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class TransitionsNearMarkersBody(BaseModel):
+    track_id: str
+    transition_type: str = "cross_dissolve"
+    duration_frames: int = 12
+    max_delta_frames: int = 2
+    max_count: int | None = None
+    marker_ids: list[str] | None = None
+
+
+@app.post("/api/transitions/near_markers")
+def transitions_near_markers_api(body: TransitionsNearMarkersBody) -> dict[str, Any]:
+    """Dissolve only hard cuts that land near markers."""
+    ed = _ed()
+    try:
+        r = ed.apply_transitions_near_markers(
+            body.track_id,
+            transition_type=body.transition_type,
+            duration_frames=body.duration_frames,
+            max_delta_frames=body.max_delta_frames,
+            max_count=body.max_count,
+            marker_ids=body.marker_ids,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"transitions near markers failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)
