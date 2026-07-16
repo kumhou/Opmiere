@@ -4314,6 +4314,51 @@ def apply_edge_fades_to_selection(
 
 
 @mcp.tool()
+def detach_audio_selection(
+    clip_ids: list[str],
+    audio_track_id: str | None = None,
+    audio_start_offset_frames: int = 0,
+    link: bool = True,
+) -> dict:
+    """Batch detach audio from selected video clips."""
+    return _require_editor().detach_audio_selection(
+        clip_ids,
+        audio_track_id=audio_track_id,
+        audio_start_offset_frames=audio_start_offset_frames,
+        link=link,
+    )
+
+
+@mcp.tool()
+def match_selection_duration(
+    clip_ids: list[str],
+    target_clip_id: str | None = None,
+    target_frames: int | None = None,
+    clamp: bool = True,
+) -> dict:
+    """Rate-stretch selection to match target duration (default first clip)."""
+    return _require_editor().match_selection_duration(
+        clip_ids,
+        target_clip_id=target_clip_id,
+        target_frames=target_frames,
+        clamp=clamp,
+    )
+
+
+@mcp.tool()
+def selection_jl_cut(
+    clip_ids: list[str],
+    style: str = "j",
+    frames: int = 15,
+    link: bool = True,
+) -> dict:
+    """J-cut or L-cut selection (detach audio with lead/lag)."""
+    return _require_editor().selection_jl_cut(
+        clip_ids, style=style, frames=frames, link=link,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

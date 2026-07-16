@@ -7136,6 +7136,75 @@ def edge_fades_selection_api(body: EdgeFadesSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class DetachAudioSelectionBody(BaseModel):
+    clip_ids: list[str]
+    audio_track_id: str | None = None
+    audio_start_offset_frames: int = 0
+    link: bool = True
+
+
+@app.post("/api/edit/detach_audio_selection")
+def detach_audio_selection_api(body: DetachAudioSelectionBody) -> dict[str, Any]:
+    """Batch detach audio from selected video clips."""
+    ed = _ed()
+    try:
+        r = ed.detach_audio_selection(
+            body.clip_ids,
+            audio_track_id=body.audio_track_id,
+            audio_start_offset_frames=body.audio_start_offset_frames,
+            link=body.link,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"detach_audio_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MatchSelectionDurationBody(BaseModel):
+    clip_ids: list[str]
+    target_clip_id: str | None = None
+    target_frames: int | None = None
+    clamp: bool = True
+
+
+@app.post("/api/edit/match_selection_duration")
+def match_selection_duration_api(body: MatchSelectionDurationBody) -> dict[str, Any]:
+    """Match all selected clips' duration to target (default first)."""
+    ed = _ed()
+    try:
+        r = ed.match_selection_duration(
+            body.clip_ids,
+            target_clip_id=body.target_clip_id,
+            target_frames=body.target_frames,
+            clamp=body.clamp,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"match_selection_duration failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionJlCutBody(BaseModel):
+    clip_ids: list[str]
+    style: str = "j"
+    frames: int = 15
+    link: bool = True
+
+
+@app.post("/api/edit/selection_jl_cut")
+def selection_jl_cut_api(body: SelectionJlCutBody) -> dict[str, Any]:
+    """J-cut or L-cut selection via audio detach offset."""
+    ed = _ed()
+    try:
+        r = ed.selection_jl_cut(
+            body.clip_ids,
+            style=body.style,
+            frames=body.frames,
+            link=body.link,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_jl_cut failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

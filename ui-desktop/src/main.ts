@@ -9271,6 +9271,89 @@ async function edgeFadesSelectionUi() {
   }
 }
 
+async function detachAudioSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select video clips to detach audio";
+    return;
+  }
+  $("status-msg").textContent = "Detaching audio…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/detach_audio_selection", {
+      clip_ids: ids,
+      audio_start_offset_frames: 0,
+      link: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `DetSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`DetSel failed: ${e}`);
+    $("status-msg").textContent = `DetSel failed: ${e}`;
+  }
+}
+
+async function matchSelectionDurationUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select 2+ clips (first is target)";
+    return;
+  }
+  $("status-msg").textContent = "Matching selection duration…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/match_selection_duration", {
+      clip_ids: ids,
+      target_clip_id: ids[0],
+      clamp: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MatchSel · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`MatchSel failed: ${e}`);
+    $("status-msg").textContent = `MatchSel failed: ${e}`;
+  }
+}
+
+async function selectionJlCutUi(style: "j" | "l") {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select video clips for J/L cut";
+    return;
+  }
+  $("status-msg").textContent = `${style.toUpperCase()}-cut…`;
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/selection_jl_cut", {
+      clip_ids: ids,
+      style,
+      frames: 15,
+      link: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `${style === "j" ? "JCut" : "LCut"} · ${r.count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`JL cut failed: ${e}`);
+    $("status-msg").textContent = `JL cut failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13156,6 +13239,10 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-split-even", () => void splitSelectionEvenlyUi());
   proBind("btn-mkr-mid", () => void markersSelectionMidsUi());
   proBind("btn-fade-sel", () => void edgeFadesSelectionUi());
+  proBind("btn-detach-sel", () => void detachAudioSelectionUi());
+  proBind("btn-match-sel", () => void matchSelectionDurationUi());
+  proBind("btn-jcut-sel", () => void selectionJlCutUi("j"));
+  proBind("btn-lcut-sel", () => void selectionJlCutUi("l"));
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

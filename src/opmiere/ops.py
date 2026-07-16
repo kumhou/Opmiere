@@ -4901,6 +4901,119 @@ class Editor:
                 ),
             }
 
+    def detach_audio_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        audio_track_id: str | None = None,
+        audio_start_offset_frames: int = 0,
+        link: bool = True,
+    ) -> dict[str, Any]:
+        """Detach audio for selected video clips (batch detach_audio)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        results: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                track, _clip = self._find_clip_and_track(cid)
+                if track.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not video"})
+                    continue
+                r = self.detach_audio(
+                    cid,
+                    audio_track_id=audio_track_id,
+                    audio_start_offset_frames=audio_start_offset_frames,
+                    link=link,
+                )
+                results.append(r)
+            except Exception as e:
+                skipped.append({"clip_id": cid, "reason": str(e)[:200]})
+        return {
+            "count": len(results),
+            "detached": results,
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "offset_frames": int(audio_start_offset_frames),
+            "agent_note": (
+                "Batch detach. Negative offset=J-cut lead; positive=L-cut lag."
+            ),
+        }
+
+    def match_selection_duration(
+        self,
+        clip_ids: list[str],
+        *,
+        target_clip_id: str | None = None,
+        target_frames: int | None = None,
+        clamp: bool = True,
+    ) -> dict[str, Any]:
+        """Rate-stretch each selected clip to match target (default: first clip)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        if target_frames is None and target_clip_id is None:
+            target_clip_id = ids[0]
+        if target_frames is None:
+            assert target_clip_id is not None
+            target_frames = int(
+                self._find_clip(target_clip_id).timeline_duration_frames
+            )
+        applied: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in ids:
+            if target_clip_id is not None and cid == target_clip_id:
+                continue
+            try:
+                r = self.match_clip_duration(
+                    cid,
+                    target_clip_id=target_clip_id,
+                    target_frames=int(target_frames),
+                    clamp=clamp,
+                )
+                applied.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                skipped.append({"clip_id": cid, "reason": str(e)[:200]})
+        return {
+            "target_clip_id": target_clip_id,
+            "target_frames": int(target_frames),
+            "count": len(applied),
+            "matched": applied,
+            "skipped": skipped,
+            "agent_note": "Speeds adjusted; neighbors not rippled.",
+        }
+
+    def selection_jl_cut(
+        self,
+        clip_ids: list[str],
+        *,
+        style: str = "j",
+        frames: int = 15,
+        link: bool = True,
+    ) -> dict[str, Any]:
+        """J-cut or L-cut on selection via detach_audio with offset.
+
+        style j: audio leads (negative offset). l: audio lags (positive).
+        """
+        st = str(style or "j").lower()
+        if st not in ("j", "l", "jcut", "lcut"):
+            raise ValueError("style must be j|l")
+        lead = abs(int(frames))
+        if lead <= 0:
+            raise ValueError("frames must be positive")
+        offset = -lead if st in ("j", "jcut") else lead
+        r = self.detach_audio_selection(
+            clip_ids,
+            audio_start_offset_frames=offset,
+            link=link,
+        )
+        r["style"] = "j" if offset < 0 else "l"
+        r["frames"] = lead
+        r["agent_note"] = (
+            "J-cut: dialogue before picture. L-cut: audio holds after cut."
+        )
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

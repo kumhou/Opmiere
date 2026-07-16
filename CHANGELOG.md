@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.14 — 2026-07-17
+
+### Added
+- `detach_audio_selection` / `match_selection_duration` / `selection_jl_cut` + **DetSel** / **MatchSel** / **JCut** / **LCut**
+
 ## 0.6.13 — 2026-07-17
 
 ### Added
