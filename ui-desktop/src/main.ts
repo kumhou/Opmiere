@@ -9656,6 +9656,79 @@ async function exportSelectionEdlUi() {
   }
 }
 
+async function renameSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to rename";
+    return;
+  }
+  $("status-msg").textContent = "Renaming selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/rename_selection", {
+      clip_ids: ids,
+      pattern: "Clip {n:03d}",
+      start: 1,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Rename · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Rename failed: ${e}`);
+    $("status-msg").textContent = `Rename failed: ${e}`;
+  }
+}
+
+async function colorSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to color";
+    return;
+  }
+  $("status-msg").textContent = "Coloring selection…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+    }>("/api/edit/color_selection", {
+      clip_ids: ids,
+      color: "#4cc9f0",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Color · ${r.count ?? ids.length}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Color failed: ${e}`);
+    $("status-msg").textContent = `Color failed: ${e}`;
+  }
+}
+
+async function selectionDiagnosticsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for diagnostics";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>(
+      "/api/edit/selection_diagnostics",
+      { clip_ids: ids },
+    );
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Diag · ${String(r.count ?? 0)} offline ${String(r.offline_count ?? 0)} fx ${String(r.effect_instances ?? 0)}`;
+  } catch (e) {
+    setProOut(`Diag failed: ${e}`);
+    $("status-msg").textContent = `Diag failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13556,6 +13629,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-bake-sel", () => void bakeSelectionUi());
   proBind("btn-cutlist-sel", () => void exportSelectionCutlistUi());
   proBind("btn-edl-sel", () => void exportSelectionEdlUi());
+  proBind("btn-rename-sel", () => void renameSelectionUi());
+  proBind("btn-color-sel", () => void colorSelectionUi());
+  proBind("btn-diag-sel", () => void selectionDiagnosticsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

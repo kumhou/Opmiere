@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.19 — 2026-07-17
+
+### Added
+- `rename_selection` / `color_selection` / `selection_diagnostics` + **Rename** / **Color** / **Diag**
+
 ## 0.6.18 — 2026-07-17
 
 ### Added

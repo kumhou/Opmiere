@@ -5443,6 +5443,114 @@ class Editor:
             "agent_note": "Selection EDL; not full AAF. Base-track-only full EDL: export_edl.",
         }
 
+    def rename_selection(
+        self,
+        clip_ids: list[str],
+        pattern: str = "Clip {n:03d}",
+        *,
+        start: int = 1,
+    ) -> dict[str, Any]:
+        """Rename selected clips in timeline order with pattern ({n}, {name})."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise ValueError("pattern must be non-empty")
+        items: list[tuple[int, str]] = []
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            items.append((int(clip.start), cid))
+        items.sort(key=lambda x: x[0])
+        with self._mutate():
+            renamed: list[dict[str, Any]] = []
+            n = int(start)
+            for _, cid in items:
+                self._assert_clip_track_unlocked(cid)
+                clip = self._find_clip(cid)
+                old = clip.name
+                try:
+                    new_name = pattern.format(n=n, name=old or "", id=cid[:8])
+                except Exception:
+                    new_name = f"{pattern}{n}"
+                clip.name = new_name
+                renamed.append({
+                    "clip_id": cid,
+                    "name": {"from": old, "to": new_name},
+                })
+                n += 1
+            return {
+                "count": len(renamed),
+                "clips": renamed,
+                "pattern": pattern,
+                "agent_note": "Renamed in timeline-start order.",
+            }
+
+    def color_selection(
+        self,
+        clip_ids: list[str],
+        color: str | None,
+    ) -> dict[str, Any]:
+        """Set or clear color chip on selection (alias set_clips_color)."""
+        return self.set_clips_color(clip_ids, color)
+
+    def selection_diagnostics(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Agent-oriented report for selected clips (offline, FX, lock, span)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        clips_out: list[dict[str, Any]] = []
+        offline = 0
+        locked = 0
+        fx_total = 0
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            media = self.project.media_by_id(clip.media)
+            try:
+                mpath = self.bundle.media_path(media.path)
+                exists = mpath.exists()
+            except Exception:
+                exists = False
+            if not exists:
+                offline += 1
+            if tr.locked:
+                locked += 1
+            fx = [e.get("type") for e in (clip.effects or []) if isinstance(e, dict)]
+            fx_total += len(fx)
+            clips_out.append({
+                "clip_id": cid,
+                "track_id": tr.id,
+                "track_kind": tr.kind,
+                "track_locked": bool(tr.locked),
+                "name": clip.name,
+                "start": clip.start,
+                "end": clip.end,
+                "duration_frames": clip.timeline_duration_frames,
+                "speed": clip.speed,
+                "muted": bool(clip.muted),
+                "media_id": media.id,
+                "media_path": media.path,
+                "media_kind": media.kind,
+                "media_online": exists,
+                "effects": fx,
+                "effect_count": len(fx),
+                "has_position": clip.position is not None,
+                "has_transition_in": clip.transition_in is not None,
+                "link_group": clip.link_group,
+            })
+        span = self.selection_span(list(dict.fromkeys(clip_ids)))
+        return {
+            "count": len(clips_out),
+            "clips": clips_out,
+            "offline_count": offline,
+            "locked_track_count": locked,
+            "effect_instances": fx_total,
+            "span": span,
+            "agent_note": (
+                "Read-only diagnostics before export. Fix offline media / unlock tracks."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

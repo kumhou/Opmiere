@@ -7438,6 +7438,55 @@ def export_selection_edl_api(body: ExportSelectionEdlBody) -> dict[str, Any]:
         raise HTTPException(400, f"selection_edl failed: {e}") from e
 
 
+class RenameSelectionBody(BaseModel):
+    clip_ids: list[str]
+    pattern: str = "Clip {n:03d}"
+    start: int = 1
+
+
+@app.post("/api/edit/rename_selection")
+def rename_selection_api(body: RenameSelectionBody) -> dict[str, Any]:
+    """Rename selected clips with pattern."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection(
+            body.clip_ids, body.pattern, start=body.start,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rename_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ColorSelectionBody(BaseModel):
+    clip_ids: list[str]
+    color: str | None = "#4cc9f0"
+
+
+@app.post("/api/edit/color_selection")
+def color_selection_api(body: ColorSelectionBody) -> dict[str, Any]:
+    """Set color chip on selection."""
+    ed = _ed()
+    try:
+        r = ed.color_selection(body.clip_ids, body.color)
+    except Exception as e:
+        raise HTTPException(400, f"color_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionDiagnosticsBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_diagnostics")
+def selection_diagnostics_api(body: SelectionDiagnosticsBody) -> dict[str, Any]:
+    """Read-only selection diagnostics for agents."""
+    ed = _ed()
+    try:
+        return ed.selection_diagnostics(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_diagnostics failed: {e}") from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

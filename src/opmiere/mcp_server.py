@@ -4494,6 +4494,30 @@ def export_selection_edl(
 
 
 @mcp.tool()
+def rename_selection(
+    clip_ids: list[str],
+    pattern: str = "Clip {n:03d}",
+    start: int = 1,
+) -> dict:
+    """Rename selected clips in timeline order ({n}, {name})."""
+    return _require_editor().rename_selection(
+        clip_ids, pattern, start=start,
+    )
+
+
+@mcp.tool()
+def color_selection(clip_ids: list[str], color: str | None = "#4cc9f0") -> dict:
+    """Set or clear color chip on selection."""
+    return _require_editor().color_selection(clip_ids, color)
+
+
+@mcp.tool()
+def selection_diagnostics(clip_ids: list[str]) -> dict:
+    """Read-only diagnostics for selected clips (offline, FX, locks)."""
+    return _require_editor().selection_diagnostics(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
