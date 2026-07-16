@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.67 — 2026-07-17
+
+### Added
+- `export_frame_sequence` (timeline/range → PNG sequence for VFX) + API/MCP/desktop **Frames**
+
 ## 0.5.66 — 2026-07-17
 
 ### Added

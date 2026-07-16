@@ -6246,6 +6246,35 @@ async function importImageSequenceUi() {
   }
 }
 
+async function exportFrameSequenceUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const dir = await pickProjectFolder({ title: "Frame sequence output folder" });
+  if (!dir) return;
+  $("status-msg").textContent = "Exporting frame sequence…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      path?: string;
+      span_frames?: number;
+    }>("/api/export/frame_sequence", {
+      out_dir: dir,
+      use_work_area: false,
+      pattern: "frame_%06d.png",
+      max_frames: 90,
+      height: 360,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Frames · ${r.count ?? 0} png · span ${r.span_frames ?? "?"} → ${r.path ?? dir}`;
+  } catch (e) {
+    setProOut(`Frames failed: ${e}`);
+    $("status-msg").textContent = `Frames failed: ${e}`;
+  }
+}
+
 async function detachAudioAllUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -10153,6 +10182,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-handoff", () => void exportHandoffUi());
   proBind("btn-collect", () => void collectBundleUi());
   proBind("btn-imgseq", () => void importImageSequenceUi());
+  proBind("btn-frameseq", () => void exportFrameSequenceUi());
   proBind("btn-detach-all", () => void detachAudioAllUi());
   proBind("btn-interchange", () => void interchangeCatalogUi());
   proBind("btn-still", () => void exportStillUi());

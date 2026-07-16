@@ -10095,6 +10095,104 @@ class Editor:
             "agent_note": "Handoff package written. Pair with import_edit_manifest to rehydrate layout.",
         }
 
+    def export_frame_sequence(
+        self,
+        out_dir: str | Path,
+        *,
+        start_frame: int | None = None,
+        end_frame: int | None = None,
+        use_work_area: bool = False,
+        pattern: str = "frame_%06d.png",
+        max_frames: int | None = None,
+        height: int | None = None,
+    ) -> dict[str, Any]:
+        """Export timeline (or range/work area) as an image sequence (VFX handoff).
+
+        Renders once then extracts frames via ffmpeg image2. PNGs by default.
+        """
+        import os
+        import subprocess
+        import tempfile
+
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        if "%" not in pattern:
+            raise ValueError("pattern must include a printf-style %d (e.g. frame_%06d.png)")
+
+        fps = float(self.project.timebase.fps or 30.0)
+        dur_f = int(self.duration_frames())
+        if use_work_area:
+            io = self.get_in_out()
+            if not io.get("ready"):
+                raise ValueError("work area not set (set_in_point / set_out_point)")
+            start_frame = int(io["in_frame"])
+            end_frame = int(io["out_frame"])
+        if start_frame is None:
+            start_frame = 0
+        if end_frame is None:
+            end_frame = dur_f
+        start_frame = max(0, int(start_frame))
+        end_frame = max(start_frame + 1, int(end_frame))
+        if max_frames is not None:
+            end_frame = min(end_frame, start_frame + max(1, int(max_frames)))
+
+        start_s = start_frame / fps
+        end_s = end_frame / fps
+        span = end_frame - start_frame
+
+        fd, raw = tempfile.mkstemp(prefix="opmiere_seq_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        try:
+            if start_frame == 0 and end_frame >= dur_f:
+                self.export(full, normalize_preset=None)
+            else:
+                self.export_range(full, start_s, end_s, normalize_preset=None)
+            # clear existing matching frames? optional leave
+            vf = []
+            if height is not None and int(height) > 0:
+                vf.append(f"scale=-2:{int(height)}")
+            cmd = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-i", str(full),
+                "-vsync", "0",
+            ]
+            if vf:
+                cmd.extend(["-vf", ",".join(vf)])
+            cmd.append(str(out / pattern))
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"frame sequence extract failed:\n{(proc.stderr or '')[-1500:]}"
+                )
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        # count written files matching prefix
+        prefix = pattern.split("%")[0]
+        suffix = Path(pattern).suffix
+        written = sorted(
+            f for f in out.iterdir()
+            if f.is_file() and f.name.startswith(prefix) and f.suffix.lower() == suffix.lower()
+        )
+        return {
+            "path": str(out.resolve()),
+            "pattern": pattern,
+            "count": len(written),
+            "start_frame": start_frame,
+            "end_frame": end_frame,
+            "span_frames": span,
+            "fps": fps,
+            "height": height,
+            "files_sample": [f.name for f in written[:8]],
+            "agent_note": (
+                "Image sequence for VFX/grading. Pair with import_image_sequence to re-import."
+            ),
+        }
+
     def collect_to_bundle(
         self,
         dest_path: str | Path,

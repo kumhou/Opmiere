@@ -2109,6 +2109,28 @@ def collect_to_bundle(
 
 
 @mcp.tool()
+def export_frame_sequence(
+    out_dir: str,
+    start_frame: int | None = None,
+    end_frame: int | None = None,
+    use_work_area: bool = False,
+    pattern: str = "frame_%06d.png",
+    max_frames: int | None = None,
+    height: int | None = None,
+) -> dict:
+    """Export timeline/range as image sequence for VFX/grading handoff."""
+    return _require_editor().export_frame_sequence(
+        out_dir,
+        start_frame=start_frame,
+        end_frame=end_frame,
+        use_work_area=use_work_area,
+        pattern=pattern,
+        max_frames=max_frames,
+        height=height,
+    )
+
+
+@mcp.tool()
 def replace_media_everywhere(
     old_media_id: str,
     new_media_id: str,

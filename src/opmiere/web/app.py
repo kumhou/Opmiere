@@ -3521,6 +3521,34 @@ def collect_bundle_api(body: CollectBundleBody) -> dict[str, Any]:
         raise HTTPException(400, f"collect_bundle failed: {e}") from e
 
 
+class FrameSequenceBody(BaseModel):
+    out_dir: str
+    start_frame: int | None = None
+    end_frame: int | None = None
+    use_work_area: bool = False
+    pattern: str = "frame_%06d.png"
+    max_frames: int | None = None
+    height: int | None = None
+
+
+@app.post("/api/export/frame_sequence")
+def export_frame_sequence_api(body: FrameSequenceBody) -> dict[str, Any]:
+    """Export timeline/range as image sequence (VFX handoff)."""
+    ed = _ed()
+    try:
+        return ed.export_frame_sequence(
+            body.out_dir,
+            start_frame=body.start_frame,
+            end_frame=body.end_frame,
+            use_work_area=body.use_work_area,
+            pattern=body.pattern,
+            max_frames=body.max_frames,
+            height=body.height,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_frame_sequence failed: {e}") from e
+
+
 class ReplaceMediaEverywhereBody(BaseModel):
     old_media_id: str
     new_media_id: str
