@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.86 — 2026-07-17
+
+### Added
+- Desktop **SheetM** — make_contact_sheet on bin media file
+
 ## 0.4.85 — 2026-07-17
 
 ### Added
