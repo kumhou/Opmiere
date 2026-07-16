@@ -517,6 +517,23 @@ for c in plan["clips"]:
                     pass
         except Exception:
             pass
+    # glow → soft Blur + slight Brightness (stand-in)
+    gl = c.get("glow") or {{}}
+    if isinstance(gl, dict) and gl:
+        try:
+            amount = float(gl.get("amount", 12) or 12)
+            intensity = float(gl.get("intensity", 0.7) or 0.7)
+            blur_r = max(0.5, min(20.0, amount * 0.25))
+            br = max(0.0, min(0.45, intensity * 0.25))
+            if hasattr(openshot, "Blur"):
+                be = openshot.Blur(float(blur_r), float(blur_r))
+                clip.AddEffect(be)
+            if br > 1e-3 and hasattr(openshot, "Brightness"):
+                be2 = openshot.Brightness(float(br), 0.0)
+                clip.AddEffect(be2)
+            applied.append("glow")
+        except Exception:
+            pass
     # film_grain amount → Noise when available
     try:
         grain = float(c.get("film_grain", 0) or 0)

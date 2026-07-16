@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.41 — 2026-07-17
+
+### Added
+- OpenShot path-C **adapter v8**: `glow` → soft Blur+Brightness stand-in
 ## 0.5.40 — 2026-07-17
 
 ### Added
@@ -1352,6 +1356,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
