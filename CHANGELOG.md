@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.22 — 2026-07-17
+
+### Added
+- Help overlay lists Preflight/Doctor chord shortcuts
+
 ## 0.5.21 — 2026-07-17
 
 ### Added
