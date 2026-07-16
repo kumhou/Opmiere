@@ -4922,6 +4922,40 @@ def film_grain_selection(clip_ids: list[str], amount: float = 12.0) -> dict:
 
 
 @mcp.tool()
+def glow_selection(
+    clip_ids: list[str],
+    amount: float = 8.0,
+    intensity: float = 0.4,
+) -> dict:
+    """Apply glow to selection."""
+    return _require_editor().glow_selection(
+        clip_ids, amount=amount, intensity=intensity,
+    )
+
+
+@mcp.tool()
+def curves_selection(
+    clip_ids: list[str],
+    preset: str = "increase_contrast",
+) -> dict:
+    """Apply curves color grade preset to selection."""
+    return _require_editor().curves_selection(clip_ids, preset=preset)
+
+
+@mcp.tool()
+def chroma_key_selection(
+    clip_ids: list[str],
+    color: str = "green",
+    similarity: float = 0.15,
+    blend: float = 0.05,
+) -> dict:
+    """Apply chroma key (green/blue screen) to selection."""
+    return _require_editor().chroma_key_selection(
+        clip_ids, color=color, similarity=similarity, blend=blend,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -7118,6 +7118,96 @@ class Editor:
             "agent_note": "Film grain on selection; path-C maps best-effort.",
         }
 
+    def glow_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        amount: float = 8.0,
+        intensity: float = 0.4,
+    ) -> dict[str, Any]:
+        """apply_glow on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_glow(
+                    cid, amount=float(amount), intensity=float(intensity),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "amount": float(amount),
+            "intensity": float(intensity),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Glow on selection; path-C soft blur+brightness stand-in.",
+        }
+
+    def curves_selection(
+        self,
+        clip_ids: list[str],
+        preset: str = "increase_contrast",
+    ) -> dict[str, Any]:
+        """apply_curves preset on each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_curves(cid, preset=str(preset))
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "preset": str(preset),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Curves grade on selection; path-C brightness stand-in for presets.",
+        }
+
+    def chroma_key_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        color: str = "green",
+        similarity: float = 0.15,
+        blend: float = 0.05,
+    ) -> dict[str, Any]:
+        """apply_chroma_key on each selected clip (green/blue screen)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                r = self.apply_chroma_key(
+                    cid,
+                    color=str(color),
+                    similarity=float(similarity),
+                    blend=float(blend),
+                )
+                out.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "color": str(color),
+            "similarity": float(similarity),
+            "blend": float(blend),
+            "count": len(out),
+            "applied": out,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Chroma key on selection for overlay plates.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

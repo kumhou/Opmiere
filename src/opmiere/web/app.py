@@ -8313,6 +8313,64 @@ def film_grain_selection_api(body: FilmGrainSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class GlowSelectionBody(BaseModel):
+    clip_ids: list[str]
+    amount: float = 8.0
+    intensity: float = 0.4
+
+
+@app.post("/api/edit/glow_selection")
+def glow_selection_api(body: GlowSelectionBody) -> dict[str, Any]:
+    """Glow on selection."""
+    ed = _ed()
+    try:
+        r = ed.glow_selection(
+            body.clip_ids, amount=body.amount, intensity=body.intensity,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"glow_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CurvesSelectionBody(BaseModel):
+    clip_ids: list[str]
+    preset: str = "increase_contrast"
+
+
+@app.post("/api/edit/curves_selection")
+def curves_selection_api(body: CurvesSelectionBody) -> dict[str, Any]:
+    """Curves preset on selection."""
+    ed = _ed()
+    try:
+        r = ed.curves_selection(body.clip_ids, preset=body.preset)
+    except Exception as e:
+        raise HTTPException(400, f"curves_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ChromaKeySelectionBody(BaseModel):
+    clip_ids: list[str]
+    color: str = "green"
+    similarity: float = 0.15
+    blend: float = 0.05
+
+
+@app.post("/api/edit/chroma_key_selection")
+def chroma_key_selection_api(body: ChromaKeySelectionBody) -> dict[str, Any]:
+    """Chroma key on selection."""
+    ed = _ed()
+    try:
+        r = ed.chroma_key_selection(
+            body.clip_ids,
+            color=body.color,
+            similarity=body.similarity,
+            blend=body.blend,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"chroma_key_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

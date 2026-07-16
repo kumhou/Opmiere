@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.35 — 2026-07-17
+
+### Added
+- `glow_selection` / `curves_selection` / `chroma_key_selection` + **GlowSel** / **CurvesSel** / **ChromaSel**
+
 ## 0.6.34 — 2026-07-17
 
 ### Added

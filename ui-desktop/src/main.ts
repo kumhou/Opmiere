@@ -10908,6 +10908,93 @@ async function filmGrainSelectionUi() {
   }
 }
 
+async function glowSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for glow";
+    return;
+  }
+  $("status-msg").textContent = "Applying glow…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/glow_selection", {
+      clip_ids: ids,
+      amount: 8.0,
+      intensity: 0.4,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GlowSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`GlowSel failed: ${e}`);
+    $("status-msg").textContent = `GlowSel failed: ${e}`;
+  }
+}
+
+async function curvesSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for curves";
+    return;
+  }
+  $("status-msg").textContent = "Applying curves…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/curves_selection", {
+      clip_ids: ids,
+      preset: "increase_contrast",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CurvesSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`CurvesSel failed: ${e}`);
+    $("status-msg").textContent = `CurvesSel failed: ${e}`;
+  }
+}
+
+async function chromaKeySelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for chroma key";
+    return;
+  }
+  $("status-msg").textContent = "Applying chroma key…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/chroma_key_selection", {
+      clip_ids: ids,
+      color: "green",
+      similarity: 0.15,
+      blend: 0.05,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ChromaSel · ${r.count ?? 0} err ${r.error_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`ChromaSel failed: ${e}`);
+    $("status-msg").textContent = `ChromaSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -14864,6 +14951,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-blur-sel", () => void blurSelectionUi());
   proBind("btn-sharp-sel", () => void sharpenSelectionUi());
   proBind("btn-grain-sel", () => void filmGrainSelectionUi());
+  proBind("btn-glow-sel", () => void glowSelectionUi());
+  proBind("btn-curves-sel", () => void curvesSelectionUi());
+  proBind("btn-chroma-sel", () => void chromaKeySelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
