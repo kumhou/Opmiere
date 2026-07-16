@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.75 — 2026-07-16
+
+### Added
+- Desktop **Share?** (clips_sharing_media) + **After** (place_after bin)
+
 ## 0.4.74 — 2026-07-16
 
 ### Added
