@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.32 — 2026-07-17
+
+### Added
+- `.ph-tc-float` accent color on timeline header
+
 ## 0.5.31 — 2026-07-17
 
 ### Added
