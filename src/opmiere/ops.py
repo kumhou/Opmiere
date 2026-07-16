@@ -5551,6 +5551,146 @@ class Editor:
             ),
         }
 
+    def selection_path_c_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """path-C OpenShot readiness for selected clips (mapped vs unmapped FX).
+
+        Uses ADAPTER_VERSION floor from openshot_map; does not pin exact version.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        from .render.openshot_map import (
+            ADAPTER_VERSION,
+            clip_path_c_support,
+            path_c_effect_catalog,
+        )
+
+        rows: list[dict[str, Any]] = []
+        not_ready = 0
+        for cid in dict.fromkeys(clip_ids):
+            tr, clip = self._find_clip_and_track(cid)
+            row = clip_path_c_support(clip)
+            row["track_id"] = tr.id
+            row["track_kind"] = tr.kind
+            rows.append(row)
+            if not row.get("path_c_ready"):
+                not_ready += 1
+        return {
+            "adapter_version": int(ADAPTER_VERSION),
+            "count": len(rows),
+            "not_ready_count": not_ready,
+            "path_c_ready": not_ready == 0,
+            "clips": rows,
+            "catalog": path_c_effect_catalog(),
+            "agent_note": (
+                "path-C preview readiness for selection. "
+                "Unmapped FX still export via ffmpeg; preview may approximate."
+            ),
+        }
+
+    def apply_look_to_selection(
+        self,
+        clip_ids: list[str],
+        look: str | list[dict[str, Any]] = "cinematic",
+        *,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Apply project look preset (or effect list) to selection only."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        if video_only:
+            filtered: list[str] = []
+            for cid in ids:
+                tr, _ = self._find_clip_and_track(cid)
+                if tr.kind == "video":
+                    filtered.append(cid)
+            ids = filtered
+        if not ids:
+            return {
+                "look": look if isinstance(look, str) else "custom",
+                "clip_count": 0,
+                "applied_count": 0,
+                "agent_note": "No video clips in selection.",
+            }
+        r = self.apply_project_look(look, clip_ids=ids, video_only=video_only)
+        r["agent_note"] = "Look applied to selection only."
+        return r
+
+    def apply_style_to_selection(
+        self,
+        clip_ids: list[str],
+        styles: str | list[str],
+        *,
+        apply_motion: bool = True,
+        place_audio_assets: bool = False,
+    ) -> dict[str, Any]:
+        """Apply film style preset(s) to selection (no whole-project audio place by default)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        r = self.apply_style_preset(
+            styles,
+            clip_ids=list(dict.fromkeys(clip_ids)),
+            video_only=True,
+            apply_motion=apply_motion,
+            place_audio_assets=place_audio_assets,
+        )
+        r["agent_note"] = "Style stack on selection; place_audio_assets default off."
+        return r
+
+    def retarget_selection_media(
+        self,
+        clip_ids: list[str],
+        media_id: str,
+        *,
+        keep_source_range: bool = True,
+    ) -> dict[str, Any]:
+        """Point selected clips at a new media_id (same kind constraints as tracks)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        new_media = self.project.media_by_id(media_id)
+        with self._mutate():
+            changed: list[dict[str, Any]] = []
+            for cid in dict.fromkeys(clip_ids):
+                self._assert_clip_track_unlocked(cid)
+                tr, clip = self._find_clip_and_track(cid)
+                if tr.kind == "video" and new_media.kind == "audio":
+                    raise ValueError(f"{cid}: cannot put audio media on video track")
+                if tr.kind == "audio" and new_media.kind == "image":
+                    raise ValueError(f"{cid}: cannot put image media on audio track")
+                old = {
+                    "media": clip.media,
+                    "src_in": clip.src_in,
+                    "src_out": clip.src_out,
+                }
+                clip.media = new_media.id
+                if not keep_source_range:
+                    clip.src_in = 0
+                    clip.src_out = max(1, int(new_media.duration_frames or 1))
+                else:
+                    # clamp to new media length
+                    max_out = max(1, int(new_media.duration_frames or 1))
+                    clip.src_in = max(0, min(int(clip.src_in), max_out - 1))
+                    clip.src_out = max(clip.src_in + 1, min(int(clip.src_out), max_out))
+                changed.append({
+                    "clip_id": cid,
+                    "from": old,
+                    "to": {
+                        "media": clip.media,
+                        "src_in": clip.src_in,
+                        "src_out": clip.src_out,
+                    },
+                })
+            return {
+                "media_id": media_id,
+                "count": len(changed),
+                "clips": changed,
+                "keep_source_range": keep_source_range,
+                "agent_note": "Selection retargeted; re-export proxy after large swaps.",
+            }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

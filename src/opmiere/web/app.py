@@ -7487,6 +7487,83 @@ def selection_diagnostics_api(body: SelectionDiagnosticsBody) -> dict[str, Any]:
         raise HTTPException(400, f"selection_diagnostics failed: {e}") from e
 
 
+class SelectionPathCBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_path_c")
+def selection_path_c_api(body: SelectionPathCBody) -> dict[str, Any]:
+    """path-C readiness report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_path_c_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(400, f"selection_path_c failed: {e}") from e
+
+
+class LookSelectionBody(BaseModel):
+    clip_ids: list[str]
+    look: str = "cinematic"
+    video_only: bool = True
+
+
+@app.post("/api/edit/look_selection")
+def look_selection_api(body: LookSelectionBody) -> dict[str, Any]:
+    """Apply look preset to selection."""
+    ed = _ed()
+    try:
+        r = ed.apply_look_to_selection(
+            body.clip_ids, body.look, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"look_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class StyleSelectionBody(BaseModel):
+    clip_ids: list[str]
+    styles: str
+    apply_motion: bool = True
+    place_audio_assets: bool = False
+
+
+@app.post("/api/edit/style_selection")
+def style_selection_api(body: StyleSelectionBody) -> dict[str, Any]:
+    """Apply film style preset(s) to selection."""
+    ed = _ed()
+    try:
+        r = ed.apply_style_to_selection(
+            body.clip_ids,
+            body.styles,
+            apply_motion=body.apply_motion,
+            place_audio_assets=body.place_audio_assets,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"style_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RetargetSelectionBody(BaseModel):
+    clip_ids: list[str]
+    media_id: str
+    keep_source_range: bool = True
+
+
+@app.post("/api/edit/retarget_selection_media")
+def retarget_selection_media_api(body: RetargetSelectionBody) -> dict[str, Any]:
+    """Retarget selection clips to a media_id."""
+    ed = _ed()
+    try:
+        r = ed.retarget_selection_media(
+            body.clip_ids,
+            body.media_id,
+            keep_source_range=body.keep_source_range,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"retarget_selection_media failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

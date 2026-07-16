@@ -4518,6 +4518,52 @@ def selection_diagnostics(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def selection_path_c_report(clip_ids: list[str]) -> dict:
+    """path-C OpenShot readiness for selected clips (mapped vs unmapped FX)."""
+    return _require_editor().selection_path_c_report(clip_ids)
+
+
+@mcp.tool()
+def apply_look_to_selection(
+    clip_ids: list[str],
+    look: str = "cinematic",
+    video_only: bool = True,
+) -> dict:
+    """Apply project look preset to selection."""
+    return _require_editor().apply_look_to_selection(
+        clip_ids, look, video_only=video_only,
+    )
+
+
+@mcp.tool()
+def apply_style_to_selection(
+    clip_ids: list[str],
+    styles: str,
+    apply_motion: bool = True,
+    place_audio_assets: bool = False,
+) -> dict:
+    """Apply film style preset name(s) to selection."""
+    return _require_editor().apply_style_to_selection(
+        clip_ids,
+        styles,
+        apply_motion=apply_motion,
+        place_audio_assets=place_audio_assets,
+    )
+
+
+@mcp.tool()
+def retarget_selection_media(
+    clip_ids: list[str],
+    media_id: str,
+    keep_source_range: bool = True,
+) -> dict:
+    """Point selected clips at media_id."""
+    return _require_editor().retarget_selection_media(
+        clip_ids, media_id, keep_source_range=keep_source_range,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

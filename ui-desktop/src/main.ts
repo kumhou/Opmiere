@@ -9729,6 +9729,82 @@ async function selectionDiagnosticsUi() {
   }
 }
 
+async function selectionPathCUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for path-C report";
+    return;
+  }
+  try {
+    const r = await postJson<Record<string, unknown>>("/api/edit/selection_path_c", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    const ready = r.path_c_ready ? "ready" : "gaps";
+    $("status-msg").textContent =
+      `PathC? · ${ready} · not_ready ${String(r.not_ready_count ?? 0)} · v${String(r.adapter_version ?? "?")}`;
+  } catch (e) {
+    setProOut(`PathC? failed: ${e}`);
+    $("status-msg").textContent = `PathC? failed: ${e}`;
+  }
+}
+
+async function lookSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for look";
+    return;
+  }
+  $("status-msg").textContent = "Applying look…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      clip_count?: number;
+      applied_count?: number;
+    }>("/api/edit/look_selection", {
+      clip_ids: ids,
+      look: "cinematic",
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `Look · clips ${r.clip_count ?? ids.length} fx ${r.applied_count ?? 0}`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Look failed: ${e}`);
+    $("status-msg").textContent = `Look failed: ${e}`;
+  }
+}
+
+async function styleSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for style";
+    return;
+  }
+  $("status-msg").textContent = "Applying style…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+    }>("/api/edit/style_selection", {
+      clip_ids: ids,
+      styles: "cinematic",
+      apply_motion: true,
+      place_audio_assets: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `Style · ${ids.length} clips`;
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`Style failed: ${e}`);
+    $("status-msg").textContent = `Style failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -13632,6 +13708,9 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rename-sel", () => void renameSelectionUi());
   proBind("btn-color-sel", () => void colorSelectionUi());
   proBind("btn-diag-sel", () => void selectionDiagnosticsUi());
+  proBind("btn-pathc-sel", () => void selectionPathCUi());
+  proBind("btn-look-sel", () => void lookSelectionUi());
+  proBind("btn-style-sel", () => void styleSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

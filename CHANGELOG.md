@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.20 — 2026-07-17
+
+### Added
+- `selection_path_c_report` (path-C readiness, adapter floor) + **PathC?**
+- `apply_look_to_selection` / `apply_style_to_selection` + **Look** / **Style**
+- `retarget_selection_media` 
+
 ## 0.6.19 — 2026-07-17
 
 ### Added
