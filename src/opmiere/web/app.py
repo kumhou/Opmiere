@@ -3481,6 +3481,39 @@ def markers_from_beats_api(body: MarkersFromBeatsBody | None = None) -> dict[str
         raise HTTPException(400, f"markers_from_beats failed: {e}") from e
 
 
+class BeatGridBody(BaseModel):
+    track_id: str | None = None
+    media_id: str | None = None
+    path: str | None = None
+    mode: str = "markers"
+    max_beats: int = 128
+    label_prefix: str = "Beat"
+    color: str = "#e91e63"
+    clear_existing_prefix: bool = True
+    snap_clip_ids: list[str] | None = None
+
+
+@app.post("/api/edit/beat_grid")
+def beat_grid_api(body: BeatGridBody) -> dict[str, Any]:
+    """One-shot music grid: markers / split / both / markers_snap."""
+    ed = _ed()
+    try:
+        r = ed.beat_grid(
+            body.track_id,
+            body.media_id,
+            path=body.path,
+            mode=body.mode,
+            max_beats=body.max_beats,
+            label_prefix=body.label_prefix,
+            color=body.color,
+            clear_existing_prefix=body.clear_existing_prefix,
+            snap_clip_ids=body.snap_clip_ids,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"beat_grid failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/snap_points")
 def snap_points_api(include_markers: bool = True) -> dict[str, Any]:
     return _ed().snap_points(include_markers=include_markers)

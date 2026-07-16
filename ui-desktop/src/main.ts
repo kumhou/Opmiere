@@ -5831,6 +5831,45 @@ async function markersFromBeatsUi() {
   }
 }
 
+async function beatGridUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const ids = selectionList();
+  const c = ids.length ? state.clips.get(ids[0]) : null;
+  if (!c?.trackId) {
+    $("status-msg").textContent = "Select a clip on the track to beat-grid";
+    return;
+  }
+  $("status-msg").textContent = "Beat grid (markers + razor)…";
+  try {
+    const r = await postJson<{
+      timeline?: TimelineView;
+      bpm_estimate?: number;
+      markers?: { count?: number };
+      split?: { count?: number };
+    }>("/api/edit/beat_grid", {
+      track_id: c.trackId,
+      media_id: c.mediaId || state.binMediaId || null,
+      mode: "both",
+      max_beats: 128,
+      clear_existing_prefix: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    await refreshMarkers();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BeatGrid · mkr ${r.markers?.count ?? "?"} · cuts ${r.split?.count ?? "?"}` +
+      (r.bpm_estimate != null ? ` · ~${Math.round(Number(r.bpm_estimate))} bpm` : "");
+    scheduleProxyRefresh();
+  } catch (e) {
+    setProOut(`BeatGrid failed: ${e}`);
+    $("status-msg").textContent = `BeatGrid failed: ${e}`;
+  }
+}
+
 async function showSnapPoints() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -9192,6 +9231,7 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-hard-cut", () => void hardCutAllUi());
   proBind("btn-beats", () => void splitAtBeatsUi());
   proBind("btn-beat-mkr", () => void markersFromBeatsUi());
+  proBind("btn-beat-grid", () => void beatGridUi());
   proBind("btn-snaps", () => void showSnapPoints());
   proBind("btn-px-inval", () => void invalidatePreviewUi());
   proBind("btn-recent-clr", () => void clearRecentUi());

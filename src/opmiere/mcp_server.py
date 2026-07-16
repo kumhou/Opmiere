@@ -1288,6 +1288,36 @@ def markers_from_beats(
 
 
 @mcp.tool()
+def beat_grid(
+    track_id: str | None = None,
+    media_id: str | None = None,
+    path: str | None = None,
+    mode: str = "markers",
+    max_beats: int = 128,
+    label_prefix: str = "Beat",
+    color: str = "#e91e63",
+    clear_existing_prefix: bool = True,
+    snap_clip_ids: list[str] | None = None,
+) -> dict:
+    """One-shot music cut grid.
+
+    mode: markers | split | both | markers_snap
+    both = markers + razor track; markers_snap = markers + snap clips.
+    """
+    return _require_editor().beat_grid(
+        track_id,
+        media_id,
+        path=path,
+        mode=mode,
+        max_beats=max_beats,
+        label_prefix=label_prefix,
+        color=color,
+        clear_existing_prefix=clear_existing_prefix,
+        snap_clip_ids=snap_clip_ids,
+    )
+
+
+@mcp.tool()
 def quantize_clips(
     clip_ids: list[str],
     grid_frames: int,

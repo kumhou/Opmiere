@@ -6307,6 +6307,70 @@ class Editor:
                 "agent_note": "Beat markers placed; use split_at_markers to razor.",
             }
 
+    def beat_grid(
+        self,
+        track_id: str | None = None,
+        media_id: str | None = None,
+        *,
+        path: str | Path | None = None,
+        mode: str = "markers",
+        max_beats: int = 128,
+        label_prefix: str = "Beat",
+        color: str = "#e91e63",
+        clear_existing_prefix: bool = True,
+        snap_clip_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """One-shot music grid: detect beats → markers and/or razor track.
+
+        mode:
+          - markers: only place beat markers
+          - split: razor track_id at beats (no markers)
+          - both: markers then split_at_markers on track_id
+          - markers_snap: markers then snap_clip_ids to markers (start)
+
+        Agents prefer this over chaining three tools for music cuts.
+        """
+        if mode not in ("markers", "split", "both", "markers_snap"):
+            raise ValueError("mode must be markers|split|both|markers_snap")
+        if mode in ("split", "both") and not track_id:
+            raise ValueError("track_id required for mode split|both")
+        if mode == "markers_snap" and not snap_clip_ids:
+            raise ValueError("snap_clip_ids required for mode markers_snap")
+
+        result: dict[str, Any] = {"mode": mode}
+        if mode == "split":
+            assert track_id is not None
+            result["split"] = self.split_at_beats(
+                track_id, media_id=media_id, path=path, max_splits=max_beats,
+            )
+            result["bpm_estimate"] = result["split"].get("bpm_estimate")
+            return result
+
+        mkr = self.markers_from_beats(
+            media_id,
+            path=path,
+            max_markers=max_beats,
+            label_prefix=label_prefix,
+            color=color,
+            clear_existing_prefix=clear_existing_prefix,
+        )
+        result["markers"] = mkr
+        result["bpm_estimate"] = mkr.get("bpm_estimate")
+        if mode == "both":
+            assert track_id is not None
+            result["split"] = self.split_at_markers(track_ids=[track_id])
+        elif mode == "markers_snap":
+            assert snap_clip_ids is not None
+            result["snap"] = self.snap_clips_to_markers(
+                snap_clip_ids, edge="start", prefer="nearest",
+            )
+        result["agent_note"] = {
+            "markers": "Beat markers only",
+            "both": "Markers + razor at markers",
+            "markers_snap": "Markers + snap clips to markers",
+        }.get(mode, mode)
+        return result
+
     def split_at_beats(
         self,
         track_id: str,

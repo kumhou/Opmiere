@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.48 — 2026-07-17
+
+### Added
+- `beat_grid` one-shot (markers|split|both|markers_snap) + API/MCP/desktop **BeatGrid**
 ## 0.5.47 — 2026-07-17
 
 ### Added
@@ -1388,6 +1392,7 @@
 - Cloud generation still deferred
 - Realtime NLE scrub (libopenshot/MLT) not included — lightweight proxy only
 - Version 0.1 means “agent can cut and honestly deliver”, not feature parity with Premiere
+
 
 
 
