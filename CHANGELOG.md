@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.78 — 2026-07-16
+
+### Added
+- Desktop **Tx?** cached transcript + **Caption** (ASR burn-in)
+
 ## 0.4.77 — 2026-07-16
 
 ### Added
