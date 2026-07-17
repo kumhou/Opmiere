@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.3 — 2026-07-17
+
+### Added
+- `selection_set_agent_preflight` / `selection_set_checklist` + **SetPre** / **SetCList**
+
 ## 0.9.2 — 2026-07-17
 
 ### Added

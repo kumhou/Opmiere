@@ -7501,6 +7501,34 @@ def selection_set_export_summary(
 
 
 @mcp.tool()
+def selection_set_agent_preflight(
+    name: str,
+    set_work_area: bool = False,
+    min_clip_seconds: float = 0.4,
+) -> dict:
+    """Agent preflight for a named selection set (read-only default)."""
+    return _require_editor().selection_set_agent_preflight(
+        name,
+        set_work_area=set_work_area,
+        min_clip_seconds=min_clip_seconds,
+    )
+
+
+@mcp.tool()
+def selection_set_checklist(
+    name: str,
+    min_clip_seconds: float = 0.4,
+    set_work_area: bool = False,
+) -> dict:
+    """In-memory selection checklist for a named selection set."""
+    return _require_editor().selection_set_checklist(
+        name,
+        min_clip_seconds=min_clip_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -15966,10 +15966,76 @@ class Editor:
         }
         r["agent_note"] = (
             "Briefing for named set. Checklist: export_selection_set_checklist. "
-            "Multi-format: export_selection_set_formats_pack. "
+            "In-memory checklist: selection_set_checklist. "
+            "Preflight: selection_set_agent_preflight. "
             "Full catalog: selection_set_tool_catalog."
         )
         return r
+
+    def selection_set_agent_preflight(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+        min_clip_seconds: float = 0.4,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_agent_preflight (read-only default)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        pre = self.selection_agent_preflight(
+            ids,
+            set_work_area=False,
+            min_clip_seconds=min_clip_seconds,
+        )
+        return {
+            **pre,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "note": loaded.get("note") or "",
+            },
+            "agent_note": (
+                "Named-set agent preflight. In-memory checklist: "
+                "selection_set_checklist. Write checklist: "
+                "export_selection_set_checklist."
+            ),
+        }
+
+    def selection_set_checklist(
+        self,
+        name: str,
+        *,
+        min_clip_seconds: float = 0.4,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_checklist (in-memory)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        cl = self.selection_checklist(
+            ids, min_clip_seconds=min_clip_seconds,
+        )
+        return {
+            **cl,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "In-memory checklist for named set. Write to disk: "
+                "export_selection_set_checklist. Preflight: "
+                "selection_set_agent_preflight."
+            ),
+        }
 
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
@@ -16062,6 +16128,8 @@ class Editor:
                     {"id": "export_selection_set_storyboard", "writes": True},
                     {"id": "export_selection_set_agent_card", "writes": True},
                     {"id": "export_selection_set_checklist", "writes": True},
+                    {"id": "selection_set_checklist", "writes": False},
+                    {"id": "selection_set_agent_preflight", "writes": False},
                     {"id": "selection_set_export_summary", "writes": False},
                 ],
             },

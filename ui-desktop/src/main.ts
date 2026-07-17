@@ -15595,6 +15595,61 @@ async function selectionSetExportSummaryUi() {
   }
 }
 
+async function selectionSetAgentPreflightUi() {
+  try {
+    const name = await promptSelectionSetName("Set agent preflight (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetPre cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetPre ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      next_steps?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/selection_set_agent_preflight", {
+      name,
+      set_work_area: false,
+      min_clip_seconds: 0.4,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetPre · ${r.selection_set || name} ok=${r.ok ?? "?"} steps=${(r.next_steps || []).length}`;
+  } catch (e) {
+    setProOut(`SetPre failed: ${e}`);
+    $("status-msg").textContent = `SetPre failed: ${e}`;
+  }
+}
+
+async function selectionSetChecklistUi() {
+  try {
+    const name = await promptSelectionSetName("Set in-memory checklist (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetCList cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetCList ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      items?: unknown[];
+      ok?: boolean;
+    }>("/api/edit/selection_set_checklist", {
+      name,
+      min_clip_seconds: 0.4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetCList · ${r.selection_set || name} n=${r.clip_count ?? "?"} items=${(r.items || []).length}`;
+  } catch (e) {
+    setProOut(`SetCList failed: ${e}`);
+    $("status-msg").textContent = `SetCList failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20161,6 +20216,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-card", () => void exportSelectionSetAgentCardUi());
   proBind("btn-set-check", () => void exportSelectionSetChecklistUi());
   proBind("btn-set-sum", () => void selectionSetExportSummaryUi());
+  proBind("btn-set-pre", () => void selectionSetAgentPreflightUi());
+  proBind("btn-set-clist", () => void selectionSetChecklistUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -12499,6 +12499,56 @@ def selection_set_export_summary_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetAgentPreflightBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+    min_clip_seconds: float = 0.4
+
+
+@app.post("/api/edit/selection_set_agent_preflight")
+def selection_set_agent_preflight_api(
+    body: SelectionSetAgentPreflightBody,
+) -> dict[str, Any]:
+    """Agent preflight for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_agent_preflight(
+            body.name,
+            set_work_area=body.set_work_area,
+            min_clip_seconds=body.min_clip_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_agent_preflight failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetChecklistBody(BaseModel):
+    name: str
+    min_clip_seconds: float = 0.4
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_checklist")
+def selection_set_checklist_api(
+    body: SelectionSetChecklistBody,
+) -> dict[str, Any]:
+    """In-memory checklist for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_checklist(
+            body.name,
+            min_clip_seconds=body.min_clip_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_checklist failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
