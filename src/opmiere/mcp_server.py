@@ -8588,6 +8588,38 @@ def color_selection_set(
 
 
 @mcp.tool()
+def pack_selection_set(
+    name: str,
+    gap_frames: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Pack clips in a named selection set left into contiguous blocks."""
+    return _require_editor().pack_selection_set(
+        name,
+        gap_frames=gap_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def detach_audio_selection_set(
+    name: str,
+    audio_track_id: str | None = None,
+    audio_start_offset_frames: int = 0,
+    link: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Detach audio from video clips in a named selection set."""
+    return _require_editor().detach_audio_selection_set(
+        name,
+        audio_track_id=audio_track_id,
+        audio_start_offset_frames=audio_start_offset_frames,
+        link=link,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -17903,6 +17903,67 @@ async function colorSelectionSetUi() {
   }
 }
 
+async function packSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Pack named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PackSet cancelled";
+      return;
+    }
+    const raw = window.prompt("gap_frames", "0");
+    if (raw === null) {
+      $("status-msg").textContent = "PackSet cancelled";
+      return;
+    }
+    const gap_frames = Number(raw);
+    $("status-msg").textContent = `PackSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      gap_frames?: number;
+      clip_count?: number;
+    }>("/api/edit/pack_selection_set", {
+      name,
+      gap_frames: Number.isFinite(gap_frames) ? gap_frames : 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PackSet · ${r.selection_set || name} moved=${r.count ?? "?"} gap=${r.gap_frames ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`PackSet failed: ${e}`);
+    $("status-msg").textContent = `PackSet failed: ${e}`;
+  }
+}
+
+async function detachAudioSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Detach audio named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DetachSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DetachSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      skipped_count?: number;
+      clip_count?: number;
+    }>("/api/edit/detach_audio_selection_set", {
+      name,
+      link: true,
+      audio_start_offset_frames: 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DetachSet · ${r.selection_set || name} det=${r.count ?? "?"} skip=${r.skipped_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DetachSet failed: ${e}`);
+    $("status-msg").textContent = `DetachSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22545,6 +22606,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-wb-set", () => void whiteBalanceSelectionSetUi());
   proBind("btn-chroma-set", () => void chromaKeySelectionSetUi());
   proBind("btn-chip-set", () => void colorSelectionSetUi());
+  proBind("btn-pack-set", () => void packSelectionSetUi());
+  proBind("btn-detach-set", () => void detachAudioSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

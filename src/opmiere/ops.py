@@ -18273,6 +18273,69 @@ class Editor:
             ),
         }
 
+    def pack_selection_set(
+        self,
+        name: str,
+        *,
+        gap_frames: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then pack_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.pack_selection(ids, gap_frames=int(gap_frames))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Pack named set left per track. Detach audio: "
+                "detach_audio_selection_set. Nudge: "
+                "nudge_selection_set."
+            ),
+        }
+
+    def detach_audio_selection_set(
+        self,
+        name: str,
+        *,
+        audio_track_id: str | None = None,
+        audio_start_offset_frames: int = 0,
+        link: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then detach_audio_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.detach_audio_selection(
+            ids,
+            audio_track_id=audio_track_id,
+            audio_start_offset_frames=int(audio_start_offset_frames),
+            link=bool(link),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Detach A from V for named set. Pack: "
+                "pack_selection_set. Link report: "
+                "selection_set_link_report."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18372,6 +18435,8 @@ class Editor:
                     {"id": "white_balance_selection_set", "writes": True},
                     {"id": "chroma_key_selection_set", "writes": True},
                     {"id": "color_selection_set", "writes": True},
+                    {"id": "pack_selection_set", "writes": True},
+                    {"id": "detach_audio_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -14419,6 +14419,60 @@ def color_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class PackSelectionSetBody(BaseModel):
+    name: str
+    gap_frames: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/pack_selection_set")
+def pack_selection_set_api(
+    body: PackSelectionSetBody,
+) -> dict[str, Any]:
+    """Pack clips in a named selection set left."""
+    ed = _ed()
+    try:
+        r = ed.pack_selection_set(
+            body.name,
+            gap_frames=body.gap_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"pack_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DetachAudioSelectionSetBody(BaseModel):
+    name: str
+    audio_track_id: str | None = None
+    audio_start_offset_frames: int = 0
+    link: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/detach_audio_selection_set")
+def detach_audio_selection_set_api(
+    body: DetachAudioSelectionSetBody,
+) -> dict[str, Any]:
+    """Detach audio from video in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.detach_audio_selection_set(
+            body.name,
+            audio_track_id=body.audio_track_id,
+            audio_start_offset_frames=body.audio_start_offset_frames,
+            link=body.link,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"detach_audio_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

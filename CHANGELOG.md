@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.41 — 2026-07-17
+
+### Added
+- `pack_selection_set` / `detach_audio_selection_set` + **PackSet** / **DetachSet**
+
 ## 0.9.40 — 2026-07-17
 
 ### Added
