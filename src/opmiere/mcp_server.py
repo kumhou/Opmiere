@@ -6381,6 +6381,24 @@ def clear_selection_subtitles(
 
 
 @mcp.tool()
+def selection_media_health(clip_ids: list[str]) -> dict:
+    """Aggregate offline/proxy/duration/path-C health for selection."""
+    return _require_editor().selection_media_health(clip_ids)
+
+
+@mcp.tool()
+def apply_lut_selection(
+    clip_ids: list[str],
+    path: str,
+    replace: bool = True,
+) -> dict:
+    """Apply a .cube/.3dl LUT to selection clips."""
+    return _require_editor().apply_lut_selection(
+        clip_ids, path, replace=replace,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

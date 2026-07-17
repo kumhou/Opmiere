@@ -10690,6 +10690,41 @@ def clear_selection_subtitles_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionMediaHealthBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_media_health")
+def selection_media_health_api(body: SelectionMediaHealthBody) -> dict[str, Any]:
+    """Selection media health card."""
+    ed = _ed()
+    try:
+        return ed.selection_media_health(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_media_health failed: {e}",
+        ) from e
+
+
+class ApplyLutSelectionBody(BaseModel):
+    clip_ids: list[str]
+    path: str
+    replace: bool = True
+
+
+@app.post("/api/edit/apply_lut_selection")
+def apply_lut_selection_api(body: ApplyLutSelectionBody) -> dict[str, Any]:
+    """Apply LUT file to selection."""
+    ed = _ed()
+    try:
+        r = ed.apply_lut_selection(
+            body.clip_ids, body.path, replace=body.replace,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"apply_lut_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -13512,6 +13512,47 @@ async function clearSelectionSubtitlesUi() {
   }
 }
 
+async function selectionMediaHealthUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for media health";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      offline_count?: number;
+      proxy_missing_count?: number;
+    }>("/api/edit/selection_media_health", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `HealthSel · ok=${r.ok ?? "?"} offline=${r.offline_count ?? "?"} proxy_miss=${r.proxy_missing_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`HealthSel failed: ${e}`);
+    $("status-msg").textContent = `HealthSel failed: ${e}`;
+  }
+}
+
+async function applyLutSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for LUT";
+    return;
+  }
+  $("status-msg").textContent =
+    "LutSel needs a .cube path — use MCP apply_lut_selection with path";
+  setProOut(
+    JSON.stringify(
+      {
+        hint: "POST /api/edit/apply_lut_selection {clip_ids, path}",
+        clip_ids: ids,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17571,6 +17612,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-dur-sel", () => void selectionDurationReportUi());
   proBind("btn-meta-sel", () => void setSelectionMetaUi());
   proBind("btn-sub-clr-sel", () => void clearSelectionSubtitlesUi());
+  proBind("btn-health-sel", () => void selectionMediaHealthUi());
+  proBind("btn-lut-sel", () => void applyLutSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

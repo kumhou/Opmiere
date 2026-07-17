@@ -12247,6 +12247,78 @@ class Editor:
             ),
         }
 
+    def selection_media_health(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Aggregate offline / proxy / duration / path-C floor for selection.
+
+        Read-only agent health card before edit or export.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        offline = self.selection_offline_media(ids)
+        proxies = self.selection_proxy_report(ids)
+        durs = self.selection_duration_report(ids)
+        path_c = self.selection_path_c_report(ids)
+        offline_n = int(
+            offline.get("offline_count")
+            if offline.get("offline_count") is not None
+            else 0
+        )
+        not_ready = int(path_c.get("not_ready_count") or 0)
+        proxy_missing = 0
+        if isinstance(proxies, dict):
+            for row in proxies.get("media") or proxies.get("items") or []:
+                if isinstance(row, dict) and not row.get("has_proxy") and not row.get("proxy_ready"):
+                    proxy_missing += 1
+            if proxy_missing == 0 and proxies.get("missing_count") is not None:
+                proxy_missing = int(proxies["missing_count"])
+        ok = offline_n == 0
+        return {
+            "ok": ok,
+            "clip_count": len(ids),
+            "offline": offline,
+            "offline_count": offline_n,
+            "proxies": proxies,
+            "proxy_missing_count": proxy_missing,
+            "durations": {
+                "sum_seconds": durs.get("sum_clip_duration_seconds"),
+                "union_seconds": durs.get("union_span_seconds"),
+                "overlap_or_gaps": durs.get("overlap_or_gaps"),
+            },
+            "path_c": {
+                "adapter_version": path_c.get("adapter_version"),
+                "path_c_ready": path_c.get("path_c_ready"),
+                "not_ready_count": not_ready,
+            },
+            "agent_note": (
+                "ok=no offline media. Full agent gate: selection_agent_preflight."
+            ),
+        }
+
+    def apply_lut_selection(
+        self,
+        clip_ids: list[str],
+        path: str,
+        *,
+        replace: bool = True,
+    ) -> dict[str, Any]:
+        """Apply a .cube/.3dl LUT to selection (alias of apply_lut_to_clips)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        r = self.apply_lut_to_clips(
+            list(dict.fromkeys(clip_ids)), path, replace=replace,
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["agent_note"] = (
+                "LUT on selection. Clear: clear_selection_luts. "
+                "Path must stay valid through export."
+            )
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

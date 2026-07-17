@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.81 — 2026-07-17
+
+### Added
+- `selection_media_health` / `apply_lut_selection` + **HealthSel** / **LutSel**
+
 ## 0.6.80 — 2026-07-17
 
 ### Added
