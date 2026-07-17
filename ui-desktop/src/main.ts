@@ -20673,6 +20673,68 @@ async function exportSelectionSetPathCPlanUi() {
   }
 }
 
+async function exportSelectionSetMarkersDefaultUi() {
+  try {
+    const name = await promptSelectionSetName("Export markers for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpMarkersSet cancelled";
+      return;
+    }
+    const rawFmt = window.prompt("format (json|csv|youtube)", "json");
+    if (rawFmt === null) {
+      $("status-msg").textContent = "ExpMarkersSet cancelled";
+      return;
+    }
+    const format = String(rawFmt).trim() || "json";
+    $("status-msg").textContent = `ExpMarkersSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      count?: number;
+      format?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_markers_default", {
+      name,
+      format,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpMarkersSet · ${r.selection_set || name} fmt=${r.format ?? format} count=${r.count ?? "?"} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpMarkersSet failed: ${e}`);
+    $("status-msg").textContent = `ExpMarkersSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetMarkersSrtUi() {
+  try {
+    const name = await promptSelectionSetName("Export markers SRT for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpMarkersSrtSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpMarkersSrtSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_markers_srt", {
+      name,
+      relative: true,
+      cue_seconds: 2,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpMarkersSrtSet · ${r.selection_set || name} count=${r.count ?? "?"} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpMarkersSrtSet failed: ${e}`);
+    $("status-msg").textContent = `ExpMarkersSrtSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25403,6 +25465,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-clips-audio-set", () => void exportSelectionSetClipsAudioPackUi());
   proBind("btn-path-c-plan-set", () => void selectionSetPathCPlanUi());
   proBind("btn-exp-path-c-plan-set", () => void exportSelectionSetPathCPlanUi());
+  proBind("btn-exp-markers-set", () => void exportSelectionSetMarkersDefaultUi());
+  proBind("btn-exp-markers-srt-set", () => void exportSelectionSetMarkersSrtUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

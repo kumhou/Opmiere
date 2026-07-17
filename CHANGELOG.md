@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.85 — 2026-07-17
+
+### Added
+- `export_selection_set_markers_default` / `export_selection_set_markers_srt` + **ExpMarkersSet** / **ExpMarkersSrtSet**
+
 ## 0.9.84 — 2026-07-17
 
 ### Added

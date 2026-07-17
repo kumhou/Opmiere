@@ -21365,6 +21365,84 @@ class Editor:
             ),
         }
 
+    def export_selection_set_markers_default(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        format: str = "json",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_markers_default (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        ext = {"youtube": "txt", "csv": "csv", "json": "json"}.get(
+            str(format), "json"
+        )
+        rep = self.export_selection_markers_default(
+            ids,
+            filename=filename or f"selection_set_{safe}_markers.{ext}",
+            format=str(format),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set markers export (json|csv|youtube). SRT: "
+                "export_selection_set_markers_srt. Span markers: "
+                "markers_in_selection_set_span."
+            ),
+        }
+
+    def export_selection_set_markers_srt(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        cue_seconds: float = 2.0,
+        relative: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_markers_srt (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        rep = self.export_selection_markers_srt(
+            ids,
+            filename=filename or f"selection_set_{safe}_markers.srt",
+            cue_seconds=float(cue_seconds),
+            relative=bool(relative),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set markers as SRT. Chapters/json: "
+                "export_selection_set_markers_default."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21552,6 +21630,8 @@ class Editor:
                     {"id": "export_selection_set_clips_audio_pack", "writes": True},
                     {"id": "selection_set_path_c_plan", "writes": False},
                     {"id": "export_selection_set_path_c_plan", "writes": True},
+                    {"id": "export_selection_set_markers_default", "writes": True},
+                    {"id": "export_selection_set_markers_srt", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

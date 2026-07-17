@@ -10130,6 +10130,40 @@ def export_selection_set_path_c_plan(
 
 
 @mcp.tool()
+def export_selection_set_markers_default(
+    name: str,
+    filename: str | None = None,
+    format: str = "json",
+    set_work_area: bool = False,
+) -> dict:
+    """Export markers in named set span (json|csv|youtube)."""
+    return _require_editor().export_selection_set_markers_default(
+        name,
+        filename=filename,
+        format=format,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_markers_srt(
+    name: str,
+    filename: str | None = None,
+    cue_seconds: float = 2.0,
+    relative: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Export markers in named set span as SRT."""
+    return _require_editor().export_selection_set_markers_srt(
+        name,
+        filename=filename,
+        cue_seconds=cue_seconds,
+        relative=relative,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

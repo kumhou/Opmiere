@@ -16929,6 +16929,62 @@ def export_selection_set_path_c_plan_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetMarkersDefaultBody(BaseModel):
+    name: str
+    filename: str | None = None
+    format: str = "json"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_markers_default")
+def export_selection_set_markers_default_api(
+    body: ExportSelectionSetMarkersDefaultBody,
+) -> dict[str, Any]:
+    """Export markers in named set span (json|csv|youtube)."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_markers_default(
+            body.name,
+            filename=body.filename,
+            format=body.format,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_markers_default failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetMarkersSrtBody(BaseModel):
+    name: str
+    filename: str | None = None
+    cue_seconds: float = 2.0
+    relative: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_markers_srt")
+def export_selection_set_markers_srt_api(
+    body: ExportSelectionSetMarkersSrtBody,
+) -> dict[str, Any]:
+    """Export markers in named set span as SRT."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_markers_srt(
+            body.name,
+            filename=body.filename,
+            cue_seconds=body.cue_seconds,
+            relative=body.relative,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_markers_srt failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
