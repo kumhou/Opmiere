@@ -8990,6 +8990,54 @@ def safe_area_selection_set(
 
 
 @mcp.tool()
+def timecode_selection_set(
+    name: str,
+    position: str = "bottom",
+    size: int = 28,
+    start: str = "00:00:00:00",
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Burn running timecode overlay on a named selection set."""
+    return _require_editor().timecode_selection_set(
+        name,
+        position=position,
+        size=size,
+        start=start,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def ken_burns_selection_set(
+    name: str,
+    zoom_start: float = 1.0,
+    zoom_end: float = 1.15,
+    x_start: float = 0.5,
+    y_start: float = 0.5,
+    x_end: float = 0.5,
+    y_end: float = 0.5,
+    replace: bool = True,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply Ken Burns zoom/pan to a named selection set."""
+    return _require_editor().ken_burns_selection_set(
+        name,
+        zoom_start=zoom_start,
+        zoom_end=zoom_end,
+        x_start=x_start,
+        y_start=y_start,
+        x_end=x_end,
+        y_end=y_end,
+        replace=replace,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

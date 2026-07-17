@@ -19064,6 +19064,88 @@ class Editor:
             ),
         }
 
+    def timecode_selection_set(
+        self,
+        name: str,
+        *,
+        position: str = "bottom",
+        size: int = 28,
+        start: str = "00:00:00:00",
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then timecode_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.timecode_selection(
+            ids,
+            position=str(position),
+            size=int(size),
+            start=str(start),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Timecode burn-in on named set. Ken Burns: "
+                "ken_burns_selection_set. Clear before final: "
+                "clear_selection_set_effects."
+            ),
+        }
+
+    def ken_burns_selection_set(
+        self,
+        name: str,
+        *,
+        zoom_start: float = 1.0,
+        zoom_end: float = 1.15,
+        x_start: float = 0.5,
+        y_start: float = 0.5,
+        x_end: float = 0.5,
+        y_end: float = 0.5,
+        replace: bool = True,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then ken_burns_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.ken_burns_selection(
+            ids,
+            zoom_start=float(zoom_start),
+            zoom_end=float(zoom_end),
+            x_start=float(x_start),
+            y_start=float(y_start),
+            x_end=float(x_end),
+            y_end=float(y_end),
+            replace=bool(replace),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Ken Burns on named set. Timecode: "
+                "timecode_selection_set. Reframe: "
+                "reframe_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19187,6 +19269,8 @@ class Editor:
                     {"id": "apply_lut_selection_set", "writes": True},
                     {"id": "color_match_selection_set", "writes": True},
                     {"id": "safe_area_selection_set", "writes": True},
+                    {"id": "timecode_selection_set", "writes": True},
+                    {"id": "ken_burns_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -15085,6 +15085,76 @@ def safe_area_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class TimecodeSelectionSetBody(BaseModel):
+    name: str
+    position: str = "bottom"
+    size: int = 28
+    start: str = "00:00:00:00"
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/timecode_selection_set")
+def timecode_selection_set_api(
+    body: TimecodeSelectionSetBody,
+) -> dict[str, Any]:
+    """Burn timecode overlay on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.timecode_selection_set(
+            body.name,
+            position=body.position,
+            size=body.size,
+            start=body.start,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"timecode_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class KenBurnsSelectionSetBody(BaseModel):
+    name: str
+    zoom_start: float = 1.0
+    zoom_end: float = 1.15
+    x_start: float = 0.5
+    y_start: float = 0.5
+    x_end: float = 0.5
+    y_end: float = 0.5
+    replace: bool = True
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/ken_burns_selection_set")
+def ken_burns_selection_set_api(
+    body: KenBurnsSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply Ken Burns zoom/pan to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.ken_burns_selection_set(
+            body.name,
+            zoom_start=body.zoom_start,
+            zoom_end=body.zoom_end,
+            x_start=body.x_start,
+            y_start=body.y_start,
+            x_end=body.x_end,
+            y_end=body.y_end,
+            replace=body.replace,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"ken_burns_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

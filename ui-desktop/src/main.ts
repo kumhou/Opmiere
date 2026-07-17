@@ -18691,6 +18691,68 @@ async function safeAreaSelectionSetUi() {
   }
 }
 
+async function timecodeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Timecode named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "TcSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `TcSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      position?: string;
+    }>("/api/edit/timecode_selection_set", {
+      name,
+      position: "bottom",
+      size: 28,
+      start: "00:00:00:00",
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `TcSet · ${r.selection_set || name} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`TcSet failed: ${e}`);
+    $("status-msg").textContent = `TcSet failed: ${e}`;
+  }
+}
+
+async function kenBurnsSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Ken Burns named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "KbSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `KbSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      zoom_end?: number;
+    }>("/api/edit/ken_burns_selection_set", {
+      name,
+      zoom_start: 1,
+      zoom_end: 1.15,
+      replace: true,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `KbSet · ${r.selection_set || name} applied=${r.count ?? "?"} zoomEnd=${r.zoom_end ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`KbSet failed: ${e}`);
+    $("status-msg").textContent = `KbSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23357,6 +23419,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-lut-set", () => void applyLutSelectionSetUi());
   proBind("btn-cmatch-set", () => void colorMatchSelectionSetUi());
   proBind("btn-safe-set", () => void safeAreaSelectionSetUi());
+  proBind("btn-tc-set", () => void timecodeSelectionSetUi());
+  proBind("btn-kb-set", () => void kenBurnsSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

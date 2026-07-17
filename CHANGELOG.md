@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.53 — 2026-07-17
+
+### Added
+- `timecode_selection_set` / `ken_burns_selection_set` + **TcSet** / **KbSet**
+
 ## 0.9.52 — 2026-07-17
 
 ### Added
