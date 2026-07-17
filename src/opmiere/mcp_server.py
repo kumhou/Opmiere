@@ -4017,13 +4017,13 @@ def ripple_delete_selection(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
-def copy_effects(
+def copy_effects_to(
     source_clip_id: str,
     target_clip_ids: list[str],
     replace: bool = True,
     types: list[str] | None = None,
 ) -> dict:
-    """Copy effects from source clip onto target clips."""
+    """Copy effects from source clip onto target clips (batch, not clipboard)."""
     return _require_editor().copy_effects(
         source_clip_id,
         target_clip_ids,

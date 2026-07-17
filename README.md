@@ -11,9 +11,9 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: 0.6.67.** Headless NLE + MCP + path-C OpenShot preview (install optional) + **Tauri product shell** (`ui-desktop/` — primary human GUI). HTML `opmiere web` remains a dogfood / API host.
+> **Status: 0.6.68.** Headless NLE + MCP + path-C OpenShot preview (install optional) + **Tauri product shell** (`ui-desktop/` — primary human GUI). HTML `opmiere web` remains a dogfood / API host.
 > Product is the **NLE**; director/style is a **hero feature**. Dual surface: human GUI + agent MCP on one Editor.
-> See [CHANGELOG.md](CHANGELOG.md), [docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md), [docs/TOOLS.md](docs/TOOLS.md).
+> See [CHANGELOG.md](CHANGELOG.md), [docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md), [docs/TOOLS.md](docs/TOOLS.md), [docs/CI.md](docs/CI.md).
 
 ## Install (Windows, native — no Docker)
 
@@ -53,6 +53,23 @@ Optional extras: `[transcribe]` faster-whisper, `[scenes]` PySceneDetect, `[stem
 | `opmiere web` | Core API + HTML dogfood probe (`:8787`) |
 | `opmiere mcp` | MCP server (same as `opmiere-mcp`) |
 | `scripts/dev-desktop.ps1` | Tauri product shell + ensure Core API |
+
+### Local CI (canonical — no GitHub-hosted minutes)
+
+Private-repo GitHub Actions minutes are **not** used for every push. Gate on this machine:
+
+```powershell
+# Full gate (doctor + pytest + dogfood pipelines)
+powershell -ExecutionPolicy Bypass -File .\scripts\ci.ps1
+
+# Fast gate before a small push
+powershell -ExecutionPolicy Bypass -File .\scripts\ci.ps1 -Quick
+
+# Optional: pre-push hook runs -Quick
+powershell -ExecutionPolicy Bypass -File .\scripts\install-ci-hook.ps1
+```
+
+Optional free GitHub path: self-hosted Windows runner + manual `workflow_dispatch` only — see [docs/CI.md](docs/CI.md).
 
 ### Pro pipeline dogfood (no ComfyUI)
 

@@ -2413,7 +2413,9 @@ class SetClipsMetaBody(BaseModel):
 
 
 @app.post("/api/clips/join")
+@app.post("/api/edit/join_clips")
 def join_clips_api(body: JoinClipsBody) -> dict[str, Any]:
+    """Join two adjacent hard-cut clips (same media). Alias: /api/edit/join_clips."""
     ed = _ed()
     r = ed.join_clips(body.clip_id_a, body.clip_id_b)
     return {**r, "timeline": ed.timeline_view()}
@@ -6640,9 +6642,12 @@ class CopyEffectsBody(BaseModel):
     types: list[str] | None = None
 
 
-@app.post("/api/clip/copy_effects")
-def copy_effects_api(body: CopyEffectsBody) -> dict[str, Any]:
-    """Copy effects from source clip to targets."""
+@app.post("/api/clip/copy_effects_to")
+def copy_effects_to_api(body: CopyEffectsBody) -> dict[str, Any]:
+    """Copy effects from source clip onto target clips (batch).
+
+    Distinct path from /api/clip/copy_effects (clipboard mode) so both coexist.
+    """
     ed = _ed()
     try:
         r = ed.copy_effects(

@@ -2336,16 +2336,86 @@ class Editor:
                 "count": len(moved),
             }
 
-    def copy_effects(self, clip_id: str) -> dict[str, Any]:
-        """Copy clip effects list into session effects clipboard."""
-        clip = self._find_clip(clip_id)
-        self._effects_clipboard = [dict(e) for e in (clip.effects or [])]
+    def copy_effects(
+        self,
+        clip_id: str,
+        target_clip_ids: list[str] | None = None,
+        *,
+        replace: bool = True,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Copy clip effects — dual mode.
+
+        * ``target_clip_ids is None`` → session effects clipboard (use paste_effects).
+        * ``target_clip_ids`` provided → apply onto those clips (batch, one undo).
+
+        Later definitions of copy_effects must not re-bind this name.
+        """
+        if target_clip_ids is None:
+            clip = self._find_clip(clip_id)
+            fx = list(clip.effects or [])
+            if types is not None:
+                allow = set(types)
+                fx = [
+                    e for e in fx
+                    if isinstance(e, dict) and e.get("type") in allow
+                ]
+            self._effects_clipboard = [dict(e) for e in fx]
+            return {
+                "copied": True,
+                "clip_id": clip_id,
+                "count": len(self._effects_clipboard),
+                "types": [e.get("type") for e in self._effects_clipboard],
+                "agent_note": "Session effects clipboard — paste_effects. Not in .opm.",
+            }
+        # Batch: source clip_id → targets
+        if not target_clip_ids:
+            raise ValueError("target_clip_ids is empty")
+        src = self._find_clip(clip_id)
+        fx_src = list(src.effects or [])
+        if types is not None:
+            allow = set(types)
+            fx_src = [
+                e for e in fx_src
+                if isinstance(e, dict) and e.get("type") in allow
+            ]
+        if not fx_src:
+            return {
+                "source_clip_id": clip_id,
+                "count": 0,
+                "targets": [],
+                "agent_note": "Source has no matching effects to copy.",
+            }
+        applied: list[dict[str, Any]] = []
+        with self._mutate():
+            for tid in dict.fromkeys(target_clip_ids):
+                if tid == clip_id:
+                    continue
+                self._assert_clip_track_unlocked(tid)
+                clip = self._find_clip(tid)
+                if replace:
+                    if types is None:
+                        clip.effects = []
+                    else:
+                        allow = set(types)
+                        clip.effects = [
+                            e for e in (clip.effects or [])
+                            if not (isinstance(e, dict) and e.get("type") in allow)
+                        ]
+                for e in fx_src:
+                    self._apply_effect_unlocked(tid, dict(e))
+                applied.append({
+                    "clip_id": tid,
+                    "effects_count": len(fx_src),
+                })
         return {
-            "copied": True,
-            "clip_id": clip_id,
-            "count": len(self._effects_clipboard),
-            "types": [e.get("type") for e in self._effects_clipboard],
-            "agent_note": "Session effects clipboard — paste_effects. Not in .opm.",
+            "source_clip_id": clip_id,
+            "count": len(applied),
+            "targets": applied,
+            "effect_types": [
+                e.get("type") for e in fx_src if isinstance(e, dict)
+            ],
+            "agent_note": "Effects copied; transitions/position not included.",
         }
 
     def match_grade_to_clip(
@@ -3263,65 +3333,6 @@ class Editor:
             "count": len(deleted),
             "deleted": deleted,
             "agent_note": "Multi-clip ripple delete; order was end→start per track.",
-        }
-
-    def copy_effects(
-        self,
-        source_clip_id: str,
-        target_clip_ids: list[str],
-        *,
-        replace: bool = True,
-        types: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """Copy effects from source clip onto targets (one undo per target via batch).
-
-        types: optional allow-list of effect type names; default = all effects.
-        replace=True clears matching types (or all if types is None) on targets first.
-        """
-        if not target_clip_ids:
-            raise ValueError("target_clip_ids is empty")
-        src = self._find_clip(source_clip_id)
-        fx_src = list(src.effects or [])
-        if types is not None:
-            allow = set(types)
-            fx_src = [e for e in fx_src if isinstance(e, dict) and e.get("type") in allow]
-        if not fx_src:
-            return {
-                "source_clip_id": source_clip_id,
-                "count": 0,
-                "targets": [],
-                "agent_note": "Source has no matching effects to copy.",
-            }
-        applied: list[dict[str, Any]] = []
-        with self._mutate():
-            for tid in dict.fromkeys(target_clip_ids):
-                if tid == source_clip_id:
-                    continue
-                self._assert_clip_track_unlocked(tid)
-                clip = self._find_clip(tid)
-                if replace:
-                    if types is None:
-                        clip.effects = []
-                    else:
-                        allow = set(types)
-                        clip.effects = [
-                            e for e in (clip.effects or [])
-                            if not (isinstance(e, dict) and e.get("type") in allow)
-                        ]
-                for e in fx_src:
-                    self._apply_effect_unlocked(tid, dict(e))
-                applied.append({
-                    "clip_id": tid,
-                    "effects_count": len(fx_src),
-                })
-        return {
-            "source_clip_id": source_clip_id,
-            "count": len(applied),
-            "targets": applied,
-            "effect_types": [
-                e.get("type") for e in fx_src if isinstance(e, dict)
-            ],
-            "agent_note": "Effects copied; transitions/position not included.",
         }
 
     def export_clips_stills_pack(

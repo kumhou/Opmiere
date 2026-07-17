@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.68 — 2026-07-17
+
+### Changed
+- **CI local-first (permanent):** stop GitHub-hosted `windows-latest` on push (private-repo minutes exhaustion caused ~1s failures with no runner). Canonical gate: `scripts/ci.ps1` (+ optional `install-ci-hook.ps1`). GHA workflow is `workflow_dispatch` + self-hosted labels only — zero hosted minutes. See [docs/CI.md](docs/CI.md).
+
+### Fixed
+- `copy_effects` dual-mode restored (clipboard vs batch); second definition no longer clobbers clipboard API. Batch HTTP path: `/api/clip/copy_effects_to`; MCP: `copy_effects_to`.
+- `/api/edit/join_clips` alias (alongside `/api/clips/join`) for ship wiring.
+
 ## 0.6.67 — 2026-07-17
 
 ### Added
