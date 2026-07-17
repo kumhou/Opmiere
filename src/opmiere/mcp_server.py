@@ -6895,6 +6895,38 @@ def merge_selection_sets(
 
 
 @mcp.tool()
+def rename_selection_set(
+    old_name: str,
+    new_name: str,
+    overwrite: bool = False,
+) -> dict:
+    """Rename a named selection set in the project sidecar."""
+    return _require_editor().rename_selection_set(
+        old_name,
+        new_name,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool()
+def copy_selection_set(
+    source: str,
+    dest: str,
+    overwrite: bool = True,
+    note: str | None = None,
+    resolve_live: bool = True,
+) -> dict:
+    """Copy a named selection set to a new name (keeps source)."""
+    return _require_editor().copy_selection_set(
+        source,
+        dest,
+        overwrite=overwrite,
+        note=note,
+        resolve_live=resolve_live,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

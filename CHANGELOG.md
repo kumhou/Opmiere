@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.98 — 2026-07-17
+
+### Added
+- `rename_selection_set` / `copy_selection_set` + **RenSet** / **CopySet**
+
 ## 0.6.97 — 2026-07-17
 
 ### Added

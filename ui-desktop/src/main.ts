@@ -14452,6 +14452,73 @@ async function mergeSelectionSetsUi() {
   }
 }
 
+async function renameSelectionSetUi() {
+  try {
+    const oldName = await promptSelectionSetName("Rename set (current name)");
+    if (!oldName) {
+      $("status-msg").textContent = "RenSet cancelled";
+      return;
+    }
+    const newName = window.prompt("New selection set name", `${oldName}_v2`)?.trim();
+    if (!newName) {
+      $("status-msg").textContent = "RenSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RenSet ${oldName} → ${newName}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      old_name?: string;
+      new_name?: string;
+      clip_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/rename_selection_set", {
+      old_name: oldName,
+      new_name: newName,
+      overwrite: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RenSet · ${r.old_name || oldName} → ${r.new_name || newName} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RenSet failed: ${e}`);
+    $("status-msg").textContent = `RenSet failed: ${e}`;
+  }
+}
+
+async function copySelectionSetUi() {
+  try {
+    const source = await promptSelectionSetName("Copy set (source name)");
+    if (!source) {
+      $("status-msg").textContent = "CopySet cancelled";
+      return;
+    }
+    const dest =
+      window.prompt("Destination set name", `${source}_copy`)?.trim() ||
+      `${source}_copy`;
+    $("status-msg").textContent = `CopySet ${source} → ${dest}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      source?: string;
+      dest?: string;
+      clip_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/copy_selection_set", {
+      source,
+      dest,
+      overwrite: true,
+      resolve_live: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CopySet · ${r.source || source} → ${r.dest || dest} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CopySet failed: ${e}`);
+    $("status-msg").textContent = `CopySet failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18545,6 +18612,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pipe-sel-set", () => void runSelectionSetPipelineUi());
   proBind("btn-diff-sel-set", () => void diffSelectionSetsUi());
   proBind("btn-merge-sel-set", () => void mergeSelectionSetsUi());
+  proBind("btn-ren-sel-set", () => void renameSelectionSetUi());
+  proBind("btn-copy-sel-set", () => void copySelectionSetUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

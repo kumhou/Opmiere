@@ -14284,6 +14284,135 @@ class Editor:
             ),
         }
 
+    def rename_selection_set(
+        self,
+        old_name: str,
+        new_name: str,
+        *,
+        overwrite: bool = False,
+    ) -> dict[str, Any]:
+        """Rename a named selection set in the project sidecar."""
+        old = str(old_name or "").strip()
+        new = str(new_name or "").strip()
+        if not old or not new:
+            raise ValueError("old_name and new_name are required")
+        if old == new:
+            return {
+                "ok": True,
+                "old_name": old,
+                "new_name": new,
+                "noop": True,
+                "agent_note": "Names identical; no change.",
+            }
+        store = self._read_selection_sets()
+        sets: dict[str, Any] = dict(store.get("sets") or {})
+        if old not in sets:
+            raise KeyError(
+                f"no selection set {old!r}; known={sorted(sets.keys())}"
+            )
+        if new in sets and not overwrite:
+            raise ValueError(
+                f"selection set {new!r} exists (overwrite=False)"
+            )
+        entry = sets.pop(old)
+        if not isinstance(entry, dict):
+            entry = {"clip_ids": [], "note": ""}
+        entry = dict(entry)
+        entry["name"] = new
+        entry["updated_at"] = datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        sets[new] = entry
+        store["sets"] = sets
+        path = self._write_selection_sets(store)
+        return {
+            "ok": True,
+            "old_name": old,
+            "new_name": new,
+            "clip_ids": list(entry.get("clip_ids") or []),
+            "clip_count": entry.get("clip_count")
+            or len(entry.get("clip_ids") or []),
+            "path": str(path.resolve()),
+            "noop": False,
+            "agent_note": (
+                "Renamed selection set. Copy without delete: copy_selection_set."
+            ),
+        }
+
+    def copy_selection_set(
+        self,
+        source: str,
+        dest: str,
+        *,
+        overwrite: bool = True,
+        note: str | None = None,
+        resolve_live: bool = True,
+    ) -> dict[str, Any]:
+        """Copy a named selection set to a new name (keeps source).
+
+        resolve_live=True re-saves only clips still on the timeline.
+        """
+        src = str(source or "").strip()
+        dst = str(dest or "").strip()
+        if not src or not dst:
+            raise ValueError("source and dest are required")
+        if src == dst:
+            raise ValueError("source and dest must differ")
+        store = self._read_selection_sets()
+        sets = store.get("sets") or {}
+        if src not in sets:
+            raise KeyError(
+                f"no selection set {src!r}; known={sorted(sets.keys())}"
+            )
+        if dst in sets and not overwrite:
+            raise ValueError(
+                f"selection set {dst!r} exists (overwrite=False)"
+            )
+        entry = sets[src]
+        if not isinstance(entry, dict):
+            raise ValueError(f"corrupt selection set {src!r}")
+        raw_ids = [
+            str(c) for c in (entry.get("clip_ids") or []) if str(c).strip()
+        ]
+        if resolve_live:
+            ids: list[str] = []
+            for cid in dict.fromkeys(raw_ids):
+                try:
+                    self._find_clip(cid)
+                    ids.append(cid)
+                except Exception:
+                    continue
+        else:
+            ids = list(dict.fromkeys(raw_ids))
+        if not ids:
+            raise ValueError(
+                f"copy of {src!r} has no clips "
+                f"(resolve_live={resolve_live})"
+            )
+        note_text = (
+            note
+            if note is not None
+            else str(entry.get("note") or f"copy of {src}")
+        )
+        saved = self.save_selection_set(
+            dst,
+            ids,
+            note=note_text,
+            overwrite=overwrite,
+        )
+        return {
+            "ok": True,
+            "source": src,
+            "dest": dst,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "saved": saved,
+            "resolve_live": bool(resolve_live),
+            "agent_note": (
+                "Copied selection set. Rename (move): rename_selection_set."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

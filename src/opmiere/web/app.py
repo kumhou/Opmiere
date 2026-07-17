@@ -11549,6 +11549,52 @@ def merge_selection_sets_api(body: MergeSelectionSetsBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RenameSelectionSetBody(BaseModel):
+    old_name: str
+    new_name: str
+    overwrite: bool = False
+
+
+@app.post("/api/edit/rename_selection_set")
+def rename_selection_set_api(body: RenameSelectionSetBody) -> dict[str, Any]:
+    """Rename a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection_set(
+            body.old_name,
+            body.new_name,
+            overwrite=body.overwrite,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"rename_selection_set failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CopySelectionSetBody(BaseModel):
+    source: str
+    dest: str
+    overwrite: bool = True
+    note: str | None = None
+    resolve_live: bool = True
+
+
+@app.post("/api/edit/copy_selection_set")
+def copy_selection_set_api(body: CopySelectionSetBody) -> dict[str, Any]:
+    """Copy a named selection set to a new name."""
+    ed = _ed()
+    try:
+        r = ed.copy_selection_set(
+            body.source,
+            body.dest,
+            overwrite=body.overwrite,
+            note=body.note,
+            resolve_live=body.resolve_live,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"copy_selection_set failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
