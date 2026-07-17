@@ -19625,6 +19625,62 @@ class Editor:
             ),
         }
 
+    def raise_selection_set_tracks(
+        self,
+        name: str,
+        *,
+        steps: int = 1,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then raise_selection_tracks (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.raise_selection_tracks(ids, steps=int(steps))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Raise z-order of tracks touched by named set. Lower: "
+                "lower_selection_set_tracks. Lock: "
+                "lock_selection_set_tracks."
+            ),
+        }
+
+    def lower_selection_set_tracks(
+        self,
+        name: str,
+        *,
+        steps: int = 1,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then lower_selection_tracks (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.lower_selection_tracks(ids, steps=int(steps))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Lower z-order of tracks touched by named set. Raise: "
+                "raise_selection_set_tracks. Solo: "
+                "solo_selection_set_tracks."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19764,6 +19820,8 @@ class Editor:
                     {"id": "align_selection_set_ends", "writes": True},
                     {"id": "ensure_selection_set_proxies", "writes": True},
                     {"id": "clear_selection_set_luts", "writes": True},
+                    {"id": "raise_selection_set_tracks", "writes": True},
+                    {"id": "lower_selection_set_tracks", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

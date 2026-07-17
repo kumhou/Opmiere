@@ -15561,6 +15561,56 @@ def clear_selection_set_luts_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RaiseSelectionSetTracksBody(BaseModel):
+    name: str
+    steps: int = 1
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/raise_selection_set_tracks")
+def raise_selection_set_tracks_api(
+    body: RaiseSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Raise tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.raise_selection_set_tracks(
+            body.name,
+            steps=body.steps,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"raise_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LowerSelectionSetTracksBody(BaseModel):
+    name: str
+    steps: int = 1
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/lower_selection_set_tracks")
+def lower_selection_set_tracks_api(
+    body: LowerSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Lower tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.lower_selection_set_tracks(
+            body.name,
+            steps=body.steps,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"lower_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

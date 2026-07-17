@@ -19215,6 +19215,72 @@ async function clearSelectionSetLutsUi() {
   }
 }
 
+async function raiseSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Raise tracks named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RaiseTrkSet cancelled";
+      return;
+    }
+    const rawSteps = window.prompt("steps", "1");
+    if (rawSteps === null) {
+      $("status-msg").textContent = "RaiseTrkSet cancelled";
+      return;
+    }
+    const steps = Number(rawSteps);
+    $("status-msg").textContent = `RaiseTrkSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      steps?: number;
+      clip_count?: number;
+    }>("/api/edit/raise_selection_set_tracks", {
+      name,
+      steps: Number.isFinite(steps) && steps > 0 ? steps : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RaiseTrkSet · ${r.selection_set || name} steps=${r.steps ?? steps} moves=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RaiseTrkSet failed: ${e}`);
+    $("status-msg").textContent = `RaiseTrkSet failed: ${e}`;
+  }
+}
+
+async function lowerSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Lower tracks named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "LowerTrkSet cancelled";
+      return;
+    }
+    const rawSteps = window.prompt("steps", "1");
+    if (rawSteps === null) {
+      $("status-msg").textContent = "LowerTrkSet cancelled";
+      return;
+    }
+    const steps = Number(rawSteps);
+    $("status-msg").textContent = `LowerTrkSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      steps?: number;
+      clip_count?: number;
+    }>("/api/edit/lower_selection_set_tracks", {
+      name,
+      steps: Number.isFinite(steps) && steps > 0 ? steps : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LowerTrkSet · ${r.selection_set || name} steps=${r.steps ?? steps} moves=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LowerTrkSet failed: ${e}`);
+    $("status-msg").textContent = `LowerTrkSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23897,6 +23963,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-align-ends-set", () => void alignSelectionSetEndsUi());
   proBind("btn-proxy-set", () => void ensureSelectionSetProxiesUi());
   proBind("btn-clr-lut-set", () => void clearSelectionSetLutsUi());
+  proBind("btn-raise-trk-set", () => void raiseSelectionSetTracksUi());
+  proBind("btn-lower-trk-set", () => void lowerSelectionSetTracksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

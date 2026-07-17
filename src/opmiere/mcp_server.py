@@ -9290,6 +9290,34 @@ def clear_selection_set_luts(
 
 
 @mcp.tool()
+def raise_selection_set_tracks(
+    name: str,
+    steps: int = 1,
+    set_work_area: bool = False,
+) -> dict:
+    """Raise z-order of tracks touched by a named selection set."""
+    return _require_editor().raise_selection_set_tracks(
+        name,
+        steps=steps,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def lower_selection_set_tracks(
+    name: str,
+    steps: int = 1,
+    set_work_area: bool = False,
+) -> dict:
+    """Lower z-order of tracks touched by a named selection set."""
+    return _require_editor().lower_selection_set_tracks(
+        name,
+        steps=steps,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.61 — 2026-07-17
+
+### Added
+- `raise_selection_set_tracks` / `lower_selection_set_tracks` + **RaiseTrkSet** / **LowerTrkSet**
+
 ## 0.9.60 — 2026-07-17
 
 ### Added
