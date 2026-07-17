@@ -10344,6 +10344,40 @@ def snap_selection_set_to_markers(
 
 
 @mcp.tool()
+def paste_attributes_to_selection_set(
+    name: str,
+    speed: bool = True,
+    position: bool = True,
+    gain: bool = True,
+    opacity: bool = True,
+    fades: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Paste attributes clipboard onto a named selection set."""
+    return _require_editor().paste_attributes_to_selection_set(
+        name,
+        speed=speed,
+        position=position,
+        gain=gain,
+        opacity=opacity,
+        fades=fades,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def set_selection_set_color_cycle(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Assign rotating bin colors to clips in a named selection set."""
+    return _require_editor().set_selection_set_color_cycle(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

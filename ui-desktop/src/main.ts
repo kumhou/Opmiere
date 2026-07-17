@@ -21069,6 +21069,61 @@ async function snapSelectionSetToMarkersUi() {
   }
 }
 
+async function pasteAttributesToSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Paste attributes onto named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PasteAttrsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `PasteAttrsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/paste_attributes_to_selection_set", {
+      name,
+      speed: true,
+      position: true,
+      gain: true,
+      opacity: true,
+      fades: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PasteAttrsSet · ${r.selection_set || name} count=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`PasteAttrsSet failed: ${e}`);
+    $("status-msg").textContent = `PasteAttrsSet failed: ${e}`;
+  }
+}
+
+async function setSelectionSetColorCycleUi() {
+  try {
+    const name = await promptSelectionSetName("Color cycle named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ColorCycleSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ColorCycleSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_color_cycle", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ColorCycleSet · ${r.selection_set || name} count=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ColorCycleSet failed: ${e}`);
+    $("status-msg").textContent = `ColorCycleSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25812,6 +25867,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-name-from-media-set", () => void nameSelectionSetFromMediaUi());
   proBind("btn-fit-markers-set", () => void fitSelectionSetToMarkersUi());
   proBind("btn-snap-markers-set", () => void snapSelectionSetToMarkersUi());
+  proBind("btn-paste-attrs-set", () => void pasteAttributesToSelectionSetUi());
+  proBind("btn-color-cycle-set", () => void setSelectionSetColorCycleUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

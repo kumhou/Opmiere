@@ -21811,6 +21811,71 @@ class Editor:
             ),
         }
 
+    def paste_attributes_to_selection_set(
+        self,
+        name: str,
+        *,
+        speed: bool = True,
+        position: bool = True,
+        gain: bool = True,
+        opacity: bool = True,
+        fades: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then paste_attributes_to_clips (needs copy_attributes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.paste_attributes_to_clips(
+            ids,
+            speed=bool(speed),
+            position=bool(position),
+            gain=bool(gain),
+            opacity=bool(opacity),
+            fades=bool(fades),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Paste session attributes clipboard onto named set. "
+                "Source: copy_attributes. Color cycle: "
+                "set_selection_set_color_cycle."
+            ),
+        }
+
+    def set_selection_set_color_cycle(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then set_clips_color_cycle (bin color chips)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_clips_color_cycle(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set rotating bin colors. Paste attributes: "
+                "paste_attributes_to_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -22011,6 +22076,8 @@ class Editor:
                     {"id": "name_selection_set_from_media", "writes": True},
                     {"id": "fit_selection_set_to_markers", "writes": True},
                     {"id": "snap_selection_set_to_markers", "writes": True},
+                    {"id": "paste_attributes_to_selection_set", "writes": True},
+                    {"id": "set_selection_set_color_cycle", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

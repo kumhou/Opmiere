@@ -17286,6 +17286,62 @@ def snap_selection_set_to_markers_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class PasteAttributesToSelectionSetBody(BaseModel):
+    name: str
+    speed: bool = True
+    position: bool = True
+    gain: bool = True
+    opacity: bool = True
+    fades: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/paste_attributes_to_selection_set")
+def paste_attributes_to_selection_set_api(
+    body: PasteAttributesToSelectionSetBody,
+) -> dict[str, Any]:
+    """Paste attributes clipboard onto named set."""
+    ed = _ed()
+    try:
+        r = ed.paste_attributes_to_selection_set(
+            body.name,
+            speed=body.speed,
+            position=body.position,
+            gain=body.gain,
+            opacity=body.opacity,
+            fades=body.fades,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"paste_attributes_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SetSelectionSetColorCycleBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_color_cycle")
+def set_selection_set_color_cycle_api(
+    body: SetSelectionSetColorCycleBody,
+) -> dict[str, Any]:
+    """Assign rotating bin colors on named set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_color_cycle(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_color_cycle failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

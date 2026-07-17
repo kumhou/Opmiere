@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.92 — 2026-07-17
+
+### Added
+- `paste_attributes_to_selection_set` / `set_selection_set_color_cycle` + **PasteAttrsSet** / **ColorCycleSet**
+
 ## 0.9.91 — 2026-07-17
 
 ### Added
