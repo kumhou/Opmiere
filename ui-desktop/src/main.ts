@@ -18625,6 +18625,72 @@ async function applyLutSelectionSetUi() {
   }
 }
 
+async function colorMatchSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Color-match named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "CMatchSet cancelled";
+      return;
+    }
+    const rawStr = window.prompt("strength 0..1", "0.65");
+    if (rawStr === null) {
+      $("status-msg").textContent = "CMatchSet cancelled";
+      return;
+    }
+    const strength = Number(rawStr);
+    $("status-msg").textContent = `CMatchSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      matched_count?: number;
+      reference_clip_id?: string;
+      clip_count?: number;
+    }>("/api/edit/color_match_selection_set", {
+      name,
+      strength: Number.isFinite(strength) ? strength : 0.65,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CMatchSet · ${r.selection_set || name} matched=${r.matched_count ?? "?"} ref=${r.reference_clip_id ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CMatchSet failed: ${e}`);
+    $("status-msg").textContent = `CMatchSet failed: ${e}`;
+  }
+}
+
+async function safeAreaSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Safe-area named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SafeSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SafeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      action?: number;
+      title?: number;
+    }>("/api/edit/safe_area_selection_set", {
+      name,
+      action: 0.9,
+      title: 0.8,
+      thickness: 2,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SafeSet · ${r.selection_set || name} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SafeSet failed: ${e}`);
+    $("status-msg").textContent = `SafeSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23289,6 +23355,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-reframe-set", () => void reframeSelectionSetUi());
   proBind("btn-wm-set", () => void watermarkSelectionSetUi());
   proBind("btn-lut-set", () => void applyLutSelectionSetUi());
+  proBind("btn-cmatch-set", () => void colorMatchSelectionSetUi());
+  proBind("btn-safe-set", () => void safeAreaSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

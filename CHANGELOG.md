@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.52 — 2026-07-17
+
+### Added
+- `color_match_selection_set` / `safe_area_selection_set` + **CMatchSet** / **SafeSet**
+
 ## 0.9.51 — 2026-07-17
 
 ### Added

@@ -18992,6 +18992,78 @@ class Editor:
             ),
         }
 
+    def color_match_selection_set(
+        self,
+        name: str,
+        *,
+        reference_clip_id: str | None = None,
+        strength: float = 0.65,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then color_match_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.color_match_selection(
+            ids,
+            reference_clip_id=reference_clip_id,
+            strength=float(strength),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Color-match on named set toward reference. "
+                "Safe area: safe_area_selection_set. LUT: "
+                "apply_lut_selection_set."
+            ),
+        }
+
+    def safe_area_selection_set(
+        self,
+        name: str,
+        *,
+        action: float = 0.90,
+        title: float = 0.80,
+        thickness: int = 2,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then safe_area_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.safe_area_selection(
+            ids,
+            action=float(action),
+            title=float(title),
+            thickness=int(thickness),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Safe-area overlays on named set. Color match: "
+                "color_match_selection_set. Clear before final: "
+                "clear_selection_set_effects."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19113,6 +19185,8 @@ class Editor:
                     {"id": "reframe_selection_set", "writes": True},
                     {"id": "watermark_selection_set", "writes": True},
                     {"id": "apply_lut_selection_set", "writes": True},
+                    {"id": "color_match_selection_set", "writes": True},
+                    {"id": "safe_area_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

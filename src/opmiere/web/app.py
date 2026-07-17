@@ -15025,6 +15025,66 @@ def apply_lut_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ColorMatchSelectionSetBody(BaseModel):
+    name: str
+    reference_clip_id: str | None = None
+    strength: float = 0.65
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/color_match_selection_set")
+def color_match_selection_set_api(
+    body: ColorMatchSelectionSetBody,
+) -> dict[str, Any]:
+    """Color-match a named selection set toward a reference clip."""
+    ed = _ed()
+    try:
+        r = ed.color_match_selection_set(
+            body.name,
+            reference_clip_id=body.reference_clip_id,
+            strength=body.strength,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"color_match_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SafeAreaSelectionSetBody(BaseModel):
+    name: str
+    action: float = 0.90
+    title: float = 0.80
+    thickness: int = 2
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/safe_area_selection_set")
+def safe_area_selection_set_api(
+    body: SafeAreaSelectionSetBody,
+) -> dict[str, Any]:
+    """Burn safe-area overlays on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.safe_area_selection_set(
+            body.name,
+            action=body.action,
+            title=body.title,
+            thickness=body.thickness,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"safe_area_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

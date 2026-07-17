@@ -8952,6 +8952,44 @@ def apply_lut_selection_set(
 
 
 @mcp.tool()
+def color_match_selection_set(
+    name: str,
+    reference_clip_id: str | None = None,
+    strength: float = 0.65,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Color-match clips in a named selection set toward a reference."""
+    return _require_editor().color_match_selection_set(
+        name,
+        reference_clip_id=reference_clip_id,
+        strength=strength,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def safe_area_selection_set(
+    name: str,
+    action: float = 0.90,
+    title: float = 0.80,
+    thickness: int = 2,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Burn action/title safe-area overlays on a named selection set."""
+    return _require_editor().safe_area_selection_set(
+        name,
+        action=action,
+        title=title,
+        thickness=thickness,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
