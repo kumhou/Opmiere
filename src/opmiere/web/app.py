@@ -12309,6 +12309,80 @@ def export_selection_set_social_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetReportPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_checklist: bool = True
+    include_agent_card: bool = True
+    include_validate: bool = True
+    include_muted: bool = True
+    include_tracks: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_report_pack")
+def export_selection_set_report_pack_api(
+    body: ExportSelectionSetReportPackBody,
+) -> dict[str, Any]:
+    """Export report pack for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_report_pack(
+            body.name,
+            out_dir=body.out_dir,
+            include_checklist=body.include_checklist,
+            include_agent_card=body.include_agent_card,
+            include_validate=body.include_validate,
+            include_muted=body.include_muted,
+            include_tracks=body.include_tracks,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_report_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetReviewPackageBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_handoff: bool = True
+    include_storyboard: bool = True
+    include_export: bool = True
+    include_social: bool = False
+    social_variants: list[str] | None = None
+    normalize_preset: str | None = None
+    export_filename: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_review_package")
+def export_selection_set_review_package_api(
+    body: ExportSelectionSetReviewPackageBody,
+) -> dict[str, Any]:
+    """Export review package for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_review_package(
+            body.name,
+            out_dir=body.out_dir,
+            include_handoff=body.include_handoff,
+            include_storyboard=body.include_storyboard,
+            include_export=body.include_export,
+            include_social=body.include_social,
+            social_variants=body.social_variants,
+            normalize_preset=body.normalize_preset,
+            export_filename=body.export_filename,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_review_package failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

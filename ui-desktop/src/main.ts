@@ -15418,6 +15418,70 @@ async function exportSelectionSetSocialPackUi() {
   }
 }
 
+async function exportSelectionSetReportPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export set report pack (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetRpt cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetRpt ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_report_pack", {
+      name,
+      include_checklist: true,
+      include_agent_card: true,
+      include_validate: true,
+      include_muted: true,
+      include_tracks: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetRpt · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetRpt failed: ${e}`);
+    $("status-msg").textContent = `SetRpt failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetReviewPackageUi() {
+  try {
+    const name = await promptSelectionSetName(
+      "Export set review package (set name)",
+    );
+    if (!name) {
+      $("status-msg").textContent = "SetRev cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetRev ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_review_package", {
+      name,
+      include_handoff: true,
+      include_storyboard: true,
+      include_export: false,
+      include_social: false,
+      normalize_preset: null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetRev · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetRev failed: ${e}`);
+    $("status-msg").textContent = `SetRev failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19935,6 +19999,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-sheet", () => void exportSelectionSetContactSheetUi());
   proBind("btn-set-client", () => void exportSelectionSetClientPackUi());
   proBind("btn-set-social", () => void exportSelectionSetSocialPackUi());
+  proBind("btn-set-reports", () => void exportSelectionSetReportPackUi());
+  proBind("btn-set-review", () => void exportSelectionSetReviewPackageUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

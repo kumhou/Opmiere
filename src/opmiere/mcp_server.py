@@ -7377,6 +7377,58 @@ def export_selection_set_social_pack(
 
 
 @mcp.tool()
+def export_selection_set_report_pack(
+    name: str,
+    out_dir: str | None = None,
+    include_checklist: bool = True,
+    include_agent_card: bool = True,
+    include_validate: bool = True,
+    include_muted: bool = True,
+    include_tracks: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Export QA report pack for a named selection set."""
+    return _require_editor().export_selection_set_report_pack(
+        name,
+        out_dir=out_dir,
+        include_checklist=include_checklist,
+        include_agent_card=include_agent_card,
+        include_validate=include_validate,
+        include_muted=include_muted,
+        include_tracks=include_tracks,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_review_package(
+    name: str,
+    out_dir: str | None = None,
+    include_handoff: bool = True,
+    include_storyboard: bool = True,
+    include_export: bool = True,
+    include_social: bool = False,
+    social_variants: list[str] | None = None,
+    normalize_preset: str | None = None,
+    export_filename: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export review package (handoff+storyboard+optional export) for a named set."""
+    return _require_editor().export_selection_set_review_package(
+        name,
+        out_dir=out_dir,
+        include_handoff=include_handoff,
+        include_storyboard=include_storyboard,
+        include_export=include_export,
+        include_social=include_social,
+        social_variants=social_variants,
+        normalize_preset=normalize_preset,
+        export_filename=export_filename,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

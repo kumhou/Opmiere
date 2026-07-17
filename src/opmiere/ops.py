@@ -15670,7 +15670,118 @@ class Editor:
             "out_dir": str(root.resolve()),
             "agent_note": (
                 "Social pack from named set. Client handoff: "
-                "export_selection_set_client_pack."
+                "export_selection_set_client_pack. Reports: "
+                "export_selection_set_report_pack. Review: "
+                "export_selection_set_review_package."
+            ),
+        }
+
+    def export_selection_set_report_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_checklist: bool = True,
+        include_agent_card: bool = True,
+        include_validate: bool = True,
+        include_muted: bool = True,
+        include_tracks: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export QA report folder."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_reports"
+        )
+        r = self.export_selection_report_pack(
+            ids,
+            out_dir=root,
+            include_checklist=include_checklist,
+            include_agent_card=include_agent_card,
+            include_validate=include_validate,
+            include_muted=include_muted,
+            include_tracks=include_tracks,
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "out_dir": str(root.resolve()),
+            "agent_note": (
+                "Report pack from named set. Full review package: "
+                "export_selection_set_review_package."
+            ),
+        }
+
+    def export_selection_set_review_package(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_handoff: bool = True,
+        include_storyboard: bool = True,
+        include_export: bool = True,
+        include_social: bool = False,
+        social_variants: list[str] | None = None,
+        normalize_preset: str | None = None,
+        export_filename: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export one-shot review package."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_review"
+        )
+        r = self.export_selection_review_package(
+            ids,
+            out_dir=root,
+            include_handoff=include_handoff,
+            include_storyboard=include_storyboard,
+            include_export=include_export,
+            include_social=include_social,
+            social_variants=social_variants,
+            normalize_preset=normalize_preset,
+            export_filename=export_filename
+            or f"selection_set_{safe}_review.mp4",
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "out_dir": str(root.resolve()),
+            "agent_note": (
+                "Review package from named set. Light reports only: "
+                "export_selection_set_report_pack."
             ),
         }
 
