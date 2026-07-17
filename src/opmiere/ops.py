@@ -16773,6 +16773,64 @@ class Editor:
             ),
         }
 
+    def set_selection_set_opacity(
+        self,
+        name: str,
+        amount: float,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_opacity (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_opacity(ids, float(amount))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "amount": float(amount),
+            "agent_note": (
+                "Opacity on named set. Levels: "
+                "selection_set_levels_report. Speed: "
+                "set_selection_set_speed."
+            ),
+        }
+
+    def set_selection_set_speed(
+        self,
+        name: str,
+        speed: float,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_speed (writes, no ripple)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_speed(ids, float(speed))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "speed": float(speed),
+            "agent_note": (
+                "Speed on named set (no ripple). Levels: "
+                "selection_set_levels_report. Opacity: "
+                "set_selection_set_opacity."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16822,6 +16880,8 @@ class Editor:
                     {"id": "set_selection_set_fades", "writes": True},
                     {"id": "set_selection_set_gain", "writes": True},
                     {"id": "set_selection_set_meta", "writes": True},
+                    {"id": "set_selection_set_opacity", "writes": True},
+                    {"id": "set_selection_set_speed", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

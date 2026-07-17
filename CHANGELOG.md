@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.16 — 2026-07-17
+
+### Added
+- `set_selection_set_opacity` / `set_selection_set_speed` + **OpacSet** / **SpeedSet**
+
 ## 0.9.15 — 2026-07-17
 
 ### Added

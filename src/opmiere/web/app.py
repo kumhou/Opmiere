@@ -13125,6 +13125,56 @@ def set_selection_set_meta_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SetSelectionSetOpacityBody(BaseModel):
+    name: str
+    amount: float
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_opacity")
+def set_selection_set_opacity_api(
+    body: SetSelectionSetOpacityBody,
+) -> dict[str, Any]:
+    """Set opacity on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_opacity(
+            body.name,
+            body.amount,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_opacity failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SetSelectionSetSpeedBody(BaseModel):
+    name: str
+    speed: float
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_speed")
+def set_selection_set_speed_api(
+    body: SetSelectionSetSpeedBody,
+) -> dict[str, Any]:
+    """Set speed on a named selection set (no ripple)."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_speed(
+            body.name,
+            body.speed,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_speed failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

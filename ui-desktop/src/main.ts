@@ -16322,6 +16322,70 @@ async function setSelectionSetMetaUi() {
   }
 }
 
+async function setSelectionSetOpacityUi() {
+  try {
+    const name = await promptSelectionSetName("Set opacity on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "OpacSet cancelled";
+      return;
+    }
+    const raw = window.prompt("opacity amount (0-1)", "1");
+    if (raw === null) {
+      $("status-msg").textContent = "OpacSet cancelled";
+      return;
+    }
+    const amount = Number(raw);
+    $("status-msg").textContent = `OpacSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      amount?: number;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_opacity", {
+      name,
+      amount: Number.isFinite(amount) ? amount : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `OpacSet · ${r.selection_set || name} amount=${r.amount ?? amount} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`OpacSet failed: ${e}`);
+    $("status-msg").textContent = `OpacSet failed: ${e}`;
+  }
+}
+
+async function setSelectionSetSpeedUi() {
+  try {
+    const name = await promptSelectionSetName("Set speed on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SpeedSet cancelled";
+      return;
+    }
+    const raw = window.prompt("speed (e.g. 1.0, 0.5, 2)", "1");
+    if (raw === null) {
+      $("status-msg").textContent = "SpeedSet cancelled";
+      return;
+    }
+    const speed = Number(raw);
+    $("status-msg").textContent = `SpeedSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      speed?: number;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_speed", {
+      name,
+      speed: Number.isFinite(speed) ? speed : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SpeedSet · ${r.selection_set || name} speed=${r.speed ?? speed} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SpeedSet failed: ${e}`);
+    $("status-msg").textContent = `SpeedSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20914,6 +20978,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fade-set", () => void setSelectionSetFadesUi());
   proBind("btn-gain-set", () => void setSelectionSetGainUi());
   proBind("btn-meta-set", () => void setSelectionSetMetaUi());
+  proBind("btn-opac-set", () => void setSelectionSetOpacityUi());
+  proBind("btn-speed-set", () => void setSelectionSetSpeedUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
