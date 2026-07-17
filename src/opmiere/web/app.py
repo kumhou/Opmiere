@@ -16985,6 +16985,60 @@ def export_selection_set_markers_srt_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetPathCStillsPlanBody(BaseModel):
+    name: str
+    height: int = 360
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_path_c_stills_plan")
+def selection_set_path_c_stills_plan_api(
+    body: SelectionSetPathCStillsPlanBody,
+) -> dict[str, Any]:
+    """path-C stills plan for named set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_path_c_stills_plan(
+            body.name,
+            height=body.height,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_path_c_stills_plan failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetJlCutBody(BaseModel):
+    name: str
+    style: str = "j"
+    frames: int = 15
+    link: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_jl_cut")
+def selection_set_jl_cut_api(
+    body: SelectionSetJlCutBody,
+) -> dict[str, Any]:
+    """J-cut or L-cut on named set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_jl_cut(
+            body.name,
+            style=body.style,
+            frames=body.frames,
+            link=body.link,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_jl_cut failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

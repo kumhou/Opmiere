@@ -10164,6 +10164,38 @@ def export_selection_set_markers_srt(
 
 
 @mcp.tool()
+def selection_set_path_c_stills_plan(
+    name: str,
+    height: int = 360,
+    set_work_area: bool = False,
+) -> dict:
+    """path-C plan + still hints for a named selection set."""
+    return _require_editor().selection_set_path_c_stills_plan(
+        name,
+        height=height,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_jl_cut(
+    name: str,
+    style: str = "j",
+    frames: int = 15,
+    link: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """J-cut or L-cut on clips in a named selection set."""
+    return _require_editor().selection_set_jl_cut(
+        name,
+        style=style,
+        frames=frames,
+        link=link,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

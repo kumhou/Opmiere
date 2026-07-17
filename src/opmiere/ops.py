@@ -21443,6 +21443,70 @@ class Editor:
             ),
         }
 
+    def selection_set_path_c_stills_plan(
+        self,
+        name: str,
+        *,
+        height: int = 360,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_path_c_stills_plan (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_path_c_stills_plan(
+            ids,
+            height=int(height),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set path-C stills plan. Full plan: "
+                "selection_set_path_c_plan. J/L cut: selection_set_jl_cut."
+            ),
+        }
+
+    def selection_set_jl_cut(
+        self,
+        name: str,
+        *,
+        style: str = "j",
+        frames: int = 15,
+        link: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_jl_cut (mutates timeline)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_jl_cut(
+            ids,
+            style=str(style),
+            frames=int(frames),
+            link=bool(link),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set J/L cut via detach_audio. Stills plan: "
+                "selection_set_path_c_stills_plan."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21632,6 +21696,8 @@ class Editor:
                     {"id": "export_selection_set_path_c_plan", "writes": True},
                     {"id": "export_selection_set_markers_default", "writes": True},
                     {"id": "export_selection_set_markers_srt", "writes": True},
+                    {"id": "selection_set_path_c_stills_plan", "writes": False},
+                    {"id": "selection_set_jl_cut", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

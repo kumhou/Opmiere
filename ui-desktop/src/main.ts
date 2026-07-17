@@ -20735,6 +20735,75 @@ async function exportSelectionSetMarkersSrtUi() {
   }
 }
 
+async function selectionSetPathCStillsPlanUi() {
+  try {
+    const name = await promptSelectionSetName("Path-C stills plan for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PathCStillsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `PathCStillsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      plan_clip_count?: number;
+      path_c_ready?: boolean;
+      adapter_version?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_path_c_stills_plan", {
+      name,
+      height: 360,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PathCStillsSet · ${r.selection_set || name} plan_clips=${r.plan_clip_count ?? "?"} ready=${r.path_c_ready ?? "?"} adapter=${r.adapter_version ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`PathCStillsSet failed: ${e}`);
+    $("status-msg").textContent = `PathCStillsSet failed: ${e}`;
+  }
+}
+
+async function selectionSetJlCutUi() {
+  try {
+    const name = await promptSelectionSetName("J/L cut on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "JlCutSet cancelled";
+      return;
+    }
+    const rawStyle = window.prompt("style (j|l)", "j");
+    if (rawStyle === null) {
+      $("status-msg").textContent = "JlCutSet cancelled";
+      return;
+    }
+    const style = String(rawStyle).trim() || "j";
+    const rawFr = window.prompt("frames", "8");
+    if (rawFr === null) {
+      $("status-msg").textContent = "JlCutSet cancelled";
+      return;
+    }
+    const frames = Number(rawFr);
+    $("status-msg").textContent = `JlCutSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      style?: string;
+      frames?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_jl_cut", {
+      name,
+      style,
+      frames: Number.isFinite(frames) && frames > 0 ? frames : 8,
+      link: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `JlCutSet · ${r.selection_set || name} style=${r.style ?? style} frames=${r.frames ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`JlCutSet failed: ${e}`);
+    $("status-msg").textContent = `JlCutSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25467,6 +25536,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-path-c-plan-set", () => void exportSelectionSetPathCPlanUi());
   proBind("btn-exp-markers-set", () => void exportSelectionSetMarkersDefaultUi());
   proBind("btn-exp-markers-srt-set", () => void exportSelectionSetMarkersSrtUi());
+  proBind("btn-path-c-stills-set", () => void selectionSetPathCStillsPlanUi());
+  proBind("btn-jl-cut-set", () => void selectionSetJlCutUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

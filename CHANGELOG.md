@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.86 — 2026-07-17
+
+### Added
+- `selection_set_path_c_stills_plan` / `selection_set_jl_cut` + **PathCStillsSet** / **JlCutSet**
+
 ## 0.9.85 — 2026-07-17
 
 ### Added
