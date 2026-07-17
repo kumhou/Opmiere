@@ -15509,6 +15509,58 @@ def align_selection_set_ends_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class EnsureSelectionSetProxiesBody(BaseModel):
+    name: str
+    height: int = 360
+    force: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/ensure_selection_set_proxies")
+def ensure_selection_set_proxies_api(
+    body: EnsureSelectionSetProxiesBody,
+) -> dict[str, Any]:
+    """Ensure media proxies for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.ensure_selection_set_proxies(
+            body.name,
+            height=body.height,
+            force=body.force,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"ensure_selection_set_proxies failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSetLutsBody(BaseModel):
+    name: str
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_luts")
+def clear_selection_set_luts_api(
+    body: ClearSelectionSetLutsBody,
+) -> dict[str, Any]:
+    """Clear lut3d effects on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_luts(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_luts failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -19564,6 +19564,67 @@ class Editor:
             ),
         }
 
+    def ensure_selection_set_proxies(
+        self,
+        name: str,
+        *,
+        height: int = 360,
+        force: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then ensure_selection_proxies (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.ensure_selection_proxies(
+            ids, height=int(height), force=bool(force),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Proxies for unique media in named set. Clear LUTs: "
+                "clear_selection_set_luts. Proxy report: "
+                "selection_set_proxy_report."
+            ),
+        }
+
+    def clear_selection_set_luts(
+        self,
+        name: str,
+        *,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_luts (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_luts(
+            ids, video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Stripped lut3d on named set. Apply: "
+                "apply_lut_selection_set. Proxies: "
+                "ensure_selection_set_proxies."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19701,6 +19762,8 @@ class Editor:
                     {"id": "ripple_trim_selection_set_edges", "writes": True},
                     {"id": "duplicate_selection_set_block", "writes": True},
                     {"id": "align_selection_set_ends", "writes": True},
+                    {"id": "ensure_selection_set_proxies", "writes": True},
+                    {"id": "clear_selection_set_luts", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

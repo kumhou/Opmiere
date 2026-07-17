@@ -9260,6 +9260,36 @@ def align_selection_set_ends(
 
 
 @mcp.tool()
+def ensure_selection_set_proxies(
+    name: str,
+    height: int = 360,
+    force: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Build media proxies for unique assets in a named selection set."""
+    return _require_editor().ensure_selection_set_proxies(
+        name,
+        height=height,
+        force=force,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_selection_set_luts(
+    name: str,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove lut3d effects from clips in a named selection set."""
+    return _require_editor().clear_selection_set_luts(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.60 — 2026-07-17
+
+### Added
+- `ensure_selection_set_proxies` / `clear_selection_set_luts` + **ProxySet** / **ClrLutSet**
+
 ## 0.9.59 — 2026-07-17
 
 ### Added

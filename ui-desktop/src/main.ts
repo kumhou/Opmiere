@@ -19156,6 +19156,65 @@ async function alignSelectionSetEndsUi() {
   }
 }
 
+async function ensureSelectionSetProxiesUi() {
+  try {
+    const name = await promptSelectionSetName("Ensure proxies named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ProxySet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ProxySet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ensured_count?: number;
+      error_count?: number;
+      clip_count?: number;
+      media_count?: number;
+    }>("/api/edit/ensure_selection_set_proxies", {
+      name,
+      height: 360,
+      force: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ProxySet · ${r.selection_set || name} ensured=${r.ensured_count ?? "?"} media=${r.media_count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ProxySet failed: ${e}`);
+    $("status-msg").textContent = `ProxySet failed: ${e}`;
+  }
+}
+
+async function clearSelectionSetLutsUi() {
+  try {
+    const name = await promptSelectionSetName("Clear LUTs named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrLutSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear lut3d effects on set "${name}"?`)) {
+      $("status-msg").textContent = "ClrLutSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrLutSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_selection_set_luts", {
+      name,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrLutSet · ${r.selection_set || name} cleared=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrLutSet failed: ${e}`);
+    $("status-msg").textContent = `ClrLutSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23836,6 +23895,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rip-trim-set", () => void rippleTrimSelectionSetEdgesUi());
   proBind("btn-dup-block-set", () => void duplicateSelectionSetBlockUi());
   proBind("btn-align-ends-set", () => void alignSelectionSetEndsUi());
+  proBind("btn-proxy-set", () => void ensureSelectionSetProxiesUi());
+  proBind("btn-clr-lut-set", () => void clearSelectionSetLutsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
