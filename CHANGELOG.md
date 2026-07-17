@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.5 — 2026-07-17
+
+### Added
+- `export_selection_set_webm` / `export_selection_set_gif` + **SetWebM** / **SetGIF**
+
 ## 0.8.4 — 2026-07-17
 
 ### Added

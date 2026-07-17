@@ -15169,6 +15169,65 @@ async function finishSelectionSetDeliveryUi() {
   }
 }
 
+async function exportSelectionSetWebmUi() {
+  try {
+    const name = await promptSelectionSetName("Export set WebM (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetWebM cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetWebM ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      export_path?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_webm", {
+      name,
+      crf: 32,
+      width: 720,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetWebM · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.export_path || r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetWebM failed: ${e}`);
+    $("status-msg").textContent = `SetWebM failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetGifUi() {
+  try {
+    const name = await promptSelectionSetName("Export set GIF (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetGIF cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetGIF ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      export_path?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_gif", {
+      name,
+      fps: 12,
+      width: 480,
+      max_duration_seconds: 12,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetGIF · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.export_path || r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetGIF failed: ${e}`);
+    $("status-msg").textContent = `SetGIF failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19678,6 +19737,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-handoff", () => void exportSelectionSetHandoffUi());
   proBind("btn-set-mp4", () => void exportSelectionSetMp4Ui());
   proBind("btn-set-deliv", () => void finishSelectionSetDeliveryUi());
+  proBind("btn-set-webm", () => void exportSelectionSetWebmUi());
+  proBind("btn-set-gif", () => void exportSelectionSetGifUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

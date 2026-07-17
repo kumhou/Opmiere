@@ -7199,6 +7199,44 @@ def finish_selection_set_delivery(
 
 
 @mcp.tool()
+def export_selection_set_webm(
+    name: str,
+    filename: str | None = None,
+    crf: int = 32,
+    width: int | None = 720,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named selection set union as WebM under exports/."""
+    return _require_editor().export_selection_set_webm(
+        name,
+        filename=filename,
+        crf=crf,
+        width=width,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_gif(
+    name: str,
+    filename: str | None = None,
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 12.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named selection set union as GIF under exports/."""
+    return _require_editor().export_selection_set_gif(
+        name,
+        filename=filename,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

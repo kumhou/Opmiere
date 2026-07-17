@@ -12043,6 +12043,66 @@ def finish_selection_set_delivery_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetWebmBody(BaseModel):
+    name: str
+    filename: str | None = None
+    crf: int = 32
+    width: int | None = 720
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_webm")
+def export_selection_set_webm_api(
+    body: ExportSelectionSetWebmBody,
+) -> dict[str, Any]:
+    """Export named selection set as WebM."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_webm(
+            body.name,
+            filename=body.filename,
+            crf=body.crf,
+            width=body.width,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_webm failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetGifBody(BaseModel):
+    name: str
+    filename: str | None = None
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 12.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_gif")
+def export_selection_set_gif_api(
+    body: ExportSelectionSetGifBody,
+) -> dict[str, Any]:
+    """Export named selection set as GIF."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_gif(
+            body.name,
+            filename=body.filename,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_gif failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

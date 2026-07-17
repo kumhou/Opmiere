@@ -15288,7 +15288,92 @@ class Editor:
             },
             "agent_note": (
                 "Named-set delivery finish. Quick MP4: export_selection_set_mp4. "
+                "WebM/GIF: export_selection_set_webm / export_selection_set_gif. "
                 "Agent checklist/card path: agent_finish_selection_set."
+            ),
+        }
+
+    def export_selection_set_webm(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        crf: int = 32,
+        width: int | None = 720,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export union-span WebM under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_webm_default(
+            ids,
+            filename=filename or f"selection_set_{safe}.webm",
+            crf=int(crf),
+            width=width,
+        )
+        path = r.get("path") or r.get("output_path")
+        ok = bool(path and Path(str(path)).is_file())
+        return {
+            **r,
+            "ok": ok,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "export_path": path,
+            "agent_note": (
+                "WebM from named set. MP4: export_selection_set_mp4. "
+                "GIF: export_selection_set_gif."
+            ),
+        }
+
+    def export_selection_set_gif(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 12.0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export union-span GIF under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_gif_default(
+            ids,
+            filename=filename or f"selection_set_{safe}.gif",
+            fps=float(fps),
+            width=int(width),
+            max_duration_seconds=float(max_duration_seconds),
+        )
+        path = r.get("path") or r.get("output_path")
+        ok = bool(path and Path(str(path)).is_file())
+        return {
+            **r,
+            "ok": ok,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "export_path": path,
+            "agent_note": (
+                "GIF from named set. WebM: export_selection_set_webm. "
+                "MP4: export_selection_set_mp4."
             ),
         }
 
