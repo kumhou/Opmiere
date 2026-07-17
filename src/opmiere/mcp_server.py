@@ -6815,6 +6815,52 @@ def delete_selection_set(name: str) -> dict:
 
 
 @mcp.tool()
+def agent_finish_selection_set(
+    name: str,
+    repair: bool = True,
+    export: bool = True,
+    filename: str | None = None,
+    write_checklist: bool = True,
+    write_card: bool = True,
+    force_export: bool = False,
+    normalize_preset: str | None = None,
+    ensure_proxies: bool = False,
+    set_work_area: bool = True,
+) -> dict:
+    """Load named selection set then run agent_finish_selection."""
+    return _require_editor().agent_finish_selection_set(
+        name,
+        repair=repair,
+        export=export,
+        filename=filename,
+        write_checklist=write_checklist,
+        write_card=write_card,
+        force_export=force_export,
+        normalize_preset=normalize_preset,
+        ensure_proxies=ensure_proxies,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def run_selection_set_pipeline(
+    name: str,
+    steps: list[str] | None = None,
+    normalize_preset: str | None = None,
+    social_variants: list[str] | None = None,
+    set_work_area: bool = True,
+) -> dict:
+    """Load named selection set then run run_selection_pipeline."""
+    return _require_editor().run_selection_set_pipeline(
+        name,
+        steps=steps,
+        normalize_preset=normalize_preset,
+        social_variants=social_variants,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

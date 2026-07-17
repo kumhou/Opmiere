@@ -11433,6 +11433,74 @@ def delete_selection_set_api(body: DeleteSelectionSetBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class AgentFinishSelectionSetBody(BaseModel):
+    name: str
+    repair: bool = True
+    export: bool = True
+    filename: str | None = None
+    write_checklist: bool = True
+    write_card: bool = True
+    force_export: bool = False
+    normalize_preset: str | None = None
+    ensure_proxies: bool = False
+    set_work_area: bool = True
+
+
+@app.post("/api/edit/agent_finish_selection_set")
+def agent_finish_selection_set_api(
+    body: AgentFinishSelectionSetBody,
+) -> dict[str, Any]:
+    """Load named selection set then agent_finish_selection."""
+    ed = _ed()
+    try:
+        r = ed.agent_finish_selection_set(
+            body.name,
+            repair=body.repair,
+            export=body.export,
+            filename=body.filename,
+            write_checklist=body.write_checklist,
+            write_card=body.write_card,
+            force_export=body.force_export,
+            normalize_preset=body.normalize_preset,
+            ensure_proxies=body.ensure_proxies,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"agent_finish_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RunSelectionSetPipelineBody(BaseModel):
+    name: str
+    steps: list[str] | None = None
+    normalize_preset: str | None = None
+    social_variants: list[str] | None = None
+    set_work_area: bool = True
+
+
+@app.post("/api/edit/run_selection_set_pipeline")
+def run_selection_set_pipeline_api(
+    body: RunSelectionSetPipelineBody,
+) -> dict[str, Any]:
+    """Load named selection set then run_selection_pipeline."""
+    ed = _ed()
+    try:
+        r = ed.run_selection_set_pipeline(
+            body.name,
+            steps=body.steps,
+            normalize_preset=body.normalize_preset,
+            social_variants=body.social_variants,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"run_selection_set_pipeline failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.96 — 2026-07-17
+
+### Added
+- `agent_finish_selection_set` / `run_selection_set_pipeline` + **FinSet** / **PipeSet**
+
 ## 0.6.95 — 2026-07-17
 
 ### Added

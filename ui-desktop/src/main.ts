@@ -14288,6 +14288,85 @@ async function loadSelectionSetUi() {
   }
 }
 
+async function promptSelectionSetName(actionLabel: string): Promise<string | null> {
+  const listed = await getJson<{
+    sets?: { name?: string; clip_count?: number }[];
+  }>("/api/edit/list_selection_sets");
+  const names = (listed.sets || [])
+    .map((s) => s.name)
+    .filter((n): n is string => !!n);
+  const hint = names.length > 0 ? names.join(", ") : "(none yet — SaveSet first)";
+  const name = window
+    .prompt(`${actionLabel}\nKnown: ${hint}`, names[0] || "default")
+    ?.trim();
+  return name || null;
+}
+
+async function agentFinishSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Agent finish selection set name");
+    if (!name) {
+      $("status-msg").textContent = "FinSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `FinSet ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      exported?: boolean;
+      export_path?: string;
+      selection_set?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/agent_finish_selection_set", {
+      name,
+      repair: true,
+      export: true,
+      write_checklist: true,
+      write_card: true,
+      ensure_proxies: false,
+      set_work_area: true,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinSet · ${r.selection_set || name} ok=${r.ok ?? "?"} exp=${r.exported ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`FinSet failed: ${e}`);
+    $("status-msg").textContent = `FinSet failed: ${e}`;
+  }
+}
+
+async function runSelectionSetPipelineUi() {
+  try {
+    const name = await promptSelectionSetName("Pipeline selection set name");
+    if (!name) {
+      $("status-msg").textContent = "PipeSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `PipeSet ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      plan?: string[];
+      selection_set?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/run_selection_set_pipeline", {
+      name,
+      steps: ["validate", "checklist", "export_mp4"],
+      set_work_area: true,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PipeSet · ${r.selection_set || name} ok=${r.ok ?? "?"} steps=${(r.plan || []).length}`;
+  } catch (e) {
+    setProOut(`PipeSet failed: ${e}`);
+    $("status-msg").textContent = `PipeSet failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18377,6 +18456,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pipe-sel", () => void runSelectionPipelineUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
+  proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());
+  proBind("btn-pipe-sel-set", () => void runSelectionSetPipelineUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -14014,6 +14014,106 @@ class Editor:
             "agent_note": "Selection set removed from selection_sets.json.",
         }
 
+    def agent_finish_selection_set(
+        self,
+        name: str,
+        *,
+        repair: bool = True,
+        export: bool = True,
+        filename: str | None = None,
+        write_checklist: bool = True,
+        write_card: bool = True,
+        force_export: bool = False,
+        normalize_preset: str | None = None,
+        ensure_proxies: bool = False,
+        set_work_area: bool = True,
+    ) -> dict[str, Any]:
+        """Load named selection set then run agent_finish_selection.
+
+        Closes the agent loop: save_selection_set → later finish by name.
+        """
+        loaded = self.load_selection_set(
+            name,
+            set_work_area=set_work_area,
+            drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        out_name = filename or f"selection_set_{safe}_finish.mp4"
+        fin = self.agent_finish_selection(
+            ids,
+            repair=repair,
+            export=export,
+            filename=out_name,
+            write_checklist=write_checklist,
+            write_card=write_card,
+            force_export=force_export,
+            normalize_preset=normalize_preset,
+            ensure_proxies=ensure_proxies,
+        )
+        return {
+            **fin,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "missing_count": loaded.get("missing_count") or 0,
+                "note": loaded.get("note") or "",
+                "work_area": loaded.get("work_area"),
+            },
+            "agent_note": (
+                "Named-set agent finish. Pipeline by name: run_selection_set_pipeline. "
+                "Raw clips: agent_finish_selection."
+            ),
+        }
+
+    def run_selection_set_pipeline(
+        self,
+        name: str,
+        steps: list[str] | None = None,
+        *,
+        normalize_preset: str | None = None,
+        social_variants: list[str] | None = None,
+        set_work_area: bool = True,
+    ) -> dict[str, Any]:
+        """Load named selection set then run run_selection_pipeline."""
+        loaded = self.load_selection_set(
+            name,
+            set_work_area=set_work_area,
+            drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        pipe = self.run_selection_pipeline(
+            ids,
+            steps=steps,
+            normalize_preset=normalize_preset,
+            social_variants=social_variants,
+        )
+        return {
+            **pipe,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "missing_count": loaded.get("missing_count") or 0,
+                "note": loaded.get("note") or "",
+                "work_area": loaded.get("work_area"),
+            },
+            "agent_note": (
+                "Named-set pipeline. One-shot finish: agent_finish_selection_set. "
+                "Raw clips: run_selection_pipeline."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
