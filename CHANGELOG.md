@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.48 — 2026-07-17
+
+### Added
+- `compression_selection_set` / `noise_reduction_selection_set` + **CompSet** / **NRSet**
+
 ## 0.9.47 — 2026-07-17
 
 ### Added

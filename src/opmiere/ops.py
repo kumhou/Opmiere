@@ -18718,6 +18718,73 @@ class Editor:
             ),
         }
 
+    def compression_selection_set(
+        self,
+        name: str,
+        *,
+        ratio: float = 4.0,
+        threshold_db: float = -18.0,
+        attack_ms: float = 20.0,
+        release_ms: float = 250.0,
+        makeup_db: float = 0.0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then compression_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.compression_selection(
+            ids,
+            ratio=float(ratio),
+            threshold_db=float(threshold_db),
+            attack_ms=float(attack_ms),
+            release_ms=float(release_ms),
+            makeup_db=float(makeup_db),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Compression on named set. Noise reduction: "
+                "noise_reduction_selection_set. Gain: "
+                "set_selection_set_gain."
+            ),
+        }
+
+    def noise_reduction_selection_set(
+        self,
+        name: str,
+        amount: float = 12.0,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then noise_reduction_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.noise_reduction_selection(ids, amount=float(amount))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Noise reduction on named set. Compression: "
+                "compression_selection_set. Detach: "
+                "detach_audio_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18831,6 +18898,8 @@ class Editor:
                     {"id": "selection_set_diagnostics", "writes": False},
                     {"id": "apply_look_to_selection_set", "writes": True},
                     {"id": "apply_style_to_selection_set", "writes": True},
+                    {"id": "compression_selection_set", "writes": True},
+                    {"id": "noise_reduction_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -18346,6 +18346,68 @@ async function applyStyleToSelectionSetUi() {
   }
 }
 
+async function compressionSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Compression named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "CompSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `CompSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/compression_selection_set", {
+      name,
+      ratio: 4,
+      threshold_db: -18,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CompSet · ${r.selection_set || name} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CompSet failed: ${e}`);
+    $("status-msg").textContent = `CompSet failed: ${e}`;
+  }
+}
+
+async function noiseReductionSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Noise reduction named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "NRSet cancelled";
+      return;
+    }
+    const raw = window.prompt("amount", "12");
+    if (raw === null) {
+      $("status-msg").textContent = "NRSet cancelled";
+      return;
+    }
+    const amount = Number(raw);
+    $("status-msg").textContent = `NRSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      amount?: number;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/noise_reduction_selection_set", {
+      name,
+      amount: Number.isFinite(amount) ? amount : 12,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `NRSet · ${r.selection_set || name} amount=${r.amount ?? amount} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`NRSet failed: ${e}`);
+    $("status-msg").textContent = `NRSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23002,6 +23064,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-diag-set", () => void selectionSetDiagnosticsUi());
   proBind("btn-look-set", () => void applyLookToSelectionSetUi());
   proBind("btn-style-set", () => void applyStyleToSelectionSetUi());
+  proBind("btn-comp-set", () => void compressionSelectionSetUi());
+  proBind("btn-nr-set", () => void noiseReductionSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

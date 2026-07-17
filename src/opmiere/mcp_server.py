@@ -8806,6 +8806,42 @@ def apply_style_to_selection_set(
 
 
 @mcp.tool()
+def compression_selection_set(
+    name: str,
+    ratio: float = 4.0,
+    threshold_db: float = -18.0,
+    attack_ms: float = 20.0,
+    release_ms: float = 250.0,
+    makeup_db: float = 0.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply compression to clips in a named selection set."""
+    return _require_editor().compression_selection_set(
+        name,
+        ratio=ratio,
+        threshold_db=threshold_db,
+        attack_ms=attack_ms,
+        release_ms=release_ms,
+        makeup_db=makeup_db,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def noise_reduction_selection_set(
+    name: str,
+    amount: float = 12.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply noise reduction to clips in a named selection set."""
+    return _require_editor().noise_reduction_selection_set(
+        name,
+        amount=amount,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

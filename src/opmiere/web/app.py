@@ -14791,6 +14791,64 @@ def apply_style_to_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class CompressionSelectionSetBody(BaseModel):
+    name: str
+    ratio: float = 4.0
+    threshold_db: float = -18.0
+    attack_ms: float = 20.0
+    release_ms: float = 250.0
+    makeup_db: float = 0.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/compression_selection_set")
+def compression_selection_set_api(
+    body: CompressionSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply compression to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.compression_selection_set(
+            body.name,
+            ratio=body.ratio,
+            threshold_db=body.threshold_db,
+            attack_ms=body.attack_ms,
+            release_ms=body.release_ms,
+            makeup_db=body.makeup_db,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"compression_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class NoiseReductionSelectionSetBody(BaseModel):
+    name: str
+    amount: float = 12.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/noise_reduction_selection_set")
+def noise_reduction_selection_set_api(
+    body: NoiseReductionSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply noise reduction to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.noise_reduction_selection_set(
+            body.name,
+            amount=body.amount,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"noise_reduction_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
