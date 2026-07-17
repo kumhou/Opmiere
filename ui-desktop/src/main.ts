@@ -17165,6 +17165,72 @@ async function duplicateSelectionSetUi() {
   }
 }
 
+async function slipSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Slip named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SlipSet cancelled";
+      return;
+    }
+    const raw = window.prompt("delta_src_frames", "2");
+    if (raw === null) {
+      $("status-msg").textContent = "SlipSet cancelled";
+      return;
+    }
+    const delta_src_frames = Number(raw);
+    $("status-msg").textContent = `SlipSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/slip_selection_set", {
+      name,
+      delta_src_frames: Number.isFinite(delta_src_frames) ? delta_src_frames : 2,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SlipSet · ${r.selection_set || name} ok=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SlipSet failed: ${e}`);
+    $("status-msg").textContent = `SlipSet failed: ${e}`;
+  }
+}
+
+async function slideSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Slide named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SlideSet cancelled";
+      return;
+    }
+    const raw = window.prompt("delta_frames", "2");
+    if (raw === null) {
+      $("status-msg").textContent = "SlideSet cancelled";
+      return;
+    }
+    const delta_frames = Number(raw);
+    $("status-msg").textContent = `SlideSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/slide_selection_set", {
+      name,
+      delta_frames: Number.isFinite(delta_frames) ? delta_frames : 2,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SlideSet · ${r.selection_set || name} ok=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SlideSet failed: ${e}`);
+    $("status-msg").textContent = `SlideSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21785,6 +21851,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rm-time-set", () => void removeTimeBeforeSelectionSetUi());
   proBind("btn-lift-set", () => void liftSelectionSetUi());
   proBind("btn-dup-set", () => void duplicateSelectionSetUi());
+  proBind("btn-slip-set", () => void slipSelectionSetUi());
+  proBind("btn-slide-set", () => void slideSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -8238,6 +8238,34 @@ def duplicate_selection_set(
 
 
 @mcp.tool()
+def slip_selection_set(
+    name: str,
+    delta_src_frames: int,
+    set_work_area: bool = False,
+) -> dict:
+    """Slip source window on clips in a named selection set."""
+    return _require_editor().slip_selection_set(
+        name,
+        delta_src_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def slide_selection_set(
+    name: str,
+    delta_frames: int,
+    set_work_area: bool = False,
+) -> dict:
+    """Slide/roll clips in a named selection set."""
+    return _require_editor().slide_selection_set(
+        name,
+        delta_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

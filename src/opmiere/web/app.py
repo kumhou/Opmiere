@@ -13827,6 +13827,56 @@ def duplicate_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SlipSelectionSetBody(BaseModel):
+    name: str
+    delta_src_frames: int
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/slip_selection_set")
+def slip_selection_set_api(
+    body: SlipSelectionSetBody,
+) -> dict[str, Any]:
+    """Slip source window on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.slip_selection_set(
+            body.name,
+            body.delta_src_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"slip_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SlideSelectionSetBody(BaseModel):
+    name: str
+    delta_frames: int
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/slide_selection_set")
+def slide_selection_set_api(
+    body: SlideSelectionSetBody,
+) -> dict[str, Any]:
+    """Slide/roll clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.slide_selection_set(
+            body.name,
+            body.delta_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"slide_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.30 — 2026-07-17
+
+### Added
+- `slip_selection_set` / `slide_selection_set` + **SlipSet** / **SlideSet**
+
 ## 0.9.29 — 2026-07-17
 
 ### Added
