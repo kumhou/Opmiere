@@ -6001,6 +6001,56 @@ def export_selection_frame_sequence(
 
 
 @mcp.tool()
+def export_selection_handoff(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    include_manifest: bool = True,
+    include_preflight: bool = True,
+    include_otio: bool = False,
+    include_markers: bool = True,
+    include_review: bool = True,
+    include_media: bool = True,
+) -> dict:
+    """Agent handoff folder scoped to selection."""
+    return _require_editor().export_selection_handoff(
+        clip_ids,
+        out_dir=out_dir,
+        include_manifest=include_manifest,
+        include_preflight=include_preflight,
+        include_otio=include_otio,
+        include_markers=include_markers,
+        include_review=include_review,
+        include_media=include_media,
+    )
+
+
+@mcp.tool()
+def export_selection_review_package(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    include_handoff: bool = True,
+    include_storyboard: bool = True,
+    include_export: bool = True,
+    include_social: bool = False,
+    social_variants: list[str] | None = None,
+    normalize_preset: str | None = None,
+    export_filename: str = "selection_review.mp4",
+) -> dict:
+    """Selection review pack: handoff + storyboard + optional MP4/social."""
+    return _require_editor().export_selection_review_package(
+        clip_ids,
+        out_dir=out_dir,
+        include_handoff=include_handoff,
+        include_storyboard=include_storyboard,
+        include_export=include_export,
+        include_social=include_social,
+        social_variants=social_variants,
+        normalize_preset=normalize_preset,
+        export_filename=export_filename,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

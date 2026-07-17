@@ -12933,6 +12933,57 @@ async function exportSelectionFrameSequenceUi() {
   }
 }
 
+async function exportSelectionHandoffUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for handoff pack";
+    return;
+  }
+  $("status-msg").textContent = "Building selection handoff…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+    }>("/api/edit/export_selection_handoff", {
+      clip_ids: ids,
+      include_otio: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `HandoffSel · files=${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`HandoffSel failed: ${e}`);
+    $("status-msg").textContent = `HandoffSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionReviewPackageUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for review package";
+    return;
+  }
+  $("status-msg").textContent = "Building selection review package…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      meta?: string;
+    }>("/api/edit/export_selection_review_package", {
+      clip_ids: ids,
+      include_handoff: true,
+      include_storyboard: true,
+      include_export: true,
+      include_social: false,
+      normalize_preset: null,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ReviewSel → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ReviewSel failed: ${e}`);
+    $("status-msg").textContent = `ReviewSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16970,6 +17021,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-mkr-seg-sel", () => void exportSelectionMarkerSegmentsUi());
   proBind("btn-story-sel", () => void exportSelectionStoryboardUi());
   proBind("btn-frames-sel", () => void exportSelectionFrameSequenceUi());
+  proBind("btn-handoff-sel", () => void exportSelectionHandoffUi());
+  proBind("btn-review-pack-sel", () => void exportSelectionReviewPackageUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

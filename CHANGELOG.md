@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.69 — 2026-07-17
+
+### Added
+- `export_selection_handoff` / `export_selection_review_package` + **HandoffSel** / **ReviewSel**
+
 ## 0.6.68 — 2026-07-17
 
 ### Changed

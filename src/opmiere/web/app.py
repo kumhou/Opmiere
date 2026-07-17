@@ -10105,6 +10105,76 @@ def export_selection_frame_sequence_api(
         ) from e
 
 
+class ExportSelectionHandoffBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    include_manifest: bool = True
+    include_preflight: bool = True
+    include_otio: bool = False
+    include_markers: bool = True
+    include_review: bool = True
+    include_media: bool = True
+
+
+@app.post("/api/edit/export_selection_handoff")
+def export_selection_handoff_api(
+    body: ExportSelectionHandoffBody,
+) -> dict[str, Any]:
+    """Selection-scoped agent handoff folder."""
+    ed = _ed()
+    try:
+        return ed.export_selection_handoff(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            include_manifest=body.include_manifest,
+            include_preflight=body.include_preflight,
+            include_otio=body.include_otio,
+            include_markers=body.include_markers,
+            include_review=body.include_review,
+            include_media=body.include_media,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_handoff failed: {e}",
+        ) from e
+
+
+class ExportSelectionReviewPackageBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    include_handoff: bool = True
+    include_storyboard: bool = True
+    include_export: bool = True
+    include_social: bool = False
+    social_variants: list[str] | None = None
+    normalize_preset: str | None = None
+    export_filename: str = "selection_review.mp4"
+
+
+@app.post("/api/edit/export_selection_review_package")
+def export_selection_review_package_api(
+    body: ExportSelectionReviewPackageBody,
+) -> dict[str, Any]:
+    """Selection review package (handoff + storyboard + export)."""
+    ed = _ed()
+    try:
+        return ed.export_selection_review_package(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            include_handoff=body.include_handoff,
+            include_storyboard=body.include_storyboard,
+            include_export=body.include_export,
+            include_social=body.include_social,
+            social_variants=body.social_variants,
+            normalize_preset=body.normalize_preset,
+            export_filename=body.export_filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_review_package failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

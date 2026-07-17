@@ -11169,6 +11169,211 @@ class Editor:
             )
         return r
 
+    def export_selection_handoff(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        include_manifest: bool = True,
+        include_preflight: bool = True,
+        include_otio: bool = False,
+        include_markers: bool = True,
+        include_review: bool = True,
+        include_media: bool = True,
+    ) -> dict[str, Any]:
+        """Agent handoff folder scoped to selection (not full project).
+
+        Writes under exports/selection_handoff by default.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        out = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_handoff"
+        )
+        out.mkdir(parents=True, exist_ok=True)
+        written: list[str] = []
+        parts: dict[str, Any] = {}
+
+        if include_manifest:
+            man_path = out / "selection_manifest.json"
+            man = self.export_selection_manifest(ids, path=man_path)
+            parts["manifest"] = man
+            if man.get("path"):
+                written.append(str(Path(man["path"]).resolve()))
+            else:
+                written.append(str(man_path.resolve()))
+
+        if include_preflight:
+            try:
+                pf = self.selection_agent_preflight(ids, set_work_area=False)
+            except Exception as e:
+                pf = {"error": str(e)[:400]}
+            p = out / "preflight.json"
+            p.write_text(json.dumps(pf, indent=2, ensure_ascii=False), encoding="utf-8")
+            written.append(str(p.resolve()))
+            parts["preflight"] = pf
+
+        if include_review:
+            try:
+                rev = self.review_selection(ids)
+            except Exception as e:
+                rev = {"error": str(e)[:400]}
+            p = out / "review.json"
+            p.write_text(json.dumps(rev, indent=2, ensure_ascii=False), encoding="utf-8")
+            written.append(str(p.resolve()))
+            parts["review"] = rev
+
+        if include_media:
+            try:
+                offline = self.selection_offline_media(ids)
+            except Exception as e:
+                offline = {"error": str(e)[:400]}
+            p = out / "offline_media.json"
+            p.write_text(
+                json.dumps(offline, indent=2, ensure_ascii=False), encoding="utf-8",
+            )
+            written.append(str(p.resolve()))
+            parts["offline_media"] = offline
+
+        if include_markers:
+            try:
+                mk = self.markers_in_selection_span(ids)
+            except Exception as e:
+                mk = {"error": str(e)[:400]}
+            p = out / "markers.json"
+            p.write_text(json.dumps(mk, indent=2, ensure_ascii=False), encoding="utf-8")
+            written.append(str(p.resolve()))
+            parts["markers"] = mk
+
+        if include_otio:
+            try:
+                ot = self.export_selection_otio_json(
+                    ids, path=out / "selection.otio.json",
+                )
+                parts["otio"] = ot
+                if ot.get("path"):
+                    written.append(str(Path(ot["path"]).resolve()))
+            except Exception as e:
+                parts["otio"] = {"error": str(e)[:400]}
+
+        meta = {
+            "schema": "opmiere.selection_handoff.v1",
+            "clip_ids": ids,
+            "selection_span": span,
+            "files": written,
+            "project_id": self.project.id,
+        }
+        meta_path = out / "handoff.json"
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
+        written.append(str(meta_path.resolve()))
+        return {
+            "path": str(out.resolve()),
+            "files": written,
+            "count": len(written),
+            "parts": {k: (v.get("path") if isinstance(v, dict) and v.get("path") else k)
+                      for k, v in parts.items()},
+            "clip_ids": ids,
+            "selection_span": span,
+            "agent_note": (
+                "Selection handoff. Full project: export_handoff_package."
+            ),
+        }
+
+    def export_selection_review_package(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        include_handoff: bool = True,
+        include_storyboard: bool = True,
+        include_export: bool = True,
+        include_social: bool = False,
+        social_variants: list[str] | None = None,
+        normalize_preset: str | None = None,
+        export_filename: str = "selection_review.mp4",
+    ) -> dict[str, Any]:
+        """One-shot selection review pack: handoff + storyboard + optional MP4/social.
+
+        Does not mutate timeline. Social pack is expensive (N canvases).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_review"
+        )
+        out.mkdir(parents=True, exist_ok=True)
+        parts: dict[str, Any] = {}
+
+        if include_handoff:
+            try:
+                parts["handoff"] = self.export_selection_handoff(
+                    ids, out_dir=out / "handoff",
+                )
+            except Exception as e:
+                parts["handoff"] = {"error": str(e)[:400]}
+
+        if include_storyboard:
+            try:
+                parts["storyboard"] = self.export_selection_storyboard(
+                    ids, out_dir=out / "storyboard",
+                )
+            except Exception as e:
+                parts["storyboard"] = {"error": str(e)[:400]}
+
+        if include_export:
+            try:
+                dest = out / (export_filename or "selection_review.mp4")
+                parts["export"] = self.export_selection_mp4(
+                    ids, dest, normalize_preset=normalize_preset,
+                )
+            except Exception as e:
+                parts["export"] = {"error": str(e)[:400]}
+
+        if include_social:
+            try:
+                parts["social"] = self.export_selection_social_pack(
+                    ids,
+                    out_dir=out / "social",
+                    variants=social_variants or ["youtube", "reels", "square"],
+                    normalize_preset=normalize_preset,
+                    name_prefix="sel_review",
+                )
+            except Exception as e:
+                parts["social"] = {"error": str(e)[:400]}
+
+        meta = {
+            "schema": "opmiere.selection_review_package.v1",
+            "path": str(out.resolve()),
+            "clip_ids": ids,
+            "parts": {
+                k: (v.get("path") if isinstance(v, dict) else v)
+                for k, v in parts.items()
+            },
+        }
+        meta_path = out / "review_package.json"
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
+        return {
+            "path": str(out.resolve()),
+            "parts": parts,
+            "meta": str(meta_path.resolve()),
+            "clip_ids": ids,
+            "agent_note": (
+                "Selection review package. include_social=True is expensive. "
+                "Full project: export_review_package."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
