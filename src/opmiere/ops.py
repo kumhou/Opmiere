@@ -16641,6 +16641,68 @@ class Editor:
             ),
         }
 
+    def mute_selection_set(
+        self,
+        name: str,
+        *,
+        muted: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then mute_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.mute_selection(ids, muted=bool(muted))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "muted": bool(muted),
+            "agent_note": (
+                "Mute/unmute clips in named set. Report: "
+                "selection_set_muted_report. Fades: "
+                "set_selection_set_fades."
+            ),
+        }
+
+    def set_selection_set_fades(
+        self,
+        name: str,
+        *,
+        fade_in_frames: int | None = None,
+        fade_out_frames: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_fades (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_fades(
+            ids,
+            fade_in_frames=fade_in_frames,
+            fade_out_frames=fade_out_frames,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Edge fades on named set. Report: "
+                "selection_set_fades_report. Mute: "
+                "mute_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16686,6 +16748,8 @@ class Editor:
                     {"id": "selection_set_track_report", "writes": False},
                     {"id": "selection_set_media_report", "writes": False},
                     {"id": "selection_set_agent_card", "writes": False},
+                    {"id": "mute_selection_set", "writes": True},
+                    {"id": "set_selection_set_fades", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

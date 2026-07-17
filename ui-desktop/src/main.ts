@@ -16183,6 +16183,77 @@ async function selectionSetAgentCardUi() {
   }
 }
 
+async function muteSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Mute named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MuteSet cancelled";
+      return;
+    }
+    const raw = window.prompt("muted? (true/false)", "true");
+    if (raw === null) {
+      $("status-msg").textContent = "MuteSet cancelled";
+      return;
+    }
+    const muted = !/^(0|false|no|off)$/i.test(String(raw).trim());
+    $("status-msg").textContent = `MuteSet ${name} muted=${muted}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      muted?: boolean;
+      clip_count?: number;
+    }>("/api/edit/mute_selection_set", {
+      name,
+      muted,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MuteSet · ${r.selection_set || name} muted=${r.muted ?? muted} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MuteSet failed: ${e}`);
+    $("status-msg").textContent = `MuteSet failed: ${e}`;
+  }
+}
+
+async function setSelectionSetFadesUi() {
+  try {
+    const name = await promptSelectionSetName("Set fades on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FadeSet cancelled";
+      return;
+    }
+    const fiRaw = window.prompt("fade_in_frames", "6");
+    if (fiRaw === null) {
+      $("status-msg").textContent = "FadeSet cancelled";
+      return;
+    }
+    const foRaw = window.prompt("fade_out_frames", "6");
+    if (foRaw === null) {
+      $("status-msg").textContent = "FadeSet cancelled";
+      return;
+    }
+    const fade_in_frames = Number(fiRaw);
+    const fade_out_frames = Number(foRaw);
+    $("status-msg").textContent = `FadeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/set_selection_set_fades", {
+      name,
+      fade_in_frames: Number.isFinite(fade_in_frames) ? fade_in_frames : 6,
+      fade_out_frames: Number.isFinite(fade_out_frames) ? fade_out_frames : 6,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FadeSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FadeSet failed: ${e}`);
+    $("status-msg").textContent = `FadeSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20771,6 +20842,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-tracks", () => void selectionSetTrackReportUi());
   proBind("btn-set-media", () => void selectionSetMediaReportUi());
   proBind("btn-set-acard", () => void selectionSetAgentCardUi());
+  proBind("btn-mute-set", () => void muteSelectionSetUi());
+  proBind("btn-fade-set", () => void setSelectionSetFadesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

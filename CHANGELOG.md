@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.14 — 2026-07-17
+
+### Added
+- `mute_selection_set` / `set_selection_set_fades` + **MuteSet** / **FadeSet**
+
 ## 0.9.13 — 2026-07-17
 
 ### Added

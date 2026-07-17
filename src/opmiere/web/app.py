@@ -13017,6 +13017,58 @@ def selection_set_agent_card_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MuteSelectionSetBody(BaseModel):
+    name: str
+    muted: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/mute_selection_set")
+def mute_selection_set_api(
+    body: MuteSelectionSetBody,
+) -> dict[str, Any]:
+    """Mute/unmute clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.mute_selection_set(
+            body.name,
+            muted=body.muted,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"mute_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SetSelectionSetFadesBody(BaseModel):
+    name: str
+    fade_in_frames: int | None = None
+    fade_out_frames: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_fades")
+def set_selection_set_fades_api(
+    body: SetSelectionSetFadesBody,
+) -> dict[str, Any]:
+    """Set edge fades on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_fades(
+            body.name,
+            fade_in_frames=body.fade_in_frames,
+            fade_out_frames=body.fade_out_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_fades failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

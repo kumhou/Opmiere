@@ -7777,6 +7777,36 @@ def selection_set_agent_card(
 
 
 @mcp.tool()
+def mute_selection_set(
+    name: str,
+    muted: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Mute or unmute clips in a named selection set."""
+    return _require_editor().mute_selection_set(
+        name,
+        muted=muted,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def set_selection_set_fades(
+    name: str,
+    fade_in_frames: int | None = None,
+    fade_out_frames: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Set edge fades on clips in a named selection set."""
+    return _require_editor().set_selection_set_fades(
+        name,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
