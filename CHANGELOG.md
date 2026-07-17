@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.90 — 2026-07-17
+
+### Added
+- `balance_selection_set_gains` / `name_selection_set_from_media` + **BalanceGainsSet** / **NameFromMediaSet**
+
 ## 0.9.89 — 2026-07-17
 
 ### Added

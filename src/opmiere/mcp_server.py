@@ -10276,6 +10276,36 @@ def quantize_selection_set(
 
 
 @mcp.tool()
+def balance_selection_set_gains(
+    name: str,
+    target_db: float = 0.0,
+    relative: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Balance gains on clips in a named selection set."""
+    return _require_editor().balance_selection_set_gains(
+        name,
+        target_db=target_db,
+        relative=relative,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def name_selection_set_from_media(
+    name: str,
+    strip_ext: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Rename named-set clips from their media basenames."""
+    return _require_editor().name_selection_set_from_media(
+        name,
+        strip_ext=strip_ext,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

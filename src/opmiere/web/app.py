@@ -17174,6 +17174,58 @@ def quantize_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class BalanceSelectionSetGainsBody(BaseModel):
+    name: str
+    target_db: float = 0.0
+    relative: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/balance_selection_set_gains")
+def balance_selection_set_gains_api(
+    body: BalanceSelectionSetGainsBody,
+) -> dict[str, Any]:
+    """Balance gains on named set."""
+    ed = _ed()
+    try:
+        r = ed.balance_selection_set_gains(
+            body.name,
+            target_db=body.target_db,
+            relative=body.relative,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"balance_selection_set_gains failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class NameSelectionSetFromMediaBody(BaseModel):
+    name: str
+    strip_ext: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/name_selection_set_from_media")
+def name_selection_set_from_media_api(
+    body: NameSelectionSetFromMediaBody,
+) -> dict[str, Any]:
+    """Rename named-set clips from media basenames."""
+    ed = _ed()
+    try:
+        r = ed.name_selection_set_from_media(
+            body.name,
+            strip_ext=body.strip_ext,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"name_selection_set_from_media failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

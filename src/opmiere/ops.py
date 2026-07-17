@@ -21678,6 +21678,69 @@ class Editor:
             ),
         }
 
+    def balance_selection_set_gains(
+        self,
+        name: str,
+        *,
+        target_db: float = 0.0,
+        relative: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then balance_clip_gains (writes gain FX)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.balance_clip_gains(
+            ids,
+            target_db=float(target_db),
+            relative=bool(relative),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set gain balance. Rename from media: "
+                "name_selection_set_from_media. Levels report: "
+                "selection_set_levels_report."
+            ),
+        }
+
+    def name_selection_set_from_media(
+        self,
+        name: str,
+        *,
+        strip_ext: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then name_clips_from_media (clip.name = media stem)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.name_clips_from_media(
+            ids,
+            strip_ext=bool(strip_ext),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set clip names from media basenames. Gain balance: "
+                "balance_selection_set_gains."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21874,6 +21937,8 @@ class Editor:
                     {"id": "export_selection_set_otio_json", "writes": True},
                     {"id": "flip_selection_set", "writes": True},
                     {"id": "quantize_selection_set", "writes": True},
+                    {"id": "balance_selection_set_gains", "writes": True},
+                    {"id": "name_selection_set_from_media", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

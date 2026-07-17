@@ -20952,6 +20952,66 @@ async function quantizeSelectionSetUi() {
   }
 }
 
+async function balanceSelectionSetGainsUi() {
+  try {
+    const name = await promptSelectionSetName("Balance gains on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "BalanceGainsSet cancelled";
+      return;
+    }
+    const rawDb = window.prompt("target_db", "0");
+    if (rawDb === null) {
+      $("status-msg").textContent = "BalanceGainsSet cancelled";
+      return;
+    }
+    const targetDb = Number(rawDb);
+    $("status-msg").textContent = `BalanceGainsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      target_db?: number;
+      clip_count?: number;
+    }>("/api/edit/balance_selection_set_gains", {
+      name,
+      target_db: Number.isFinite(targetDb) ? targetDb : 0,
+      relative: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BalanceGainsSet · ${r.selection_set || name} target=${r.target_db ?? "?"} count=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`BalanceGainsSet failed: ${e}`);
+    $("status-msg").textContent = `BalanceGainsSet failed: ${e}`;
+  }
+}
+
+async function nameSelectionSetFromMediaUi() {
+  try {
+    const name = await promptSelectionSetName("Rename named set from media (set name)");
+    if (!name) {
+      $("status-msg").textContent = "NameFromMediaSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `NameFromMediaSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/name_selection_set_from_media", {
+      name,
+      strip_ext: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `NameFromMediaSet · ${r.selection_set || name} renamed=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`NameFromMediaSet failed: ${e}`);
+    $("status-msg").textContent = `NameFromMediaSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25691,6 +25751,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-otio-json-set", () => void exportSelectionSetOtioJsonUi());
   proBind("btn-flip-set", () => void flipSelectionSetUi());
   proBind("btn-quantize-set", () => void quantizeSelectionSetUi());
+  proBind("btn-balance-gains-set", () => void balanceSelectionSetGainsUi());
+  proBind("btn-name-from-media-set", () => void nameSelectionSetFromMediaUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
