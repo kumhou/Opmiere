@@ -10834,6 +10834,42 @@ def selection_link_report_api(
         ) from e
 
 
+class SelectionPositionReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_position_report")
+def selection_position_report_api(
+    body: SelectionPositionReportBody,
+) -> dict[str, Any]:
+    """Layout position report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_position_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_position_report failed: {e}",
+        ) from e
+
+
+class SelectionMetaReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_meta_report")
+def selection_meta_report_api(
+    body: SelectionMetaReportBody,
+) -> dict[str, Any]:
+    """Name/color meta report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_meta_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_meta_report failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

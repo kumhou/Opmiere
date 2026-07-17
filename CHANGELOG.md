@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.85 — 2026-07-17
+
+### Added
+- `selection_position_report` / `selection_meta_report` + **PosRep** / **MetaRep**
+
 ## 0.6.84 — 2026-07-17
 
 ### Added

@@ -13684,6 +13684,47 @@ async function selectionLinkReportUi() {
   }
 }
 
+async function selectionPositionReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for position report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      with_position?: number;
+    }>("/api/edit/selection_position_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PosRep · n=${r.count ?? "?"} with=${r.with_position ?? "?"}`;
+  } catch (e) {
+    setProOut(`PosRep failed: ${e}`);
+    $("status-msg").textContent = `PosRep failed: ${e}`;
+  }
+}
+
+async function selectionMetaReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for meta report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      named_count?: number;
+      colored_count?: number;
+    }>("/api/edit/selection_meta_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MetaRep · n=${r.count ?? "?"} named=${r.named_count ?? "?"} color=${r.colored_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MetaRep failed: ${e}`);
+    $("status-msg").textContent = `MetaRep failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17751,6 +17792,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-x-rep-sel", () => void selectionTransitionReportUi());
   proBind("btn-lvl-rep-sel", () => void selectionLevelsReportUi());
   proBind("btn-link-rep-sel", () => void selectionLinkReportUi());
+  proBind("btn-pos-rep-sel", () => void selectionPositionReportUi());
+  proBind("btn-meta-rep-sel", () => void selectionMetaReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

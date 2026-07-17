@@ -12538,6 +12538,78 @@ class Editor:
             ),
         }
 
+    def selection_position_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Read layout position (PiP / transform) for each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        with_pos = 0
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                tr, _ = self._find_clip_and_track(cid)
+                pos = clip.position
+                has = pos is not None
+                if has:
+                    with_pos += 1
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "has_position": has,
+                    "position": dict(pos) if isinstance(pos, dict) else pos,
+                })
+            except Exception as e:
+                rows.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(rows),
+            "with_position": with_pos,
+            "clips": rows,
+            "agent_note": (
+                "Read-only. Set: set_selection_position. "
+                "Clear: clear_selection_position."
+            ),
+        }
+
+    def selection_meta_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Read name / color labels for each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        named = 0
+        colored = 0
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                tr, _ = self._find_clip_and_track(cid)
+                name = clip.name
+                color = clip.color
+                if name:
+                    named += 1
+                if color:
+                    colored += 1
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "kind": tr.kind,
+                    "name": name,
+                    "color": color,
+                })
+            except Exception as e:
+                rows.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(rows),
+            "named_count": named,
+            "colored_count": colored,
+            "clips": rows,
+            "agent_note": "Read-only. Set: set_selection_meta.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

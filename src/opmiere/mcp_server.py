@@ -6448,6 +6448,18 @@ def selection_link_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def selection_position_report(clip_ids: list[str]) -> dict:
+    """Read layout position for selection clips."""
+    return _require_editor().selection_position_report(clip_ids)
+
+
+@mcp.tool()
+def selection_meta_report(clip_ids: list[str]) -> dict:
+    """Read name/color meta for selection clips."""
+    return _require_editor().selection_meta_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
