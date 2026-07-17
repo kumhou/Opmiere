@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.87 — 2026-07-17
+
+### Added
+- `export_selection_set_path_c_stills_plan` / `match_frame_selection_set` + **ExpPathCStillsSet** / **MatchFrameSet**
+
 ## 0.9.86 — 2026-07-17
 
 ### Added

@@ -20804,6 +20804,60 @@ async function selectionSetJlCutUi() {
   }
 }
 
+async function exportSelectionSetPathCStillsPlanUi() {
+  try {
+    const name = await promptSelectionSetName("Export path-C stills plan for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpPathCStillsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpPathCStillsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      plan_clip_count?: number;
+      adapter_version?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_path_c_stills_plan", {
+      name,
+      height: 360,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpPathCStillsSet · ${r.selection_set || name} path=${r.path ?? "?"} plan_clips=${r.plan_clip_count ?? "?"} adapter=${r.adapter_version ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpPathCStillsSet failed: ${e}`);
+    $("status-msg").textContent = `ExpPathCStillsSet failed: ${e}`;
+  }
+}
+
+async function matchFrameSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Match Frame for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MatchFrameSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `MatchFrameSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/match_frame_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MatchFrameSet · ${r.selection_set || name} matches=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MatchFrameSet failed: ${e}`);
+    $("status-msg").textContent = `MatchFrameSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25538,6 +25592,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-markers-srt-set", () => void exportSelectionSetMarkersSrtUi());
   proBind("btn-path-c-stills-set", () => void selectionSetPathCStillsPlanUi());
   proBind("btn-jl-cut-set", () => void selectionSetJlCutUi());
+  proBind("btn-exp-path-c-stills-set", () => void exportSelectionSetPathCStillsPlanUi());
+  proBind("btn-match-frame-set", () => void matchFrameSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

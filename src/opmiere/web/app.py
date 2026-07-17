@@ -17039,6 +17039,58 @@ def selection_set_jl_cut_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetPathCStillsPlanBody(BaseModel):
+    name: str
+    filename: str | None = None
+    height: int = 360
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_path_c_stills_plan")
+def export_selection_set_path_c_stills_plan_api(
+    body: ExportSelectionSetPathCStillsPlanBody,
+) -> dict[str, Any]:
+    """Write path-C stills plan JSON for named set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_path_c_stills_plan(
+            body.name,
+            filename=body.filename,
+            height=body.height,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_path_c_stills_plan failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MatchFrameSelectionSetBody(BaseModel):
+    name: str
+    timeline_frame: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/match_frame_selection_set")
+def match_frame_selection_set_api(
+    body: MatchFrameSelectionSetBody,
+) -> dict[str, Any]:
+    """Match Frame batch for named set."""
+    ed = _ed()
+    try:
+        r = ed.match_frame_selection_set(
+            body.name,
+            timeline_frame=body.timeline_frame,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"match_frame_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

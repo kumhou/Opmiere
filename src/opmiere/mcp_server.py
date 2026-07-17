@@ -10196,6 +10196,36 @@ def selection_set_jl_cut(
 
 
 @mcp.tool()
+def export_selection_set_path_c_stills_plan(
+    name: str,
+    filename: str | None = None,
+    height: int = 360,
+    set_work_area: bool = False,
+) -> dict:
+    """Write path-C stills plan JSON for a named selection set."""
+    return _require_editor().export_selection_set_path_c_stills_plan(
+        name,
+        filename=filename,
+        height=height,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def match_frame_selection_set(
+    name: str,
+    timeline_frame: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Match Frame (source map) for each clip in a named selection set."""
+    return _require_editor().match_frame_selection_set(
+        name,
+        timeline_frame=timeline_frame,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

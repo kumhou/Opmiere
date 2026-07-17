@@ -21507,6 +21507,73 @@ class Editor:
             ),
         }
 
+    def export_selection_set_path_c_stills_plan(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        height: int = 360,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_path_c_stills_plan_default."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        rep = self.export_selection_path_c_stills_plan_default(
+            ids,
+            filename=filename or f"selection_set_{safe}_path_c_stills_plan.json",
+            height=int(height),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set path-C stills plan JSON. In-memory: "
+                "selection_set_path_c_stills_plan. Match frame: "
+                "match_frame_selection_set."
+            ),
+        }
+
+    def match_frame_selection_set(
+        self,
+        name: str,
+        *,
+        timeline_frame: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then match_frame_selection (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.match_frame_selection(
+            ids,
+            timeline_frame=timeline_frame,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set Match Frame batch. Stills plan export: "
+                "export_selection_set_path_c_stills_plan."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21698,6 +21765,8 @@ class Editor:
                     {"id": "export_selection_set_markers_srt", "writes": True},
                     {"id": "selection_set_path_c_stills_plan", "writes": False},
                     {"id": "selection_set_jl_cut", "writes": True},
+                    {"id": "export_selection_set_path_c_stills_plan", "writes": True},
+                    {"id": "match_frame_selection_set", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
