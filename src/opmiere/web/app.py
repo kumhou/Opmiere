@@ -11595,6 +11595,54 @@ def copy_selection_set_api(body: CopySelectionSetBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetsBody(BaseModel):
+    path: str | None = None
+    names: list[str] | None = None
+    resolve_live: bool = False
+    filename: str = "selection_sets_export.json"
+
+
+@app.post("/api/edit/export_selection_sets")
+def export_selection_sets_api(body: ExportSelectionSetsBody) -> dict[str, Any]:
+    """Export named selection sets to JSON."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_sets(
+            path=body.path,
+            names=body.names,
+            resolve_live=body.resolve_live,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"export_selection_sets failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ImportSelectionSetsBody(BaseModel):
+    path: str
+    mode: str = "merge"
+    overwrite: bool = True
+    names: list[str] | None = None
+    resolve_live: bool = True
+
+
+@app.post("/api/edit/import_selection_sets")
+def import_selection_sets_api(body: ImportSelectionSetsBody) -> dict[str, Any]:
+    """Import selection sets from JSON."""
+    ed = _ed()
+    try:
+        r = ed.import_selection_sets(
+            body.path,
+            mode=body.mode,
+            overwrite=body.overwrite,
+            names=body.names,
+            resolve_live=body.resolve_live,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"import_selection_sets failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

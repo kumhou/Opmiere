@@ -14519,6 +14519,75 @@ async function copySelectionSetUi() {
   }
 }
 
+async function exportSelectionSetsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection sets…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      count?: number;
+      names?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/export_selection_sets", {
+      resolve_live: false,
+      filename: "selection_sets_export.json",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpSets · n=${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ExpSets failed: ${e}`);
+    $("status-msg").textContent = `ExpSets failed: ${e}`;
+  }
+}
+
+async function importSelectionSetsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const path = window
+    .prompt(
+      "Import selection sets JSON path",
+      "selection_sets_export.json",
+    )
+    ?.trim();
+  if (!path) {
+    $("status-msg").textContent = "ImpSets cancelled";
+    return;
+  }
+  const mode =
+    window.prompt("Mode: merge | replace", "merge")?.trim() || "merge";
+  $("status-msg").textContent = `Importing selection sets (${mode})…`;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      imported_count?: number;
+      skipped_count?: number;
+      total_sets?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/import_selection_sets", {
+      path,
+      mode,
+      overwrite: true,
+      resolve_live: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ImpSets · in=${r.imported_count ?? "?"} skip=${r.skipped_count ?? 0} total=${r.total_sets ?? "?"}`;
+  } catch (e) {
+    setProOut(`ImpSets failed: ${e}`);
+    $("status-msg").textContent = `ImpSets failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18614,6 +18683,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-merge-sel-set", () => void mergeSelectionSetsUi());
   proBind("btn-ren-sel-set", () => void renameSelectionSetUi());
   proBind("btn-copy-sel-set", () => void copySelectionSetUi());
+  proBind("btn-exp-sel-sets", () => void exportSelectionSetsUi());
+  proBind("btn-imp-sel-sets", () => void importSelectionSetsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

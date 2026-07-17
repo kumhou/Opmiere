@@ -6927,6 +6927,40 @@ def copy_selection_set(
 
 
 @mcp.tool()
+def export_selection_sets(
+    path: str | None = None,
+    names: list[str] | None = None,
+    resolve_live: bool = False,
+    filename: str = "selection_sets_export.json",
+) -> dict:
+    """Export named selection sets to JSON (handoff / backup)."""
+    return _require_editor().export_selection_sets(
+        path=path,
+        names=names,
+        resolve_live=resolve_live,
+        filename=filename,
+    )
+
+
+@mcp.tool()
+def import_selection_sets(
+    path: str,
+    mode: str = "merge",
+    overwrite: bool = True,
+    names: list[str] | None = None,
+    resolve_live: bool = True,
+) -> dict:
+    """Import selection sets from JSON (merge or replace)."""
+    return _require_editor().import_selection_sets(
+        path,
+        mode=mode,
+        overwrite=overwrite,
+        names=names,
+        resolve_live=resolve_live,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

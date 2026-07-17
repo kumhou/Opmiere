@@ -14413,6 +14413,201 @@ class Editor:
             ),
         }
 
+    def export_selection_sets(
+        self,
+        *,
+        path: str | Path | None = None,
+        names: list[str] | None = None,
+        resolve_live: bool = False,
+        filename: str = "selection_sets_export.json",
+    ) -> dict[str, Any]:
+        """Export named selection sets to JSON (handoff / backup).
+
+        names=None exports all. resolve_live=True filters missing clips.
+        Default path: ``exports/selection_sets_export.json``.
+        """
+        store = self._read_selection_sets()
+        all_sets: dict[str, Any] = dict(store.get("sets") or {})
+        if names is None:
+            keys = sorted(all_sets.keys())
+        else:
+            keys = [str(n).strip() for n in names if str(n).strip()]
+            missing = [k for k in keys if k not in all_sets]
+            if missing:
+                raise KeyError(
+                    f"unknown selection sets {missing}; known={sorted(all_sets.keys())}"
+                )
+        exported: dict[str, Any] = {}
+        for key in keys:
+            entry = all_sets.get(key)
+            if not isinstance(entry, dict):
+                continue
+            e = dict(entry)
+            raw = [
+                str(c) for c in (e.get("clip_ids") or []) if str(c).strip()
+            ]
+            if resolve_live:
+                live: list[str] = []
+                for cid in dict.fromkeys(raw):
+                    try:
+                        self._find_clip(cid)
+                        live.append(cid)
+                    except Exception:
+                        continue
+                e["clip_ids"] = live
+                e["clip_count"] = len(live)
+            else:
+                e["clip_ids"] = list(dict.fromkeys(raw))
+                e["clip_count"] = len(e["clip_ids"])
+            e["name"] = key
+            exported[key] = e
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / (filename or "selection_sets_export.json")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "opmiere.selection_sets_export.v1",
+            "project_id": getattr(self.project, "id", None),
+            "exported_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "count": len(exported),
+            "sets": exported,
+        }
+        out.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "ok": True,
+            "path": str(out.resolve()),
+            "count": len(exported),
+            "names": sorted(exported.keys()),
+            "resolve_live": bool(resolve_live),
+            "agent_note": (
+                "Selection sets exported. Import: import_selection_sets. "
+                "In-project list: list_selection_sets."
+            ),
+        }
+
+    def import_selection_sets(
+        self,
+        path: str | Path,
+        *,
+        mode: str = "merge",
+        overwrite: bool = True,
+        names: list[str] | None = None,
+        resolve_live: bool = True,
+    ) -> dict[str, Any]:
+        """Import selection sets from JSON export.
+
+        mode: merge (default) adds/updates sets; replace clears existing first.
+        names=None imports all keys in file. resolve_live drops missing clips
+        (skips empty sets after filter).
+        """
+        p = Path(path)
+        if not p.is_file():
+            raise FileNotFoundError(f"import path not found: {p}")
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            raise ValueError(f"invalid selection sets JSON: {e}") from e
+        if not isinstance(data, dict):
+            raise ValueError("selection sets export must be an object")
+        raw_sets = data.get("sets")
+        if not isinstance(raw_sets, dict):
+            raise ValueError("export missing sets object")
+        mode_n = str(mode or "merge").strip().lower()
+        if mode_n not in ("merge", "replace"):
+            raise ValueError("mode must be merge|replace")
+
+        want = None
+        if names is not None:
+            want = {str(n).strip() for n in names if str(n).strip()}
+
+        store = (
+            {"schema": "opmiere.selection_sets.v1", "sets": {}}
+            if mode_n == "replace"
+            else self._read_selection_sets()
+        )
+        sets: dict[str, Any] = dict(store.get("sets") or {})
+        imported: list[str] = []
+        skipped: list[dict[str, Any]] = []
+        for key, entry in raw_sets.items():
+            name = str(key).strip()
+            if not name:
+                continue
+            if want is not None and name not in want:
+                continue
+            if not isinstance(entry, dict):
+                skipped.append({"name": name, "reason": "not_object"})
+                continue
+            if name in sets and not overwrite and mode_n == "merge":
+                skipped.append({"name": name, "reason": "exists"})
+                continue
+            raw_ids = [
+                str(c) for c in (entry.get("clip_ids") or []) if str(c).strip()
+            ]
+            if resolve_live:
+                ids: list[str] = []
+                for cid in dict.fromkeys(raw_ids):
+                    try:
+                        self._find_clip(cid)
+                        ids.append(cid)
+                    except Exception:
+                        continue
+            else:
+                ids = list(dict.fromkeys(raw_ids))
+            if not ids:
+                skipped.append({
+                    "name": name,
+                    "reason": "empty_after_resolve" if resolve_live else "empty",
+                })
+                continue
+            # use save path for span refresh when live; otherwise write entry
+            if resolve_live:
+                self.save_selection_set(
+                    name,
+                    ids,
+                    note=str(entry.get("note") or ""),
+                    overwrite=True,
+                )
+                # re-read after save
+                sets = dict(self._read_selection_sets().get("sets") or {})
+            else:
+                sets[name] = {
+                    "name": name,
+                    "clip_ids": ids,
+                    "note": str(entry.get("note") or ""),
+                    "clip_count": len(ids),
+                    "span": entry.get("span"),
+                    "updated_at": datetime.now(timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                }
+                store["sets"] = sets
+                self._write_selection_sets(store)
+            imported.append(name)
+
+        final = self.list_selection_sets()
+        return {
+            "ok": True,
+            "path": str(p.resolve()),
+            "mode": mode_n,
+            "imported": imported,
+            "imported_count": len(imported),
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "total_sets": final.get("count"),
+            "agent_note": (
+                "Selection sets imported. Export: export_selection_sets. "
+                "Finish by name: agent_finish_selection_set."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

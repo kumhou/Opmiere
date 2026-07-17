@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.99 — 2026-07-17
+
+### Added
+- `export_selection_sets` / `import_selection_sets` + **ExpSets** / **ImpSets**
+
 ## 0.6.98 — 2026-07-17
 
 ### Added
