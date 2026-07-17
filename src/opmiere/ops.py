@@ -20262,6 +20262,78 @@ class Editor:
             ),
         }
 
+    def analyze_selection_set_audio(
+        self,
+        name: str,
+        *,
+        image_path: str | Path | None = None,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.5,
+        filename: str = "selection_set_mix_analyze.wav",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then analyze_selection_audio."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.analyze_selection_audio(
+            ids,
+            image_path=image_path,
+            silence_threshold_db=float(silence_threshold_db),
+            min_silence_seconds=float(min_silence_seconds),
+            filename=str(filename),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Loudness/silence meters on named-set mix. Delivery: "
+                "delivery_check_selection_set. Export prep: "
+                "prepare_selection_set_export."
+            ),
+        }
+
+    def delivery_check_selection_set(
+        self,
+        name: str,
+        *,
+        filename: str = "selection_set_delivery.mp4",
+        preset: str = "streaming",
+        normalize_preset: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then delivery_check_selection."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.delivery_check_selection(
+            ids,
+            filename=str(filename),
+            preset=str(preset),
+            normalize_preset=normalize_preset,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Selection-set union export + delivery gates. Analyze: "
+                "analyze_selection_set_audio. Finish: "
+                "finish_selection_set_delivery."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20421,6 +20493,8 @@ class Editor:
                     {"id": "swap_selection_set_pair", "writes": True},
                     {"id": "prepare_selection_set_export", "writes": True},
                     {"id": "ripple_delete_selection_set", "writes": True},
+                    {"id": "analyze_selection_set_audio", "writes": False},
+                    {"id": "delivery_check_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.71 — 2026-07-17
+
+### Added
+- `analyze_selection_set_audio` / `delivery_check_selection_set` + **AnAudioSet** / **DelivSet**
+
 ## 0.9.70 — 2026-07-17
 
 ### Added

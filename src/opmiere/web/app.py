@@ -16081,6 +16081,66 @@ def ripple_delete_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class AnalyzeSelectionSetAudioBody(BaseModel):
+    name: str
+    image_path: str | None = None
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.5
+    filename: str = "selection_set_mix_analyze.wav"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/analyze_selection_set_audio")
+def analyze_selection_set_audio_api(
+    body: AnalyzeSelectionSetAudioBody,
+) -> dict[str, Any]:
+    """Analyze loudness/silence for a named selection set mix."""
+    ed = _ed()
+    try:
+        r = ed.analyze_selection_set_audio(
+            body.name,
+            image_path=body.image_path,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            filename=body.filename,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"analyze_selection_set_audio failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DeliveryCheckSelectionSetBody(BaseModel):
+    name: str
+    filename: str = "selection_set_delivery.mp4"
+    preset: str = "streaming"
+    normalize_preset: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/delivery_check_selection_set")
+def delivery_check_selection_set_api(
+    body: DeliveryCheckSelectionSetBody,
+) -> dict[str, Any]:
+    """Export named set then run delivery_check gates."""
+    ed = _ed()
+    try:
+        r = ed.delivery_check_selection_set(
+            body.name,
+            filename=body.filename,
+            preset=body.preset,
+            normalize_preset=body.normalize_preset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"delivery_check_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

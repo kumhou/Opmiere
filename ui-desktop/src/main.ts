@@ -19844,6 +19844,61 @@ async function rippleDeleteSelectionSetUi() {
   }
 }
 
+async function analyzeSelectionSetAudioUi() {
+  try {
+    const name = await promptSelectionSetName("Analyze audio named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "AnAudioSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `AnAudioSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      selection_audio_path?: string;
+    }>("/api/edit/analyze_selection_set_audio", {
+      name,
+      silence_threshold_db: -40,
+      min_silence_seconds: 0.5,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AnAudioSet · ${r.selection_set || name} path=${r.selection_audio_path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`AnAudioSet failed: ${e}`);
+    $("status-msg").textContent = `AnAudioSet failed: ${e}`;
+  }
+}
+
+async function deliveryCheckSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Delivery check named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DelivSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DelivSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      export_path?: string;
+      ok?: boolean;
+    }>("/api/edit/delivery_check_selection_set", {
+      name,
+      filename: "selection_set_delivery.mp4",
+      preset: "streaming",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DelivSet · ${r.selection_set || name} ok=${r.ok ?? "?"} path=${r.export_path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DelivSet failed: ${e}`);
+    $("status-msg").textContent = `DelivSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24546,6 +24601,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-swap-pair-set", () => void swapSelectionSetPairUi());
   proBind("btn-prep-exp-set", () => void prepareSelectionSetExportUi());
   proBind("btn-rip-del-set", () => void rippleDeleteSelectionSetUi());
+  proBind("btn-an-audio-set", () => void analyzeSelectionSetAudioUi());
+  proBind("btn-deliv-set", () => void deliveryCheckSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

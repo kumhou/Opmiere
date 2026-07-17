@@ -9590,6 +9590,44 @@ def ripple_delete_selection_set(
 
 
 @mcp.tool()
+def analyze_selection_set_audio(
+    name: str,
+    image_path: str | None = None,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.5,
+    filename: str = "selection_set_mix_analyze.wav",
+    set_work_area: bool = False,
+) -> dict:
+    """Export named-set mix then analyze loudness/silence meters."""
+    return _require_editor().analyze_selection_set_audio(
+        name,
+        image_path=image_path,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        filename=filename,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def delivery_check_selection_set(
+    name: str,
+    filename: str = "selection_set_delivery.mp4",
+    preset: str = "streaming",
+    normalize_preset: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named-set MP4 then run delivery_check gates."""
+    return _require_editor().delivery_check_selection_set(
+        name,
+        filename=filename,
+        preset=preset,
+        normalize_preset=normalize_preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
