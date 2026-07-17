@@ -17226,6 +17226,66 @@ def name_selection_set_from_media_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FitSelectionSetToMarkersBody(BaseModel):
+    name: str
+    method: str = "speed"
+    max_start_delta: int = 8
+    clamp: bool = True
+    marker_ids: list[str] | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/fit_selection_set_to_markers")
+def fit_selection_set_to_markers_api(
+    body: FitSelectionSetToMarkersBody,
+) -> dict[str, Any]:
+    """Fit named-set clips to marker slots."""
+    ed = _ed()
+    try:
+        r = ed.fit_selection_set_to_markers(
+            body.name,
+            method=body.method,
+            max_start_delta=body.max_start_delta,
+            clamp=body.clamp,
+            marker_ids=body.marker_ids,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"fit_selection_set_to_markers failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SnapSelectionSetToMarkersBody(BaseModel):
+    name: str
+    edge: str = "start"
+    max_delta_frames: int | None = None
+    prefer: str = "nearest"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/snap_selection_set_to_markers")
+def snap_selection_set_to_markers_api(
+    body: SnapSelectionSetToMarkersBody,
+) -> dict[str, Any]:
+    """Snap named-set clips to markers."""
+    ed = _ed()
+    try:
+        r = ed.snap_selection_set_to_markers(
+            body.name,
+            edge=body.edge,
+            max_delta_frames=body.max_delta_frames,
+            prefer=body.prefer,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"snap_selection_set_to_markers failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

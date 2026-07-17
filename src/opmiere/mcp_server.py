@@ -10306,6 +10306,44 @@ def name_selection_set_from_media(
 
 
 @mcp.tool()
+def fit_selection_set_to_markers(
+    name: str,
+    method: str = "speed",
+    max_start_delta: int = 8,
+    clamp: bool = True,
+    marker_ids: list[str] | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Rate-stretch/trim named-set clips to fill marker-to-marker slots."""
+    return _require_editor().fit_selection_set_to_markers(
+        name,
+        method=method,
+        max_start_delta=max_start_delta,
+        clamp=clamp,
+        marker_ids=marker_ids,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def snap_selection_set_to_markers(
+    name: str,
+    edge: str = "start",
+    max_delta_frames: int | None = None,
+    prefer: str = "nearest",
+    set_work_area: bool = False,
+) -> dict:
+    """Snap named-set clip starts/ends to nearest markers."""
+    return _require_editor().snap_selection_set_to_markers(
+        name,
+        edge=edge,
+        max_delta_frames=max_delta_frames,
+        prefer=prefer,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

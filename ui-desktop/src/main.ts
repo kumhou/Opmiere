@@ -21012,6 +21012,63 @@ async function nameSelectionSetFromMediaUi() {
   }
 }
 
+async function fitSelectionSetToMarkersUi() {
+  try {
+    const name = await promptSelectionSetName("Fit named set to markers (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FitMkrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `FitMkrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      skipped_count?: number;
+      clip_count?: number;
+    }>("/api/edit/fit_selection_set_to_markers", {
+      name,
+      method: "speed",
+      max_start_delta: 30,
+      clamp: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FitMkrSet · ${r.selection_set || name} fitted=${r.count ?? "?"} skip=${r.skipped_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FitMkrSet failed: ${e}`);
+    $("status-msg").textContent = `FitMkrSet failed: ${e}`;
+  }
+}
+
+async function snapSelectionSetToMarkersUi() {
+  try {
+    const name = await promptSelectionSetName("Snap named set to markers (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SnapMkrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SnapMkrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      skipped_count?: number;
+      clip_count?: number;
+    }>("/api/edit/snap_selection_set_to_markers", {
+      name,
+      edge: "start",
+      prefer: "nearest",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SnapMkrSet · ${r.selection_set || name} snapped=${r.count ?? "?"} skip=${r.skipped_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SnapMkrSet failed: ${e}`);
+    $("status-msg").textContent = `SnapMkrSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25753,6 +25810,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-quantize-set", () => void quantizeSelectionSetUi());
   proBind("btn-balance-gains-set", () => void balanceSelectionSetGainsUi());
   proBind("btn-name-from-media-set", () => void nameSelectionSetFromMediaUi());
+  proBind("btn-fit-markers-set", () => void fitSelectionSetToMarkersUi());
+  proBind("btn-snap-markers-set", () => void snapSelectionSetToMarkersUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

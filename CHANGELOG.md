@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.91 — 2026-07-17
+
+### Added
+- `fit_selection_set_to_markers` / `snap_selection_set_to_markers` + **FitMkrSet** / **SnapMkrSet**
+
 ## 0.9.90 — 2026-07-17
 
 ### Added

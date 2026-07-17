@@ -21741,6 +21741,76 @@ class Editor:
             ),
         }
 
+    def fit_selection_set_to_markers(
+        self,
+        name: str,
+        *,
+        method: str = "speed",
+        max_start_delta: int = 8,
+        clamp: bool = True,
+        marker_ids: list[str] | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then fit_clips_to_markers (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.fit_clips_to_markers(
+            ids,
+            method=str(method),
+            max_start_delta=int(max_start_delta),
+            clamp=bool(clamp),
+            marker_ids=marker_ids,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set fit to marker slots. Snap only: "
+                "snap_selection_set_to_markers."
+            ),
+        }
+
+    def snap_selection_set_to_markers(
+        self,
+        name: str,
+        *,
+        edge: str = "start",
+        max_delta_frames: int | None = None,
+        prefer: str = "nearest",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then snap_clips_to_markers (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.snap_clips_to_markers(
+            ids,
+            edge=str(edge),
+            max_delta_frames=max_delta_frames,
+            prefer=str(prefer),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set snap to markers. Fit fill slots: "
+                "fit_selection_set_to_markers."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21939,6 +22009,8 @@ class Editor:
                     {"id": "quantize_selection_set", "writes": True},
                     {"id": "balance_selection_set_gains", "writes": True},
                     {"id": "name_selection_set_from_media", "writes": True},
+                    {"id": "fit_selection_set_to_markers", "writes": True},
+                    {"id": "snap_selection_set_to_markers", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
