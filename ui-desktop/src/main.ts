@@ -16976,6 +16976,72 @@ async function applyEdgeFadesToSelectionSetUi() {
   }
 }
 
+async function moveSelectionSetToFrameUi() {
+  try {
+    const name = await promptSelectionSetName("Move named set to frame (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MoveSet cancelled";
+      return;
+    }
+    const raw = window.prompt("to_frame", "0");
+    if (raw === null) {
+      $("status-msg").textContent = "MoveSet cancelled";
+      return;
+    }
+    const to_frame = Number(raw);
+    $("status-msg").textContent = `MoveSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      to_frame?: number;
+      clip_count?: number;
+    }>("/api/edit/move_selection_set_to_frame", {
+      name,
+      to_frame: Number.isFinite(to_frame) ? to_frame : 0,
+      follow_links: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MoveSet · ${r.selection_set || name} to=${r.to_frame ?? to_frame} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MoveSet failed: ${e}`);
+    $("status-msg").textContent = `MoveSet failed: ${e}`;
+  }
+}
+
+async function renameClipsInSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Pattern-rename clips (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RenClipsSet cancelled";
+      return;
+    }
+    const pattern = window.prompt("pattern ({n}, {name})", "Clip {n:03d}");
+    if (pattern === null) {
+      $("status-msg").textContent = "RenClipsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RenClipsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+      pattern?: string;
+    }>("/api/edit/rename_clips_in_selection_set", {
+      name,
+      pattern: pattern.trim() || "Clip {n:03d}",
+      start: 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RenClipsSet · ${r.selection_set || name} renamed=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RenClipsSet failed: ${e}`);
+    $("status-msg").textContent = `RenClipsSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21590,6 +21656,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-strip-pc-set", () => void stripSelectionSetPathCUnmappedUi());
   proBind("btn-nudge-set", () => void nudgeSelectionSetUi());
   proBind("btn-edge-fade-set", () => void applyEdgeFadesToSelectionSetUi());
+  proBind("btn-move-set", () => void moveSelectionSetToFrameUi());
+  proBind("btn-ren-clips-set", () => void renameClipsInSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.27 — 2026-07-17
+
+### Added
+- `move_selection_set_to_frame` / `rename_clips_in_selection_set` + **MoveSet** / **RenClipsSet**
+
 ## 0.9.26 — 2026-07-17
 
 ### Added

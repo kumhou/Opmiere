@@ -17409,6 +17409,72 @@ class Editor:
             ),
         }
 
+    def move_selection_set_to_frame(
+        self,
+        name: str,
+        to_frame: int,
+        *,
+        follow_links: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then move_selection_to_frame (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.move_selection_to_frame(
+            ids, int(to_frame), follow_links=bool(follow_links),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "to_frame": int(to_frame),
+            "agent_note": (
+                "Rigid-move named set so earliest start = to_frame. "
+                "Nudge: nudge_selection_set. Pattern rename: "
+                "rename_clips_in_selection_set."
+            ),
+        }
+
+    def rename_clips_in_selection_set(
+        self,
+        name: str,
+        pattern: str = "Clip {n:03d}",
+        *,
+        start: int = 1,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then rename_selection pattern (writes).
+
+        Distinct from rename_selection_set (which renames the set itself).
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.rename_selection(
+            ids, pattern, start=int(start),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Pattern-rename clips in named set. From media: "
+                "rename_selection_set_from_media. Move: "
+                "move_selection_set_to_frame."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17480,6 +17546,8 @@ class Editor:
                     {"id": "strip_selection_set_path_c_unmapped", "writes": True},
                     {"id": "nudge_selection_set", "writes": True},
                     {"id": "apply_edge_fades_to_selection_set", "writes": True},
+                    {"id": "move_selection_set_to_frame", "writes": True},
+                    {"id": "rename_clips_in_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

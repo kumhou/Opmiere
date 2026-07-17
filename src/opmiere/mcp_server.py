@@ -8148,6 +8148,38 @@ def apply_edge_fades_to_selection_set(
 
 
 @mcp.tool()
+def move_selection_set_to_frame(
+    name: str,
+    to_frame: int,
+    follow_links: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Rigid-move a named selection set so earliest start becomes to_frame."""
+    return _require_editor().move_selection_set_to_frame(
+        name,
+        to_frame,
+        follow_links=follow_links,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def rename_clips_in_selection_set(
+    name: str,
+    pattern: str = "Clip {n:03d}",
+    start: int = 1,
+    set_work_area: bool = False,
+) -> dict:
+    """Pattern-rename clips in a named selection set (not the set name)."""
+    return _require_editor().rename_clips_in_selection_set(
+        name,
+        pattern,
+        start=start,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

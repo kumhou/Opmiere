@@ -13671,6 +13671,60 @@ def apply_edge_fades_to_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MoveSelectionSetToFrameBody(BaseModel):
+    name: str
+    to_frame: int
+    follow_links: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/move_selection_set_to_frame")
+def move_selection_set_to_frame_api(
+    body: MoveSelectionSetToFrameBody,
+) -> dict[str, Any]:
+    """Rigid-move a named selection set to to_frame."""
+    ed = _ed()
+    try:
+        r = ed.move_selection_set_to_frame(
+            body.name,
+            body.to_frame,
+            follow_links=body.follow_links,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"move_selection_set_to_frame failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RenameClipsInSelectionSetBody(BaseModel):
+    name: str
+    pattern: str = "Clip {n:03d}"
+    start: int = 1
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/rename_clips_in_selection_set")
+def rename_clips_in_selection_set_api(
+    body: RenameClipsInSelectionSetBody,
+) -> dict[str, Any]:
+    """Pattern-rename clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.rename_clips_in_selection_set(
+            body.name,
+            body.pattern,
+            start=body.start,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"rename_clips_in_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
