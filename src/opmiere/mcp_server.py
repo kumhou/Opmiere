@@ -8058,6 +8058,36 @@ def rate_stretch_selection_set(
 
 
 @mcp.tool()
+def add_transitions_to_selection_set(
+    name: str,
+    transition_type: str = "cross_dissolve",
+    duration_frames: int = 12,
+    require_both_selected: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Add transitions on hard-cuts within a named selection set."""
+    return _require_editor().add_transitions_to_selection_set(
+        name,
+        transition_type=transition_type,
+        duration_frames=duration_frames,
+        require_both_selected=require_both_selected,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def remove_transitions_from_selection_set(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove transitions from clips in a named selection set."""
+    return _require_editor().remove_transitions_from_selection_set(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

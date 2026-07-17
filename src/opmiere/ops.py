@@ -17223,6 +17223,68 @@ class Editor:
             ),
         }
 
+    def add_transitions_to_selection_set(
+        self,
+        name: str,
+        *,
+        transition_type: str = "cross_dissolve",
+        duration_frames: int = 12,
+        require_both_selected: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then add_transitions_to_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.add_transitions_to_selection(
+            ids,
+            transition_type=transition_type,
+            duration_frames=int(duration_frames),
+            require_both_selected=bool(require_both_selected),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Add transitions on named set hard-cuts. Remove: "
+                "remove_transitions_from_selection_set. Report: "
+                "selection_set_transition_report."
+            ),
+        }
+
+    def remove_transitions_from_selection_set(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then remove_transitions_from_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.remove_transitions_from_selection(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Remove transitions on named set. Add: "
+                "add_transitions_to_selection_set. Report: "
+                "selection_set_transition_report."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17288,6 +17350,8 @@ class Editor:
                     {"id": "join_selection_set", "writes": True},
                     {"id": "extract_selection_set", "writes": True},
                     {"id": "rate_stretch_selection_set", "writes": True},
+                    {"id": "add_transitions_to_selection_set", "writes": True},
+                    {"id": "remove_transitions_from_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

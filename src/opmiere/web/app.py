@@ -13515,6 +13515,58 @@ def rate_stretch_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class AddTransitionsToSelectionSetBody(BaseModel):
+    name: str
+    transition_type: str = "cross_dissolve"
+    duration_frames: int = 12
+    require_both_selected: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/add_transitions_to_selection_set")
+def add_transitions_to_selection_set_api(
+    body: AddTransitionsToSelectionSetBody,
+) -> dict[str, Any]:
+    """Add transitions on hard-cuts in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.add_transitions_to_selection_set(
+            body.name,
+            transition_type=body.transition_type,
+            duration_frames=body.duration_frames,
+            require_both_selected=body.require_both_selected,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"add_transitions_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RemoveTransitionsFromSelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/remove_transitions_from_selection_set")
+def remove_transitions_from_selection_set_api(
+    body: RemoveTransitionsFromSelectionSetBody,
+) -> dict[str, Any]:
+    """Remove transitions from a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.remove_transitions_from_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"remove_transitions_from_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -16787,6 +16787,65 @@ async function rateStretchSelectionSetUi() {
   }
 }
 
+async function addTransitionsToSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Add transitions on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "AddXSet cancelled";
+      return;
+    }
+    const durRaw = window.prompt("duration_frames", "12");
+    if (durRaw === null) {
+      $("status-msg").textContent = "AddXSet cancelled";
+      return;
+    }
+    const duration_frames = Number(durRaw);
+    $("status-msg").textContent = `AddXSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/add_transitions_to_selection_set", {
+      name,
+      transition_type: "cross_dissolve",
+      duration_frames: Number.isFinite(duration_frames) ? duration_frames : 12,
+      require_both_selected: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AddXSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`AddXSet failed: ${e}`);
+    $("status-msg").textContent = `AddXSet failed: ${e}`;
+  }
+}
+
+async function removeTransitionsFromSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Remove transitions on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RmXSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RmXSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/remove_transitions_from_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RmXSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RmXSet failed: ${e}`);
+    $("status-msg").textContent = `RmXSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21395,6 +21454,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-join-set", () => void joinSelectionSetUi());
   proBind("btn-extract-set", () => void extractSelectionSetUi());
   proBind("btn-stretch-set", () => void rateStretchSelectionSetUi());
+  proBind("btn-add-x-set", () => void addTransitionsToSelectionSetUi());
+  proBind("btn-rm-x-set", () => void removeTransitionsFromSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.24 — 2026-07-17
+
+### Added
+- `add_transitions_to_selection_set` / `remove_transitions_from_selection_set` + **AddXSet** / **RmXSet**
+
 ## 0.9.23 — 2026-07-17
 
 ### Added
