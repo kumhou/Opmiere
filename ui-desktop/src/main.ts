@@ -18886,6 +18886,69 @@ async function clearReviewOverlaysSelectionSetUi() {
   }
 }
 
+async function bakeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Bake named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "BakeSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Bake FX into media for set "${name}"? (re-encode)`)) {
+      $("status-msg").textContent = "BakeSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `BakeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/bake_selection_set", {
+      name,
+      replace: true,
+      clear_effects: true,
+      include_audio: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BakeSet · ${r.selection_set || name} baked=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`BakeSet failed: ${e}`);
+    $("status-msg").textContent = `BakeSet failed: ${e}`;
+  }
+}
+
+async function razorSelectionSetAtMarkersUi() {
+  try {
+    const name = await promptSelectionSetName("Razor-at-markers named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RazorMkrSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Razor set "${name}" at project markers?`)) {
+      $("status-msg").textContent = "RazorMkrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RazorMkrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      skipped_count?: number;
+      clip_count?: number;
+    }>("/api/edit/razor_selection_set_at_markers", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RazorMkrSet · ${r.selection_set || name} splits=${r.count ?? "?"} skip=${r.skipped_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RazorMkrSet failed: ${e}`);
+    $("status-msg").textContent = `RazorMkrSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23558,6 +23621,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-mask-set", () => void shapeMaskSelectionSetUi());
   proBind("btn-review-set", () => void applyReviewOverlaysSelectionSetUi());
   proBind("btn-clr-review-set", () => void clearReviewOverlaysSelectionSetUi());
+  proBind("btn-bake-set", () => void bakeSelectionSetUi());
+  proBind("btn-razor-mkr-set", () => void razorSelectionSetAtMarkersUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

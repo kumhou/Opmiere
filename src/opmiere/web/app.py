@@ -15295,6 +15295,60 @@ def clear_review_overlays_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class BakeSelectionSetBody(BaseModel):
+    name: str
+    replace: bool = True
+    clear_effects: bool = True
+    include_audio: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/bake_selection_set")
+def bake_selection_set_api(
+    body: BakeSelectionSetBody,
+) -> dict[str, Any]:
+    """Bake FX into media for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.bake_selection_set(
+            body.name,
+            replace=body.replace,
+            clear_effects=body.clear_effects,
+            include_audio=body.include_audio,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"bake_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RazorSelectionSetAtMarkersBody(BaseModel):
+    name: str
+    marker_ids: list[str] | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/razor_selection_set_at_markers")
+def razor_selection_set_at_markers_api(
+    body: RazorSelectionSetAtMarkersBody,
+) -> dict[str, Any]:
+    """Razor a named selection set at marker frames."""
+    ed = _ed()
+    try:
+        r = ed.razor_selection_set_at_markers(
+            body.name,
+            marker_ids=body.marker_ids,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"razor_selection_set_at_markers failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

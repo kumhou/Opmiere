@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.56 — 2026-07-17
+
+### Added
+- `bake_selection_set` / `razor_selection_set_at_markers` + **BakeSet** / **RazorMkrSet**
+
 ## 0.9.55 — 2026-07-17
 
 ### Added

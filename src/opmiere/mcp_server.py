@@ -9134,6 +9134,38 @@ def clear_review_overlays_selection_set(
 
 
 @mcp.tool()
+def bake_selection_set(
+    name: str,
+    replace: bool = True,
+    clear_effects: bool = True,
+    include_audio: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Bake FX into media for clips in a named selection set."""
+    return _require_editor().bake_selection_set(
+        name,
+        replace=replace,
+        clear_effects=clear_effects,
+        include_audio=include_audio,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def razor_selection_set_at_markers(
+    name: str,
+    marker_ids: list[str] | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Razor named selection set clips at marker frames inside them."""
+    return _require_editor().razor_selection_set_at_markers(
+        name,
+        marker_ids=marker_ids,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

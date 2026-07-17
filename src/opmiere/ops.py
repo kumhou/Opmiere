@@ -19309,6 +19309,70 @@ class Editor:
             ),
         }
 
+    def bake_selection_set(
+        self,
+        name: str,
+        *,
+        replace: bool = True,
+        clear_effects: bool = True,
+        include_audio: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then bake_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.bake_selection(
+            ids,
+            replace=bool(replace),
+            clear_effects=bool(clear_effects),
+            include_audio=bool(include_audio),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Baked FX into media on named set. Razor markers: "
+                "razor_selection_set_at_markers. Proxy after large bakes."
+            ),
+        }
+
+    def razor_selection_set_at_markers(
+        self,
+        name: str,
+        *,
+        marker_ids: list[str] | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then razor_selection_at_markers (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.razor_selection_at_markers(
+            ids, marker_ids=marker_ids,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Razor named set at marker frames. Bake: "
+                "bake_selection_set. Split evenly: "
+                "split_selection_set_evenly."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19438,6 +19502,8 @@ class Editor:
                     {"id": "shape_mask_selection_set", "writes": True},
                     {"id": "apply_review_overlays_selection_set", "writes": True},
                     {"id": "clear_review_overlays_selection_set", "writes": True},
+                    {"id": "bake_selection_set", "writes": True},
+                    {"id": "razor_selection_set_at_markers", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
