@@ -13615,6 +13615,62 @@ def strip_selection_set_path_c_unmapped_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class NudgeSelectionSetBody(BaseModel):
+    name: str
+    delta_frames: int
+    follow_links: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/nudge_selection_set")
+def nudge_selection_set_api(
+    body: NudgeSelectionSetBody,
+) -> dict[str, Any]:
+    """Nudge clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.nudge_selection_set(
+            body.name,
+            body.delta_frames,
+            follow_links=body.follow_links,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"nudge_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ApplyEdgeFadesToSelectionSetBody(BaseModel):
+    name: str
+    fade_in_frames: int = 6
+    fade_out_frames: int = 6
+    replace: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/apply_edge_fades_to_selection_set")
+def apply_edge_fades_to_selection_set_api(
+    body: ApplyEdgeFadesToSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply edge fades to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.apply_edge_fades_to_selection_set(
+            body.name,
+            fade_in_frames=body.fade_in_frames,
+            fade_out_frames=body.fade_out_frames,
+            replace=body.replace,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_edge_fades_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

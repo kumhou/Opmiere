@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.26 — 2026-07-17
+
+### Added
+- `nudge_selection_set` / `apply_edge_fades_to_selection_set` + **NudgeSet** / **EdgeFadeSet**
+
 ## 0.9.25 — 2026-07-17
 
 ### Added

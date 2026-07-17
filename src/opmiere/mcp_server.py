@@ -8114,6 +8114,40 @@ def strip_selection_set_path_c_unmapped(
 
 
 @mcp.tool()
+def nudge_selection_set(
+    name: str,
+    delta_frames: int,
+    follow_links: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Nudge clips in a named selection set by delta_frames."""
+    return _require_editor().nudge_selection_set(
+        name,
+        delta_frames,
+        follow_links=follow_links,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def apply_edge_fades_to_selection_set(
+    name: str,
+    fade_in_frames: int = 6,
+    fade_out_frames: int = 6,
+    replace: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply edge fades to clips in a named selection set."""
+    return _require_editor().apply_edge_fades_to_selection_set(
+        name,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+        replace=replace,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

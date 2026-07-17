@@ -16903,6 +16903,79 @@ async function stripSelectionSetPathCUnmappedUi() {
   }
 }
 
+async function nudgeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Nudge named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "NudgeSet cancelled";
+      return;
+    }
+    const raw = window.prompt("delta_frames (can be negative)", "6");
+    if (raw === null) {
+      $("status-msg").textContent = "NudgeSet cancelled";
+      return;
+    }
+    const delta_frames = Number(raw);
+    $("status-msg").textContent = `NudgeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      delta_frames?: number;
+      clip_count?: number;
+    }>("/api/edit/nudge_selection_set", {
+      name,
+      delta_frames: Number.isFinite(delta_frames) ? delta_frames : 6,
+      follow_links: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `NudgeSet · ${r.selection_set || name} d=${r.delta_frames ?? delta_frames} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`NudgeSet failed: ${e}`);
+    $("status-msg").textContent = `NudgeSet failed: ${e}`;
+  }
+}
+
+async function applyEdgeFadesToSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Apply edge fades (set name)");
+    if (!name) {
+      $("status-msg").textContent = "EdgeFadeSet cancelled";
+      return;
+    }
+    const fiRaw = window.prompt("fade_in_frames", "6");
+    if (fiRaw === null) {
+      $("status-msg").textContent = "EdgeFadeSet cancelled";
+      return;
+    }
+    const foRaw = window.prompt("fade_out_frames", "6");
+    if (foRaw === null) {
+      $("status-msg").textContent = "EdgeFadeSet cancelled";
+      return;
+    }
+    const fade_in_frames = Number(fiRaw);
+    const fade_out_frames = Number(foRaw);
+    $("status-msg").textContent = `EdgeFadeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/apply_edge_fades_to_selection_set", {
+      name,
+      fade_in_frames: Number.isFinite(fade_in_frames) ? fade_in_frames : 6,
+      fade_out_frames: Number.isFinite(fade_out_frames) ? fade_out_frames : 6,
+      replace: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `EdgeFadeSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`EdgeFadeSet failed: ${e}`);
+    $("status-msg").textContent = `EdgeFadeSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21515,6 +21588,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rm-x-set", () => void removeTransitionsFromSelectionSetUi());
   proBind("btn-ren-media-set", () => void renameSelectionSetFromMediaUi());
   proBind("btn-strip-pc-set", () => void stripSelectionSetPathCUnmappedUi());
+  proBind("btn-nudge-set", () => void nudgeSelectionSetUi());
+  proBind("btn-edge-fade-set", () => void applyEdgeFadesToSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

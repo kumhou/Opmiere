@@ -17342,6 +17342,73 @@ class Editor:
             ),
         }
 
+    def nudge_selection_set(
+        self,
+        name: str,
+        delta_frames: int,
+        *,
+        follow_links: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then nudge_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.nudge_selection(
+            ids, int(delta_frames), follow_links=bool(follow_links),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "delta_frames": int(delta_frames),
+            "agent_note": (
+                "Nudge clips in named set. Edge fades: "
+                "apply_edge_fades_to_selection_set. Extract: "
+                "extract_selection_set."
+            ),
+        }
+
+    def apply_edge_fades_to_selection_set(
+        self,
+        name: str,
+        *,
+        fade_in_frames: int = 6,
+        fade_out_frames: int = 6,
+        replace: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then apply_edge_fades_to_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.apply_edge_fades_to_selection(
+            ids,
+            fade_in_frames=int(fade_in_frames),
+            fade_out_frames=int(fade_out_frames),
+            replace=bool(replace),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Apply edge fades on named set. Set fades: "
+                "set_selection_set_fades. Nudge: "
+                "nudge_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17411,6 +17478,8 @@ class Editor:
                     {"id": "remove_transitions_from_selection_set", "writes": True},
                     {"id": "rename_selection_set_from_media", "writes": True},
                     {"id": "strip_selection_set_path_c_unmapped", "writes": True},
+                    {"id": "nudge_selection_set", "writes": True},
+                    {"id": "apply_edge_fades_to_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
