@@ -19872,6 +19872,59 @@ class Editor:
             ),
         }
 
+    def extend_selection_set_to_next(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then extend_selection_to_next (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.extend_selection_to_next(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Extend named-set clips to next neighbor. Reverse order: "
+                "reverse_selection_set_order. Pack: pack_selection_set."
+            ),
+        }
+
+    def reverse_selection_set_order(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then reverse_selection_order (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.reverse_selection_order(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Reversed timeline order per track on named set. Extend: "
+                "extend_selection_set_to_next. Align ends: "
+                "align_selection_set_ends."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20019,6 +20072,8 @@ class Editor:
                     {"id": "clear_selection_set_timecodes", "writes": True},
                     {"id": "clear_selection_set_watermarks", "writes": True},
                     {"id": "trim_selection_set_edges", "writes": True},
+                    {"id": "extend_selection_set_to_next", "writes": True},
+                    {"id": "reverse_selection_set_order", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -19477,6 +19477,61 @@ async function trimSelectionSetEdgesUi() {
   }
 }
 
+async function extendSelectionSetToNextUi() {
+  try {
+    const name = await promptSelectionSetName("Extend-to-next named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExtNextSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExtNextSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/extend_selection_set_to_next", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExtNextSet · ${r.selection_set || name} extended=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExtNextSet failed: ${e}`);
+    $("status-msg").textContent = `ExtNextSet failed: ${e}`;
+  }
+}
+
+async function reverseSelectionSetOrderUi() {
+  try {
+    const name = await promptSelectionSetName("Reverse order named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RevOrderSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Reverse timeline order of set "${name}"?`)) {
+      $("status-msg").textContent = "RevOrderSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RevOrderSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/reverse_selection_set_order", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RevOrderSet · ${r.selection_set || name} moved=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RevOrderSet failed: ${e}`);
+    $("status-msg").textContent = `RevOrderSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24167,6 +24222,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-tc-set", () => void clearSelectionSetTimecodesUi());
   proBind("btn-clr-wm-set", () => void clearSelectionSetWatermarksUi());
   proBind("btn-trim-edges-set", () => void trimSelectionSetEdgesUi());
+  proBind("btn-ext-next-set", () => void extendSelectionSetToNextUi());
+  proBind("btn-rev-order-set", () => void reverseSelectionSetOrderUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

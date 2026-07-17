@@ -14,4 +14,4 @@ __all__ = [
     "Editor",
 ]
 
-__version__ = "0.9.64"
+__version__ = "0.9.65"

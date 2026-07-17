@@ -15767,6 +15767,52 @@ def trim_selection_set_edges_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExtendSelectionSetToNextBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/extend_selection_set_to_next")
+def extend_selection_set_to_next_api(
+    body: ExtendSelectionSetToNextBody,
+) -> dict[str, Any]:
+    """Extend named-set clips to the next neighbor."""
+    ed = _ed()
+    try:
+        r = ed.extend_selection_set_to_next(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"extend_selection_set_to_next failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ReverseSelectionSetOrderBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/reverse_selection_set_order")
+def reverse_selection_set_order_api(
+    body: ReverseSelectionSetOrderBody,
+) -> dict[str, Any]:
+    """Reverse timeline order of named-set clips per track."""
+    ed = _ed()
+    try:
+        r = ed.reverse_selection_set_order(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"reverse_selection_set_order failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

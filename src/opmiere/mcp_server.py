@@ -9408,6 +9408,30 @@ def trim_selection_set_edges(
 
 
 @mcp.tool()
+def extend_selection_set_to_next(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Extend each named-set clip to the next neighbor using remaining source."""
+    return _require_editor().extend_selection_set_to_next(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def reverse_selection_set_order(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Reverse timeline order of named-set clips per track."""
+    return _require_editor().reverse_selection_set_order(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.65 — 2026-07-17
+
+### Added
+- `extend_selection_set_to_next` / `reverse_selection_set_order` + **ExtNextSet** / **RevOrderSet**
+
 ## 0.9.64 — 2026-07-17
 
 ### Added
