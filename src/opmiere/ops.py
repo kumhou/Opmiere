@@ -11970,6 +11970,119 @@ class Editor:
             ),
         }
 
+    def export_selection_clips_gif_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str = "clip",
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 12.0,
+    ) -> dict[str, Any]:
+        """Export each selected clip as GIF under exports/selection_gifs."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_gifs"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        items: list[dict[str, Any]] = []
+        for i, cid in enumerate(dict.fromkeys(clip_ids)):
+            clip = self._find_clip(cid)
+            name = (clip.name or cid)[:40]
+            safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
+            dest = root / f"{prefix}_{i + 1:02d}_{safe}.gif"
+            try:
+                r = self.export_clip_gif(
+                    cid,
+                    dest,
+                    fps=fps,
+                    width=width,
+                    max_duration_seconds=max_duration_seconds,
+                )
+                items.append({
+                    "clip_id": cid,
+                    "path": r.get("path") or str(dest),
+                    "ok": True,
+                })
+            except Exception as e:
+                items.append({
+                    "clip_id": cid,
+                    "ok": False,
+                    "error": str(e)[:300],
+                })
+        ok_n = sum(1 for x in items if x.get("ok"))
+        return {
+            "count": ok_n,
+            "total": len(items),
+            "clips": items,
+            "output_dir": str(root.resolve()),
+            "ok": ok_n == len(items) and ok_n > 0,
+            "fps": float(fps),
+            "width": int(width),
+            "agent_note": (
+                "Per-clip GIF pack. Union GIF: export_selection_gif. "
+                "MP4 pack: export_selection_clips_pack."
+            ),
+        }
+
+    def export_selection_clips_webm_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str = "clip",
+        crf: int = 32,
+        width: int | None = None,
+    ) -> dict[str, Any]:
+        """Export each selected clip as WebM under exports/selection_webms."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_webms"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        items: list[dict[str, Any]] = []
+        for i, cid in enumerate(dict.fromkeys(clip_ids)):
+            clip = self._find_clip(cid)
+            name = (clip.name or cid)[:40]
+            safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
+            dest = root / f"{prefix}_{i + 1:02d}_{safe}.webm"
+            try:
+                r = self.export_clip_webm(
+                    cid, dest, crf=crf, width=width,
+                )
+                items.append({
+                    "clip_id": cid,
+                    "path": r.get("path") or str(dest),
+                    "ok": True,
+                })
+            except Exception as e:
+                items.append({
+                    "clip_id": cid,
+                    "ok": False,
+                    "error": str(e)[:300],
+                })
+        ok_n = sum(1 for x in items if x.get("ok"))
+        return {
+            "count": ok_n,
+            "total": len(items),
+            "clips": items,
+            "output_dir": str(root.resolve()),
+            "ok": ok_n == len(items) and ok_n > 0,
+            "crf": int(crf),
+            "width": width,
+            "agent_note": (
+                "Per-clip WebM pack. Union WebM: export_selection_webm. "
+                "MP4 pack: export_selection_clips_pack."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

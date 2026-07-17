@@ -13361,6 +13361,59 @@ async function clearSelectionLutsUi() {
   }
 }
 
+async function exportSelectionClipsGifPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for GIF pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection GIF pack…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/edit/export_selection_clips_gif_pack", {
+      clip_ids: ids,
+      width: 320,
+      fps: 10,
+      max_duration_seconds: 4,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GifPack · n=${r.count ?? "?"} ok=${r.ok ?? "?"} → ${r.output_dir || "?"}`;
+  } catch (e) {
+    setProOut(`GifPack failed: ${e}`);
+    $("status-msg").textContent = `GifPack failed: ${e}`;
+  }
+}
+
+async function exportSelectionClipsWebmPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for WebM pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection WebM pack…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/edit/export_selection_clips_webm_pack", {
+      clip_ids: ids,
+      crf: 36,
+      width: 640,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WebmPack · n=${r.count ?? "?"} ok=${r.ok ?? "?"} → ${r.output_dir || "?"}`;
+  } catch (e) {
+    setProOut(`WebmPack failed: ${e}`);
+    $("status-msg").textContent = `WebmPack failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17414,6 +17467,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-mask-clr-sel", () => void clearSelectionShapeMasksUi());
   proBind("btn-clips-pack-sel", () => void exportSelectionClipsPackUi());
   proBind("btn-lut-clr-sel", () => void clearSelectionLutsUi());
+  proBind("btn-gif-pack-sel", () => void exportSelectionClipsGifPackUi());
+  proBind("btn-webm-pack-sel", () => void exportSelectionClipsWebmPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

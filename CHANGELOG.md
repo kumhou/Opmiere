@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.78 — 2026-07-17
+
+### Added
+- `export_selection_clips_gif_pack` / `export_selection_clips_webm_pack` + **GifPack** / **WebmPack**
+
 ## 0.6.77 — 2026-07-17
 
 ### Added

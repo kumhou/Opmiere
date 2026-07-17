@@ -6290,6 +6290,44 @@ def clear_selection_luts(
 
 
 @mcp.tool()
+def export_selection_clips_gif_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    prefix: str = "clip",
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 12.0,
+) -> dict:
+    """Export each selected clip as GIF into a pack folder."""
+    return _require_editor().export_selection_clips_gif_pack(
+        clip_ids,
+        out_dir=out_dir,
+        prefix=prefix,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+    )
+
+
+@mcp.tool()
+def export_selection_clips_webm_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    prefix: str = "clip",
+    crf: int = 32,
+    width: int | None = None,
+) -> dict:
+    """Export each selected clip as WebM into a pack folder."""
+    return _require_editor().export_selection_clips_webm_pack(
+        clip_ids,
+        out_dir=out_dir,
+        prefix=prefix,
+        crf=crf,
+        width=width,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

@@ -10539,6 +10539,64 @@ def clear_selection_luts_api(body: ClearSelectionLutsBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionClipsGifPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    prefix: str = "clip"
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 12.0
+
+
+@app.post("/api/edit/export_selection_clips_gif_pack")
+def export_selection_clips_gif_pack_api(
+    body: ExportSelectionClipsGifPackBody,
+) -> dict[str, Any]:
+    """Per-clip GIF pack for selection."""
+    ed = _ed()
+    try:
+        return ed.export_selection_clips_gif_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_clips_gif_pack failed: {e}",
+        ) from e
+
+
+class ExportSelectionClipsWebmPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    prefix: str = "clip"
+    crf: int = 32
+    width: int | None = None
+
+
+@app.post("/api/edit/export_selection_clips_webm_pack")
+def export_selection_clips_webm_pack_api(
+    body: ExportSelectionClipsWebmPackBody,
+) -> dict[str, Any]:
+    """Per-clip WebM pack for selection."""
+    ed = _ed()
+    try:
+        return ed.export_selection_clips_webm_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            crf=body.crf,
+            width=body.width,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_clips_webm_pack failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
