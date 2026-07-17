@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.8 — 2026-07-17
+
+### Added
+- `export_selection_sets_status_report` / `export_selection_sets_validate_report` + **StatRpt** / **ValRpt**
+
 ## 0.7.7 — 2026-07-17
 
 ### Added

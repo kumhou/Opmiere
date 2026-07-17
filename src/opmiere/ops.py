@@ -14447,6 +14447,159 @@ class Editor:
             ),
         }
 
+    def export_selection_sets_status_report(
+        self,
+        names: list[str] | None = None,
+        *,
+        validate: bool = True,
+        path: str | Path | None = None,
+        write_markdown: bool = True,
+        filename: str = "selection_sets_status_report.json",
+    ) -> dict[str, Any]:
+        """Run batch_selection_sets_status and write JSON (+ optional MD) under exports/."""
+        report = self.batch_selection_sets_status(
+            names, validate=validate,
+        )
+        payload = {
+            "schema": "opmiere.selection_sets_status_report.v1",
+            "generated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "project_id": getattr(self.project, "id", None),
+            **report,
+        }
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / (filename or "selection_sets_status_report.json")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        md_path = None
+        if write_markdown:
+            md_path = out.with_suffix(".md")
+            lines = [
+                "# Selection sets status report",
+                "",
+                f"- generated_at: `{payload['generated_at']}`",
+                f"- count: **{report.get('count', 0)}**",
+                f"- ok_count: **{report.get('ok_count', 0)}**",
+                f"- fail_count: **{report.get('fail_count', 0)}**",
+                f"- empty_count: **{report.get('empty_count', 0)}**",
+                f"- validate: `{validate}`",
+                "",
+                "| set | ok | clips | missing | empty |",
+                "|-----|----|------:|--------:|:-----:|",
+            ]
+            for row in report.get("results") or []:
+                if not isinstance(row, dict):
+                    continue
+                lines.append(
+                    f"| {row.get('name') or '?'} "
+                    f"| {row.get('ok')} "
+                    f"| {row.get('clip_count', '?')} "
+                    f"| {row.get('missing_count', 0)} "
+                    f"| {row.get('empty', False)} |"
+                )
+            lines.append("")
+            md_path.write_text("\n".join(lines), encoding="utf-8")
+        return {
+            "ok": bool(report.get("ok")),
+            "path": str(out.resolve()),
+            "markdown_path": str(md_path.resolve()) if md_path else None,
+            "count": report.get("count"),
+            "ok_count": report.get("ok_count"),
+            "fail_count": report.get("fail_count"),
+            "empty_count": report.get("empty_count"),
+            "report": report,
+            "agent_note": (
+                "Status report written. Validate report: "
+                "export_selection_sets_validate_report."
+            ),
+        }
+
+    def export_selection_sets_validate_report(
+        self,
+        names: list[str] | None = None,
+        *,
+        min_clip_seconds: float = 0.4,
+        path: str | Path | None = None,
+        write_markdown: bool = True,
+        filename: str = "selection_sets_validate_report.json",
+    ) -> dict[str, Any]:
+        """Run batch_validate_selection_sets and write JSON (+ optional MD)."""
+        report = self.batch_validate_selection_sets(
+            names,
+            min_clip_seconds=min_clip_seconds,
+            stop_on_error=False,
+        )
+        payload = {
+            "schema": "opmiere.selection_sets_validate_report.v1",
+            "generated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "project_id": getattr(self.project, "id", None),
+            **report,
+        }
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / (filename or "selection_sets_validate_report.json")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        md_path = None
+        if write_markdown:
+            md_path = out.with_suffix(".md")
+            lines = [
+                "# Selection sets validate report",
+                "",
+                f"- generated_at: `{payload['generated_at']}`",
+                f"- count: **{report.get('count', 0)}**",
+                f"- ok_count: **{report.get('ok_count', 0)}**",
+                f"- fail_count: **{report.get('fail_count', 0)}**",
+                "",
+                "| set | ok | notes |",
+                "|-----|----|-------|",
+            ]
+            for row in report.get("results") or []:
+                if not isinstance(row, dict):
+                    continue
+                name = row.get("selection_set") or "?"
+                ok = row.get("ok")
+                note = ""
+                if row.get("error"):
+                    note = str(row["error"])[:80]
+                else:
+                    res = row.get("result") if isinstance(row.get("result"), dict) else {}
+                    hard = res.get("hard_fails") if isinstance(res, dict) else None
+                    if hard:
+                        note = f"hard={hard}"[:80]
+                lines.append(f"| {name} | {ok} | {note} |")
+            lines.append("")
+            md_path.write_text("\n".join(lines), encoding="utf-8")
+        return {
+            "ok": bool(report.get("ok")),
+            "path": str(out.resolve()),
+            "markdown_path": str(md_path.resolve()) if md_path else None,
+            "count": report.get("count"),
+            "ok_count": report.get("ok_count"),
+            "fail_count": report.get("fail_count"),
+            "report": report,
+            "agent_note": (
+                "Validate report written. Status report: "
+                "export_selection_sets_status_report."
+            ),
+        }
+
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"
 

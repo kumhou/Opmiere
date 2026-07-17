@@ -6933,6 +6933,42 @@ def batch_repair_selection_sets(
 
 
 @mcp.tool()
+def export_selection_sets_status_report(
+    names: list[str] | None = None,
+    validate: bool = True,
+    path: str | None = None,
+    write_markdown: bool = True,
+    filename: str = "selection_sets_status_report.json",
+) -> dict:
+    """Write batch selection-sets status report (JSON + optional MD)."""
+    return _require_editor().export_selection_sets_status_report(
+        names,
+        validate=validate,
+        path=path,
+        write_markdown=write_markdown,
+        filename=filename,
+    )
+
+
+@mcp.tool()
+def export_selection_sets_validate_report(
+    names: list[str] | None = None,
+    min_clip_seconds: float = 0.4,
+    path: str | None = None,
+    write_markdown: bool = True,
+    filename: str = "selection_sets_validate_report.json",
+) -> dict:
+    """Write batch selection-sets validate report (JSON + optional MD)."""
+    return _require_editor().export_selection_sets_validate_report(
+        names,
+        min_clip_seconds=min_clip_seconds,
+        path=path,
+        write_markdown=write_markdown,
+        filename=filename,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

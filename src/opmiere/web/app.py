@@ -11623,6 +11623,64 @@ def batch_repair_selection_sets_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetsStatusReportBody(BaseModel):
+    names: list[str] | None = None
+    validate: bool = True
+    path: str | None = None
+    write_markdown: bool = True
+    filename: str = "selection_sets_status_report.json"
+
+
+@app.post("/api/edit/export_selection_sets_status_report")
+def export_selection_sets_status_report_api(
+    body: ExportSelectionSetsStatusReportBody,
+) -> dict[str, Any]:
+    """Export batch selection-sets status report."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_sets_status_report(
+            body.names,
+            validate=body.validate,
+            path=body.path,
+            write_markdown=body.write_markdown,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_sets_status_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetsValidateReportBody(BaseModel):
+    names: list[str] | None = None
+    min_clip_seconds: float = 0.4
+    path: str | None = None
+    write_markdown: bool = True
+    filename: str = "selection_sets_validate_report.json"
+
+
+@app.post("/api/edit/export_selection_sets_validate_report")
+def export_selection_sets_validate_report_api(
+    body: ExportSelectionSetsValidateReportBody,
+) -> dict[str, Any]:
+    """Export batch selection-sets validate report."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_sets_validate_report(
+            body.names,
+            min_clip_seconds=body.min_clip_seconds,
+            path=body.path,
+            write_markdown=body.write_markdown,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_sets_validate_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

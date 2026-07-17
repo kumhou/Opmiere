@@ -14753,6 +14753,62 @@ async function batchRepairSelectionSetsUi() {
   }
 }
 
+async function exportSelectionSetsStatusReportUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection sets status report…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      markdown_path?: string;
+      count?: number;
+      ok_count?: number;
+      fail_count?: number;
+    }>("/api/edit/export_selection_sets_status_report", {
+      names: null,
+      validate: true,
+      write_markdown: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StatRpt · ok=${r.ok_count ?? "?"}/${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`StatRpt failed: ${e}`);
+    $("status-msg").textContent = `StatRpt failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetsValidateReportUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection sets validate report…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      markdown_path?: string;
+      count?: number;
+      ok_count?: number;
+      fail_count?: number;
+    }>("/api/edit/export_selection_sets_validate_report", {
+      names: null,
+      min_clip_seconds: 0.4,
+      write_markdown: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ValRpt · ok=${r.ok_count ?? "?"}/${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ValRpt failed: ${e}`);
+    $("status-msg").textContent = `ValRpt failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19248,6 +19304,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rep-sel-set", () => void repairSelectionSetUi());
   proBind("btn-batch-val-set", () => void batchValidateSelectionSetsUi());
   proBind("btn-batch-rep-set", () => void batchRepairSelectionSetsUi());
+  proBind("btn-stat-rpt-set", () => void exportSelectionSetsStatusReportUi());
+  proBind("btn-val-rpt-set", () => void exportSelectionSetsValidateReportUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());
