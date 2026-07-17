@@ -9792,6 +9792,56 @@ def export_selection_set_social(
 
 
 @mcp.tool()
+def export_selection_set_to_size(
+    name: str,
+    output_path: str | None = None,
+    width: int = 1080,
+    height: int = 1920,
+    fit: str = "cover",
+    normalize_preset: str | None = None,
+    filename: str = "selection_set_sized.mp4",
+    set_work_area: bool = False,
+) -> dict:
+    """Export named set union then scale to width×height."""
+    return _require_editor().export_selection_set_to_size(
+        name,
+        output_path=output_path,
+        width=width,
+        height=height,
+        fit=fit,
+        normalize_preset=normalize_preset,
+        filename=filename,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def repair_and_export_selection_set(
+    name: str,
+    filename: str = "selection_set_repaired.mp4",
+    unlock: bool = True,
+    ensure_proxies: bool = True,
+    pack_gaps: bool = False,
+    force: bool = False,
+    normalize_preset: str | None = None,
+    proxy_height: int = 360,
+    set_work_area: bool = False,
+) -> dict:
+    """Repair named set then export MP4 if ready (or force)."""
+    return _require_editor().repair_and_export_selection_set(
+        name,
+        filename=filename,
+        unlock=unlock,
+        ensure_proxies=ensure_proxies,
+        pack_gaps=pack_gaps,
+        force=force,
+        normalize_preset=normalize_preset,
+        proxy_height=proxy_height,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

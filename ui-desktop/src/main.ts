@@ -20143,6 +20143,79 @@ async function exportSelectionSetSocialUi() {
   }
 }
 
+async function exportSelectionSetToSizeUi() {
+  try {
+    const name = await promptSelectionSetName("Export sized named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpSizeSet cancelled";
+      return;
+    }
+    const rawW = window.prompt("width", "1080");
+    if (rawW === null) {
+      $("status-msg").textContent = "ExpSizeSet cancelled";
+      return;
+    }
+    const rawH = window.prompt("height", "1920");
+    if (rawH === null) {
+      $("status-msg").textContent = "ExpSizeSet cancelled";
+      return;
+    }
+    const width = Number(rawW);
+    const height = Number(rawH);
+    $("status-msg").textContent = `ExpSizeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_to_size", {
+      name,
+      width: Number.isFinite(width) ? width : 1080,
+      height: Number.isFinite(height) ? height : 1920,
+      fit: "cover",
+      filename: "selection_set_sized.mp4",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpSizeSet · ${r.selection_set || name} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpSizeSet failed: ${e}`);
+    $("status-msg").textContent = `ExpSizeSet failed: ${e}`;
+  }
+}
+
+async function repairAndExportSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Repair+export named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RepairExpSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RepairExpSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      exported?: boolean;
+      export_path?: string;
+      clip_count?: number;
+    }>("/api/edit/repair_and_export_selection_set", {
+      name,
+      filename: "selection_set_repaired.mp4",
+      unlock: true,
+      ensure_proxies: true,
+      pack_gaps: false,
+      force: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RepairExpSet · ${r.selection_set || name} ok=${r.ok ?? "?"} exported=${r.exported ?? "?"} path=${r.export_path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RepairExpSet failed: ${e}`);
+    $("status-msg").textContent = `RepairExpSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24855,6 +24928,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-span-mkr-set", () => void clearMarkersInSelectionSetSpanUi());
   proBind("btn-preflight-set", () => void selectionSetExportPreflightUi());
   proBind("btn-exp-social-set", () => void exportSelectionSetSocialUi());
+  proBind("btn-exp-size-set", () => void exportSelectionSetToSizeUi());
+  proBind("btn-repair-exp-set", () => void repairAndExportSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.76 — 2026-07-17
+
+### Added
+- `export_selection_set_to_size` / `repair_and_export_selection_set` + **ExpSizeSet** / **RepairExpSet**
+
 ## 0.9.75 — 2026-07-17
 
 ### Added

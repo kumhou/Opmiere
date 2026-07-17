@@ -16393,6 +16393,78 @@ def export_selection_set_social_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetToSizeBody(BaseModel):
+    name: str
+    output_path: str | None = None
+    width: int = 1080
+    height: int = 1920
+    fit: str = "cover"
+    normalize_preset: str | None = None
+    filename: str = "selection_set_sized.mp4"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_to_size")
+def export_selection_set_to_size_api(
+    body: ExportSelectionSetToSizeBody,
+) -> dict[str, Any]:
+    """Export named set then scale to width×height."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_to_size(
+            body.name,
+            output_path=body.output_path,
+            width=body.width,
+            height=body.height,
+            fit=body.fit,
+            normalize_preset=body.normalize_preset,
+            filename=body.filename,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_to_size failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RepairAndExportSelectionSetBody(BaseModel):
+    name: str
+    filename: str = "selection_set_repaired.mp4"
+    unlock: bool = True
+    ensure_proxies: bool = True
+    pack_gaps: bool = False
+    force: bool = False
+    normalize_preset: str | None = None
+    proxy_height: int = 360
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/repair_and_export_selection_set")
+def repair_and_export_selection_set_api(
+    body: RepairAndExportSelectionSetBody,
+) -> dict[str, Any]:
+    """Repair named set then export MP4 if ready."""
+    ed = _ed()
+    try:
+        r = ed.repair_and_export_selection_set(
+            body.name,
+            filename=body.filename,
+            unlock=body.unlock,
+            ensure_proxies=body.ensure_proxies,
+            pack_gaps=body.pack_gaps,
+            force=body.force,
+            normalize_preset=body.normalize_preset,
+            proxy_height=body.proxy_height,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"repair_and_export_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

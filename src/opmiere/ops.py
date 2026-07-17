@@ -20637,6 +20637,90 @@ class Editor:
             ),
         }
 
+    def export_selection_set_to_size(
+        self,
+        name: str,
+        output_path: str | Path | None = None,
+        *,
+        width: int = 1080,
+        height: int = 1920,
+        fit: str = "cover",
+        normalize_preset: str | None = None,
+        filename: str = "selection_set_sized.mp4",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_to_size (writes file)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.export_selection_to_size(
+            ids,
+            output_path=output_path,
+            width=int(width),
+            height=int(height),
+            fit=str(fit),
+            normalize_preset=normalize_preset,
+            filename=str(filename),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Sized canvas export for named set. Social preset: "
+                "export_selection_set_social. Repair+export: "
+                "repair_and_export_selection_set."
+            ),
+        }
+
+    def repair_and_export_selection_set(
+        self,
+        name: str,
+        *,
+        filename: str = "selection_set_repaired.mp4",
+        unlock: bool = True,
+        ensure_proxies: bool = True,
+        pack_gaps: bool = False,
+        force: bool = False,
+        normalize_preset: str | None = None,
+        proxy_height: int = 360,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then repair_and_export_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.repair_and_export_selection(
+            ids,
+            filename=str(filename),
+            unlock=bool(unlock),
+            ensure_proxies=bool(ensure_proxies),
+            pack_gaps=bool(pack_gaps),
+            force=bool(force),
+            normalize_preset=normalize_preset,
+            proxy_height=int(proxy_height),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Repair then export named set. Sized export: "
+                "export_selection_set_to_size. Preflight: "
+                "selection_set_export_preflight."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20806,6 +20890,8 @@ class Editor:
                     {"id": "clear_markers_in_selection_set_span", "writes": True},
                     {"id": "selection_set_export_preflight", "writes": True},
                     {"id": "export_selection_set_social", "writes": True},
+                    {"id": "export_selection_set_to_size", "writes": True},
+                    {"id": "repair_and_export_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
