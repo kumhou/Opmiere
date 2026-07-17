@@ -9202,6 +9202,36 @@ def markers_from_selection_set(
 
 
 @mcp.tool()
+def match_frame_selection_set(
+    name: str,
+    timeline_frame: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Batch match_frame for a named selection set (mid-clip if outside)."""
+    return _require_editor().match_frame_selection_set(
+        name,
+        timeline_frame=timeline_frame,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def ripple_trim_selection_set_edges(
+    name: str,
+    head_src_frames: int = 0,
+    tail_src_frames: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Ripple-trim head/tail source frames on a named selection set."""
+    return _require_editor().ripple_trim_selection_set_edges(
+        name,
+        head_src_frames=head_src_frames,
+        tail_src_frames=tail_src_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

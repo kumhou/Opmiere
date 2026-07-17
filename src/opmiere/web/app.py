@@ -15407,6 +15407,58 @@ def markers_from_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MatchFrameSelectionSetBody(BaseModel):
+    name: str
+    timeline_frame: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/match_frame_selection_set")
+def match_frame_selection_set_api(
+    body: MatchFrameSelectionSetBody,
+) -> dict[str, Any]:
+    """Batch match_frame for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.match_frame_selection_set(
+            body.name,
+            timeline_frame=body.timeline_frame,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"match_frame_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RippleTrimSelectionSetEdgesBody(BaseModel):
+    name: str
+    head_src_frames: int = 0
+    tail_src_frames: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/ripple_trim_selection_set_edges")
+def ripple_trim_selection_set_edges_api(
+    body: RippleTrimSelectionSetEdgesBody,
+) -> dict[str, Any]:
+    """Ripple-trim head/tail on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.ripple_trim_selection_set_edges(
+            body.name,
+            head_src_frames=body.head_src_frames,
+            tail_src_frames=body.tail_src_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"ripple_trim_selection_set_edges failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

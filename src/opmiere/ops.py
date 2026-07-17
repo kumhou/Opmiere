@@ -19443,6 +19443,69 @@ class Editor:
             ),
         }
 
+    def match_frame_selection_set(
+        self,
+        name: str,
+        *,
+        timeline_frame: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then match_frame_selection (read-ish)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.match_frame_selection(
+            ids, timeline_frame=timeline_frame,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Match Frame map for named set. Ripple trim: "
+                "ripple_trim_selection_set_edges. Freeze: "
+                "freeze_selection_set_at."
+            ),
+        }
+
+    def ripple_trim_selection_set_edges(
+        self,
+        name: str,
+        *,
+        head_src_frames: int = 0,
+        tail_src_frames: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then ripple_trim_selection_edges (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.ripple_trim_selection_edges(
+            ids,
+            head_src_frames=int(head_src_frames),
+            tail_src_frames=int(tail_src_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Ripple edge trim on named set. Match frame: "
+                "match_frame_selection_set. Rate stretch: "
+                "rate_stretch_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19576,6 +19639,8 @@ class Editor:
                     {"id": "razor_selection_set_at_markers", "writes": True},
                     {"id": "freeze_selection_set_at", "writes": True},
                     {"id": "markers_from_selection_set", "writes": True},
+                    {"id": "match_frame_selection_set", "writes": False},
+                    {"id": "ripple_trim_selection_set_edges", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

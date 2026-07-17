@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.58 — 2026-07-17
+
+### Added
+- `match_frame_selection_set` / `ripple_trim_selection_set_edges` + **MatchFrSet** / **RipTrimSet**
+
 ## 0.9.57 — 2026-07-17
 
 ### Added

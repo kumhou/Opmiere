@@ -19026,6 +19026,76 @@ async function markersFromSelectionSetUi() {
   }
 }
 
+async function matchFrameSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Match Frame named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MatchFrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `MatchFrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/match_frame_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MatchFrSet · ${r.selection_set || name} matches=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MatchFrSet failed: ${e}`);
+    $("status-msg").textContent = `MatchFrSet failed: ${e}`;
+  }
+}
+
+async function rippleTrimSelectionSetEdgesUi() {
+  try {
+    const name = await promptSelectionSetName("Ripple-trim named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RipTrimSet cancelled";
+      return;
+    }
+    const rawHead = window.prompt("head_src_frames", "0");
+    if (rawHead === null) {
+      $("status-msg").textContent = "RipTrimSet cancelled";
+      return;
+    }
+    const rawTail = window.prompt("tail_src_frames", "1");
+    if (rawTail === null) {
+      $("status-msg").textContent = "RipTrimSet cancelled";
+      return;
+    }
+    const head_src_frames = Number(rawHead);
+    const tail_src_frames = Number(rawTail);
+    if (!window.confirm(`Ripple-trim set "${name}" head=${head_src_frames} tail=${tail_src_frames}?`)) {
+      $("status-msg").textContent = "RipTrimSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RipTrimSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/ripple_trim_selection_set_edges", {
+      name,
+      head_src_frames: Number.isFinite(head_src_frames) ? head_src_frames : 0,
+      tail_src_frames: Number.isFinite(tail_src_frames) ? tail_src_frames : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RipTrimSet · ${r.selection_set || name} trimmed=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RipTrimSet failed: ${e}`);
+    $("status-msg").textContent = `RipTrimSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23702,6 +23772,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-razor-mkr-set", () => void razorSelectionSetAtMarkersUi());
   proBind("btn-freeze-set", () => void freezeSelectionSetAtUi());
   proBind("btn-mkr-from-set", () => void markersFromSelectionSetUi());
+  proBind("btn-match-fr-set", () => void matchFrameSelectionSetUi());
+  proBind("btn-rip-trim-set", () => void rippleTrimSelectionSetEdgesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
