@@ -9090,6 +9090,50 @@ def shape_mask_selection_set(
 
 
 @mcp.tool()
+def apply_review_overlays_selection_set(
+    name: str,
+    watermark: str | None = "REVIEW",
+    safe_area: bool = True,
+    timecode: bool = True,
+    watermark_position: str = "bottom",
+    timecode_position: str = "bottom",
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply review overlays (watermark/safe_area/timecode) to a named set."""
+    return _require_editor().apply_review_overlays_selection_set(
+        name,
+        watermark=watermark,
+        safe_area=safe_area,
+        timecode=timecode,
+        watermark_position=watermark_position,
+        timecode_position=timecode_position,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_review_overlays_selection_set(
+    name: str,
+    watermark: bool = True,
+    safe_area: bool = True,
+    timecode: bool = True,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Clear review overlays from a named selection set."""
+    return _require_editor().clear_review_overlays_selection_set(
+        name,
+        watermark=watermark,
+        safe_area=safe_area,
+        timecode=timecode,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

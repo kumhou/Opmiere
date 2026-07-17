@@ -15229,6 +15229,72 @@ def shape_mask_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ApplyReviewOverlaysSelectionSetBody(BaseModel):
+    name: str
+    watermark: str | None = "REVIEW"
+    safe_area: bool = True
+    timecode: bool = True
+    watermark_position: str = "bottom"
+    timecode_position: str = "bottom"
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/apply_review_overlays_selection_set")
+def apply_review_overlays_selection_set_api(
+    body: ApplyReviewOverlaysSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply review overlays to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.apply_review_overlays_selection_set(
+            body.name,
+            watermark=body.watermark,
+            safe_area=body.safe_area,
+            timecode=body.timecode,
+            watermark_position=body.watermark_position,
+            timecode_position=body.timecode_position,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_review_overlays_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearReviewOverlaysSelectionSetBody(BaseModel):
+    name: str
+    watermark: bool = True
+    safe_area: bool = True
+    timecode: bool = True
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_review_overlays_selection_set")
+def clear_review_overlays_selection_set_api(
+    body: ClearReviewOverlaysSelectionSetBody,
+) -> dict[str, Any]:
+    """Clear review overlays from a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_review_overlays_selection_set(
+            body.name,
+            watermark=body.watermark,
+            safe_area=body.safe_area,
+            timecode=body.timecode,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_review_overlays_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -18824,6 +18824,68 @@ async function shapeMaskSelectionSetUi() {
   }
 }
 
+async function applyReviewOverlaysSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Review overlays named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ReviewSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ReviewSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      applied_total?: number;
+      clip_count?: number;
+    }>("/api/edit/apply_review_overlays_selection_set", {
+      name,
+      watermark: "REVIEW",
+      safe_area: true,
+      timecode: true,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ReviewSet · ${r.selection_set || name} applied_total=${r.applied_total ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ReviewSet failed: ${e}`);
+    $("status-msg").textContent = `ReviewSet failed: ${e}`;
+  }
+}
+
+async function clearReviewOverlaysSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Clear review overlays named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrReviewSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear review overlays (wm/safe/tc) for set "${name}"?`)) {
+      $("status-msg").textContent = "ClrReviewSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrReviewSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      cleared_total?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_review_overlays_selection_set", {
+      name,
+      watermark: true,
+      safe_area: true,
+      timecode: true,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrReviewSet · ${r.selection_set || name} cleared_total=${r.cleared_total ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrReviewSet failed: ${e}`);
+    $("status-msg").textContent = `ClrReviewSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23494,6 +23556,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-kb-set", () => void kenBurnsSelectionSetUi());
   proBind("btn-luma-set", () => void lumaKeySelectionSetUi());
   proBind("btn-mask-set", () => void shapeMaskSelectionSetUi());
+  proBind("btn-review-set", () => void applyReviewOverlaysSelectionSetUi());
+  proBind("btn-clr-review-set", () => void clearReviewOverlaysSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

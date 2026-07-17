@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.55 — 2026-07-17
+
+### Added
+- `apply_review_overlays_selection_set` / `clear_review_overlays_selection_set` + **ReviewSet** / **ClrReviewSet**
+
 ## 0.9.54 — 2026-07-17
 
 ### Added
