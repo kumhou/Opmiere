@@ -9736,6 +9736,30 @@ def finish_selection_set_social_pack(
 
 
 @mcp.tool()
+def markers_in_selection_set_span(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """List project markers inside the named selection set span."""
+    return _require_editor().markers_in_selection_set_span(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_markers_in_selection_set_span(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Delete markers that fall inside the named selection set span."""
+    return _require_editor().clear_markers_in_selection_set_span(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

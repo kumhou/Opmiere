@@ -20514,6 +20514,60 @@ class Editor:
             ),
         }
 
+    def markers_in_selection_set_span(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then markers_in_selection_span (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.markers_in_selection_span(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Markers inside named-set span. Clear: "
+                "clear_markers_in_selection_set_span. Mid markers: "
+                "markers_at_selection_set_mids."
+            ),
+        }
+
+    def clear_markers_in_selection_set_span(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then clear_markers_in_selection_span (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_markers_in_selection_span(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Cleared markers in named-set span. List: "
+                "markers_in_selection_set_span. Edge markers: "
+                "markers_from_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20679,6 +20733,8 @@ class Editor:
                     {"id": "finish_selection_set_review_export", "writes": True},
                     {"id": "finish_selection_set_social", "writes": True},
                     {"id": "finish_selection_set_social_pack", "writes": True},
+                    {"id": "markers_in_selection_set_span", "writes": False},
+                    {"id": "clear_markers_in_selection_set_span", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

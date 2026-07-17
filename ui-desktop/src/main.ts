@@ -20028,6 +20028,61 @@ async function finishSelectionSetSocialPackUi() {
   }
 }
 
+async function markersInSelectionSetSpanUi() {
+  try {
+    const name = await promptSelectionSetName("Markers-in-span named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SpanMkrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SpanMkrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/markers_in_selection_set_span", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SpanMkrSet · ${r.selection_set || name} markers=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SpanMkrSet failed: ${e}`);
+    $("status-msg").textContent = `SpanMkrSet failed: ${e}`;
+  }
+}
+
+async function clearMarkersInSelectionSetSpanUi() {
+  try {
+    const name = await promptSelectionSetName("Clear span markers named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrSpanMkrSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Delete all markers inside span of set "${name}"?`)) {
+      $("status-msg").textContent = "ClrSpanMkrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrSpanMkrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      remaining?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_markers_in_selection_set_span", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrSpanMkrSet · ${r.selection_set || name} removed=${r.count ?? "?"} remain=${r.remaining ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrSpanMkrSet failed: ${e}`);
+    $("status-msg").textContent = `ClrSpanMkrSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24736,6 +24791,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fin-review-set", () => void finishSelectionSetReviewExportUi());
   proBind("btn-fin-social-set", () => void finishSelectionSetSocialUi());
   proBind("btn-fin-social-pack-set", () => void finishSelectionSetSocialPackUi());
+  proBind("btn-span-mkr-set", () => void markersInSelectionSetSpanUi());
+  proBind("btn-clr-span-mkr-set", () => void clearMarkersInSelectionSetSpanUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

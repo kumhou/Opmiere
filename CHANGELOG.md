@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.74 — 2026-07-17
+
+### Added
+- `markers_in_selection_set_span` / `clear_markers_in_selection_set_span` + **SpanMkrSet** / **ClrSpanMkrSet**
+
 ## 0.9.73 — 2026-07-17
 
 ### Added
