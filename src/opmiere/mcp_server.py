@@ -8842,6 +8842,40 @@ def noise_reduction_selection_set(
 
 
 @mcp.tool()
+def audio_eq_selection_set(
+    name: str,
+    frequency_hz: float = 1000.0,
+    gain_db: float = 0.0,
+    q: float = 1.0,
+    replace: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply parametric EQ band to clips in a named selection set."""
+    return _require_editor().audio_eq_selection_set(
+        name,
+        frequency_hz=frequency_hz,
+        gain_db=gain_db,
+        q=q,
+        replace=replace,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def reverse_selection_set(
+    name: str,
+    replace: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Reverse media for clips in a named selection set (re-encode)."""
+    return _require_editor().reverse_selection_set(
+        name,
+        replace=replace,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

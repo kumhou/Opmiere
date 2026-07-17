@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.49 — 2026-07-17
+
+### Added
+- `audio_eq_selection_set` / `reverse_selection_set` + **EqSet** / **RevSet**
+
 ## 0.9.48 — 2026-07-17
 
 ### Added

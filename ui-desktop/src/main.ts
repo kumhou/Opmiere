@@ -18408,6 +18408,81 @@ async function noiseReductionSelectionSetUi() {
   }
 }
 
+async function audioEqSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Audio EQ named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "EqSet cancelled";
+      return;
+    }
+    const rawHz = window.prompt("frequency_hz", "1000");
+    if (rawHz === null) {
+      $("status-msg").textContent = "EqSet cancelled";
+      return;
+    }
+    const rawGain = window.prompt("gain_db", "0");
+    if (rawGain === null) {
+      $("status-msg").textContent = "EqSet cancelled";
+      return;
+    }
+    const frequency_hz = Number(rawHz);
+    const gain_db = Number(rawGain);
+    $("status-msg").textContent = `EqSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      frequency_hz?: number;
+      gain_db?: number;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/audio_eq_selection_set", {
+      name,
+      frequency_hz: Number.isFinite(frequency_hz) ? frequency_hz : 1000,
+      gain_db: Number.isFinite(gain_db) ? gain_db : 0,
+      q: 1,
+      replace: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `EqSet · ${r.selection_set || name} hz=${r.frequency_hz ?? frequency_hz} gain=${r.gain_db ?? gain_db} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`EqSet failed: ${e}`);
+    $("status-msg").textContent = `EqSet failed: ${e}`;
+  }
+}
+
+async function reverseSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Reverse named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RevSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Reverse media for set "${name}"? (re-encode)`)) {
+      $("status-msg").textContent = "RevSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RevSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/reverse_selection_set", {
+      name,
+      replace: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RevSet · ${r.selection_set || name} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RevSet failed: ${e}`);
+    $("status-msg").textContent = `RevSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23066,6 +23141,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-style-set", () => void applyStyleToSelectionSetUi());
   proBind("btn-comp-set", () => void compressionSelectionSetUi());
   proBind("btn-nr-set", () => void noiseReductionSelectionSetUi());
+  proBind("btn-eq-set", () => void audioEqSelectionSetUi());
+  proBind("btn-rev-set", () => void reverseSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

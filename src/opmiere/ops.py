@@ -18785,6 +18785,71 @@ class Editor:
             ),
         }
 
+    def audio_eq_selection_set(
+        self,
+        name: str,
+        *,
+        frequency_hz: float = 1000.0,
+        gain_db: float = 0.0,
+        q: float = 1.0,
+        replace: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then audio_eq_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.audio_eq_selection(
+            ids,
+            frequency_hz=float(frequency_hz),
+            gain_db=float(gain_db),
+            q=float(q),
+            replace=bool(replace),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Parametric EQ band on named set. Compression: "
+                "compression_selection_set. Reverse: "
+                "reverse_selection_set."
+            ),
+        }
+
+    def reverse_selection_set(
+        self,
+        name: str,
+        *,
+        replace: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then reverse_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.reverse_selection(ids, replace=bool(replace))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Reverse media on named set (re-encode). EQ: "
+                "audio_eq_selection_set. Speed: "
+                "set_selection_set_speed."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18900,6 +18965,8 @@ class Editor:
                     {"id": "apply_style_to_selection_set", "writes": True},
                     {"id": "compression_selection_set", "writes": True},
                     {"id": "noise_reduction_selection_set", "writes": True},
+                    {"id": "audio_eq_selection_set", "writes": True},
+                    {"id": "reverse_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

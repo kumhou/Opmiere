@@ -14849,6 +14849,62 @@ def noise_reduction_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class AudioEqSelectionSetBody(BaseModel):
+    name: str
+    frequency_hz: float = 1000.0
+    gain_db: float = 0.0
+    q: float = 1.0
+    replace: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/audio_eq_selection_set")
+def audio_eq_selection_set_api(
+    body: AudioEqSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply parametric EQ band to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.audio_eq_selection_set(
+            body.name,
+            frequency_hz=body.frequency_hz,
+            gain_db=body.gain_db,
+            q=body.q,
+            replace=body.replace,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"audio_eq_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ReverseSelectionSetBody(BaseModel):
+    name: str
+    replace: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/reverse_selection_set")
+def reverse_selection_set_api(
+    body: ReverseSelectionSetBody,
+) -> dict[str, Any]:
+    """Reverse media for a named selection set (re-encode)."""
+    ed = _ed()
+    try:
+        r = ed.reverse_selection_set(
+            body.name,
+            replace=body.replace,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"reverse_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
