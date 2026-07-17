@@ -11175,6 +11175,73 @@ def export_selection_stills_default_api(
         ) from e
 
 
+class RepairAndExportSelectionBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_repaired.mp4"
+    unlock: bool = True
+    ensure_proxies: bool = True
+    pack_gaps: bool = False
+    force: bool = False
+    normalize_preset: str | None = None
+    proxy_height: int = 360
+
+
+@app.post("/api/edit/repair_and_export_selection")
+def repair_and_export_selection_api(
+    body: RepairAndExportSelectionBody,
+) -> dict[str, Any]:
+    """Repair then export selection."""
+    ed = _ed()
+    try:
+        r = ed.repair_and_export_selection(
+            body.clip_ids,
+            filename=body.filename,
+            unlock=body.unlock,
+            ensure_proxies=body.ensure_proxies,
+            pack_gaps=body.pack_gaps,
+            force=body.force,
+            normalize_preset=body.normalize_preset,
+            proxy_height=body.proxy_height,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"repair_and_export_selection failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionReportPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    include_checklist: bool = True
+    include_agent_card: bool = True
+    include_validate: bool = True
+    include_muted: bool = True
+    include_tracks: bool = True
+
+
+@app.post("/api/edit/export_selection_report_pack")
+def export_selection_report_pack_api(
+    body: ExportSelectionReportPackBody,
+) -> dict[str, Any]:
+    """Selection QA report pack folder."""
+    ed = _ed()
+    try:
+        return ed.export_selection_report_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            include_checklist=body.include_checklist,
+            include_agent_card=body.include_agent_card,
+            include_validate=body.include_validate,
+            include_muted=body.include_muted,
+            include_tracks=body.include_tracks,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_report_pack failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

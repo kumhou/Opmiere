@@ -14028,6 +14028,59 @@ async function exportSelectionStillsDefaultUi() {
   }
 }
 
+async function repairAndExportSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to repair+export";
+    return;
+  }
+  $("status-msg").textContent = "Repair and export selection…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      exported?: boolean;
+      export_path?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/repair_and_export_selection", {
+      clip_ids: ids,
+      ensure_proxies: false,
+      unlock: true,
+      force: false,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RepExp · ok=${r.ok ?? "?"} exp=${r.exported ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`RepExp failed: ${e}`);
+    $("status-msg").textContent = `RepExp failed: ${e}`;
+  }
+}
+
+async function exportSelectionReportPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for report pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection report pack…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      meta?: string;
+    }>("/api/edit/export_selection_report_pack", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RptPack → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`RptPack failed: ${e}`);
+    $("status-msg").textContent = `RptPack failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18109,6 +18162,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-check-exp-sel", () => void exportSelectionChecklistUi());
   proBind("btn-repair-sel", () => void repairSelectionUi());
   proBind("btn-stills-def-sel", () => void exportSelectionStillsDefaultUi());
+  proBind("btn-rep-exp-sel", () => void repairAndExportSelectionUi());
+  proBind("btn-report-pack-sel", () => void exportSelectionReportPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.92 — 2026-07-17
+
+### Added
+- `repair_and_export_selection` / `export_selection_report_pack` + **RepExp** / **RptPack**
+
 ## 0.6.91 — 2026-07-17
 
 ### Added

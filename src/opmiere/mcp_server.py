@@ -6645,6 +6645,52 @@ def export_selection_stills_default(
 
 
 @mcp.tool()
+def repair_and_export_selection(
+    clip_ids: list[str],
+    filename: str = "selection_repaired.mp4",
+    unlock: bool = True,
+    ensure_proxies: bool = True,
+    pack_gaps: bool = False,
+    force: bool = False,
+    normalize_preset: str | None = None,
+    proxy_height: int = 360,
+) -> dict:
+    """Repair selection then export MP4 if ready (or force)."""
+    return _require_editor().repair_and_export_selection(
+        clip_ids,
+        filename=filename,
+        unlock=unlock,
+        ensure_proxies=ensure_proxies,
+        pack_gaps=pack_gaps,
+        force=force,
+        normalize_preset=normalize_preset,
+        proxy_height=proxy_height,
+    )
+
+
+@mcp.tool()
+def export_selection_report_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    include_checklist: bool = True,
+    include_agent_card: bool = True,
+    include_validate: bool = True,
+    include_muted: bool = True,
+    include_tracks: bool = True,
+) -> dict:
+    """Write a folder of selection QA reports."""
+    return _require_editor().export_selection_report_pack(
+        clip_ids,
+        out_dir=out_dir,
+        include_checklist=include_checklist,
+        include_agent_card=include_agent_card,
+        include_validate=include_validate,
+        include_muted=include_muted,
+        include_tracks=include_tracks,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

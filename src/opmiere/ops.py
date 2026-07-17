@@ -13299,6 +13299,165 @@ class Editor:
             ext=ext,
         )
 
+    def repair_and_export_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_repaired.mp4",
+        unlock: bool = True,
+        ensure_proxies: bool = True,
+        pack_gaps: bool = False,
+        force: bool = False,
+        normalize_preset: str | None = None,
+        proxy_height: int = 360,
+    ) -> dict[str, Any]:
+        """repair_selection then export_selection_mp4_default if ok (or force)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "filename": filename,
+            "steps": [],
+            "ok": False,
+            "exported": False,
+        }
+        rep = self.repair_selection(
+            ids,
+            unlock=unlock,
+            ensure_proxies=ensure_proxies,
+            pack_gaps=pack_gaps,
+            strip_path_c_unmapped=False,
+            set_work_area=False,
+            proxy_height=proxy_height,
+        )
+        out["repair"] = rep
+        out["steps"].append("repair_selection")
+        ready = bool(rep.get("ok")) or force
+        out["ready"] = ready
+        if not ready:
+            out["agent_note"] = (
+                "Repair left hard fails; pass force=True to export anyway. "
+                "Offline media needs relink."
+            )
+            return out
+        try:
+            exp = self.export_selection_mp4_default(
+                ids,
+                filename=filename,
+                normalize_preset=normalize_preset,
+            )
+            out["export"] = exp
+            out["steps"].append("export_selection_mp4_default")
+            path = exp.get("path") or exp.get("output_path")
+            out["export_path"] = path
+            if path and Path(str(path)).is_file() and Path(str(path)).stat().st_size > 500:
+                out["ok"] = True
+                out["exported"] = True
+        except Exception as e:
+            out["export"] = {"error": str(e)[:400]}
+            out["steps"].append("export_selection_mp4_default:error")
+        out["agent_note"] = (
+            "Repair then export. ok=export file present. "
+            "Soft warns may remain (path-C / short clips)."
+        )
+        return out
+
+    def export_selection_report_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        include_checklist: bool = True,
+        include_agent_card: bool = True,
+        include_validate: bool = True,
+        include_muted: bool = True,
+        include_tracks: bool = True,
+    ) -> dict[str, Any]:
+        """Write a folder of selection reports (checklist, card, validate JSON)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_reports"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        parts: dict[str, Any] = {}
+        if include_checklist:
+            try:
+                parts["checklist"] = self.export_selection_checklist(
+                    ids,
+                    path=root / "selection_checklist.md",
+                    format="md",
+                )
+            except Exception as e:
+                parts["checklist"] = {"error": str(e)[:400]}
+        if include_agent_card:
+            try:
+                parts["agent_card"] = self.export_selection_agent_card(
+                    ids, path=root / "selection_agent_card.json",
+                )
+            except Exception as e:
+                parts["agent_card"] = {"error": str(e)[:400]}
+        if include_validate:
+            try:
+                val = self.validate_selection(ids, set_work_area=False)
+                p = root / "validate_selection.json"
+                p.write_text(
+                    json.dumps(val, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                parts["validate"] = {"path": str(p.resolve()), "ok": val.get("ok")}
+            except Exception as e:
+                parts["validate"] = {"error": str(e)[:400]}
+        if include_muted:
+            try:
+                mut = self.selection_muted_report(ids)
+                p = root / "muted_report.json"
+                p.write_text(
+                    json.dumps(mut, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                parts["muted"] = {"path": str(p.resolve())}
+            except Exception as e:
+                parts["muted"] = {"error": str(e)[:400]}
+        if include_tracks:
+            try:
+                trk = self.selection_track_report(ids)
+                p = root / "track_report.json"
+                p.write_text(
+                    json.dumps(trk, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                parts["tracks"] = {"path": str(p.resolve())}
+            except Exception as e:
+                parts["tracks"] = {"error": str(e)[:400]}
+        meta = {
+            "schema": "opmiere.selection_report_pack.v1",
+            "path": str(root.resolve()),
+            "clip_ids": ids,
+            "parts": {
+                k: (v.get("path") if isinstance(v, dict) and v.get("path") else k)
+                for k, v in parts.items()
+            },
+        }
+        meta_path = root / "report_pack.json"
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "path": str(root.resolve()),
+            "meta": str(meta_path.resolve()),
+            "parts": parts,
+            "clip_ids": ids,
+            "agent_note": (
+                "Report pack for agents/QA. Delivery: export_selection_client_pack."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
