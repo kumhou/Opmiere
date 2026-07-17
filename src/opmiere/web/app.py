@@ -12787,6 +12787,52 @@ def selection_set_muted_report_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetFadesReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_fades_report")
+def selection_set_fades_report_api(
+    body: SelectionSetFadesReportBody,
+) -> dict[str, Any]:
+    """Fades report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_fades_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_fades_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetTransitionReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_transition_report")
+def selection_set_transition_report_api(
+    body: SelectionSetTransitionReportBody,
+) -> dict[str, Any]:
+    """Transition report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_transition_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_transition_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

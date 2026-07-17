@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.9 — 2026-07-17
+
+### Added
+- `selection_set_fades_report` / `selection_set_transition_report` + **SetFades** / **SetX**
+
 ## 0.9.8 — 2026-07-17
 
 ### Added

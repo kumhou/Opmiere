@@ -16364,8 +16364,63 @@ class Editor:
             "missing": loaded.get("missing") or [],
             "agent_note": (
                 "Muted state for named set. Effects: "
-                "selection_set_effects_report. Locks: "
-                "selection_set_locked_tracks."
+                "selection_set_effects_report. Fades: "
+                "selection_set_fades_report. Transitions: "
+                "selection_set_transition_report."
+            ),
+        }
+
+    def selection_set_fades_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_fades_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_fades_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Fade-in/out census for named set. Transitions: "
+                "selection_set_transition_report. Effects: "
+                "selection_set_effects_report."
+            ),
+        }
+
+    def selection_set_transition_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_transition_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_transition_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Transitions for named set. Fades: "
+                "selection_set_fades_report. Effects: "
+                "selection_set_effects_report."
             ),
         }
 
@@ -16404,6 +16459,8 @@ class Editor:
                     {"id": "selection_set_locked_tracks", "writes": False},
                     {"id": "selection_set_effects_report", "writes": False},
                     {"id": "selection_set_muted_report", "writes": False},
+                    {"id": "selection_set_fades_report", "writes": False},
+                    {"id": "selection_set_transition_report", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -15920,6 +15920,58 @@ async function selectionSetMutedReportUi() {
   }
 }
 
+async function selectionSetFadesReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set fades report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetFades cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetFades ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      with_fades?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_fades_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetFades · ${r.selection_set || name} with_fades=${r.with_fades ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetFades failed: ${e}`);
+    $("status-msg").textContent = `SetFades failed: ${e}`;
+  }
+}
+
+async function selectionSetTransitionReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set transition report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetX cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetX ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      with_transitions?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_transition_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetX · ${r.selection_set || name} with_x=${r.with_transitions ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetX failed: ${e}`);
+    $("status-msg").textContent = `SetX failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20498,6 +20550,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-locks", () => void selectionSetLockedTracksUi());
   proBind("btn-set-fx", () => void selectionSetEffectsReportUi());
   proBind("btn-set-mute", () => void selectionSetMutedReportUi());
+  proBind("btn-set-fades", () => void selectionSetFadesReportUi());
+  proBind("btn-set-x", () => void selectionSetTransitionReportUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
