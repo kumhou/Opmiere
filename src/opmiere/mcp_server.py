@@ -6113,6 +6113,35 @@ def clear_selection_safe_areas(
 
 
 @mcp.tool()
+def timecode_selection(
+    clip_ids: list[str],
+    position: str = "bottom",
+    size: int = 28,
+    start: str = "00:00:00:00",
+    video_only: bool = True,
+) -> dict:
+    """Burn running timecode overlay on selection."""
+    return _require_editor().timecode_selection(
+        clip_ids,
+        position=position,
+        size=size,
+        start=start,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def clear_selection_timecodes(
+    clip_ids: list[str],
+    video_only: bool = True,
+) -> dict:
+    """Remove timecode effects from selection."""
+    return _require_editor().clear_selection_timecodes(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

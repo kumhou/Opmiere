@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.72 — 2026-07-17
+
+### Added
+- `timecode_selection` / `clear_selection_timecodes` + **TcSel** / **TcClr**
+
 ## 0.6.71 — 2026-07-17
 
 ### Added

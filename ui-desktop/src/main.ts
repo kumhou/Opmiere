@@ -13090,6 +13090,59 @@ async function clearSelectionSafeAreasUi() {
   }
 }
 
+async function timecodeSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for timecode";
+    return;
+  }
+  $("status-msg").textContent = "Applying timecode to selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/timecode_selection", {
+      clip_ids: ids,
+      position: "bottom",
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `TcSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`TcSel failed: ${e}`);
+    $("status-msg").textContent = `TcSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionTimecodesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear timecode";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection timecodes…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_timecodes", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `TcClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`TcClr failed: ${e}`);
+    $("status-msg").textContent = `TcClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17133,6 +17186,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-wm-clr-sel", () => void clearSelectionWatermarksUi());
   proBind("btn-safe-sel", () => void safeAreaSelectionUi());
   proBind("btn-safe-clr-sel", () => void clearSelectionSafeAreasUi());
+  proBind("btn-tc-sel", () => void timecodeSelectionUi());
+  proBind("btn-tc-clr-sel", () => void clearSelectionTimecodesUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

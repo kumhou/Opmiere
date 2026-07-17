@@ -10273,6 +10273,53 @@ def clear_selection_safe_areas_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class TimecodeSelectionBody(BaseModel):
+    clip_ids: list[str]
+    position: str = "bottom"
+    size: int = 28
+    start: str = "00:00:00:00"
+    video_only: bool = True
+
+
+@app.post("/api/edit/timecode_selection")
+def timecode_selection_api(body: TimecodeSelectionBody) -> dict[str, Any]:
+    """Timecode burn-in on selection."""
+    ed = _ed()
+    try:
+        r = ed.timecode_selection(
+            body.clip_ids,
+            position=body.position,
+            size=body.size,
+            start=body.start,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"timecode_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionTimecodesBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_timecodes")
+def clear_selection_timecodes_api(
+    body: ClearSelectionTimecodesBody,
+) -> dict[str, Any]:
+    """Strip timecode FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_timecodes(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_timecodes failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
