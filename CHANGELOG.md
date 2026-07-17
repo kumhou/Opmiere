@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.39 — 2026-07-17
+
+### Added
+- `curves_selection_set` / `white_balance_selection_set` + **CurvesSet** / **WBSet**
+
 ## 0.9.38 — 2026-07-17
 
 ### Added

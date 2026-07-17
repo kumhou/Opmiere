@@ -18151,6 +18151,65 @@ class Editor:
             ),
         }
 
+    def curves_selection_set(
+        self,
+        name: str,
+        preset: str = "increase_contrast",
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then curves_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.curves_selection(ids, preset=str(preset))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Curves grade on named set. White balance: "
+                "white_balance_selection_set. Effects: "
+                "selection_set_effects_report."
+            ),
+        }
+
+    def white_balance_selection_set(
+        self,
+        name: str,
+        *,
+        temperature: float = 5600.0,
+        mix: float = 1.0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then white_balance_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.white_balance_selection(
+            ids, temperature=float(temperature), mix=float(mix),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "White balance on named set. Curves: "
+                "curves_selection_set. Levels: "
+                "selection_set_levels_report."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18246,6 +18305,8 @@ class Editor:
                     {"id": "film_grain_selection_set", "writes": True},
                     {"id": "glow_selection_set", "writes": True},
                     {"id": "rotate_selection_set", "writes": True},
+                    {"id": "curves_selection_set", "writes": True},
+                    {"id": "white_balance_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

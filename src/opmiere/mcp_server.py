@@ -8526,6 +8526,36 @@ def rotate_selection_set(
 
 
 @mcp.tool()
+def curves_selection_set(
+    name: str,
+    preset: str = "increase_contrast",
+    set_work_area: bool = False,
+) -> dict:
+    """Apply curves preset to clips in a named selection set."""
+    return _require_editor().curves_selection_set(
+        name,
+        preset=preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def white_balance_selection_set(
+    name: str,
+    temperature: float = 5600.0,
+    mix: float = 1.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply white balance to clips in a named selection set."""
+    return _require_editor().white_balance_selection_set(
+        name,
+        temperature=temperature,
+        mix=mix,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

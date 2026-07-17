@@ -17767,6 +17767,77 @@ async function rotateSelectionSetUi() {
   }
 }
 
+async function curvesSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Curves named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "CurvesSet cancelled";
+      return;
+    }
+    const preset = window.prompt("preset", "increase_contrast");
+    if (preset === null) {
+      $("status-msg").textContent = "CurvesSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `CurvesSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      preset?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/curves_selection_set", {
+      name,
+      preset: preset.trim() || "increase_contrast",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CurvesSet · ${r.selection_set || name} preset=${r.preset ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CurvesSet failed: ${e}`);
+    $("status-msg").textContent = `CurvesSet failed: ${e}`;
+  }
+}
+
+async function whiteBalanceSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("White balance named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "WBSet cancelled";
+      return;
+    }
+    const tRaw = window.prompt("temperature (K)", "5600");
+    if (tRaw === null) {
+      $("status-msg").textContent = "WBSet cancelled";
+      return;
+    }
+    const mRaw = window.prompt("mix (0-1)", "1");
+    if (mRaw === null) {
+      $("status-msg").textContent = "WBSet cancelled";
+      return;
+    }
+    const temperature = Number(tRaw);
+    const mix = Number(mRaw);
+    $("status-msg").textContent = `WBSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/white_balance_selection_set", {
+      name,
+      temperature: Number.isFinite(temperature) ? temperature : 5600,
+      mix: Number.isFinite(mix) ? mix : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WBSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`WBSet failed: ${e}`);
+    $("status-msg").textContent = `WBSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22405,6 +22476,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-grain-set", () => void filmGrainSelectionSetUi());
   proBind("btn-glow-set", () => void glowSelectionSetUi());
   proBind("btn-rotate-set", () => void rotateSelectionSetUi());
+  proBind("btn-curves-set", () => void curvesSelectionSetUi());
+  proBind("btn-wb-set", () => void whiteBalanceSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
