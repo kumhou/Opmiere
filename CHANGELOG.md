@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.81 — 2026-07-17
+
+### Added
+- `export_selection_set_clips_pack` / `selection_set_track_states` + **ExpClipsPackSet** / **TrackStatesSet**
+
 ## 0.9.80 — 2026-07-17
 
 ### Added

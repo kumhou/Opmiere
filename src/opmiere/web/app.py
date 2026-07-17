@@ -16693,6 +16693,56 @@ def selection_set_waveforms_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetClipsPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    prefix: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_clips_pack")
+def export_selection_set_clips_pack_api(
+    body: ExportSelectionSetClipsPackBody,
+) -> dict[str, Any]:
+    """Export each clip in named set as its own MP4."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_clips_pack(
+            body.name,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_clips_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetTrackStatesBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_track_states")
+def selection_set_track_states_api(
+    body: SelectionSetTrackStatesBody,
+) -> dict[str, Any]:
+    """Track mute/solo/lock for named set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_track_states(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_track_states failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

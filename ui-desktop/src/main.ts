@@ -20454,6 +20454,58 @@ async function selectionSetWaveformsUi() {
   }
 }
 
+async function exportSelectionSetClipsPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export per-clip pack for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpClipsPackSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpClipsPackSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      out_dir?: string;
+      path?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_clips_pack", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpClipsPackSet · ${r.selection_set || name} dir=${r.out_dir ?? r.path ?? "?"} count=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpClipsPackSet failed: ${e}`);
+    $("status-msg").textContent = `ExpClipsPackSet failed: ${e}`;
+  }
+}
+
+async function selectionSetTrackStatesUi() {
+  try {
+    const name = await promptSelectionSetName("Track states for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "TrackStatesSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `TrackStatesSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_track_states", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `TrackStatesSet · ${r.selection_set || name} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`TrackStatesSet failed: ${e}`);
+    $("status-msg").textContent = `TrackStatesSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25176,6 +25228,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-gaps-set", () => void selectionSetGapsUi());
   proBind("btn-durations-set", () => void selectionSetClipDurationsUi());
   proBind("btn-waveforms-set", () => void selectionSetWaveformsUi());
+  proBind("btn-exp-clips-pack-set", () => void exportSelectionSetClipsPackUi());
+  proBind("btn-track-states-set", () => void selectionSetTrackStatesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

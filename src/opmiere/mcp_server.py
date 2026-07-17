@@ -9982,6 +9982,34 @@ def selection_set_waveforms(
 
 
 @mcp.tool()
+def export_selection_set_clips_pack(
+    name: str,
+    out_dir: str | None = None,
+    prefix: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export each clip in a named set as its own MP4."""
+    return _require_editor().export_selection_set_clips_pack(
+        name,
+        out_dir=out_dir,
+        prefix=prefix,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_track_states(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Muted/solo/locked state for tracks touched by a named set."""
+    return _require_editor().selection_set_track_states(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

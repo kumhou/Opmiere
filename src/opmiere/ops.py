@@ -21026,6 +21026,75 @@ class Editor:
             ),
         }
 
+    def export_selection_set_clips_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_clips_pack (per-clip MP4s)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / f"selection_set_{safe}_clips"
+        )
+        rep = self.export_selection_clips_pack(
+            ids,
+            out_dir=root,
+            prefix=prefix or f"set_{safe}",
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set per-clip MP4 pack. Track states: "
+                "selection_set_track_states. Union export: "
+                "export_selection_set_mp4."
+            ),
+        }
+
+    def selection_set_track_states(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_track_states (mute/solo/lock)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_track_states(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set track mute/solo/lock. Per-clip pack: "
+                "export_selection_set_clips_pack. Lock ops: "
+                "lock_selection_set_tracks."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21205,6 +21274,8 @@ class Editor:
                     {"id": "selection_set_gaps", "writes": False},
                     {"id": "selection_set_clip_durations", "writes": False},
                     {"id": "selection_set_waveforms", "writes": False},
+                    {"id": "export_selection_set_clips_pack", "writes": True},
+                    {"id": "selection_set_track_states", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
