@@ -8412,6 +8412,34 @@ def set_selection_set_flip(
 
 
 @mcp.tool()
+def set_selection_set_speed_ripple(
+    name: str,
+    speed: float,
+    set_work_area: bool = False,
+) -> dict:
+    """Set speed with ripple on clips in a named selection set."""
+    return _require_editor().set_selection_set_speed_ripple(
+        name,
+        speed,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def crop_selection_set_center(
+    name: str,
+    scale: float = 0.85,
+    set_work_area: bool = False,
+) -> dict:
+    """Center-crop clips in a named selection set."""
+    return _require_editor().crop_selection_set_center(
+        name,
+        scale=scale,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

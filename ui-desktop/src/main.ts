@@ -17495,6 +17495,72 @@ async function setSelectionSetFlipUi() {
   }
 }
 
+async function setSelectionSetSpeedRippleUi() {
+  try {
+    const name = await promptSelectionSetName("Speed+ripple named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SpdRipSet cancelled";
+      return;
+    }
+    const raw = window.prompt("speed", "1.5");
+    if (raw === null) {
+      $("status-msg").textContent = "SpdRipSet cancelled";
+      return;
+    }
+    const speed = Number(raw);
+    $("status-msg").textContent = `SpdRipSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      speed?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_speed_ripple", {
+      name,
+      speed: Number.isFinite(speed) ? speed : 1.5,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SpdRipSet · ${r.selection_set || name} speed=${r.speed ?? speed} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SpdRipSet failed: ${e}`);
+    $("status-msg").textContent = `SpdRipSet failed: ${e}`;
+  }
+}
+
+async function cropSelectionSetCenterUi() {
+  try {
+    const name = await promptSelectionSetName("Center-crop named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "CropSet cancelled";
+      return;
+    }
+    const raw = window.prompt("scale (0.1-1]", "0.85");
+    if (raw === null) {
+      $("status-msg").textContent = "CropSet cancelled";
+      return;
+    }
+    const scale = Number(raw);
+    $("status-msg").textContent = `CropSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      scale?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/crop_selection_set_center", {
+      name,
+      scale: Number.isFinite(scale) ? scale : 0.85,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CropSet · ${r.selection_set || name} scale=${r.scale ?? scale} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CropSet failed: ${e}`);
+    $("status-msg").textContent = `CropSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22125,6 +22191,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-sil-app-set", () => void applySilenceToSelectionSetUi());
   proBind("btn-dup-trk-set", () => void duplicateSelectionSetToTrackUi());
   proBind("btn-flip-set", () => void setSelectionSetFlipUi());
+  proBind("btn-spd-rip-set", () => void setSelectionSetSpeedRippleUi());
+  proBind("btn-crop-set", () => void cropSelectionSetCenterUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

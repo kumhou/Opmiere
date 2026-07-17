@@ -17924,6 +17924,62 @@ class Editor:
             ),
         }
 
+    def set_selection_set_speed_ripple(
+        self,
+        name: str,
+        speed: float,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_speed_ripple (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_speed_ripple(ids, float(speed))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Speed+ripple on named set (R→L). Speed no-ripple: "
+                "set_selection_set_speed. Center crop: "
+                "crop_selection_set_center."
+            ),
+        }
+
+    def crop_selection_set_center(
+        self,
+        name: str,
+        *,
+        scale: float = 0.85,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then crop_selection_center (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.crop_selection_center(ids, scale=float(scale))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Center crop on named set. Speed ripple: "
+                "set_selection_set_speed_ripple. Position: "
+                "set_selection_set_position."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18011,6 +18067,8 @@ class Editor:
                     {"id": "apply_silence_to_selection_set", "writes": True},
                     {"id": "duplicate_selection_set_to_track", "writes": True},
                     {"id": "set_selection_set_flip", "writes": True},
+                    {"id": "set_selection_set_speed_ripple", "writes": True},
+                    {"id": "crop_selection_set_center", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

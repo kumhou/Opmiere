@@ -14111,6 +14111,56 @@ def set_selection_set_flip_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SetSelectionSetSpeedRippleBody(BaseModel):
+    name: str
+    speed: float
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_speed_ripple")
+def set_selection_set_speed_ripple_api(
+    body: SetSelectionSetSpeedRippleBody,
+) -> dict[str, Any]:
+    """Set speed with ripple on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_speed_ripple(
+            body.name,
+            body.speed,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_speed_ripple failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CropSelectionSetCenterBody(BaseModel):
+    name: str
+    scale: float = 0.85
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/crop_selection_set_center")
+def crop_selection_set_center_api(
+    body: CropSelectionSetCenterBody,
+) -> dict[str, Any]:
+    """Center-crop a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.crop_selection_set_center(
+            body.name,
+            scale=body.scale,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"crop_selection_set_center failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

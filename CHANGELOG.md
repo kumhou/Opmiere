@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.35 — 2026-07-17
+
+### Added
+- `set_selection_set_speed_ripple` / `crop_selection_set_center` + **SpdRipSet** / **CropSet**
+
 ## 0.9.34 — 2026-07-17
 
 ### Added
