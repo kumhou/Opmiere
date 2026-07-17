@@ -18227,6 +18227,59 @@ async function expandSelectionSetLinksUi() {
   }
 }
 
+async function clipboardCopySelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Clipboard-copy named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "CbCopySet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `CbCopySet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      origin_frame?: number;
+      span_frames?: number;
+      clip_count?: number;
+    }>("/api/edit/clipboard_copy_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CbCopySet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"} span=${r.span_frames ?? "?"}`;
+  } catch (e) {
+    setProOut(`CbCopySet failed: ${e}`);
+    $("status-msg").textContent = `CbCopySet failed: ${e}`;
+  }
+}
+
+async function selectionSetDiagnosticsUi() {
+  try {
+    const name = await promptSelectionSetName("Diagnostics named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DiagSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DiagSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      offline_count?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_diagnostics", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DiagSet · ${r.selection_set || name} offline=${r.offline_count ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DiagSet failed: ${e}`);
+    $("status-msg").textContent = `DiagSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22879,6 +22932,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-close-gaps-set", () => void closeGapsOnSelectionSetTracksUi());
   proBind("btn-move-trk-set", () => void moveSelectionSetToTrackUi());
   proBind("btn-exp-links-set", () => void expandSelectionSetLinksUi());
+  proBind("btn-cb-copy-set", () => void clipboardCopySelectionSetUi());
+  proBind("btn-diag-set", () => void selectionSetDiagnosticsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

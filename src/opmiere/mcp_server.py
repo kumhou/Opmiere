@@ -8748,6 +8748,30 @@ def expand_selection_set_links(
 
 
 @mcp.tool()
+def clipboard_copy_selection_set(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Copy a named selection set into the session multi-clip clipboard."""
+    return _require_editor().clipboard_copy_selection_set(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_diagnostics(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Offline/FX/lock/span diagnostics for a named selection set."""
+    return _require_editor().selection_set_diagnostics(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

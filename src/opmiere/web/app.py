@@ -14689,6 +14689,52 @@ def expand_selection_set_links_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClipboardCopySelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clipboard_copy_selection_set")
+def clipboard_copy_selection_set_api(
+    body: ClipboardCopySelectionSetBody,
+) -> dict[str, Any]:
+    """Copy a named selection set to session multi-clip clipboard."""
+    ed = _ed()
+    try:
+        r = ed.clipboard_copy_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clipboard_copy_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetDiagnosticsBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_diagnostics")
+def selection_set_diagnostics_api(
+    body: SelectionSetDiagnosticsBody,
+) -> dict[str, Any]:
+    """Diagnostics for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_diagnostics(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_diagnostics failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

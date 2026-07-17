@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.46 — 2026-07-17
+
+### Added
+- `copy_selection_set` / `selection_set_diagnostics` + **CopySet** / **DiagSet**
+
 ## 0.9.45 — 2026-07-17
 
 ### Added
