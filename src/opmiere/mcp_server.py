@@ -9318,6 +9318,38 @@ def lower_selection_set_tracks(
 
 
 @mcp.tool()
+def clear_selection_set_shape_masks(
+    name: str,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove shape_mask effects from a named selection set."""
+    return _require_editor().clear_selection_set_shape_masks(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def rename_selection_set_tracks(
+    name: str,
+    track_name: str | None = None,
+    prefix: str | None = None,
+    suffix: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Rename tracks touched by a named selection set."""
+    return _require_editor().rename_selection_set_tracks(
+        name,
+        track_name=track_name,
+        prefix=prefix,
+        suffix=suffix,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

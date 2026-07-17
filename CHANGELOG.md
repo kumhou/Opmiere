@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.62 — 2026-07-17
+
+### Added
+- `clear_selection_set_shape_masks` / `rename_selection_set_tracks` + **ClrMaskSet** / **RenTrkSet**
+
 ## 0.9.61 — 2026-07-17
 
 ### Added

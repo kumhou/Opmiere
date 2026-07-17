@@ -15611,6 +15611,60 @@ def lower_selection_set_tracks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClearSelectionSetShapeMasksBody(BaseModel):
+    name: str
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_shape_masks")
+def clear_selection_set_shape_masks_api(
+    body: ClearSelectionSetShapeMasksBody,
+) -> dict[str, Any]:
+    """Clear shape_mask effects on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_shape_masks(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_shape_masks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RenameSelectionSetTracksBody(BaseModel):
+    name: str
+    track_name: str | None = None
+    prefix: str | None = None
+    suffix: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/rename_selection_set_tracks")
+def rename_selection_set_tracks_api(
+    body: RenameSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Rename tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection_set_tracks(
+            body.name,
+            track_name=body.track_name,
+            prefix=body.prefix,
+            suffix=body.suffix,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"rename_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

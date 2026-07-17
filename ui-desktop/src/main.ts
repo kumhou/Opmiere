@@ -19281,6 +19281,68 @@ async function lowerSelectionSetTracksUi() {
   }
 }
 
+async function clearSelectionSetShapeMasksUi() {
+  try {
+    const name = await promptSelectionSetName("Clear shape masks named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrMaskSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear shape_mask effects on set "${name}"?`)) {
+      $("status-msg").textContent = "ClrMaskSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrMaskSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_selection_set_shape_masks", {
+      name,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrMaskSet · ${r.selection_set || name} cleared=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrMaskSet failed: ${e}`);
+    $("status-msg").textContent = `ClrMaskSet failed: ${e}`;
+  }
+}
+
+async function renameSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Rename tracks named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RenTrkSet cancelled";
+      return;
+    }
+    const rawPrefix = window.prompt("prefix (or leave empty)", "Set ");
+    if (rawPrefix === null) {
+      $("status-msg").textContent = "RenTrkSet cancelled";
+      return;
+    }
+    const prefix = String(rawPrefix);
+    $("status-msg").textContent = `RenTrkSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/rename_selection_set_tracks", {
+      name,
+      prefix: prefix || null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RenTrkSet · ${r.selection_set || name} renamed=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RenTrkSet failed: ${e}`);
+    $("status-msg").textContent = `RenTrkSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23965,6 +24027,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-lut-set", () => void clearSelectionSetLutsUi());
   proBind("btn-raise-trk-set", () => void raiseSelectionSetTracksUi());
   proBind("btn-lower-trk-set", () => void lowerSelectionSetTracksUi());
+  proBind("btn-clr-mask-set", () => void clearSelectionSetShapeMasksUi());
+  proBind("btn-ren-trk-set", () => void renameSelectionSetTracksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
