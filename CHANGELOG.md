@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.22 — 2026-07-17
+
+### Added
+- `unsolo_selection_set_tracks` / `join_selection_set` + **UnsoloSetTr** / **JoinSet**
+
 ## 0.9.21 — 2026-07-17
 
 ### Added

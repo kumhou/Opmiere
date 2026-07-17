@@ -8008,6 +8008,30 @@ def clear_selection_set_effects(
 
 
 @mcp.tool()
+def unsolo_selection_set_tracks(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Clear solo on tracks touched by a named selection set."""
+    return _require_editor().unsolo_selection_set_tracks(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def join_selection_set(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Join adjacent hard-cut pairs in a named selection set."""
+    return _require_editor().join_selection_set(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

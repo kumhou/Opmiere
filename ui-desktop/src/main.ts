@@ -16672,6 +16672,57 @@ async function clearSelectionSetEffectsUi() {
   }
 }
 
+async function unsoloSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Unsolo tracks of named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "UnsoloSetTr cancelled";
+      return;
+    }
+    $("status-msg").textContent = `UnsoloSetTr ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/unsolo_selection_set_tracks", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `UnsoloSetTr · ${r.selection_set || name} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`UnsoloSetTr failed: ${e}`);
+    $("status-msg").textContent = `UnsoloSetTr failed: ${e}`;
+  }
+}
+
+async function joinSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Join hard-cuts in named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "JoinSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `JoinSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/join_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `JoinSet · ${r.selection_set || name} joined=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`JoinSet failed: ${e}`);
+    $("status-msg").textContent = `JoinSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21276,6 +21327,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-pos-set", () => void clearSelectionSetPositionUi());
   proBind("btn-solo-set-tr", () => void soloSelectionSetTracksUi());
   proBind("btn-clr-fx-set", () => void clearSelectionSetEffectsUi());
+  proBind("btn-unsolo-set-tr", () => void unsoloSelectionSetTracksUi());
+  proBind("btn-join-set", () => void joinSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

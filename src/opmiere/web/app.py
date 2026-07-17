@@ -13421,6 +13421,52 @@ def clear_selection_set_effects_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class UnsoloSelectionSetTracksBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/unsolo_selection_set_tracks")
+def unsolo_selection_set_tracks_api(
+    body: UnsoloSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Unsolo tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.unsolo_selection_set_tracks(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"unsolo_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class JoinSelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/join_selection_set")
+def join_selection_set_api(
+    body: JoinSelectionSetBody,
+) -> dict[str, Any]:
+    """Join adjacent hard-cuts in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.join_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"join_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
