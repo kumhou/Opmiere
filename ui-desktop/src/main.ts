@@ -16510,6 +16510,64 @@ async function lockSelectionSetTracksUi() {
   }
 }
 
+async function muteSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Mute tracks of named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MuteSetTr cancelled";
+      return;
+    }
+    const raw = window.prompt("muted? (true/false)", "true");
+    if (raw === null) {
+      $("status-msg").textContent = "MuteSetTr cancelled";
+      return;
+    }
+    const muted = !/^(0|false|no|off)$/i.test(String(raw).trim());
+    $("status-msg").textContent = `MuteSetTr ${name} muted=${muted}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      muted?: boolean;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/mute_selection_set_tracks", {
+      name,
+      muted,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MuteSetTr · ${r.selection_set || name} muted=${r.muted ?? muted} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MuteSetTr failed: ${e}`);
+    $("status-msg").textContent = `MuteSetTr failed: ${e}`;
+  }
+}
+
+async function unlockSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Unlock tracks of named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "UnlockSetTr cancelled";
+      return;
+    }
+    $("status-msg").textContent = `UnlockSetTr ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/unlock_selection_set_tracks", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `UnlockSetTr · ${r.selection_set || name} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`UnlockSetTr failed: ${e}`);
+    $("status-msg").textContent = `UnlockSetTr failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21108,6 +21166,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pos-set", () => void setSelectionSetPositionUi());
   proBind("btn-unlink-set", () => void unlinkSelectionSetUi());
   proBind("btn-lock-set-tr", () => void lockSelectionSetTracksUi());
+  proBind("btn-mute-set-tr", () => void muteSelectionSetTracksUi());
+  proBind("btn-unlock-set-tr", () => void unlockSelectionSetTracksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

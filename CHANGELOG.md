@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.19 — 2026-07-17
+
+### Added
+- `mute_selection_set_tracks` / `unlock_selection_set_tracks` + **MuteSetTr** / **UnlockSetTr**
+
 ## 0.9.18 — 2026-07-17
 
 ### Added

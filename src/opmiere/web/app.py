@@ -13275,6 +13275,54 @@ def lock_selection_set_tracks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MuteSelectionSetTracksBody(BaseModel):
+    name: str
+    muted: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/mute_selection_set_tracks")
+def mute_selection_set_tracks_api(
+    body: MuteSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Mute/unmute tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.mute_selection_set_tracks(
+            body.name,
+            muted=body.muted,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"mute_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class UnlockSelectionSetTracksBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/unlock_selection_set_tracks")
+def unlock_selection_set_tracks_api(
+    body: UnlockSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Unlock tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.unlock_selection_set_tracks(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"unlock_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

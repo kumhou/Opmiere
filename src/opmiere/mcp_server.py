@@ -7928,6 +7928,32 @@ def lock_selection_set_tracks(
 
 
 @mcp.tool()
+def mute_selection_set_tracks(
+    name: str,
+    muted: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Mute or unmute tracks touched by a named selection set."""
+    return _require_editor().mute_selection_set_tracks(
+        name,
+        muted=muted,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def unlock_selection_set_tracks(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Unlock tracks touched by a named selection set."""
+    return _require_editor().unlock_selection_set_tracks(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
