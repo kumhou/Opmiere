@@ -12319,6 +12319,64 @@ class Editor:
             )
         return r
 
+    def set_selection_fades(
+        self,
+        clip_ids: list[str],
+        *,
+        fade_in_frames: int | None = None,
+        fade_out_frames: int | None = None,
+    ) -> dict[str, Any]:
+        """Batch set edge fades on selection (alias of set_clips_fades)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        r = self.set_clips_fades(
+            list(dict.fromkeys(clip_ids)),
+            fade_in_frames=fade_in_frames,
+            fade_out_frames=fade_out_frames,
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["agent_note"] = (
+                "Selection edge fades. Clear: clear_selection_fades. "
+                "Also: apply_edge_fades_to_selection."
+            )
+        return r
+
+    def clear_selection_fades(
+        self,
+        clip_ids: list[str],
+        *,
+        video_only: bool = False,
+    ) -> dict[str, Any]:
+        """Remove fade effects from selected clips."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        cleared: list[str] = []
+        skipped: list[dict[str, Any]] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                tr, clip = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                self._assert_clip_track_unlocked(cid)
+                before = len(clip.effects or [])
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if not (isinstance(e, dict) and e.get("type") == "fade")
+                ]
+                after = len(clip.effects or [])
+                if after < before:
+                    cleared.append(cid)
+                else:
+                    skipped.append({"clip_id": cid, "reason": "no_fade"})
+        return {
+            "count": len(cleared),
+            "cleared": cleared,
+            "skipped": skipped,
+            "agent_note": "Stripped fade FX only. Set: set_selection_fades.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

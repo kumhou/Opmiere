@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.82 — 2026-07-17
+
+### Added
+- `set_selection_fades` / `clear_selection_fades` + **FadeSel** / **FadeClr**
+
 ## 0.6.81 — 2026-07-17
 
 ### Added

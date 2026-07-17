@@ -6399,6 +6399,31 @@ def apply_lut_selection(
 
 
 @mcp.tool()
+def set_selection_fades(
+    clip_ids: list[str],
+    fade_in_frames: int | None = None,
+    fade_out_frames: int | None = None,
+) -> dict:
+    """Batch set edge fades on selection."""
+    return _require_editor().set_selection_fades(
+        clip_ids,
+        fade_in_frames=fade_in_frames,
+        fade_out_frames=fade_out_frames,
+    )
+
+
+@mcp.tool()
+def clear_selection_fades(
+    clip_ids: list[str],
+    video_only: bool = False,
+) -> dict:
+    """Remove fade effects from selection."""
+    return _require_editor().clear_selection_fades(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

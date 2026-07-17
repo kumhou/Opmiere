@@ -13553,6 +13553,56 @@ async function applyLutSelectionUi() {
   );
 }
 
+async function setSelectionFadesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for fades";
+    return;
+  }
+  $("status-msg").textContent = "Setting selection fades…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/set_selection_fades", {
+      clip_ids: ids,
+      fade_in_frames: 6,
+      fade_out_frames: 6,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FadeSel · n=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FadeSel failed: ${e}`);
+    $("status-msg").textContent = `FadeSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionFadesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear fades";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection fades…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_fades", {
+      clip_ids: ids,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `FadeClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FadeClr failed: ${e}`);
+    $("status-msg").textContent = `FadeClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17614,6 +17664,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-sub-clr-sel", () => void clearSelectionSubtitlesUi());
   proBind("btn-health-sel", () => void selectionMediaHealthUi());
   proBind("btn-lut-sel", () => void applyLutSelectionUi());
+  proBind("btn-fade-sel", () => void setSelectionFadesUi());
+  proBind("btn-fade-clr-sel", () => void clearSelectionFadesUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -10725,6 +10725,45 @@ def apply_lut_selection_api(body: ApplyLutSelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SetSelectionFadesBody(BaseModel):
+    clip_ids: list[str]
+    fade_in_frames: int | None = None
+    fade_out_frames: int | None = None
+
+
+@app.post("/api/edit/set_selection_fades")
+def set_selection_fades_api(body: SetSelectionFadesBody) -> dict[str, Any]:
+    """Batch edge fades on selection."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_fades(
+            body.clip_ids,
+            fade_in_frames=body.fade_in_frames,
+            fade_out_frames=body.fade_out_frames,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"set_selection_fades failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionFadesBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = False
+
+
+@app.post("/api/edit/clear_selection_fades")
+def clear_selection_fades_api(body: ClearSelectionFadesBody) -> dict[str, Any]:
+    """Strip fade FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_fades(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clear_selection_fades failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
