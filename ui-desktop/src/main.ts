@@ -12718,6 +12718,58 @@ async function exportSelectionSocialUi() {
   }
 }
 
+async function exportSelectionWithPresetUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for preset export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection (streaming preset)…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      preset?: string;
+      delivery_ok?: boolean;
+    }>("/api/edit/export_selection_with_preset", {
+      clip_ids: ids,
+      preset: "streaming",
+      prepare: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PresetSel · ${r.preset ?? "streaming"} deliv=${r.delivery_ok ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`PresetSel failed: ${e}`);
+    $("status-msg").textContent = `PresetSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionWithBurninsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for burn-in review";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection burn-ins…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      timecode?: boolean;
+      safe_area?: boolean;
+    }>("/api/edit/export_selection_with_burnins", {
+      clip_ids: ids,
+      timecode: true,
+      safe_area: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BurnSel · tc=${r.timecode ?? true} safe=${r.safe_area ?? true} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`BurnSel failed: ${e}`);
+    $("status-msg").textContent = `BurnSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16747,6 +16799,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-social-sel", () => void exportSelectionSocialPackUi());
   proBind("btn-reframe-sel", () => void reframeSelectionUi());
   proBind("btn-social1-sel", () => void exportSelectionSocialUi());
+  proBind("btn-preset-sel", () => void exportSelectionWithPresetUi());
+  proBind("btn-burn-sel", () => void exportSelectionWithBurninsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

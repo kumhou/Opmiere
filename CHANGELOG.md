@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.64 — 2026-07-17
+
+### Added
+- `export_selection_with_preset` / `export_selection_with_burnins` + **PresetSel** / **BurnSel**
+
 ## 0.6.63 — 2026-07-17
 
 ### Added

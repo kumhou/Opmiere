@@ -5833,6 +5833,44 @@ def export_selection_social(
 
 
 @mcp.tool()
+def export_selection_with_preset(
+    clip_ids: list[str],
+    preset: str = "streaming",
+    filename: str | None = None,
+    prepare: bool | None = None,
+) -> dict:
+    """Export selection using a named export preset (draft/streaming/broadcast/…)."""
+    return _require_editor().export_selection_with_preset(
+        clip_ids,
+        preset=preset,
+        filename=filename,
+        prepare=prepare,
+    )
+
+
+@mcp.tool()
+def export_selection_with_burnins(
+    clip_ids: list[str],
+    filename: str = "selection_review.mp4",
+    timecode: bool = True,
+    safe_area: bool = True,
+    watermark: str | None = None,
+    timecode_start: str = "00:00:00:00",
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export selection with review burn-ins (TC / safe area / watermark)."""
+    return _require_editor().export_selection_with_burnins(
+        clip_ids,
+        filename=filename,
+        timecode=timecode,
+        safe_area=safe_area,
+        watermark=watermark,
+        timecode_start=timecode_start,
+        normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

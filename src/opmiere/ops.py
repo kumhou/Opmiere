@@ -10409,6 +10409,208 @@ class Editor:
             )
         return r
 
+    def export_selection_with_preset(
+        self,
+        clip_ids: list[str],
+        *,
+        preset: str = "streaming",
+        filename: str | None = None,
+        prepare: bool | None = None,
+    ) -> dict[str, Any]:
+        """Export selection union using a named EXPORT_PRESETS recipe.
+
+        prepare=None uses preset default. Does not mutate full-timeline
+        prepare_export — only prepare_selection_export when prepare is on.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if preset not in self.EXPORT_PRESETS:
+            raise ValueError(
+                f"unknown export preset {preset!r}; "
+                f"known: {sorted(self.EXPORT_PRESETS)}"
+            )
+        ids = list(dict.fromkeys(clip_ids))
+        cfg = self.EXPORT_PRESETS[preset]
+        do_prepare = cfg.get("prepare", True) if prepare is None else bool(prepare)
+        if not filename:
+            filename = f"selection_{preset}.mp4"
+        prep = None
+        if do_prepare:
+            try:
+                prep = self.prepare_selection_export(ids)
+            except Exception as e:
+                prep = {"error": str(e)[:500]}
+        normalize = cfg.get("normalize_preset")
+        exp = self.export_selection_mp4_default(
+            ids,
+            filename=filename,
+            normalize_preset=normalize,
+        )
+        path = exp.get("path") or exp.get("output_path")
+        result: dict[str, Any] = {
+            "preset": preset,
+            "path": path,
+            "normalize_preset": normalize,
+            "prepare": prep,
+            "clip_ids": ids,
+            "start_frame": exp.get("start_frame"),
+            "end_frame": exp.get("end_frame"),
+            "selection_span": {
+                "start_frame": exp.get("start_frame"),
+                "end_frame": exp.get("end_frame"),
+                "clip_ids": exp.get("clip_ids") or ids,
+            },
+        }
+        if cfg.get("run_review"):
+            try:
+                result["review"] = self.review_selection(ids)
+            except Exception as e:
+                result["review_error"] = str(e)[:500]
+        if cfg.get("run_delivery_check") and path:
+            try:
+                result["delivery_check"] = self.delivery_check(
+                    path,
+                    preset=str(cfg.get("delivery_preset") or "streaming"),
+                    match_project=True,
+                )
+                result["delivery_ok"] = bool(
+                    (result["delivery_check"] or {}).get("ok")
+                )
+            except Exception as e:
+                result["delivery_check_error"] = str(e)[:500]
+                result["delivery_ok"] = False
+        result["agent_note"] = (
+            f"Selection preset={preset}. "
+            f"{cfg.get('description', '')} Full-timeline: export_with_preset."
+        )
+        return result
+
+    def export_selection_with_burnins(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_review.mp4",
+        timecode: bool = True,
+        safe_area: bool = True,
+        watermark: str | None = None,
+        timecode_start: str = "00:00:00:00",
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export selection union then burn review overlays (TC/safe/watermark).
+
+        Does not mutate timeline FX. Ideal for client review of a selected range.
+        """
+        import os
+        import shutil
+        import subprocess
+        import tempfile
+
+        from .model import DEFAULT_TEXT_FONT
+        from .render.ffmpeg import _escape_filter_path
+
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out_dir = Path(self.bundle.root) / "exports"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out = out_dir / (filename or "selection_review.mp4")
+        fd, raw = tempfile.mkstemp(prefix="opmiere_sel_burn_", suffix=".mp4")
+        os.close(fd)
+        master = Path(raw)
+        fps = float(self.project.timebase.fps or 30.0)
+        try:
+            exp = self.export_selection_mp4(
+                ids, master, normalize_preset=None,
+            )
+            vf: list[str] = []
+            font = DEFAULT_TEXT_FONT
+            if Path(font).exists() and timecode:
+                tc = timecode_start.replace(":", r"\:")
+                vf.append(
+                    f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                    f"timecode='{tc}':r={fps}:"
+                    f"fontcolor=white:fontsize=28:borderw=2:bordercolor=black:"
+                    f"x=w-tw-24:y=h-th-24"
+                )
+            if safe_area:
+                vf.append(
+                    "drawbox=x=iw*0.05:y=ih*0.05:w=iw*0.90:h=ih*0.90:"
+                    "color=green@0.5:t=2"
+                )
+                vf.append(
+                    "drawbox=x=iw*0.10:y=ih*0.10:w=iw*0.80:h=ih*0.80:"
+                    "color=yellow@0.4:t=2"
+                )
+            if watermark and str(watermark).strip() and Path(font).exists():
+                text = (
+                    str(watermark)
+                    .replace("\\", "\\\\")
+                    .replace(":", r"\:")
+                    .replace("'", r"\'")
+                )
+                vf.append(
+                    f"drawtext=fontfile='{_escape_filter_path(font)}':"
+                    f"text='{text}':"
+                    f"fontcolor=white@0.55:fontsize=22:borderw=1:bordercolor=black:"
+                    f"x=(w-tw)/2:y=h-th-48"
+                )
+            if not vf:
+                shutil.copy2(master, out)
+            else:
+                proc = subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-i", str(master),
+                        "-vf", ",".join(vf),
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                        "-c:a", "copy",
+                        str(out),
+                    ],
+                    capture_output=True, text=True,
+                )
+                if proc.returncode != 0 or not out.exists():
+                    proc2 = subprocess.run(
+                        [
+                            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                            "-i", str(master),
+                            "-vf", ",".join(vf),
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+                            "-c:a", "aac", "-b:a", "192k",
+                            str(out),
+                        ],
+                        capture_output=True, text=True,
+                    )
+                    if proc2.returncode != 0 or not out.exists():
+                        raise RuntimeError(
+                            f"export_selection_with_burnins failed:\n"
+                            f"{(proc2.stderr or proc.stderr or '')[-1500:]}"
+                        )
+            final = out
+            if normalize_preset:
+                loud = out.with_name(out.stem + "_loud" + out.suffix)
+                self.normalize_loudness(out, loud, preset=normalize_preset)
+                final = loud
+            return {
+                "path": str(final.resolve()),
+                "timecode": timecode,
+                "safe_area": safe_area,
+                "watermark": watermark,
+                "fps": fps,
+                "normalize_preset": normalize_preset,
+                "clip_ids": ids,
+                "start_frame": exp.get("start_frame"),
+                "end_frame": exp.get("end_frame"),
+                "agent_note": (
+                    "Selection review master with burn-ins; timeline FX unchanged. "
+                    "Plain: export_selection_mp4 / export_selection_with_preset."
+                ),
+            }
+        finally:
+            try:
+                master.unlink(missing_ok=True)
+            except OSError:
+                pass
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "prj_0915f7",
+  "timebase": {
+    "fps": 30.0,
+    "sample_rate": 48000
+  },
+  "resolution": {
+    "w": 1280,
+    "h": 720
+  },
+  "media": [],
+  "tracks": []
+}

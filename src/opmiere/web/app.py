@@ -9852,6 +9852,64 @@ def export_selection_social_api(
         ) from e
 
 
+class ExportSelectionWithPresetBody(BaseModel):
+    clip_ids: list[str]
+    preset: str = "streaming"
+    filename: str | None = None
+    prepare: bool | None = None
+
+
+@app.post("/api/edit/export_selection_with_preset")
+def export_selection_with_preset_api(
+    body: ExportSelectionWithPresetBody,
+) -> dict[str, Any]:
+    """Export selection with a named EXPORT_PRESETS recipe."""
+    ed = _ed()
+    try:
+        return ed.export_selection_with_preset(
+            body.clip_ids,
+            preset=body.preset,
+            filename=body.filename,
+            prepare=body.prepare,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_with_preset failed: {e}",
+        ) from e
+
+
+class ExportSelectionWithBurninsBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_review.mp4"
+    timecode: bool = True
+    safe_area: bool = True
+    watermark: str | None = None
+    timecode_start: str = "00:00:00:00"
+    normalize_preset: str | None = None
+
+
+@app.post("/api/edit/export_selection_with_burnins")
+def export_selection_with_burnins_api(
+    body: ExportSelectionWithBurninsBody,
+) -> dict[str, Any]:
+    """Export selection review master with burn-in overlays."""
+    ed = _ed()
+    try:
+        return ed.export_selection_with_burnins(
+            body.clip_ids,
+            filename=body.filename,
+            timecode=body.timecode,
+            safe_area=body.safe_area,
+            watermark=body.watermark,
+            timecode_start=body.timecode_start,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_with_burnins failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
