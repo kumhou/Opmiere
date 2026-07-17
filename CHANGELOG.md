@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.29 — 2026-07-17
+
+### Added
+- `lift_selection_set` / `duplicate_selection_set` + **LiftSet** / **DupSet**
+
 ## 0.9.28 — 2026-07-17
 
 ### Added

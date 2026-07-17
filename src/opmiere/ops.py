@@ -17531,6 +17531,67 @@ class Editor:
             ),
         }
 
+    def lift_selection_set(
+        self,
+        name: str,
+        *,
+        follow_links: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then lift_selection (writes; leave holes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.lift_selection(ids, follow_links=bool(follow_links))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Premiere Lift on named set (holes, no ripple). Extract: "
+                "extract_selection_set. Duplicate: "
+                "duplicate_selection_set."
+            ),
+        }
+
+    def duplicate_selection_set(
+        self,
+        name: str,
+        *,
+        offset_frames: int | None = None,
+        gap_frames: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then duplicate_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.duplicate_selection(
+            ids,
+            offset_frames=offset_frames,
+            gap_frames=int(gap_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Duplicate clips in named set. Lift: "
+                "lift_selection_set. To new track: "
+                "selection_set_to_new_track."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17606,6 +17667,8 @@ class Editor:
                     {"id": "rename_clips_in_selection_set", "writes": True},
                     {"id": "insert_time_before_selection_set", "writes": True},
                     {"id": "remove_time_before_selection_set", "writes": True},
+                    {"id": "lift_selection_set", "writes": True},
+                    {"id": "duplicate_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

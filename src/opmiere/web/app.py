@@ -13775,6 +13775,58 @@ def remove_time_before_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class LiftSelectionSetBody(BaseModel):
+    name: str
+    follow_links: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/lift_selection_set")
+def lift_selection_set_api(
+    body: LiftSelectionSetBody,
+) -> dict[str, Any]:
+    """Premiere Lift on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.lift_selection_set(
+            body.name,
+            follow_links=body.follow_links,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"lift_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DuplicateSelectionSetBody(BaseModel):
+    name: str
+    offset_frames: int | None = None
+    gap_frames: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/duplicate_selection_set")
+def duplicate_selection_set_api(
+    body: DuplicateSelectionSetBody,
+) -> dict[str, Any]:
+    """Duplicate clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.duplicate_selection_set(
+            body.name,
+            offset_frames=body.offset_frames,
+            gap_frames=body.gap_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"duplicate_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

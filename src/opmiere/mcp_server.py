@@ -8208,6 +8208,36 @@ def remove_time_before_selection_set(
 
 
 @mcp.tool()
+def lift_selection_set(
+    name: str,
+    follow_links: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Premiere Lift: remove named selection set clips, leave holes."""
+    return _require_editor().lift_selection_set(
+        name,
+        follow_links=follow_links,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def duplicate_selection_set(
+    name: str,
+    offset_frames: int | None = None,
+    gap_frames: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Duplicate clips in a named selection set."""
+    return _require_editor().duplicate_selection_set(
+        name,
+        offset_frames=offset_frames,
+        gap_frames=gap_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

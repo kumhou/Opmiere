@@ -17108,6 +17108,63 @@ async function removeTimeBeforeSelectionSetUi() {
   }
 }
 
+async function liftSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Lift named set (set name — DESTRUCTIVE)");
+    if (!name) {
+      $("status-msg").textContent = "LiftSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Lift (leave holes) selection set "${name}"?`)) {
+      $("status-msg").textContent = "LiftSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `LiftSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/lift_selection_set", {
+      name,
+      follow_links: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LiftSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LiftSet failed: ${e}`);
+    $("status-msg").textContent = `LiftSet failed: ${e}`;
+  }
+}
+
+async function duplicateSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Duplicate named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DupSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DupSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/duplicate_selection_set", {
+      name,
+      offset_frames: null,
+      gap_frames: 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DupSet · ${r.selection_set || name} dups=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DupSet failed: ${e}`);
+    $("status-msg").textContent = `DupSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21726,6 +21783,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-ren-clips-set", () => void renameClipsInSelectionSetUi());
   proBind("btn-ins-time-set", () => void insertTimeBeforeSelectionSetUi());
   proBind("btn-rm-time-set", () => void removeTimeBeforeSelectionSetUi());
+  proBind("btn-lift-set", () => void liftSelectionSetUi());
+  proBind("btn-dup-set", () => void duplicateSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
