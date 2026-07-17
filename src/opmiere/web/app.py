@@ -12925,6 +12925,52 @@ def selection_set_meta_report_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetCutReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_cut_report")
+def selection_set_cut_report_api(
+    body: SelectionSetCutReportBody,
+) -> dict[str, Any]:
+    """Cut/adjacency report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_cut_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_cut_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetTrackReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_track_report")
+def selection_set_track_report_api(
+    body: SelectionSetTrackReportBody,
+) -> dict[str, Any]:
+    """Track report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_track_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_track_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

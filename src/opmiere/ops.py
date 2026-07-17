@@ -16532,6 +16532,60 @@ class Editor:
             ),
         }
 
+    def selection_set_cut_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_cut_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_cut_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Adjacency/cuts for named set. Tracks: "
+                "selection_set_track_report. Transitions: "
+                "selection_set_transition_report."
+            ),
+        }
+
+    def selection_set_track_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_track_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_track_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Tracks touched by named set. Cuts: "
+                "selection_set_cut_report. Locks: "
+                "selection_set_locked_tracks."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16573,6 +16627,8 @@ class Editor:
                     {"id": "selection_set_link_report", "writes": False},
                     {"id": "selection_set_position_report", "writes": False},
                     {"id": "selection_set_meta_report", "writes": False},
+                    {"id": "selection_set_cut_report", "writes": False},
+                    {"id": "selection_set_track_report", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

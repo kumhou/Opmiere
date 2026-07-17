@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.12 — 2026-07-17
+
+### Added
+- `selection_set_cut_report` / `selection_set_track_report` + **SetCut** / **SetTracks**
+
 ## 0.9.11 — 2026-07-17
 
 ### Added

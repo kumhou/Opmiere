@@ -16078,6 +16078,59 @@ async function selectionSetMetaReportUi() {
   }
 }
 
+async function selectionSetCutReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set cut report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetCut cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetCut ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+      by_kind?: Record<string, number>;
+    }>("/api/edit/selection_set_cut_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetCut · ${r.selection_set || name} pairs=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetCut failed: ${e}`);
+    $("status-msg").textContent = `SetCut failed: ${e}`;
+  }
+}
+
+async function selectionSetTrackReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set track report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetTracks cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetTracks ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      track_count?: number;
+      locked_count?: number;
+      muted_count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_track_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetTracks · ${r.selection_set || name} tracks=${r.track_count ?? "?"} locked=${r.locked_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetTracks failed: ${e}`);
+    $("status-msg").textContent = `SetTracks failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20662,6 +20715,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-link", () => void selectionSetLinkReportUi());
   proBind("btn-set-pos", () => void selectionSetPositionReportUi());
   proBind("btn-set-meta", () => void selectionSetMetaReportUi());
+  proBind("btn-set-cut", () => void selectionSetCutReportUi());
+  proBind("btn-set-tracks", () => void selectionSetTrackReportUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

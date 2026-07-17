@@ -7729,6 +7729,30 @@ def selection_set_meta_report(
 
 
 @mcp.tool()
+def selection_set_cut_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Adjacency/cut report for a named selection set."""
+    return _require_editor().selection_set_cut_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_track_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Tracks-touched report for a named selection set."""
+    return _require_editor().selection_set_track_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
