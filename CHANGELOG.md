@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.69 — 2026-07-17
+
+### Added
+- `review_selection_set` / `swap_selection_set_pair` + **ReviewCraftSet** / **SwapPairSet**
+
 ## 0.9.68 — 2026-07-17
 
 ### Added

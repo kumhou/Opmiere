@@ -20118,6 +20118,83 @@ class Editor:
             ),
         }
 
+    def review_selection_set(
+        self,
+        name: str,
+        *,
+        min_clip_seconds: float = 0.4,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then review_selection (read-only craft)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.review_selection(
+            ids, min_clip_seconds=float(min_clip_seconds),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Craft review of named set. Swap pair: "
+                "swap_selection_set_pair. Validate: "
+                "validate_selection_set."
+            ),
+        }
+
+    def swap_selection_set_pair(
+        self,
+        name: str,
+        *,
+        clip_id_a: str | None = None,
+        clip_id_b: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Swap starts of two clips in a named set (writes).
+
+        If clip ids omitted, swaps the two earliest clips in the set.
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        if clip_id_a is None or clip_id_b is None:
+            if len(ids) < 2:
+                raise ValueError(
+                    f"selection set {name!r} needs ≥2 clips to swap"
+                )
+            ordered = sorted(
+                ids, key=lambda c: int(self._find_clip(c).start),
+            )
+            a_id, b_id = ordered[0], ordered[1]
+        else:
+            a_id, b_id = str(clip_id_a), str(clip_id_b)
+            if a_id not in ids or b_id not in ids:
+                raise ValueError(
+                    "clip_id_a and clip_id_b must both be in the selection set"
+                )
+        rep = self.swap_selection_pair(a_id, b_id)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Swapped starts of a pair in named set. Review: "
+                "review_selection_set. Reverse order: "
+                "reverse_selection_set_order."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20273,6 +20350,8 @@ class Editor:
                     {"id": "clear_selection_set_subtitles", "writes": True},
                     {"id": "freeze_selection_set_mids", "writes": True},
                     {"id": "trim_selection_set_to_playhead", "writes": True},
+                    {"id": "review_selection_set", "writes": False},
+                    {"id": "swap_selection_set_pair", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -19730,6 +19730,63 @@ async function trimSelectionSetToPlayheadUi() {
   }
 }
 
+async function reviewSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Craft review named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ReviewCraftSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ReviewCraftSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      issue_count?: number;
+      ok?: boolean;
+    }>("/api/edit/review_selection_set", {
+      name,
+      min_clip_seconds: 0.4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ReviewCraftSet · ${r.selection_set || name} issues=${r.issue_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ReviewCraftSet failed: ${e}`);
+    $("status-msg").textContent = `ReviewCraftSet failed: ${e}`;
+  }
+}
+
+async function swapSelectionSetPairUi() {
+  try {
+    const name = await promptSelectionSetName("Swap pair named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SwapPairSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Swap earliest two clips in set "${name}"?`)) {
+      $("status-msg").textContent = "SwapPairSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SwapPairSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_id_a?: string;
+      clip_id_b?: string;
+      clip_count?: number;
+    }>("/api/edit/swap_selection_set_pair", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SwapPairSet · ${r.selection_set || name} a=${r.clip_id_a ?? "?"} b=${r.clip_id_b ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SwapPairSet failed: ${e}`);
+    $("status-msg").textContent = `SwapPairSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24428,6 +24485,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-sub-set", () => void clearSelectionSetSubtitlesUi());
   proBind("btn-freeze-mid-set", () => void freezeSelectionSetMidsUi());
   proBind("btn-trim-ph-set", () => void trimSelectionSetToPlayheadUi());
+  proBind("btn-review-set2", () => void reviewSelectionSetUi());
+  proBind("btn-swap-pair-set", () => void swapSelectionSetPairUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

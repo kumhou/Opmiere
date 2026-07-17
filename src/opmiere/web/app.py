@@ -15975,6 +15975,58 @@ def trim_selection_set_to_playhead_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ReviewSelectionSetBody(BaseModel):
+    name: str
+    min_clip_seconds: float = 0.4
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/review_selection_set")
+def review_selection_set_api(
+    body: ReviewSelectionSetBody,
+) -> dict[str, Any]:
+    """Craft review for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.review_selection_set(
+            body.name,
+            min_clip_seconds=body.min_clip_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"review_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SwapSelectionSetPairBody(BaseModel):
+    name: str
+    clip_id_a: str | None = None
+    clip_id_b: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/swap_selection_set_pair")
+def swap_selection_set_pair_api(
+    body: SwapSelectionSetPairBody,
+) -> dict[str, Any]:
+    """Swap starts of two clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.swap_selection_set_pair(
+            body.name,
+            clip_id_a=body.clip_id_a,
+            clip_id_b=body.clip_id_b,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"swap_selection_set_pair failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

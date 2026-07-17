@@ -9528,6 +9528,36 @@ def trim_selection_set_to_playhead(
 
 
 @mcp.tool()
+def review_selection_set(
+    name: str,
+    min_clip_seconds: float = 0.4,
+    set_work_area: bool = False,
+) -> dict:
+    """Craft review for a named selection set (short clips, gaps, offline)."""
+    return _require_editor().review_selection_set(
+        name,
+        min_clip_seconds=min_clip_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def swap_selection_set_pair(
+    name: str,
+    clip_id_a: str | None = None,
+    clip_id_b: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Swap starts of two clips in a named set (default: earliest pair)."""
+    return _require_editor().swap_selection_set_pair(
+        name,
+        clip_id_a=clip_id_a,
+        clip_id_b=clip_id_b,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
