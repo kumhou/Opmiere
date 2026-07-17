@@ -13601,6 +13601,203 @@ class Editor:
             ),
         }
 
+    def agent_finish_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        repair: bool = True,
+        export: bool = True,
+        filename: str = "selection_agent_finish.mp4",
+        write_checklist: bool = True,
+        write_card: bool = True,
+        force_export: bool = False,
+        normalize_preset: str | None = None,
+        ensure_proxies: bool = False,
+    ) -> dict[str, Any]:
+        """Canonical agent finish for selection: validate → optional repair → export → reports.
+
+        Does not run full-timeline finish_delivery.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "steps": [],
+            "ok": False,
+            "exported": False,
+        }
+        try:
+            out["validate"] = self.validate_selection(ids, set_work_area=False)
+            out["steps"].append("validate_selection")
+        except Exception as e:
+            out["validate"] = {"error": str(e)[:400]}
+            out["steps"].append("validate_selection:error")
+        need_repair = repair and not bool(
+            (out.get("validate") or {}).get("ok")
+        )
+        if need_repair or (repair and ensure_proxies):
+            try:
+                out["repair"] = self.repair_selection(
+                    ids,
+                    unlock=True,
+                    ensure_proxies=ensure_proxies,
+                    pack_gaps=False,
+                    set_work_area=False,
+                )
+                out["steps"].append("repair_selection")
+            except Exception as e:
+                out["repair"] = {"error": str(e)[:400]}
+                out["steps"].append("repair_selection:error")
+        ready = force_export or bool(
+            (out.get("repair") or {}).get("ok")
+            if "repair" in out
+            else (out.get("validate") or {}).get("ok")
+        )
+        # re-check validate after repair
+        if "repair" in out and isinstance(out.get("repair"), dict):
+            ready = force_export or bool(out["repair"].get("ok"))
+        out["ready"] = ready
+        if export and ready:
+            try:
+                exp = self.export_selection_mp4_default(
+                    ids,
+                    filename=filename,
+                    normalize_preset=normalize_preset,
+                )
+                out["export"] = exp
+                out["steps"].append("export_selection_mp4_default")
+                path = exp.get("path") or exp.get("output_path")
+                out["export_path"] = path
+                if path and Path(str(path)).is_file() and Path(str(path)).stat().st_size > 500:
+                    out["ok"] = True
+                    out["exported"] = True
+            except Exception as e:
+                out["export"] = {"error": str(e)[:400]}
+                out["steps"].append("export_selection_mp4_default:error")
+        elif export and not ready:
+            out["steps"].append("export_skipped:not_ready")
+        if write_checklist:
+            try:
+                out["checklist"] = self.export_selection_checklist(ids)
+                out["steps"].append("export_selection_checklist")
+            except Exception as e:
+                out["checklist"] = {"error": str(e)[:400]}
+                out["steps"].append("export_selection_checklist:error")
+        if write_card:
+            try:
+                out["agent_card"] = self.export_selection_agent_card(ids)
+                out["steps"].append("export_selection_agent_card")
+            except Exception as e:
+                out["agent_card"] = {"error": str(e)[:400]}
+                out["steps"].append("export_selection_agent_card:error")
+        out["agent_note"] = (
+            "Selection-scoped agent finish. ok=export present. "
+            "Full timeline: finish_delivery / finish_selection_delivery."
+        )
+        return out
+
+    def run_selection_pipeline(
+        self,
+        clip_ids: list[str],
+        steps: list[str] | None = None,
+        *,
+        normalize_preset: str | None = None,
+        social_variants: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Run named selection steps in order.
+
+        Known steps: validate, checklist, repair, export_mp4, formats_pack,
+        report_pack, client_pack, social_pack, agent_card, stills_default.
+        Default pipeline: validate → repair → export_mp4 → checklist.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        plan = steps or [
+            "validate",
+            "repair",
+            "export_mp4",
+            "checklist",
+        ]
+        results: list[dict[str, Any]] = []
+        ctx: dict[str, Any] = {"clip_ids": ids, "ok": True}
+
+        handlers = {
+            "validate": lambda: self.validate_selection(ids, set_work_area=False),
+            "checklist": lambda: self.selection_checklist(ids),
+            "repair": lambda: self.repair_selection(
+                ids, unlock=True, ensure_proxies=False, pack_gaps=False,
+            ),
+            "export_mp4": lambda: self.export_selection_mp4_default(
+                ids,
+                filename="selection_pipeline.mp4",
+                normalize_preset=normalize_preset,
+            ),
+            "formats_pack": lambda: self.export_selection_formats_pack(
+                ids,
+                include_webm=False,
+                include_gif=True,
+                include_audio=True,
+                normalize_preset=normalize_preset,
+            ),
+            "report_pack": lambda: self.export_selection_report_pack(ids),
+            "client_pack": lambda: self.export_selection_client_pack(
+                ids,
+                include_review_export=False,
+                normalize_preset=normalize_preset,
+            ),
+            "social_pack": lambda: self.finish_selection_social_pack(
+                ids,
+                variants=social_variants or ["square"],
+                reframe=False,
+                prepare=False,
+                normalize_preset=normalize_preset,
+            ),
+            "agent_card": lambda: self.export_selection_agent_card(ids),
+            "stills_default": lambda: self.export_selection_stills_default(
+                ids, width=640,
+            ),
+        }
+
+        for step in plan:
+            key = str(step).strip().lower()
+            if key not in handlers:
+                results.append({
+                    "step": key,
+                    "ok": False,
+                    "error": f"unknown step; known={sorted(handlers)}",
+                })
+                ctx["ok"] = False
+                continue
+            try:
+                r = handlers[key]()
+                results.append({"step": key, "ok": True, "result": r})
+                # soft fail if result has ok=False
+                if isinstance(r, dict) and r.get("ok") is False and key in (
+                    "validate", "repair", "export_mp4", "formats_pack",
+                    "social_pack",
+                ):
+                    ctx["ok"] = False
+            except Exception as e:
+                results.append({
+                    "step": key,
+                    "ok": False,
+                    "error": str(e)[:400],
+                })
+                ctx["ok"] = False
+
+        return {
+            "clip_ids": ids,
+            "plan": plan,
+            "results": results,
+            "ok": ctx["ok"],
+            "agent_note": (
+                "Named step pipeline. Default: validate→repair→export_mp4→checklist. "
+                "One-shot: agent_finish_selection."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

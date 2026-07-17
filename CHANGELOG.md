@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.94 — 2026-07-17
+
+### Added
+- `agent_finish_selection` / `run_selection_pipeline` + **AgentFin** / **PipeSel**
+
 ## 0.6.93 — 2026-07-17
 
 ### Added

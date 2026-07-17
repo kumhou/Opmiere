@@ -6731,6 +6731,48 @@ def export_selection_formats_pack(
 
 
 @mcp.tool()
+def agent_finish_selection(
+    clip_ids: list[str],
+    repair: bool = True,
+    export: bool = True,
+    filename: str = "selection_agent_finish.mp4",
+    write_checklist: bool = True,
+    write_card: bool = True,
+    force_export: bool = False,
+    normalize_preset: str | None = None,
+    ensure_proxies: bool = False,
+) -> dict:
+    """Canonical agent finish for selection (validate/repair/export/reports)."""
+    return _require_editor().agent_finish_selection(
+        clip_ids,
+        repair=repair,
+        export=export,
+        filename=filename,
+        write_checklist=write_checklist,
+        write_card=write_card,
+        force_export=force_export,
+        normalize_preset=normalize_preset,
+        ensure_proxies=ensure_proxies,
+    )
+
+
+@mcp.tool()
+def run_selection_pipeline(
+    clip_ids: list[str],
+    steps: list[str] | None = None,
+    normalize_preset: str | None = None,
+    social_variants: list[str] | None = None,
+) -> dict:
+    """Run named selection steps in order (validate/repair/export/…)."""
+    return _require_editor().run_selection_pipeline(
+        clip_ids,
+        steps=steps,
+        normalize_preset=normalize_preset,
+        social_variants=social_variants,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

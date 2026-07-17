@@ -14135,6 +14135,67 @@ async function exportSelectionFormatsPackUi() {
   }
 }
 
+async function agentFinishSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for agent finish";
+    return;
+  }
+  $("status-msg").textContent = "Agent finish selection…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      exported?: boolean;
+      export_path?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/agent_finish_selection", {
+      clip_ids: ids,
+      repair: true,
+      export: true,
+      write_checklist: true,
+      write_card: true,
+      ensure_proxies: false,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AgentFin · ok=${r.ok ?? "?"} exp=${r.exported ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`AgentFin failed: ${e}`);
+    $("status-msg").textContent = `AgentFin failed: ${e}`;
+  }
+}
+
+async function runSelectionPipelineUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for pipeline";
+    return;
+  }
+  $("status-msg").textContent = "Running selection pipeline…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      plan?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/run_selection_pipeline", {
+      clip_ids: ids,
+      steps: ["validate", "checklist", "export_mp4"],
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PipeSel · ok=${r.ok ?? "?"} steps=${(r.plan || []).length}`;
+  } catch (e) {
+    setProOut(`PipeSel failed: ${e}`);
+    $("status-msg").textContent = `PipeSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18220,6 +18281,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-report-pack-sel", () => void exportSelectionReportPackUi());
   proBind("btn-exp-sum-sel", () => void selectionExportSummaryUi());
   proBind("btn-fmt-pack-sel", () => void exportSelectionFormatsPackUi());
+  proBind("btn-agent-fin-sel", () => void agentFinishSelectionUi());
+  proBind("btn-pipe-sel", () => void runSelectionPipelineUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

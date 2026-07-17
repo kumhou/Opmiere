@@ -11304,6 +11304,66 @@ def export_selection_formats_pack_api(
         ) from e
 
 
+class AgentFinishSelectionBody(BaseModel):
+    clip_ids: list[str]
+    repair: bool = True
+    export: bool = True
+    filename: str = "selection_agent_finish.mp4"
+    write_checklist: bool = True
+    write_card: bool = True
+    force_export: bool = False
+    normalize_preset: str | None = None
+    ensure_proxies: bool = False
+
+
+@app.post("/api/edit/agent_finish_selection")
+def agent_finish_selection_api(body: AgentFinishSelectionBody) -> dict[str, Any]:
+    """Canonical agent finish for selection."""
+    ed = _ed()
+    try:
+        r = ed.agent_finish_selection(
+            body.clip_ids,
+            repair=body.repair,
+            export=body.export,
+            filename=body.filename,
+            write_checklist=body.write_checklist,
+            write_card=body.write_card,
+            force_export=body.force_export,
+            normalize_preset=body.normalize_preset,
+            ensure_proxies=body.ensure_proxies,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"agent_finish_selection failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RunSelectionPipelineBody(BaseModel):
+    clip_ids: list[str]
+    steps: list[str] | None = None
+    normalize_preset: str | None = None
+    social_variants: list[str] | None = None
+
+
+@app.post("/api/edit/run_selection_pipeline")
+def run_selection_pipeline_api(body: RunSelectionPipelineBody) -> dict[str, Any]:
+    """Named step pipeline for selection."""
+    ed = _ed()
+    try:
+        r = ed.run_selection_pipeline(
+            body.clip_ids,
+            steps=body.steps,
+            normalize_preset=body.normalize_preset,
+            social_variants=body.social_variants,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"run_selection_pipeline failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
