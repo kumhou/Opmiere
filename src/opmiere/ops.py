@@ -18092,6 +18092,65 @@ class Editor:
             ),
         }
 
+    def glow_selection_set(
+        self,
+        name: str,
+        *,
+        amount: float = 8.0,
+        intensity: float = 0.4,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then glow_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.glow_selection(
+            ids, amount=float(amount), intensity=float(intensity),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Glow on named set. Rotate: "
+                "rotate_selection_set. Blur: "
+                "blur_selection_set."
+            ),
+        }
+
+    def rotate_selection_set(
+        self,
+        name: str,
+        degrees: float,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then rotate_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.rotate_selection(ids, float(degrees))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Rotate on named set (0 clears). Glow: "
+                "glow_selection_set. Flip: "
+                "set_selection_set_flip."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18185,6 +18244,8 @@ class Editor:
                     {"id": "blur_selection_set", "writes": True},
                     {"id": "sharpen_selection_set", "writes": True},
                     {"id": "film_grain_selection_set", "writes": True},
+                    {"id": "glow_selection_set", "writes": True},
+                    {"id": "rotate_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

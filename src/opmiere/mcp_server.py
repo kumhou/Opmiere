@@ -8496,6 +8496,36 @@ def film_grain_selection_set(
 
 
 @mcp.tool()
+def glow_selection_set(
+    name: str,
+    amount: float = 8.0,
+    intensity: float = 0.4,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply glow to clips in a named selection set."""
+    return _require_editor().glow_selection_set(
+        name,
+        amount=amount,
+        intensity=intensity,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def rotate_selection_set(
+    name: str,
+    degrees: float,
+    set_work_area: bool = False,
+) -> dict:
+    """Rotate clips in a named selection set (degrees=0 clears)."""
+    return _require_editor().rotate_selection_set(
+        name,
+        degrees,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

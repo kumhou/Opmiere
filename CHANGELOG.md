@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.38 — 2026-07-17
+
+### Added
+- `glow_selection_set` / `rotate_selection_set` + **GlowSet** / **RotateSet**
+
 ## 0.9.37 — 2026-07-17
 
 ### Added

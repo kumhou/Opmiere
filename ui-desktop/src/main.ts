@@ -17693,6 +17693,80 @@ async function filmGrainSelectionSetUi() {
   }
 }
 
+async function glowSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Glow named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "GlowSet cancelled";
+      return;
+    }
+    const aRaw = window.prompt("amount", "8");
+    if (aRaw === null) {
+      $("status-msg").textContent = "GlowSet cancelled";
+      return;
+    }
+    const iRaw = window.prompt("intensity", "0.4");
+    if (iRaw === null) {
+      $("status-msg").textContent = "GlowSet cancelled";
+      return;
+    }
+    const amount = Number(aRaw);
+    const intensity = Number(iRaw);
+    $("status-msg").textContent = `GlowSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      amount?: number;
+      intensity?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/glow_selection_set", {
+      name,
+      amount: Number.isFinite(amount) ? amount : 8,
+      intensity: Number.isFinite(intensity) ? intensity : 0.4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GlowSet · ${r.selection_set || name} amount=${r.amount ?? amount} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`GlowSet failed: ${e}`);
+    $("status-msg").textContent = `GlowSet failed: ${e}`;
+  }
+}
+
+async function rotateSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Rotate named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RotateSet cancelled";
+      return;
+    }
+    const raw = window.prompt("degrees (0 clears)", "90");
+    if (raw === null) {
+      $("status-msg").textContent = "RotateSet cancelled";
+      return;
+    }
+    const degrees = Number(raw);
+    $("status-msg").textContent = `RotateSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      degrees?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/rotate_selection_set", {
+      name,
+      degrees: Number.isFinite(degrees) ? degrees : 90,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RotateSet · ${r.selection_set || name} deg=${r.degrees ?? degrees} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RotateSet failed: ${e}`);
+    $("status-msg").textContent = `RotateSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22329,6 +22403,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-blur-set", () => void blurSelectionSetUi());
   proBind("btn-sharpen-set", () => void sharpenSelectionSetUi());
   proBind("btn-grain-set", () => void filmGrainSelectionSetUi());
+  proBind("btn-glow-set", () => void glowSelectionSetUi());
+  proBind("btn-rotate-set", () => void rotateSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

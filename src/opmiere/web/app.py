@@ -14261,6 +14261,58 @@ def film_grain_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class GlowSelectionSetBody(BaseModel):
+    name: str
+    amount: float = 8.0
+    intensity: float = 0.4
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/glow_selection_set")
+def glow_selection_set_api(
+    body: GlowSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply glow to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.glow_selection_set(
+            body.name,
+            amount=body.amount,
+            intensity=body.intensity,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"glow_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RotateSelectionSetBody(BaseModel):
+    name: str
+    degrees: float
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/rotate_selection_set")
+def rotate_selection_set_api(
+    body: RotateSelectionSetBody,
+) -> dict[str, Any]:
+    """Rotate clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.rotate_selection_set(
+            body.name,
+            body.degrees,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"rotate_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
