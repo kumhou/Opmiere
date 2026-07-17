@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.66 — 2026-07-17
+
+### Added
+- `color_match_selection` / `export_selection_marker_segments` + **CMatchSel** / **MkrSegSel**
+
 ## 0.6.65 — 2026-07-17
 
 ### Added

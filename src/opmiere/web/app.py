@@ -9983,6 +9983,63 @@ def finish_selection_social_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ColorMatchSelectionBody(BaseModel):
+    clip_ids: list[str]
+    reference_clip_id: str | None = None
+    strength: float = 0.65
+    video_only: bool = True
+
+
+@app.post("/api/edit/color_match_selection")
+def color_match_selection_api(body: ColorMatchSelectionBody) -> dict[str, Any]:
+    """Color-match selection toward a reference clip."""
+    ed = _ed()
+    try:
+        r = ed.color_match_selection(
+            body.clip_ids,
+            reference_clip_id=body.reference_clip_id,
+            strength=body.strength,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"color_match_selection failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionMarkerSegmentsBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    name_prefix: str = "sel_seg"
+    include_tail: bool = True
+    min_duration_frames: int = 3
+    filename_from_label: bool = True
+    normalize_preset: str | None = None
+
+
+@app.post("/api/edit/export_selection_marker_segments")
+def export_selection_marker_segments_api(
+    body: ExportSelectionMarkerSegmentsBody,
+) -> dict[str, Any]:
+    """Export marker segments within selection span."""
+    ed = _ed()
+    try:
+        return ed.export_selection_marker_segments(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            name_prefix=body.name_prefix,
+            include_tail=body.include_tail,
+            min_duration_frames=body.min_duration_frames,
+            filename_from_label=body.filename_from_label,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_marker_segments failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -5923,6 +5923,44 @@ def finish_selection_social(
 
 
 @mcp.tool()
+def color_match_selection(
+    clip_ids: list[str],
+    reference_clip_id: str | None = None,
+    strength: float = 0.65,
+    video_only: bool = True,
+) -> dict:
+    """Color-match selection video clips toward a reference (default earliest)."""
+    return _require_editor().color_match_selection(
+        clip_ids,
+        reference_clip_id=reference_clip_id,
+        strength=strength,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def export_selection_marker_segments(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    name_prefix: str = "sel_seg",
+    include_tail: bool = True,
+    min_duration_frames: int = 3,
+    filename_from_label: bool = True,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Export marker-to-marker MP4s within the selection union span."""
+    return _require_editor().export_selection_marker_segments(
+        clip_ids,
+        out_dir=out_dir,
+        name_prefix=name_prefix,
+        include_tail=include_tail,
+        min_duration_frames=min_duration_frames,
+        filename_from_label=filename_from_label,
+        normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

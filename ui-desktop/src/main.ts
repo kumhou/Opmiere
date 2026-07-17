@@ -12829,6 +12829,59 @@ async function finishSelectionSocialUi() {
   }
 }
 
+async function colorMatchSelectionUi() {
+  const ids = selectionList();
+  if (ids.length < 2) {
+    $("status-msg").textContent = "Select 2+ clips to color-match";
+    return;
+  }
+  $("status-msg").textContent = "Color-matching selection…";
+  try {
+    const r = await postJson<{
+      matched_count?: number;
+      reference_clip_id?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/color_match_selection", {
+      clip_ids: ids,
+      strength: 0.65,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CMatchSel · ref=${(r.reference_clip_id || "?").slice(0, 8)} n=${r.matched_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CMatchSel failed: ${e}`);
+    $("status-msg").textContent = `CMatchSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionMarkerSegmentsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for marker segments";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection marker segments…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/edit/export_selection_marker_segments", {
+      clip_ids: ids,
+      include_tail: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkrSegSel · n=${r.count ?? "?"} ok=${r.ok ?? "?"} → ${r.output_dir || "?"}`;
+  } catch (e) {
+    setProOut(`MkrSegSel failed: ${e}`);
+    $("status-msg").textContent = `MkrSegSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16862,6 +16915,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-burn-sel", () => void exportSelectionWithBurninsUi());
   proBind("btn-preset-pack-sel", () => void exportSelectionPresetsPackUi());
   proBind("btn-finish-social-sel", () => void finishSelectionSocialUi());
+  proBind("btn-cmatch-sel", () => void colorMatchSelectionUi());
+  proBind("btn-mkr-seg-sel", () => void exportSelectionMarkerSegmentsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -10799,6 +10799,211 @@ class Editor:
         )
         return out
 
+    def color_match_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        reference_clip_id: str | None = None,
+        strength: float = 0.65,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Color-match selection video clips toward a reference (default: earliest).
+
+        Uses color_match_to_clip. reference_clip_id defaults to first video clip
+        in timeline order within the selection.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        video_ids: list[str] = []
+        for cid in ids:
+            tr, clip = self._find_clip_and_track(cid)
+            if video_only and tr.kind != "video":
+                continue
+            media = self.project.media_by_id(clip.media)
+            if media.kind == "audio":
+                continue
+            video_ids.append(cid)
+        if not video_ids:
+            raise ValueError("color_match_selection needs at least one video clip")
+        # earliest timeline start as default reference
+        if reference_clip_id is None:
+            ordered = sorted(
+                video_ids,
+                key=lambda c: int(self._find_clip(c).start),
+            )
+            reference_clip_id = ordered[0]
+        if reference_clip_id not in video_ids:
+            raise ValueError("reference_clip_id must be in selection video clips")
+        targets = [c for c in video_ids if c != reference_clip_id]
+        if not targets:
+            return {
+                "reference_clip_id": reference_clip_id,
+                "matched_count": 0,
+                "matched": [],
+                "selection_clip_ids": video_ids,
+                "agent_note": "Only one video clip — nothing to match.",
+            }
+        r = self.color_match_to_clip(
+            reference_clip_id, targets, strength=float(strength),
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["selection_clip_ids"] = video_ids
+            r["agent_note"] = (
+                "Selection color match toward reference mid-frame. "
+                "Verify with contact sheet; strength>0.8 can look forced."
+            )
+        return r
+
+    def export_selection_marker_segments(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        name_prefix: str = "sel_seg",
+        include_tail: bool = True,
+        min_duration_frames: int = 3,
+        filename_from_label: bool = True,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Export marker-to-marker MP4s clipped to the selection union span.
+
+        Markers outside the selection span are ignored. Renders selection once,
+        then trims relative segment ranges.
+        """
+        import os
+        import re
+        import subprocess
+        import tempfile
+
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        start_f = int(span["start_frame"])
+        end_f = int(span["end_frame"])
+        if end_f <= start_f:
+            raise ValueError("selection has empty span")
+        fps = float(self.project.timebase.fps or 30.0)
+        marks = sorted(
+            (
+                m for m in self.project.markers
+                if start_f <= int(m.frame) < end_f
+            ),
+            key=lambda m: m.frame,
+        )
+        # Always start a synthetic range from selection start if no marker at start
+        boundaries: list[tuple[int, str | None, str]] = []
+        # (frame, marker_id|None, label)
+        if not marks or int(marks[0].frame) > start_f:
+            boundaries.append((start_f, None, "start"))
+        for i, mk in enumerate(marks):
+            boundaries.append((int(mk.frame), mk.id, (mk.label or f"m{i+1}").strip()))
+        ranges: list[dict[str, Any]] = []
+        for i, (bf, mid, label) in enumerate(boundaries):
+            if i + 1 < len(boundaries):
+                next_f = boundaries[i + 1][0]
+            elif include_tail:
+                next_f = end_f
+            else:
+                continue
+            if next_f - bf < int(min_duration_frames):
+                continue
+            safe = (
+                re.sub(r"[^\w\-]+", "_", label)[:40]
+                if filename_from_label
+                else f"{i+1:02d}"
+            )
+            # times relative to selection master (starts at 0)
+            rel_start = (bf - start_f) / fps
+            rel_end = (next_f - start_f) / fps
+            ranges.append({
+                "index": i,
+                "marker_id": mid,
+                "label": label,
+                "start_frame": bf,
+                "end_frame": next_f,
+                "start_seconds": bf / fps,
+                "end_seconds": next_f / fps,
+                "rel_start_seconds": rel_start,
+                "rel_end_seconds": rel_end,
+                "filename": f"{name_prefix}_{i+1:02d}_{safe}.mp4",
+            })
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_marker_segments"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        if not ranges:
+            return {
+                "count": 0,
+                "segment_count": 0,
+                "segments": [],
+                "output_dir": str(root.resolve()),
+                "selection_span": span,
+                "agent_note": "No segments met min_duration_frames in selection span.",
+            }
+        fd, raw = tempfile.mkstemp(prefix="opmiere_sel_mkr_", suffix=".mp4")
+        os.close(fd)
+        full = Path(raw)
+        segments_out: list[dict[str, Any]] = []
+        try:
+            self.export_selection_mp4(ids, full, normalize_preset=None)
+            for seg in ranges:
+                dest = root / seg["filename"]
+                proc = subprocess.run(
+                    [
+                        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-ss", f"{seg['rel_start_seconds']:.3f}",
+                        "-to", f"{seg['rel_end_seconds']:.3f}",
+                        "-i", str(full),
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "192k",
+                        str(dest),
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                ok = proc.returncode == 0 and dest.exists() and dest.stat().st_size > 500
+                final_path = dest
+                if ok and normalize_preset:
+                    loud = dest.with_name(dest.stem + "_loud" + dest.suffix)
+                    try:
+                        self.normalize_loudness(
+                            dest, loud, preset=normalize_preset,
+                        )
+                        final_path = loud
+                    except Exception:
+                        pass
+                segments_out.append({
+                    **seg,
+                    "path": str(final_path.resolve()) if ok else None,
+                    "ok": ok,
+                    "size": final_path.stat().st_size if final_path.exists() else 0,
+                    "error": None if ok else (proc.stderr or "")[-500:],
+                })
+        finally:
+            try:
+                full.unlink(missing_ok=True)
+            except OSError:
+                pass
+        ok_n = sum(1 for s in segments_out if s.get("ok"))
+        return {
+            "count": ok_n,
+            "segment_count": len(segments_out),
+            "segments": segments_out,
+            "output_dir": str(root.resolve()),
+            "selection_span": span,
+            "clip_ids": ids,
+            "ok": ok_n == len(segments_out) and ok_n > 0,
+            "agent_note": (
+                "Selection encode + marker trims in span. "
+                "Full timeline: export_marker_segments."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
