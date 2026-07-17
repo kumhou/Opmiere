@@ -7289,6 +7289,48 @@ def export_selection_set_formats_pack(
 
 
 @mcp.tool()
+def export_selection_set_stills(
+    name: str,
+    edge: str = "mid",
+    width: int = 640,
+    ext: str = "jpg",
+    subdir: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export still frames for a named selection set."""
+    return _require_editor().export_selection_set_stills(
+        name,
+        edge=edge,
+        width=width,
+        ext=ext,
+        subdir=subdir,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_contact_sheet(
+    name: str,
+    filename: str | None = None,
+    max_tiles: int = 12,
+    tile_width: int = 160,
+    tile_height: int = 90,
+    cols: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export contact sheet for a named selection set."""
+    return _require_editor().export_selection_set_contact_sheet(
+        name,
+        filename=filename,
+        max_tiles=max_tiles,
+        tile_width=tile_width,
+        tile_height=tile_height,
+        cols=cols,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

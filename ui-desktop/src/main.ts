@@ -15293,6 +15293,70 @@ async function exportSelectionSetFormatsPackUi() {
   }
 }
 
+async function exportSelectionSetStillsUi() {
+  try {
+    const name = await promptSelectionSetName("Export set stills (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetStill cancelled";
+      return;
+    }
+    const edge =
+      window.prompt("Edge: mid | in | out", "mid")?.trim() || "mid";
+    $("status-msg").textContent = `SetStill ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      clip_count?: number;
+      path?: string;
+      out_dir?: string;
+    }>("/api/edit/export_selection_set_stills", {
+      name,
+      edge,
+      width: 640,
+      ext: "jpg",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetStill · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetStill failed: ${e}`);
+    $("status-msg").textContent = `SetStill failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetContactSheetUi() {
+  try {
+    const name = await promptSelectionSetName(
+      "Export set contact sheet (set name)",
+    );
+    if (!name) {
+      $("status-msg").textContent = "SetSheet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetSheet ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      export_path?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_contact_sheet", {
+      name,
+      max_tiles: 12,
+      tile_width: 160,
+      tile_height: 90,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetSheet · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.export_path || r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetSheet failed: ${e}`);
+    $("status-msg").textContent = `SetSheet failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19806,6 +19870,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-gif", () => void exportSelectionSetGifUi());
   proBind("btn-set-audio", () => void exportSelectionSetAudioUi());
   proBind("btn-set-fmt-pack", () => void exportSelectionSetFormatsPackUi());
+  proBind("btn-set-stills", () => void exportSelectionSetStillsUi());
+  proBind("btn-set-sheet", () => void exportSelectionSetContactSheetUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

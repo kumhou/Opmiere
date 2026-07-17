@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.7 — 2026-07-17
+
+### Added
+- `export_selection_set_stills` / `export_selection_set_contact_sheet` + **SetStill** / **SetSheet**
+
 ## 0.8.6 — 2026-07-17
 
 ### Added

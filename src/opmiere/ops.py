@@ -15480,7 +15480,93 @@ class Editor:
             "agent_note": (
                 "Media formats pack for named set. Interchange (EDL/FCPXML/…): "
                 "export_selection_set_interchange_pack. Single: "
-                "export_selection_set_mp4|webm|gif|audio."
+                "export_selection_set_mp4|webm|gif|audio. "
+                "Stills/sheet: export_selection_set_stills|contact_sheet."
+            ),
+        }
+
+    def export_selection_set_stills(
+        self,
+        name: str,
+        *,
+        edge: str = "mid",
+        width: int = 640,
+        ext: str = "jpg",
+        subdir: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export still frames under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_stills_default(
+            ids,
+            edge=edge,
+            width=int(width),
+            ext=ext,
+            subdir=subdir or f"selection_set_{safe}_stills",
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "agent_note": (
+                "Stills from named set. Contact sheet: "
+                "export_selection_set_contact_sheet."
+            ),
+        }
+
+    def export_selection_set_contact_sheet(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        max_tiles: int = 12,
+        tile_width: int = 160,
+        tile_height: int = 90,
+        cols: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export contact sheet under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_contact_sheet_default(
+            ids,
+            filename=filename or f"selection_set_{safe}_contact.jpg",
+            max_tiles=int(max_tiles),
+            tile_width=int(tile_width),
+            tile_height=int(tile_height),
+            cols=cols,
+        )
+        path = r.get("path") or r.get("output_path")
+        ok = bool(path and Path(str(path)).is_file())
+        return {
+            **r,
+            "ok": ok,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "export_path": path,
+            "agent_note": (
+                "Contact sheet from named set. Stills: "
+                "export_selection_set_stills."
             ),
         }
 

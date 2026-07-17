@@ -12177,6 +12177,70 @@ def export_selection_set_formats_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetStillsBody(BaseModel):
+    name: str
+    edge: str = "mid"
+    width: int = 640
+    ext: str = "jpg"
+    subdir: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_stills")
+def export_selection_set_stills_api(
+    body: ExportSelectionSetStillsBody,
+) -> dict[str, Any]:
+    """Export stills for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_stills(
+            body.name,
+            edge=body.edge,
+            width=body.width,
+            ext=body.ext,
+            subdir=body.subdir,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_stills failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetContactSheetBody(BaseModel):
+    name: str
+    filename: str | None = None
+    max_tiles: int = 12
+    tile_width: int = 160
+    tile_height: int = 90
+    cols: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_contact_sheet")
+def export_selection_set_contact_sheet_api(
+    body: ExportSelectionSetContactSheetBody,
+) -> dict[str, Any]:
+    """Export contact sheet for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_contact_sheet(
+            body.name,
+            filename=body.filename,
+            max_tiles=body.max_tiles,
+            tile_width=body.tile_width,
+            tile_height=body.tile_height,
+            cols=body.cols,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_contact_sheet failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]
