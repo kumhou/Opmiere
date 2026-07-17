@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.70 — 2026-07-17
+
+### Added
+- `watermark_selection` / `clear_selection_watermarks` + **WmSel** / **WmClr**
+
 ## 0.6.69 — 2026-07-17
 
 ### Added

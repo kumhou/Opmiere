@@ -12984,6 +12984,60 @@ async function exportSelectionReviewPackageUi() {
   }
 }
 
+async function watermarkSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to watermark";
+    return;
+  }
+  $("status-msg").textContent = "Watermarking selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/watermark_selection", {
+      clip_ids: ids,
+      content: "REVIEW",
+      position: "bottom",
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WmSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`WmSel failed: ${e}`);
+    $("status-msg").textContent = `WmSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionWatermarksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear watermarks";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection watermarks…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_watermarks", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `WmClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`WmClr failed: ${e}`);
+    $("status-msg").textContent = `WmClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17023,6 +17077,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-frames-sel", () => void exportSelectionFrameSequenceUi());
   proBind("btn-handoff-sel", () => void exportSelectionHandoffUi());
   proBind("btn-review-pack-sel", () => void exportSelectionReviewPackageUi());
+  proBind("btn-wm-sel", () => void watermarkSelectionUi());
+  proBind("btn-wm-clr-sel", () => void clearSelectionWatermarksUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

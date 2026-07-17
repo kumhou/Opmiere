@@ -1,6 +1,6 @@
 [package]
 name = "opmiere-desktop"
-version = "0.6.69"
+version = "0.6.70"
 description = "Opmiere product shell (Tauri) — human client of the Python Editor"
 authors = ["kumhou"]
 edition = "2021"

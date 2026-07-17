@@ -6051,6 +6051,39 @@ def export_selection_review_package(
 
 
 @mcp.tool()
+def watermark_selection(
+    clip_ids: list[str],
+    content: str,
+    position: str = "bottom",
+    size: int = 22,
+    alpha: float = 0.55,
+    color: str = "white",
+    video_only: bool = True,
+) -> dict:
+    """Apply text watermark to every selected video clip."""
+    return _require_editor().watermark_selection(
+        clip_ids,
+        content,
+        position=position,
+        size=size,
+        alpha=alpha,
+        color=color,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def clear_selection_watermarks(
+    clip_ids: list[str],
+    video_only: bool = True,
+) -> dict:
+    """Remove watermark effects from selection."""
+    return _require_editor().clear_selection_watermarks(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

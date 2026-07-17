@@ -11374,6 +11374,95 @@ class Editor:
             ),
         }
 
+    def watermark_selection(
+        self,
+        clip_ids: list[str],
+        content: str,
+        *,
+        position: str = "bottom",
+        size: int = 22,
+        alpha: float = 0.55,
+        color: str = "white",
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Apply the same text watermark to every selected clip (batch)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("watermark content is empty")
+        done: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, _ = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                r = self.set_clip_watermark(
+                    cid,
+                    content,
+                    position=position,
+                    size=size,
+                    alpha=alpha,
+                    color=color,
+                    enabled=True,
+                )
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["clip_id"] = cid
+                done.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "content": content.strip(),
+            "position": position,
+            "count": len(done),
+            "applied": done,
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": (
+                "Watermark FX on selection. Clear: clear_selection_watermarks. "
+                "Track-wide: apply_watermark_to_track."
+            ),
+        }
+
+    def clear_selection_watermarks(
+        self,
+        clip_ids: list[str],
+        *,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Remove watermark effects from selected clips."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        cleared: list[str] = []
+        skipped: list[dict[str, Any]] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                tr, clip = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                self._assert_clip_track_unlocked(cid)
+                before = len(clip.effects or [])
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if not (isinstance(e, dict) and e.get("type") == "watermark")
+                ]
+                after = len(clip.effects or [])
+                if after < before:
+                    cleared.append(cid)
+                else:
+                    skipped.append({"clip_id": cid, "reason": "no_watermark"})
+        return {
+            "count": len(cleared),
+            "cleared": cleared,
+            "skipped": skipped,
+            "agent_note": "Stripped watermark FX only; other effects kept.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

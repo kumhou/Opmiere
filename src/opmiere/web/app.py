@@ -10175,6 +10175,57 @@ def export_selection_review_package_api(
         ) from e
 
 
+class WatermarkSelectionBody(BaseModel):
+    clip_ids: list[str]
+    content: str = "REVIEW"
+    position: str = "bottom"
+    size: int = 22
+    alpha: float = 0.55
+    color: str = "white"
+    video_only: bool = True
+
+
+@app.post("/api/edit/watermark_selection")
+def watermark_selection_api(body: WatermarkSelectionBody) -> dict[str, Any]:
+    """Batch text watermark on selection."""
+    ed = _ed()
+    try:
+        r = ed.watermark_selection(
+            body.clip_ids,
+            body.content,
+            position=body.position,
+            size=body.size,
+            alpha=body.alpha,
+            color=body.color,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"watermark_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionWatermarksBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_watermarks")
+def clear_selection_watermarks_api(
+    body: ClearSelectionWatermarksBody,
+) -> dict[str, Any]:
+    """Strip watermark FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_watermarks(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_watermarks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
