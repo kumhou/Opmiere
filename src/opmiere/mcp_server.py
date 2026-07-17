@@ -9954,6 +9954,34 @@ def selection_set_gaps(
 
 
 @mcp.tool()
+def selection_set_clip_durations(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Per-clip timeline/source durations for a named selection set."""
+    return _require_editor().selection_set_clip_durations(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_waveforms(
+    name: str,
+    num_peaks: int = 200,
+    use_cache: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Waveform peaks for clips in a named selection set that have audio."""
+    return _require_editor().selection_set_waveforms(
+        name,
+        num_peaks=num_peaks,
+        use_cache=use_cache,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

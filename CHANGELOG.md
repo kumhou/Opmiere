@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.80 — 2026-07-17
+
+### Added
+- `selection_set_clip_durations` / `selection_set_waveforms` + **DurationsSet** / **WaveformsSet**
+
 ## 0.9.79 — 2026-07-17
 
 ### Added

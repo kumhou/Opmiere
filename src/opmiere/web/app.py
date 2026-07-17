@@ -16643,6 +16643,56 @@ def selection_set_gaps_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetClipDurationsBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_clip_durations")
+def selection_set_clip_durations_api(
+    body: SelectionSetClipDurationsBody,
+) -> dict[str, Any]:
+    """Per-clip durations for named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_clip_durations(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_clip_durations failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetWaveformsBody(BaseModel):
+    name: str
+    num_peaks: int = 200
+    use_cache: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_waveforms")
+def selection_set_waveforms_api(
+    body: SelectionSetWaveformsBody,
+) -> dict[str, Any]:
+    """Waveform peaks for named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_waveforms(
+            body.name,
+            num_peaks=body.num_peaks,
+            use_cache=body.use_cache,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_waveforms failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

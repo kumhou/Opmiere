@@ -20967,6 +20967,65 @@ class Editor:
             ),
         }
 
+    def selection_set_clip_durations(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_clip_durations (read-only pacing)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_clip_durations(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set per-clip durations. Waveforms: "
+                "selection_set_waveforms. Gaps: selection_set_gaps."
+            ),
+        }
+
+    def selection_set_waveforms(
+        self,
+        name: str,
+        *,
+        num_peaks: int = 200,
+        use_cache: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_waveforms (read-only peaks)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_waveforms(
+            ids,
+            num_peaks=int(num_peaks),
+            use_cache=bool(use_cache),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set waveform peaks. Durations: "
+                "selection_set_clip_durations. Audio analyze: "
+                "analyze_selection_set_audio."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21144,6 +21203,8 @@ class Editor:
                     {"id": "export_selection_set_with_burnins", "writes": True},
                     {"id": "export_selection_set_preview", "writes": True},
                     {"id": "selection_set_gaps", "writes": False},
+                    {"id": "selection_set_clip_durations", "writes": False},
+                    {"id": "selection_set_waveforms", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

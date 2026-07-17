@@ -20400,6 +20400,60 @@ async function selectionSetGapsUi() {
   }
 }
 
+async function selectionSetClipDurationsUi() {
+  try {
+    const name = await promptSelectionSetName("Clip durations for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DurationsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DurationsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      sum_timeline_seconds?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_clip_durations", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DurationsSet · ${r.selection_set || name} clips=${r.count ?? "?"} sum_s=${r.sum_timeline_seconds ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DurationsSet failed: ${e}`);
+    $("status-msg").textContent = `DurationsSet failed: ${e}`;
+  }
+}
+
+async function selectionSetWaveformsUi() {
+  try {
+    const name = await promptSelectionSetName("Waveforms for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "WaveformsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `WaveformsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_waveforms", {
+      name,
+      num_peaks: 64,
+      use_cache: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WaveformsSet · ${r.selection_set || name} waves=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`WaveformsSet failed: ${e}`);
+    $("status-msg").textContent = `WaveformsSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25120,6 +25174,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-burnins-set", () => void exportSelectionSetWithBurninsUi());
   proBind("btn-exp-preview-set", () => void exportSelectionSetPreviewUi());
   proBind("btn-gaps-set", () => void selectionSetGapsUi());
+  proBind("btn-durations-set", () => void selectionSetClipDurationsUi());
+  proBind("btn-waveforms-set", () => void selectionSetWaveformsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
