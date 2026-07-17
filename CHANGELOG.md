@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.6 — 2026-07-17
+
+### Added
+- `export_selection_set_audio` / `export_selection_set_formats_pack` + **SetAud** / **SetFmt**
+
 ## 0.8.5 — 2026-07-17
 
 ### Added

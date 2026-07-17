@@ -15373,7 +15373,114 @@ class Editor:
             "export_path": path,
             "agent_note": (
                 "GIF from named set. WebM: export_selection_set_webm. "
-                "MP4: export_selection_set_mp4."
+                "MP4: export_selection_set_mp4. Audio: export_selection_set_audio. "
+                "All media: export_selection_set_formats_pack."
+            ),
+        }
+
+    def export_selection_set_audio(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        sample_rate: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export union-span audio mix under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_audio_default(
+            ids,
+            filename=filename or f"selection_set_{safe}_mix.wav",
+            sample_rate=sample_rate,
+        )
+        path = r.get("path") or r.get("output_path")
+        ok = bool(path and Path(str(path)).is_file())
+        return {
+            **r,
+            "ok": ok,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "export_path": path,
+            "agent_note": (
+                "Audio mix from named set. Multi-format: "
+                "export_selection_set_formats_pack."
+            ),
+        }
+
+    def export_selection_set_formats_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_mp4: bool = True,
+        include_webm: bool = True,
+        include_gif: bool = True,
+        include_audio: bool = True,
+        webm_crf: int = 32,
+        webm_width: int | None = 720,
+        gif_fps: float = 12.0,
+        gif_width: int = 480,
+        gif_max_duration_seconds: float = 12.0,
+        normalize_preset: str | None = None,
+        name_prefix: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export multi-format media pack.
+
+        Default folder: exports/selection_set_{name}_formats/
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_formats"
+        )
+        prefix = name_prefix if name_prefix is not None else f"selection_set_{safe}"
+        r = self.export_selection_formats_pack(
+            ids,
+            out_dir=root,
+            include_mp4=include_mp4,
+            include_webm=include_webm,
+            include_gif=include_gif,
+            include_audio=include_audio,
+            webm_crf=webm_crf,
+            webm_width=webm_width,
+            gif_fps=gif_fps,
+            gif_width=gif_width,
+            gif_max_duration_seconds=gif_max_duration_seconds,
+            normalize_preset=normalize_preset,
+            name_prefix=prefix,
+        )
+        return {
+            **r,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "agent_note": (
+                "Media formats pack for named set. Interchange (EDL/FCPXML/…): "
+                "export_selection_set_interchange_pack. Single: "
+                "export_selection_set_mp4|webm|gif|audio."
             ),
         }
 

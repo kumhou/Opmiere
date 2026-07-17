@@ -7237,6 +7237,58 @@ def export_selection_set_gif(
 
 
 @mcp.tool()
+def export_selection_set_audio(
+    name: str,
+    filename: str | None = None,
+    sample_rate: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named selection set audio mix under exports/."""
+    return _require_editor().export_selection_set_audio(
+        name,
+        filename=filename,
+        sample_rate=sample_rate,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_formats_pack(
+    name: str,
+    out_dir: str | None = None,
+    include_mp4: bool = True,
+    include_webm: bool = True,
+    include_gif: bool = True,
+    include_audio: bool = True,
+    webm_crf: int = 32,
+    webm_width: int | None = 720,
+    gif_fps: float = 12.0,
+    gif_width: int = 480,
+    gif_max_duration_seconds: float = 12.0,
+    normalize_preset: str | None = None,
+    name_prefix: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export multi-format media pack (mp4/webm/gif/audio) for a named set."""
+    return _require_editor().export_selection_set_formats_pack(
+        name,
+        out_dir=out_dir,
+        include_mp4=include_mp4,
+        include_webm=include_webm,
+        include_gif=include_gif,
+        include_audio=include_audio,
+        webm_crf=webm_crf,
+        webm_width=webm_width,
+        gif_fps=gif_fps,
+        gif_width=gif_width,
+        gif_max_duration_seconds=gif_max_duration_seconds,
+        normalize_preset=normalize_preset,
+        name_prefix=name_prefix,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

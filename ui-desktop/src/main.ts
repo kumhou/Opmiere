@@ -15228,6 +15228,71 @@ async function exportSelectionSetGifUi() {
   }
 }
 
+async function exportSelectionSetAudioUi() {
+  try {
+    const name = await promptSelectionSetName("Export set audio (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetAud cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetAud ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      export_path?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_audio", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetAud · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.export_path || r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetAud failed: ${e}`);
+    $("status-msg").textContent = `SetAud failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetFormatsPackUi() {
+  try {
+    const name = await promptSelectionSetName(
+      "Export set formats pack (set name)",
+    );
+    if (!name) {
+      $("status-msg").textContent = "SetFmt cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetFmt ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/export_selection_set_formats_pack", {
+      name,
+      include_mp4: true,
+      include_webm: true,
+      include_gif: true,
+      include_audio: true,
+      webm_crf: 32,
+      webm_width: 720,
+      gif_fps: 12,
+      gif_width: 480,
+      normalize_preset: null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetFmt · ${r.selection_set || name} n=${r.count ?? "?"} err=${r.error_count ?? 0} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetFmt failed: ${e}`);
+    $("status-msg").textContent = `SetFmt failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19739,6 +19804,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-deliv", () => void finishSelectionSetDeliveryUi());
   proBind("btn-set-webm", () => void exportSelectionSetWebmUi());
   proBind("btn-set-gif", () => void exportSelectionSetGifUi());
+  proBind("btn-set-audio", () => void exportSelectionSetAudioUi());
+  proBind("btn-set-fmt-pack", () => void exportSelectionSetFormatsPackUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

@@ -12103,6 +12103,80 @@ def export_selection_set_gif_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetAudioBody(BaseModel):
+    name: str
+    filename: str | None = None
+    sample_rate: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_audio")
+def export_selection_set_audio_api(
+    body: ExportSelectionSetAudioBody,
+) -> dict[str, Any]:
+    """Export named selection set audio mix."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_audio(
+            body.name,
+            filename=body.filename,
+            sample_rate=body.sample_rate,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_audio failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetFormatsPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_mp4: bool = True
+    include_webm: bool = True
+    include_gif: bool = True
+    include_audio: bool = True
+    webm_crf: int = 32
+    webm_width: int | None = 720
+    gif_fps: float = 12.0
+    gif_width: int = 480
+    gif_max_duration_seconds: float = 12.0
+    normalize_preset: str | None = None
+    name_prefix: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_formats_pack")
+def export_selection_set_formats_pack_api(
+    body: ExportSelectionSetFormatsPackBody,
+) -> dict[str, Any]:
+    """Export multi-format media pack for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_formats_pack(
+            body.name,
+            out_dir=body.out_dir,
+            include_mp4=body.include_mp4,
+            include_webm=body.include_webm,
+            include_gif=body.include_gif,
+            include_audio=body.include_audio,
+            webm_crf=body.webm_crf,
+            webm_width=body.webm_width,
+            gif_fps=body.gif_fps,
+            gif_width=body.gif_width,
+            gif_max_duration_seconds=body.gif_max_duration_seconds,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_formats_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]
