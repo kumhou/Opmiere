@@ -19373,6 +19373,76 @@ class Editor:
             ),
         }
 
+    def freeze_selection_set_at(
+        self,
+        name: str,
+        timeline_frame: int,
+        *,
+        duration_frames: int = 30,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then freeze_selection_at (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.freeze_selection_at(
+            ids,
+            int(timeline_frame),
+            duration_frames=int(duration_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Freeze stills on named set at timeline frame. "
+                "Markers: markers_from_selection_set. Razor: "
+                "razor_selection_set_at_markers."
+            ),
+        }
+
+    def markers_from_selection_set(
+        self,
+        name: str,
+        *,
+        edge: str = "start",
+        prefix: str = "Sel ",
+        color: str = "#4cc9f0",
+        clear_matching_prefix: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then markers_from_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.markers_from_selection(
+            ids,
+            edge=str(edge),
+            prefix=str(prefix),
+            color=str(color),
+            clear_matching_prefix=bool(clear_matching_prefix),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Markers from named-set clip edges. Freeze: "
+                "freeze_selection_set_at. To markers tool also: "
+                "selection_set_to_markers."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19504,6 +19574,8 @@ class Editor:
                     {"id": "clear_review_overlays_selection_set", "writes": True},
                     {"id": "bake_selection_set", "writes": True},
                     {"id": "razor_selection_set_at_markers", "writes": True},
+                    {"id": "freeze_selection_set_at", "writes": True},
+                    {"id": "markers_from_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

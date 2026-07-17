@@ -15349,6 +15349,64 @@ def razor_selection_set_at_markers_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FreezeSelectionSetAtBody(BaseModel):
+    name: str
+    timeline_frame: int
+    duration_frames: int = 30
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/freeze_selection_set_at")
+def freeze_selection_set_at_api(
+    body: FreezeSelectionSetAtBody,
+) -> dict[str, Any]:
+    """Freeze stills on a named selection set at a timeline frame."""
+    ed = _ed()
+    try:
+        r = ed.freeze_selection_set_at(
+            body.name,
+            body.timeline_frame,
+            duration_frames=body.duration_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"freeze_selection_set_at failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MarkersFromSelectionSetBody(BaseModel):
+    name: str
+    edge: str = "start"
+    prefix: str = "Sel "
+    color: str = "#4cc9f0"
+    clear_matching_prefix: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/markers_from_selection_set")
+def markers_from_selection_set_api(
+    body: MarkersFromSelectionSetBody,
+) -> dict[str, Any]:
+    """Add markers at clip edges of a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.markers_from_selection_set(
+            body.name,
+            edge=body.edge,
+            prefix=body.prefix,
+            color=body.color,
+            clear_matching_prefix=body.clear_matching_prefix,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"markers_from_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.57 — 2026-07-17
+
+### Added
+- `freeze_selection_set_at` / `markers_from_selection_set` + **FreezeSet** / **MkrFromSet**
+
 ## 0.9.56 — 2026-07-17
 
 ### Added

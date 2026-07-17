@@ -18949,6 +18949,83 @@ async function razorSelectionSetAtMarkersUi() {
   }
 }
 
+async function freezeSelectionSetAtUi() {
+  try {
+    const name = await promptSelectionSetName("Freeze named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FreezeSet cancelled";
+      return;
+    }
+    const rawFr = window.prompt("timeline_frame", "0");
+    if (rawFr === null) {
+      $("status-msg").textContent = "FreezeSet cancelled";
+      return;
+    }
+    const timeline_frame = Number(rawFr);
+    const rawDur = window.prompt("duration_frames", "30");
+    if (rawDur === null) {
+      $("status-msg").textContent = "FreezeSet cancelled";
+      return;
+    }
+    const duration_frames = Number(rawDur);
+    $("status-msg").textContent = `FreezeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      timeline_frame?: number;
+    }>("/api/edit/freeze_selection_set_at", {
+      name,
+      timeline_frame: Number.isFinite(timeline_frame) ? timeline_frame : 0,
+      duration_frames: Number.isFinite(duration_frames) ? duration_frames : 30,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FreezeSet · ${r.selection_set || name} at=${r.timeline_frame ?? timeline_frame} freezes=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FreezeSet failed: ${e}`);
+    $("status-msg").textContent = `FreezeSet failed: ${e}`;
+  }
+}
+
+async function markersFromSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Markers-from-set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MkrFromSet cancelled";
+      return;
+    }
+    const rawEdge = window.prompt("edge (start|end|both)", "start");
+    if (rawEdge === null) {
+      $("status-msg").textContent = "MkrFromSet cancelled";
+      return;
+    }
+    const edge = String(rawEdge).trim() || "start";
+    $("status-msg").textContent = `MkrFromSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+      edge?: string;
+    }>("/api/edit/markers_from_selection_set", {
+      name,
+      edge,
+      prefix: "Sel ",
+      color: "#4cc9f0",
+      clear_matching_prefix: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkrFromSet · ${r.selection_set || name} edge=${r.edge ?? edge} markers=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MkrFromSet failed: ${e}`);
+    $("status-msg").textContent = `MkrFromSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23623,6 +23700,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-review-set", () => void clearReviewOverlaysSelectionSetUi());
   proBind("btn-bake-set", () => void bakeSelectionSetUi());
   proBind("btn-razor-mkr-set", () => void razorSelectionSetAtMarkersUi());
+  proBind("btn-freeze-set", () => void freezeSelectionSetAtUi());
+  proBind("btn-mkr-from-set", () => void markersFromSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

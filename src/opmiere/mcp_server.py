@@ -9166,6 +9166,42 @@ def razor_selection_set_at_markers(
 
 
 @mcp.tool()
+def freeze_selection_set_at(
+    name: str,
+    timeline_frame: int,
+    duration_frames: int = 30,
+    set_work_area: bool = False,
+) -> dict:
+    """Place freeze stills for named-set clips spanning timeline_frame."""
+    return _require_editor().freeze_selection_set_at(
+        name,
+        timeline_frame,
+        duration_frames=duration_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def markers_from_selection_set(
+    name: str,
+    edge: str = "start",
+    prefix: str = "Sel ",
+    color: str = "#4cc9f0",
+    clear_matching_prefix: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Add markers at clip edges of a named selection set."""
+    return _require_editor().markers_from_selection_set(
+        name,
+        edge=edge,
+        prefix=prefix,
+        color=color,
+        clear_matching_prefix=clear_matching_prefix,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
