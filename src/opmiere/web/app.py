@@ -13467,6 +13467,54 @@ def join_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExtractSelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/extract_selection_set")
+def extract_selection_set_api(
+    body: ExtractSelectionSetBody,
+) -> dict[str, Any]:
+    """Extract (ripple delete) a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.extract_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"extract_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RateStretchSelectionSetBody(BaseModel):
+    name: str
+    target_duration_frames: int
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/rate_stretch_selection_set")
+def rate_stretch_selection_set_api(
+    body: RateStretchSelectionSetBody,
+) -> dict[str, Any]:
+    """Rate-stretch a named selection set to fixed duration."""
+    ed = _ed()
+    try:
+        r = ed.rate_stretch_selection_set(
+            body.name,
+            body.target_duration_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"rate_stretch_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -8032,6 +8032,32 @@ def join_selection_set(
 
 
 @mcp.tool()
+def extract_selection_set(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Premiere Extract: remove named selection set clips and close gaps."""
+    return _require_editor().extract_selection_set(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def rate_stretch_selection_set(
+    name: str,
+    target_duration_frames: int,
+    set_work_area: bool = False,
+) -> dict:
+    """Rate-stretch clips in a named selection set to a fixed duration."""
+    return _require_editor().rate_stretch_selection_set(
+        name,
+        target_duration_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

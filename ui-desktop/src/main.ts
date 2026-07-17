@@ -16723,6 +16723,70 @@ async function joinSelectionSetUi() {
   }
 }
 
+async function extractSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Extract named set (set name — DESTRUCTIVE)");
+    if (!name) {
+      $("status-msg").textContent = "ExtractSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Extract (ripple delete) selection set "${name}"?`)) {
+      $("status-msg").textContent = "ExtractSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExtractSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/extract_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExtractSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExtractSet failed: ${e}`);
+    $("status-msg").textContent = `ExtractSet failed: ${e}`;
+  }
+}
+
+async function rateStretchSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Rate-stretch named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "StretchSet cancelled";
+      return;
+    }
+    const raw = window.prompt("target_duration_frames", "24");
+    if (raw === null) {
+      $("status-msg").textContent = "StretchSet cancelled";
+      return;
+    }
+    const target_duration_frames = Number(raw);
+    $("status-msg").textContent = `StretchSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+      target_duration_frames?: number;
+    }>("/api/edit/rate_stretch_selection_set", {
+      name,
+      target_duration_frames: Number.isFinite(target_duration_frames)
+        ? target_duration_frames
+        : 24,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StretchSet · ${r.selection_set || name} target=${r.target_duration_frames ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`StretchSet failed: ${e}`);
+    $("status-msg").textContent = `StretchSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21329,6 +21393,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-clr-fx-set", () => void clearSelectionSetEffectsUi());
   proBind("btn-unsolo-set-tr", () => void unsoloSelectionSetTracksUi());
   proBind("btn-join-set", () => void joinSelectionSetUi());
+  proBind("btn-extract-set", () => void extractSelectionSetUi());
+  proBind("btn-stretch-set", () => void rateStretchSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

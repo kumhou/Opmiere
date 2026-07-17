@@ -17166,6 +17166,63 @@ class Editor:
             ),
         }
 
+    def extract_selection_set(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then extract_selection (writes; ripple delete)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.extract_selection(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Premiere Extract on named set (ripple). Rate stretch: "
+                "rate_stretch_selection_set. Join: "
+                "join_selection_set."
+            ),
+        }
+
+    def rate_stretch_selection_set(
+        self,
+        name: str,
+        target_duration_frames: int,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then rate_stretch_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.rate_stretch_selection(
+            ids, int(target_duration_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Rate-stretch named set to fixed duration. Extract: "
+                "extract_selection_set. Speed (no ripple): "
+                "set_selection_set_speed."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17229,6 +17286,8 @@ class Editor:
                     {"id": "clear_selection_set_effects", "writes": True},
                     {"id": "unsolo_selection_set_tracks", "writes": True},
                     {"id": "join_selection_set", "writes": True},
+                    {"id": "extract_selection_set", "writes": True},
+                    {"id": "rate_stretch_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

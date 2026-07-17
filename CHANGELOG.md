@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.23 — 2026-07-17
+
+### Added
+- `extract_selection_set` / `rate_stretch_selection_set` + **ExtractSet** / **StretchSet**
+
 ## 0.9.22 — 2026-07-17
 
 ### Added
