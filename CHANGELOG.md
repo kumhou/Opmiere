@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.63 — 2026-07-17
+
+### Added
+- `clear_selection_set_safe_areas` / `clear_selection_set_timecodes` + **ClrSafeSet** / **ClrTcSet**
+
 ## 0.9.62 — 2026-07-17
 
 ### Added

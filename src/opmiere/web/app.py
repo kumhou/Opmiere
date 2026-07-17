@@ -15665,6 +15665,56 @@ def rename_selection_set_tracks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClearSelectionSetSafeAreasBody(BaseModel):
+    name: str
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_safe_areas")
+def clear_selection_set_safe_areas_api(
+    body: ClearSelectionSetSafeAreasBody,
+) -> dict[str, Any]:
+    """Clear safe_area effects on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_safe_areas(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_safe_areas failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSetTimecodesBody(BaseModel):
+    name: str
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_timecodes")
+def clear_selection_set_timecodes_api(
+    body: ClearSelectionSetTimecodesBody,
+) -> dict[str, Any]:
+    """Clear timecode effects on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_timecodes(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_timecodes failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

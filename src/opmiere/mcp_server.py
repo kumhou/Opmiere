@@ -9350,6 +9350,34 @@ def rename_selection_set_tracks(
 
 
 @mcp.tool()
+def clear_selection_set_safe_areas(
+    name: str,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove safe_area effects from a named selection set."""
+    return _require_editor().clear_selection_set_safe_areas(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_selection_set_timecodes(
+    name: str,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove timecode effects from a named selection set."""
+    return _require_editor().clear_selection_set_timecodes(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

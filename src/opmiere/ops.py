@@ -19749,6 +19749,66 @@ class Editor:
             ),
         }
 
+    def clear_selection_set_safe_areas(
+        self,
+        name: str,
+        *,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_safe_areas (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_safe_areas(
+            ids, video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Stripped safe_area on named set. Apply: "
+                "safe_area_selection_set. Timecode clear: "
+                "clear_selection_set_timecodes."
+            ),
+        }
+
+    def clear_selection_set_timecodes(
+        self,
+        name: str,
+        *,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_timecodes (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_timecodes(
+            ids, video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Stripped timecode on named set. Apply: "
+                "timecode_selection_set. Safe area clear: "
+                "clear_selection_set_safe_areas."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19892,6 +19952,8 @@ class Editor:
                     {"id": "lower_selection_set_tracks", "writes": True},
                     {"id": "clear_selection_set_shape_masks", "writes": True},
                     {"id": "rename_selection_set_tracks", "writes": True},
+                    {"id": "clear_selection_set_safe_areas", "writes": True},
+                    {"id": "clear_selection_set_timecodes", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

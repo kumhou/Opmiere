@@ -19343,6 +19343,66 @@ async function renameSelectionSetTracksUi() {
   }
 }
 
+async function clearSelectionSetSafeAreasUi() {
+  try {
+    const name = await promptSelectionSetName("Clear safe areas named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrSafeSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear safe_area overlays on set "${name}"?`)) {
+      $("status-msg").textContent = "ClrSafeSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrSafeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_selection_set_safe_areas", {
+      name,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrSafeSet · ${r.selection_set || name} cleared=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrSafeSet failed: ${e}`);
+    $("status-msg").textContent = `ClrSafeSet failed: ${e}`;
+  }
+}
+
+async function clearSelectionSetTimecodesUi() {
+  try {
+    const name = await promptSelectionSetName("Clear timecodes named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrTcSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear timecode overlays on set "${name}"?`)) {
+      $("status-msg").textContent = "ClrTcSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrTcSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_selection_set_timecodes", {
+      name,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrTcSet · ${r.selection_set || name} cleared=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrTcSet failed: ${e}`);
+    $("status-msg").textContent = `ClrTcSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24029,6 +24089,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-lower-trk-set", () => void lowerSelectionSetTracksUi());
   proBind("btn-clr-mask-set", () => void clearSelectionSetShapeMasksUi());
   proBind("btn-ren-trk-set", () => void renameSelectionSetTracksUi());
+  proBind("btn-clr-safe-set", () => void clearSelectionSetSafeAreasUi());
+  proBind("btn-clr-tc-set", () => void clearSelectionSetTimecodesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
