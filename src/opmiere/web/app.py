@@ -11501,6 +11501,54 @@ def run_selection_set_pipeline_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class DiffSelectionSetsBody(BaseModel):
+    name_a: str
+    name_b: str
+    resolve_live: bool = True
+
+
+@app.post("/api/edit/diff_selection_sets")
+def diff_selection_sets_api(body: DiffSelectionSetsBody) -> dict[str, Any]:
+    """Compare two named selection sets."""
+    ed = _ed()
+    try:
+        r = ed.diff_selection_sets(
+            body.name_a,
+            body.name_b,
+            resolve_live=body.resolve_live,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"diff_selection_sets failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MergeSelectionSetsBody(BaseModel):
+    names: list[str]
+    out_name: str
+    mode: str = "union"
+    note: str = ""
+    overwrite: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/merge_selection_sets")
+def merge_selection_sets_api(body: MergeSelectionSetsBody) -> dict[str, Any]:
+    """Merge named selection sets into out_name."""
+    ed = _ed()
+    try:
+        r = ed.merge_selection_sets(
+            body.names,
+            body.out_name,
+            mode=body.mode,
+            note=body.note,
+            overwrite=body.overwrite,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"merge_selection_sets failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

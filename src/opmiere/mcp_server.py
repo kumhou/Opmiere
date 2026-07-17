@@ -6861,6 +6861,40 @@ def run_selection_set_pipeline(
 
 
 @mcp.tool()
+def diff_selection_sets(
+    name_a: str,
+    name_b: str,
+    resolve_live: bool = True,
+) -> dict:
+    """Compare two named selection sets (only_a / only_b / both)."""
+    return _require_editor().diff_selection_sets(
+        name_a,
+        name_b,
+        resolve_live=resolve_live,
+    )
+
+
+@mcp.tool()
+def merge_selection_sets(
+    names: list[str],
+    out_name: str,
+    mode: str = "union",
+    note: str = "",
+    overwrite: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Merge named selection sets (union|intersect|only_first) into out_name."""
+    return _require_editor().merge_selection_sets(
+        names,
+        out_name,
+        mode=mode,
+        note=note,
+        overwrite=overwrite,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

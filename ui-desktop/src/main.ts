@@ -14367,6 +14367,91 @@ async function runSelectionSetPipelineUi() {
   }
 }
 
+async function diffSelectionSetsUi() {
+  try {
+    const a = await promptSelectionSetName("Diff set A name");
+    if (!a) {
+      $("status-msg").textContent = "DiffSet cancelled";
+      return;
+    }
+    const b = await promptSelectionSetName("Diff set B name");
+    if (!b) {
+      $("status-msg").textContent = "DiffSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DiffSet ${a} vs ${b}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      equal?: boolean;
+      counts?: Record<string, number>;
+      timeline?: TimelineView;
+    }>("/api/edit/diff_selection_sets", {
+      name_a: a,
+      name_b: b,
+      resolve_live: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    const c = r.counts || {};
+    $("status-msg").textContent =
+      `DiffSet · equal=${r.equal ?? "?"} onlyA=${c.only_a ?? "?"} onlyB=${c.only_b ?? "?"} both=${c.both ?? "?"}`;
+  } catch (e) {
+    setProOut(`DiffSet failed: ${e}`);
+    $("status-msg").textContent = `DiffSet failed: ${e}`;
+  }
+}
+
+async function mergeSelectionSetsUi() {
+  try {
+    const listed = await getJson<{
+      sets?: { name?: string }[];
+    }>("/api/edit/list_selection_sets");
+    const known = (listed.sets || [])
+      .map((s) => s.name)
+      .filter((n): n is string => !!n);
+    const raw = window.prompt(
+      `Merge set names (comma-separated)\nKnown: ${known.join(", ") || "(none)"}`,
+      known.slice(0, 2).join(",") || "a,b",
+    )?.trim();
+    if (!raw) {
+      $("status-msg").textContent = "MergeSet cancelled";
+      return;
+    }
+    const names = raw.split(/[,|]/).map((s) => s.trim()).filter(Boolean);
+    if (names.length < 1) {
+      $("status-msg").textContent = "MergeSet needs at least one name";
+      return;
+    }
+    const mode =
+      window.prompt("Mode: union | intersect | only_first", "union")?.trim() ||
+      "union";
+    const outName =
+      window.prompt("Output set name", "merged")?.trim() || "merged";
+    $("status-msg").textContent = `MergeSet ${names.join("+")} → ${outName}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      out_name?: string;
+      clip_count?: number;
+      mode?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/merge_selection_sets", {
+      names,
+      out_name: outName,
+      mode,
+      overwrite: true,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MergeSet · ${r.mode || mode} → ${r.out_name || outName} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MergeSet failed: ${e}`);
+    $("status-msg").textContent = `MergeSet failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18458,6 +18543,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());
   proBind("btn-pipe-sel-set", () => void runSelectionSetPipelineUi());
+  proBind("btn-diff-sel-set", () => void diffSelectionSetsUi());
+  proBind("btn-merge-sel-set", () => void mergeSelectionSetsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

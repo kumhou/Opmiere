@@ -14114,6 +14114,176 @@ class Editor:
             ),
         }
 
+    def diff_selection_sets(
+        self,
+        name_a: str,
+        name_b: str,
+        *,
+        resolve_live: bool = True,
+    ) -> dict[str, Any]:
+        """Compare two named selection sets (clip membership + live spans).
+
+        Returns only_a / only_b / both. resolve_live=True drops missing clips.
+        """
+        a_key = str(name_a or "").strip()
+        b_key = str(name_b or "").strip()
+        if not a_key or not b_key:
+            raise ValueError("name_a and name_b are required")
+        store = self._read_selection_sets()
+        sets = store.get("sets") or {}
+        if a_key not in sets:
+            raise KeyError(f"no selection set {a_key!r}; known={sorted(sets.keys())}")
+        if b_key not in sets:
+            raise KeyError(f"no selection set {b_key!r}; known={sorted(sets.keys())}")
+
+        def _ids(entry: Any) -> list[str]:
+            if not isinstance(entry, dict):
+                return []
+            raw = [str(c) for c in (entry.get("clip_ids") or []) if str(c).strip()]
+            if not resolve_live:
+                return list(dict.fromkeys(raw))
+            live: list[str] = []
+            for cid in dict.fromkeys(raw):
+                try:
+                    self._find_clip(cid)
+                    live.append(cid)
+                except Exception:
+                    continue
+            return live
+
+        ids_a = _ids(sets[a_key])
+        ids_b = _ids(sets[b_key])
+        set_a, set_b = set(ids_a), set(ids_b)
+        only_a = [c for c in ids_a if c not in set_b]
+        only_b = [c for c in ids_b if c not in set_a]
+        both = [c for c in ids_a if c in set_b]
+        span_a = self.selection_span(ids_a) if ids_a else None
+        span_b = self.selection_span(ids_b) if ids_b else None
+        equal = set_a == set_b and len(ids_a) == len(ids_b)
+        return {
+            "ok": True,
+            "name_a": a_key,
+            "name_b": b_key,
+            "equal": equal,
+            "only_a": only_a,
+            "only_b": only_b,
+            "both": both,
+            "counts": {
+                "a": len(ids_a),
+                "b": len(ids_b),
+                "only_a": len(only_a),
+                "only_b": len(only_b),
+                "both": len(both),
+            },
+            "span_a": span_a,
+            "span_b": span_b,
+            "resolve_live": bool(resolve_live),
+            "agent_note": (
+                "Membership diff of named sets. Merge: merge_selection_sets. "
+                "Finish by name: agent_finish_selection_set."
+            ),
+        }
+
+    def merge_selection_sets(
+        self,
+        names: list[str],
+        out_name: str,
+        *,
+        mode: str = "union",
+        note: str = "",
+        overwrite: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Merge named selection sets into a new set (union or intersect).
+
+        mode: union (default) | intersect | only_first (A - B - C…)
+        """
+        keys = [str(n).strip() for n in (names or []) if str(n).strip()]
+        if len(keys) < 1:
+            raise ValueError("names is empty")
+        out = str(out_name or "").strip()
+        if not out:
+            raise ValueError("out_name is empty")
+        mode_n = str(mode or "union").strip().lower()
+        if mode_n not in ("union", "intersect", "only_first"):
+            raise ValueError("mode must be union|intersect|only_first")
+
+        store = self._read_selection_sets()
+        sets = store.get("sets") or {}
+        missing_names = [k for k in keys if k not in sets]
+        if missing_names:
+            raise KeyError(
+                f"unknown selection sets {missing_names}; known={sorted(sets.keys())}"
+            )
+
+        def _live(entry: Any) -> list[str]:
+            if not isinstance(entry, dict):
+                return []
+            out_ids: list[str] = []
+            for cid in dict.fromkeys(
+                str(c) for c in (entry.get("clip_ids") or []) if str(c).strip()
+            ):
+                try:
+                    self._find_clip(cid)
+                    out_ids.append(cid)
+                except Exception:
+                    continue
+            return out_ids
+
+        lists = [_live(sets[k]) for k in keys]
+        if mode_n == "union":
+            merged: list[str] = []
+            seen: set[str] = set()
+            for lst in lists:
+                for cid in lst:
+                    if cid not in seen:
+                        seen.add(cid)
+                        merged.append(cid)
+        elif mode_n == "intersect":
+            if not lists:
+                merged = []
+            else:
+                acc = set(lists[0])
+                for lst in lists[1:]:
+                    acc &= set(lst)
+                merged = [c for c in lists[0] if c in acc]
+        else:  # only_first
+            base = set(lists[0]) if lists else set()
+            rest: set[str] = set()
+            for lst in lists[1:]:
+                rest |= set(lst)
+            merged = [c for c in (lists[0] if lists else []) if c not in rest]
+
+        if not merged:
+            raise ValueError(
+                f"merge {mode_n} of {keys} produced empty selection "
+                f"(no live clips)"
+            )
+        note_text = note or f"merge:{mode_n} of {','.join(keys)}"
+        saved = self.save_selection_set(
+            out,
+            merged,
+            note=note_text,
+            overwrite=overwrite,
+        )
+        work = None
+        if set_work_area:
+            work = self.set_work_area_from_selection(merged)
+        return {
+            "ok": True,
+            "mode": mode_n,
+            "sources": keys,
+            "out_name": out,
+            "clip_ids": merged,
+            "clip_count": len(merged),
+            "saved": saved,
+            "work_area": work,
+            "agent_note": (
+                "Merged named sets into out_name. Diff: diff_selection_sets. "
+                "Finish: agent_finish_selection_set(out_name)."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

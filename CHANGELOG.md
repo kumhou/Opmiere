@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.97 — 2026-07-17
+
+### Added
+- `diff_selection_sets` / `merge_selection_sets` + **DiffSet** / **MergeSet**
+
 ## 0.6.96 — 2026-07-17
 
 ### Added
