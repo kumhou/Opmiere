@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.67 — 2026-07-17
+
+### Added
+- `export_selection_storyboard` / `export_selection_frame_sequence` + **StorySel** / **FramesSel**
+
 ## 0.6.66 — 2026-07-17
 
 ### Added

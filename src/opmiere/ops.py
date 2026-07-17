@@ -11004,6 +11004,160 @@ class Editor:
             ),
         }
 
+    def export_selection_storyboard(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        include_markers: bool = True,
+        include_clip_mids: bool = True,
+        include_contact: bool = True,
+        width: int = 640,
+        max_stills: int = 64,
+    ) -> dict[str, Any]:
+        """Storyboard folder scoped to selection: mid stills + markers in span.
+
+        Writes under exports/selection_storyboard by default.
+        """
+        import re
+
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        start_f = int(span["start_frame"])
+        end_f = int(span["end_frame"])
+        out = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_storyboard"
+        )
+        out.mkdir(parents=True, exist_ok=True)
+        stills_dir = out / "stills"
+        stills_dir.mkdir(exist_ok=True)
+        written: list[str] = []
+        stills: list[dict[str, Any]] = []
+        frames_done: set[int] = set()
+
+        def _still(frame: int, label: str) -> None:
+            if frame < start_f or frame >= end_f:
+                return
+            if frame in frames_done or len(stills) >= max_stills:
+                return
+            safe = re.sub(r"[^\w\-]+", "_", label)[:40] or "shot"
+            dest = stills_dir / f"{len(stills):03d}_{safe}_f{frame}.jpg"
+            try:
+                r = self.export_still(dest, int(frame), width=width)
+                stills.append({
+                    "frame": int(frame),
+                    "label": label,
+                    "path": str(Path(r.get("path") or dest).resolve()),
+                })
+                written.append(str(dest.resolve()))
+                frames_done.add(int(frame))
+            except Exception as e:
+                stills.append({
+                    "frame": int(frame),
+                    "label": label,
+                    "error": str(e)[:200],
+                })
+
+        if include_markers and self.project.markers:
+            for m in sorted(self.project.markers, key=lambda x: x.frame):
+                if start_f <= int(m.frame) < end_f:
+                    _still(int(m.frame), m.label or f"m{m.frame}")
+
+        if include_clip_mids:
+            for cid in ids:
+                try:
+                    tr, c = self._find_clip_and_track(cid)
+                except Exception:
+                    continue
+                if tr.kind != "video":
+                    continue
+                mid = c.start + max(0, c.timeline_duration_frames // 2)
+                _still(mid, c.name or c.id)
+
+        contact_path = None
+        if include_contact:
+            contact_path = out / "contact_sheet.jpg"
+            try:
+                cs = self.make_selection_contact_sheet(
+                    ids, contact_path, max_tiles=min(24, max_stills),
+                )
+                if cs.get("path"):
+                    written.append(str(Path(cs["path"]).resolve()))
+                    contact_path = str(Path(cs["path"]).resolve())
+            except Exception as e:
+                contact_path = None
+                err = out / "contact_error.txt"
+                err.write_text(str(e)[:400], encoding="utf-8")
+                written.append(str(err.resolve()))
+
+        meta = {
+            "schema": "opmiere.selection_storyboard.v1",
+            "selection_span": span,
+            "clip_ids": ids,
+            "still_count": len([s for s in stills if "path" in s]),
+            "stills": stills,
+            "contact_sheet": contact_path,
+            "files": written,
+        }
+        meta_path = out / "storyboard.json"
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
+        written.append(str(meta_path.resolve()))
+        return {
+            "path": str(out.resolve()),
+            "still_count": meta["still_count"],
+            "stills": stills,
+            "contact_sheet": contact_path,
+            "selection_span": span,
+            "clip_ids": ids,
+            "files": written,
+            "count": len(written),
+            "agent_note": (
+                "Selection storyboard. Full project: export_storyboard."
+            ),
+        }
+
+    def export_selection_frame_sequence(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        pattern: str = "frame_%06d.png",
+        max_frames: int | None = None,
+        height: int | None = None,
+    ) -> dict[str, Any]:
+        """Export selection union span as an image sequence (VFX handoff)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_frames"
+        )
+        r = self.export_frame_sequence(
+            root,
+            start_frame=int(span["start_frame"]),
+            end_frame=int(span["end_frame"]),
+            pattern=pattern,
+            max_frames=max_frames,
+            height=height,
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["selection_span"] = span
+            r["clip_ids"] = ids
+            r["agent_note"] = (
+                "Selection frame sequence. Full timeline: export_frame_sequence."
+            )
+        return r
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

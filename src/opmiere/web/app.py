@@ -10040,6 +10040,66 @@ def export_selection_marker_segments_api(
         ) from e
 
 
+class ExportSelectionStoryboardBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    include_markers: bool = True
+    include_clip_mids: bool = True
+    include_contact: bool = True
+    width: int = 640
+    max_stills: int = 64
+
+
+@app.post("/api/edit/export_selection_storyboard")
+def export_selection_storyboard_api(
+    body: ExportSelectionStoryboardBody,
+) -> dict[str, Any]:
+    """Storyboard folder for selection."""
+    ed = _ed()
+    try:
+        return ed.export_selection_storyboard(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            include_markers=body.include_markers,
+            include_clip_mids=body.include_clip_mids,
+            include_contact=body.include_contact,
+            width=body.width,
+            max_stills=body.max_stills,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_storyboard failed: {e}",
+        ) from e
+
+
+class ExportSelectionFrameSequenceBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    pattern: str = "frame_%06d.png"
+    max_frames: int | None = None
+    height: int | None = None
+
+
+@app.post("/api/edit/export_selection_frame_sequence")
+def export_selection_frame_sequence_api(
+    body: ExportSelectionFrameSequenceBody,
+) -> dict[str, Any]:
+    """Image sequence for selection span."""
+    ed = _ed()
+    try:
+        return ed.export_selection_frame_sequence(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            pattern=body.pattern,
+            max_frames=body.max_frames,
+            height=body.height,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_frame_sequence failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

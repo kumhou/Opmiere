@@ -5961,6 +5961,46 @@ def export_selection_marker_segments(
 
 
 @mcp.tool()
+def export_selection_storyboard(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    include_markers: bool = True,
+    include_clip_mids: bool = True,
+    include_contact: bool = True,
+    width: int = 640,
+    max_stills: int = 64,
+) -> dict:
+    """Storyboard folder for selection (mids + markers in span + contact)."""
+    return _require_editor().export_selection_storyboard(
+        clip_ids,
+        out_dir=out_dir,
+        include_markers=include_markers,
+        include_clip_mids=include_clip_mids,
+        include_contact=include_contact,
+        width=width,
+        max_stills=max_stills,
+    )
+
+
+@mcp.tool()
+def export_selection_frame_sequence(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    pattern: str = "frame_%06d.png",
+    max_frames: int | None = None,
+    height: int | None = None,
+) -> dict:
+    """Export selection union span as image sequence."""
+    return _require_editor().export_selection_frame_sequence(
+        clip_ids,
+        out_dir=out_dir,
+        pattern=pattern,
+        max_frames=max_frames,
+        height=height,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

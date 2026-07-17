@@ -12882,6 +12882,57 @@ async function exportSelectionMarkerSegmentsUi() {
   }
 }
 
+async function exportSelectionStoryboardUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for storyboard";
+    return;
+  }
+  $("status-msg").textContent = "Building selection storyboard…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      still_count?: number;
+      count?: number;
+    }>("/api/edit/export_selection_storyboard", {
+      clip_ids: ids,
+      include_contact: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StorySel · stills=${r.still_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`StorySel failed: ${e}`);
+    $("status-msg").textContent = `StorySel failed: ${e}`;
+  }
+}
+
+async function exportSelectionFrameSequenceUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for frame sequence";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection frames…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      count?: number;
+      frame_count?: number;
+    }>("/api/edit/export_selection_frame_sequence", {
+      clip_ids: ids,
+      max_frames: 24,
+      height: 90,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FramesSel · n=${r.frame_count ?? r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`FramesSel failed: ${e}`);
+    $("status-msg").textContent = `FramesSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16917,6 +16968,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-finish-social-sel", () => void finishSelectionSocialUi());
   proBind("btn-cmatch-sel", () => void colorMatchSelectionUi());
   proBind("btn-mkr-seg-sel", () => void exportSelectionMarkerSegmentsUi());
+  proBind("btn-story-sel", () => void exportSelectionStoryboardUi());
+  proBind("btn-frames-sel", () => void exportSelectionFrameSequenceUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
