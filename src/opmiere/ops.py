@@ -14600,6 +14600,108 @@ class Editor:
             ),
         }
 
+    def selection_set_to_markers(
+        self,
+        name: str,
+        *,
+        at: str = "start",
+        label_prefix: str | None = None,
+        color: str = "#7c9cff",
+        include_end: bool = False,
+    ) -> dict[str, Any]:
+        """Place timeline markers from a named selection set.
+
+        at: start (clip.start) | end (clip.end) | both
+        include_end is alias for at=both when True and at=start.
+        """
+        at_n = str(at or "start").strip().lower()
+        if include_end and at_n == "start":
+            at_n = "both"
+        if at_n not in ("start", "end", "both"):
+            raise ValueError("at must be start|end|both")
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        prefix = (
+            str(label_prefix)
+            if label_prefix is not None
+            else f"{name}"
+        )
+        added: list[dict[str, Any]] = []
+        with self._mutate():
+            for i, cid in enumerate(ids, start=1):
+                clip = self._find_clip(cid)
+                frames: list[tuple[int, str]] = []
+                if at_n in ("start", "both"):
+                    frames.append((int(clip.start), "in"))
+                if at_n in ("end", "both"):
+                    frames.append((int(clip.end), "out"))
+                for frame, tag in frames:
+                    label = f"{prefix}/{i}:{tag}"
+                    m = self.project.add_marker(
+                        int(frame), label=label, color=color,
+                    )
+                    added.append(m.to_dict())
+        return {
+            "ok": True,
+            "selection_set": name,
+            "at": at_n,
+            "clip_count": len(ids),
+            "marker_count": len(added),
+            "markers": added,
+            "clip_ids": ids,
+            "agent_note": (
+                "Markers placed from named set. EDL: export_selection_set_edl. "
+                "List: list_markers."
+            ),
+        }
+
+    def export_selection_set_edl(
+        self,
+        name: str,
+        *,
+        path: str | Path | None = None,
+        filename: str | None = None,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Load named selection set and export CMX-style EDL under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        if path is not None:
+            r = self.export_selection_edl(
+                ids,
+                path=path,
+                title=title or f"selection_set:{name}",
+            )
+        else:
+            r = self.export_selection_edl_default(
+                ids,
+                filename=filename or f"selection_set_{safe}.edl",
+                title=title or f"selection_set:{name}",
+            )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "agent_note": (
+                "EDL from named set. Markers: selection_set_to_markers. "
+                "Finish: agent_finish_selection_set."
+            ),
+        }
+
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"
 

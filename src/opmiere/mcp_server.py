@@ -6969,6 +6969,40 @@ def export_selection_sets_validate_report(
 
 
 @mcp.tool()
+def selection_set_to_markers(
+    name: str,
+    at: str = "start",
+    label_prefix: str | None = None,
+    color: str = "#7c9cff",
+    include_end: bool = False,
+) -> dict:
+    """Place timeline markers from a named selection set (start|end|both)."""
+    return _require_editor().selection_set_to_markers(
+        name,
+        at=at,
+        label_prefix=label_prefix,
+        color=color,
+        include_end=include_end,
+    )
+
+
+@mcp.tool()
+def export_selection_set_edl(
+    name: str,
+    path: str | None = None,
+    filename: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Export CMX EDL for a named selection set."""
+    return _require_editor().export_selection_set_edl(
+        name,
+        path=path,
+        filename=filename,
+        title=title,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

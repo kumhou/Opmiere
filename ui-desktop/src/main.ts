@@ -14809,6 +14809,67 @@ async function exportSelectionSetsValidateReportUi() {
   }
 }
 
+async function selectionSetToMarkersUi() {
+  try {
+    const name = await promptSelectionSetName("Set → markers (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetMkr cancelled";
+      return;
+    }
+    const at =
+      window.prompt("Marker at: start | end | both", "start")?.trim() ||
+      "start";
+    $("status-msg").textContent = `SetMkr ${name} @ ${at}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      marker_count?: number;
+      at?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/selection_set_to_markers", {
+      name,
+      at,
+      color: "#7c9cff",
+      include_end: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetMkr · ${r.selection_set || name} @${r.at || at} n=${r.marker_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetMkr failed: ${e}`);
+    $("status-msg").textContent = `SetMkr failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetEdlUi() {
+  try {
+    const name = await promptSelectionSetName("Export set EDL (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetEDL cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetEDL ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      output_path?: string;
+      clip_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/export_selection_set_edl", {
+      name,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetEDL · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || r.output_path || "?"}`;
+  } catch (e) {
+    setProOut(`SetEDL failed: ${e}`);
+    $("status-msg").textContent = `SetEDL failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19306,6 +19367,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-batch-rep-set", () => void batchRepairSelectionSetsUi());
   proBind("btn-stat-rpt-set", () => void exportSelectionSetsStatusReportUi());
   proBind("btn-val-rpt-set", () => void exportSelectionSetsValidateReportUi());
+  proBind("btn-set-markers", () => void selectionSetToMarkersUi());
+  proBind("btn-set-edl", () => void exportSelectionSetEdlUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

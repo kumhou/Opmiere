@@ -11681,6 +11681,62 @@ def export_selection_sets_validate_report_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetToMarkersBody(BaseModel):
+    name: str
+    at: str = "start"
+    label_prefix: str | None = None
+    color: str = "#7c9cff"
+    include_end: bool = False
+
+
+@app.post("/api/edit/selection_set_to_markers")
+def selection_set_to_markers_api(
+    body: SelectionSetToMarkersBody,
+) -> dict[str, Any]:
+    """Place markers from a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_to_markers(
+            body.name,
+            at=body.at,
+            label_prefix=body.label_prefix,
+            color=body.color,
+            include_end=body.include_end,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_to_markers failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetEdlBody(BaseModel):
+    name: str
+    path: str | None = None
+    filename: str | None = None
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_set_edl")
+def export_selection_set_edl_api(
+    body: ExportSelectionSetEdlBody,
+) -> dict[str, Any]:
+    """Export EDL for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_edl(
+            body.name,
+            path=body.path,
+            filename=body.filename,
+            title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_edl failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

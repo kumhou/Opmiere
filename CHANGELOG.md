@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.9 — 2026-07-17
+
+### Added
+- `selection_set_to_markers` / `export_selection_set_edl` + **SetMkr** / **SetEDL**
+
 ## 0.7.8 — 2026-07-17
 
 ### Added
