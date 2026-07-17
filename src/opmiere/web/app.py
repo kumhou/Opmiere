@@ -14365,6 +14365,60 @@ def white_balance_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ChromaKeySelectionSetBody(BaseModel):
+    name: str
+    color: str = "green"
+    similarity: float = 0.15
+    blend: float = 0.05
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/chroma_key_selection_set")
+def chroma_key_selection_set_api(
+    body: ChromaKeySelectionSetBody,
+) -> dict[str, Any]:
+    """Apply chroma key to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.chroma_key_selection_set(
+            body.name,
+            color=body.color,
+            similarity=body.similarity,
+            blend=body.blend,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"chroma_key_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ColorSelectionSetBody(BaseModel):
+    name: str
+    color: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/color_selection_set")
+def color_selection_set_api(
+    body: ColorSelectionSetBody,
+) -> dict[str, Any]:
+    """Set/clear color chip on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.color_selection_set(
+            body.name,
+            body.color,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"color_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

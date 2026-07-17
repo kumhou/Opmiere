@@ -17838,6 +17838,71 @@ async function whiteBalanceSelectionSetUi() {
   }
 }
 
+async function chromaKeySelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Chroma key named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ChromaSet cancelled";
+      return;
+    }
+    const color = window.prompt("key color (green/blue)", "green");
+    if (color === null) {
+      $("status-msg").textContent = "ChromaSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ChromaSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      color?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/chroma_key_selection_set", {
+      name,
+      color: color.trim() || "green",
+      similarity: 0.15,
+      blend: 0.05,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ChromaSet · ${r.selection_set || name} color=${r.color ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ChromaSet failed: ${e}`);
+    $("status-msg").textContent = `ChromaSet failed: ${e}`;
+  }
+}
+
+async function colorSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Color chip named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ChipSet cancelled";
+      return;
+    }
+    const color = window.prompt("chip color (empty=clear)", "red");
+    if (color === null) {
+      $("status-msg").textContent = "ChipSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ChipSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/color_selection_set", {
+      name,
+      color: color.trim() || null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ChipSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ChipSet failed: ${e}`);
+    $("status-msg").textContent = `ChipSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22478,6 +22543,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rotate-set", () => void rotateSelectionSetUi());
   proBind("btn-curves-set", () => void curvesSelectionSetUi());
   proBind("btn-wb-set", () => void whiteBalanceSelectionSetUi());
+  proBind("btn-chroma-set", () => void chromaKeySelectionSetUi());
+  proBind("btn-chip-set", () => void colorSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

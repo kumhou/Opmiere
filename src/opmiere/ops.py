@@ -18210,6 +18210,69 @@ class Editor:
             ),
         }
 
+    def chroma_key_selection_set(
+        self,
+        name: str,
+        *,
+        color: str = "green",
+        similarity: float = 0.15,
+        blend: float = 0.05,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then chroma_key_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.chroma_key_selection(
+            ids,
+            color=str(color),
+            similarity=float(similarity),
+            blend=float(blend),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Chroma key on named set. Color chip: "
+                "color_selection_set. Effects: "
+                "selection_set_effects_report."
+            ),
+        }
+
+    def color_selection_set(
+        self,
+        name: str,
+        color: str | None,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then color_selection (label chip, writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.color_selection(ids, color)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Color chip on named set (None clears). Chroma: "
+                "chroma_key_selection_set. Meta: "
+                "set_selection_set_meta."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18307,6 +18370,8 @@ class Editor:
                     {"id": "rotate_selection_set", "writes": True},
                     {"id": "curves_selection_set", "writes": True},
                     {"id": "white_balance_selection_set", "writes": True},
+                    {"id": "chroma_key_selection_set", "writes": True},
+                    {"id": "color_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

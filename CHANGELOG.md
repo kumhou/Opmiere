@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.40 — 2026-07-17
+
+### Added
+- `chroma_key_selection_set` / `color_selection_set` + **ChromaSet** / **ChipSet**
+
 ## 0.9.39 — 2026-07-17
 
 ### Added

@@ -8556,6 +8556,38 @@ def white_balance_selection_set(
 
 
 @mcp.tool()
+def chroma_key_selection_set(
+    name: str,
+    color: str = "green",
+    similarity: float = 0.15,
+    blend: float = 0.05,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply chroma key to clips in a named selection set."""
+    return _require_editor().chroma_key_selection_set(
+        name,
+        color=color,
+        similarity=similarity,
+        blend=blend,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def color_selection_set(
+    name: str,
+    color: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Set or clear color chip on clips in a named selection set."""
+    return _require_editor().color_selection_set(
+        name,
+        color,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
