@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.6 — 2026-07-17
+
+### Added
+- `validate_selection_set` / `repair_selection_set` + **SetVal** / **SetRep**
+
 ## 0.7.5 — 2026-07-17
 
 ### Added

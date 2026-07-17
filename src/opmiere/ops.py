@@ -14221,6 +14221,90 @@ class Editor:
             ),
         }
 
+    def validate_selection_set(
+        self,
+        name: str,
+        *,
+        min_clip_seconds: float = 0.4,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then validate_selection."""
+        loaded = self.load_selection_set(
+            name,
+            set_work_area=set_work_area,
+            drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        val = self.validate_selection(
+            ids,
+            min_clip_seconds=min_clip_seconds,
+            set_work_area=False,
+        )
+        return {
+            **val,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "missing_count": loaded.get("missing_count") or 0,
+                "note": loaded.get("note") or "",
+            },
+            "agent_note": (
+                "Named-set validate. Repair: repair_selection_set. "
+                "Status: selection_set_status."
+            ),
+        }
+
+    def repair_selection_set(
+        self,
+        name: str,
+        *,
+        unlock: bool = True,
+        ensure_proxies: bool = False,
+        pack_gaps: bool = False,
+        gap_frames: int = 0,
+        strip_path_c_unmapped: bool = False,
+        set_work_area: bool = False,
+        proxy_height: int = 360,
+    ) -> dict[str, Any]:
+        """Load named selection set then repair_selection."""
+        loaded = self.load_selection_set(
+            name,
+            set_work_area=set_work_area,
+            drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.repair_selection(
+            ids,
+            unlock=unlock,
+            ensure_proxies=ensure_proxies,
+            pack_gaps=pack_gaps,
+            gap_frames=gap_frames,
+            strip_path_c_unmapped=strip_path_c_unmapped,
+            set_work_area=False,
+            proxy_height=proxy_height,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "missing_count": loaded.get("missing_count") or 0,
+                "note": loaded.get("note") or "",
+            },
+            "agent_note": (
+                "Named-set repair. Validate: validate_selection_set. "
+                "Finish: agent_finish_selection_set."
+            ),
+        }
+
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"
 

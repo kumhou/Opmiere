@@ -14621,6 +14621,66 @@ async function batchRunSelectionPipelinePresetUi() {
   }
 }
 
+async function validateSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Validate selection set name");
+    if (!name) {
+      $("status-msg").textContent = "SetVal cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetVal ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      hard_fails?: unknown;
+      soft_warns?: unknown;
+      timeline?: TimelineView;
+    }>("/api/edit/validate_selection_set", {
+      name,
+      min_clip_seconds: 0.4,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetVal · ${r.selection_set || name} ok=${r.ok ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetVal failed: ${e}`);
+    $("status-msg").textContent = `SetVal failed: ${e}`;
+  }
+}
+
+async function repairSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Repair selection set name");
+    if (!name) {
+      $("status-msg").textContent = "SetRep cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetRep ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      steps?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/repair_selection_set", {
+      name,
+      unlock: true,
+      ensure_proxies: false,
+      pack_gaps: false,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetRep · ${r.selection_set || name} ok=${r.ok ?? "?"} steps=${(r.steps || []).length}`;
+  } catch (e) {
+    setProOut(`SetRep failed: ${e}`);
+    $("status-msg").textContent = `SetRep failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19112,6 +19172,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-copy-pipe-pre", () => void copySelectionPipelinePresetUi());
   proBind("btn-batch-set-stat", () => void batchSelectionSetsStatusUi());
   proBind("btn-batch-pipe", () => void batchRunSelectionPipelinePresetUi());
+  proBind("btn-val-sel-set", () => void validateSelectionSetUi());
+  proBind("btn-rep-sel-set", () => void repairSelectionSetUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

@@ -6857,6 +6857,44 @@ def batch_run_selection_pipeline_preset(
 
 
 @mcp.tool()
+def validate_selection_set(
+    name: str,
+    min_clip_seconds: float = 0.4,
+    set_work_area: bool = False,
+) -> dict:
+    """Load named selection set then validate_selection."""
+    return _require_editor().validate_selection_set(
+        name,
+        min_clip_seconds=min_clip_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def repair_selection_set(
+    name: str,
+    unlock: bool = True,
+    ensure_proxies: bool = False,
+    pack_gaps: bool = False,
+    gap_frames: int = 0,
+    strip_path_c_unmapped: bool = False,
+    set_work_area: bool = False,
+    proxy_height: int = 360,
+) -> dict:
+    """Load named selection set then repair_selection."""
+    return _require_editor().repair_selection_set(
+        name,
+        unlock=unlock,
+        ensure_proxies=ensure_proxies,
+        pack_gaps=pack_gaps,
+        gap_frames=gap_frames,
+        strip_path_c_unmapped=strip_path_c_unmapped,
+        set_work_area=set_work_area,
+        proxy_height=proxy_height,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

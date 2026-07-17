@@ -11507,6 +11507,62 @@ def batch_run_selection_pipeline_preset_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ValidateSelectionSetBody(BaseModel):
+    name: str
+    min_clip_seconds: float = 0.4
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/validate_selection_set")
+def validate_selection_set_api(body: ValidateSelectionSetBody) -> dict[str, Any]:
+    """Validate a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.validate_selection_set(
+            body.name,
+            min_clip_seconds=body.min_clip_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"validate_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RepairSelectionSetBody(BaseModel):
+    name: str
+    unlock: bool = True
+    ensure_proxies: bool = False
+    pack_gaps: bool = False
+    gap_frames: int = 0
+    strip_path_c_unmapped: bool = False
+    set_work_area: bool = False
+    proxy_height: int = 360
+
+
+@app.post("/api/edit/repair_selection_set")
+def repair_selection_set_api(body: RepairSelectionSetBody) -> dict[str, Any]:
+    """Repair a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.repair_selection_set(
+            body.name,
+            unlock=body.unlock,
+            ensure_proxies=body.ensure_proxies,
+            pack_gaps=body.pack_gaps,
+            gap_frames=body.gap_frames,
+            strip_path_c_unmapped=body.strip_path_c_unmapped,
+            set_work_area=body.set_work_area,
+            proxy_height=body.proxy_height,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"repair_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]
