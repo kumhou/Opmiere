@@ -6603,6 +6603,48 @@ def export_selection_checklist(
 
 
 @mcp.tool()
+def repair_selection(
+    clip_ids: list[str],
+    unlock: bool = True,
+    ensure_proxies: bool = True,
+    pack_gaps: bool = False,
+    gap_frames: int = 0,
+    strip_path_c_unmapped: bool = False,
+    set_work_area: bool = False,
+    proxy_height: int = 360,
+) -> dict:
+    """Best-effort repair: unlock, proxies, optional pack/strip, re-validate."""
+    return _require_editor().repair_selection(
+        clip_ids,
+        unlock=unlock,
+        ensure_proxies=ensure_proxies,
+        pack_gaps=pack_gaps,
+        gap_frames=gap_frames,
+        strip_path_c_unmapped=strip_path_c_unmapped,
+        set_work_area=set_work_area,
+        proxy_height=proxy_height,
+    )
+
+
+@mcp.tool()
+def export_selection_stills_default(
+    clip_ids: list[str],
+    edge: str = "mid",
+    width: int = 640,
+    ext: str = "jpg",
+    subdir: str = "selection_stills",
+) -> dict:
+    """Export selection stills into project exports/<subdir>/."""
+    return _require_editor().export_selection_stills_default(
+        clip_ids,
+        edge=edge,
+        width=width,
+        ext=ext,
+        subdir=subdir,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

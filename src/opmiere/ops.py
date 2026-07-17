@@ -13194,6 +13194,111 @@ class Editor:
             "agent_note": "Checklist written. In-memory: selection_checklist.",
         }
 
+    def repair_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        unlock: bool = True,
+        ensure_proxies: bool = True,
+        pack_gaps: bool = False,
+        gap_frames: int = 0,
+        strip_path_c_unmapped: bool = False,
+        set_work_area: bool = False,
+        proxy_height: int = 360,
+    ) -> dict[str, Any]:
+        """Best-effort repair: unlock tracks, proxies, optional pack/strip, re-validate.
+
+        Does not relink offline media (needs paths). Returns before/after validate.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "steps": [],
+            "ok": False,
+        }
+        try:
+            out["before"] = self.validate_selection(
+                ids, set_work_area=False,
+            )
+        except Exception as e:
+            out["before"] = {"error": str(e)[:400]}
+        if unlock:
+            try:
+                out["unlock"] = self.unlock_selection_tracks(ids)
+                out["steps"].append("unlock_selection_tracks")
+            except Exception as e:
+                out["unlock"] = {"error": str(e)[:400]}
+                out["steps"].append("unlock_selection_tracks:error")
+        if ensure_proxies:
+            try:
+                out["proxies"] = self.ensure_selection_proxies(
+                    ids, height=int(proxy_height),
+                )
+                out["steps"].append("ensure_selection_proxies")
+            except Exception as e:
+                out["proxies"] = {"error": str(e)[:400]}
+                out["steps"].append("ensure_selection_proxies:error")
+        if pack_gaps and len(ids) >= 2:
+            try:
+                out["pack"] = self.pack_selection(
+                    ids, gap_frames=int(gap_frames),
+                )
+                out["steps"].append("pack_selection")
+            except Exception as e:
+                out["pack"] = {"error": str(e)[:400]}
+                out["steps"].append("pack_selection:error")
+        if strip_path_c_unmapped:
+            try:
+                out["strip_path_c"] = self.strip_selection_path_c_unmapped(ids)
+                out["steps"].append("strip_selection_path_c_unmapped")
+            except Exception as e:
+                out["strip_path_c"] = {"error": str(e)[:400]}
+                out["steps"].append("strip_selection_path_c_unmapped:error")
+        if set_work_area:
+            try:
+                out["work_area"] = self.work_area_from_selection(ids)
+                out["steps"].append("work_area_from_selection")
+            except Exception as e:
+                out["work_area"] = {"error": str(e)[:400]}
+                out["steps"].append("work_area_from_selection:error")
+        try:
+            out["after"] = self.validate_selection(
+                ids, set_work_area=False,
+            )
+            out["ok"] = bool(out["after"].get("ok"))
+            out["steps"].append("validate_selection")
+        except Exception as e:
+            out["after"] = {"error": str(e)[:400]}
+            out["steps"].append("validate_selection:error")
+        out["agent_note"] = (
+            "Best-effort repair. Offline media still needs relink. "
+            "Checklist: selection_checklist."
+        )
+        return out
+
+    def export_selection_stills_default(
+        self,
+        clip_ids: list[str],
+        *,
+        edge: str = "mid",
+        width: int = 640,
+        ext: str = "jpg",
+        subdir: str = "selection_stills",
+    ) -> dict[str, Any]:
+        """export_selection_stills into project exports/<subdir>/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        out_dir = Path(self.bundle.root) / "exports" / (subdir or "selection_stills")
+        return self.export_selection_stills(
+            list(dict.fromkeys(clip_ids)),
+            output_dir=out_dir,
+            edge=edge,
+            width=int(width),
+            ext=ext,
+        )
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

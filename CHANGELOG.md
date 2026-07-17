@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.91 — 2026-07-17
+
+### Added
+- `repair_selection` / `export_selection_stills_default` + **RepairSel** / **StillsDef**
+
 ## 0.6.90 — 2026-07-17
 
 ### Added

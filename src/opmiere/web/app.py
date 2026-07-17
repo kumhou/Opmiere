@@ -11116,6 +11116,65 @@ def export_selection_checklist_api(
         ) from e
 
 
+class RepairSelectionBody(BaseModel):
+    clip_ids: list[str]
+    unlock: bool = True
+    ensure_proxies: bool = True
+    pack_gaps: bool = False
+    gap_frames: int = 0
+    strip_path_c_unmapped: bool = False
+    set_work_area: bool = False
+    proxy_height: int = 360
+
+
+@app.post("/api/edit/repair_selection")
+def repair_selection_api(body: RepairSelectionBody) -> dict[str, Any]:
+    """Best-effort selection repair."""
+    ed = _ed()
+    try:
+        r = ed.repair_selection(
+            body.clip_ids,
+            unlock=body.unlock,
+            ensure_proxies=body.ensure_proxies,
+            pack_gaps=body.pack_gaps,
+            gap_frames=body.gap_frames,
+            strip_path_c_unmapped=body.strip_path_c_unmapped,
+            set_work_area=body.set_work_area,
+            proxy_height=body.proxy_height,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"repair_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionStillsDefaultBody(BaseModel):
+    clip_ids: list[str]
+    edge: str = "mid"
+    width: int = 640
+    ext: str = "jpg"
+    subdir: str = "selection_stills"
+
+
+@app.post("/api/edit/export_selection_stills_default")
+def export_selection_stills_default_api(
+    body: ExportSelectionStillsDefaultBody,
+) -> dict[str, Any]:
+    """Export selection stills to exports/selection_stills."""
+    ed = _ed()
+    try:
+        return ed.export_selection_stills_default(
+            body.clip_ids,
+            edge=body.edge,
+            width=body.width,
+            ext=body.ext,
+            subdir=body.subdir,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_stills_default failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
