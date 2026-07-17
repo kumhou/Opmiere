@@ -10320,6 +10320,68 @@ def clear_selection_timecodes_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ApplySelectionReviewOverlaysBody(BaseModel):
+    clip_ids: list[str]
+    watermark: str | None = "REVIEW"
+    safe_area: bool = True
+    timecode: bool = True
+    watermark_position: str = "bottom"
+    timecode_position: str = "bottom"
+    video_only: bool = True
+
+
+@app.post("/api/edit/apply_selection_review_overlays")
+def apply_selection_review_overlays_api(
+    body: ApplySelectionReviewOverlaysBody,
+) -> dict[str, Any]:
+    """One-shot review overlays on selection."""
+    ed = _ed()
+    try:
+        r = ed.apply_selection_review_overlays(
+            body.clip_ids,
+            watermark=body.watermark,
+            safe_area=body.safe_area,
+            timecode=body.timecode,
+            watermark_position=body.watermark_position,
+            timecode_position=body.timecode_position,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_selection_review_overlays failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionReviewOverlaysBody(BaseModel):
+    clip_ids: list[str]
+    watermark: bool = True
+    safe_area: bool = True
+    timecode: bool = True
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_review_overlays")
+def clear_selection_review_overlays_api(
+    body: ClearSelectionReviewOverlaysBody,
+) -> dict[str, Any]:
+    """Strip all review overlays from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_review_overlays(
+            body.clip_ids,
+            watermark=body.watermark,
+            safe_area=body.safe_area,
+            timecode=body.timecode,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_review_overlays failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

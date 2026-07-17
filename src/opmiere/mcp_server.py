@@ -6142,6 +6142,46 @@ def clear_selection_timecodes(
 
 
 @mcp.tool()
+def apply_selection_review_overlays(
+    clip_ids: list[str],
+    watermark: str | None = "REVIEW",
+    safe_area: bool = True,
+    timecode: bool = True,
+    watermark_position: str = "bottom",
+    timecode_position: str = "bottom",
+    video_only: bool = True,
+) -> dict:
+    """One-shot watermark + safe_area + timecode on selection (review only)."""
+    return _require_editor().apply_selection_review_overlays(
+        clip_ids,
+        watermark=watermark,
+        safe_area=safe_area,
+        timecode=timecode,
+        watermark_position=watermark_position,
+        timecode_position=timecode_position,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def clear_selection_review_overlays(
+    clip_ids: list[str],
+    watermark: bool = True,
+    safe_area: bool = True,
+    timecode: bool = True,
+    video_only: bool = True,
+) -> dict:
+    """Strip review overlays (watermark/safe_area/timecode) from selection."""
+    return _require_editor().clear_selection_review_overlays(
+        clip_ids,
+        watermark=watermark,
+        safe_area=safe_area,
+        timecode=timecode,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

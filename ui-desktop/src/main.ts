@@ -13143,6 +13143,62 @@ async function clearSelectionTimecodesUi() {
   }
 }
 
+async function applySelectionReviewOverlaysUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for review overlays";
+    return;
+  }
+  $("status-msg").textContent = "Applying review overlays…";
+  try {
+    const r = await postJson<{
+      applied_total?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/apply_selection_review_overlays", {
+      clip_ids: ids,
+      watermark: "REVIEW",
+      safe_area: true,
+      timecode: true,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RevOv · total=${r.applied_total ?? "?"}`;
+  } catch (e) {
+    setProOut(`RevOv failed: ${e}`);
+    $("status-msg").textContent = `RevOv failed: ${e}`;
+  }
+}
+
+async function clearSelectionReviewOverlaysUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear review overlays";
+    return;
+  }
+  $("status-msg").textContent = "Clearing review overlays…";
+  try {
+    const r = await postJson<{
+      cleared_total?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_review_overlays", {
+      clip_ids: ids,
+      watermark: true,
+      safe_area: true,
+      timecode: true,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `RevOvClr · total=${r.cleared_total ?? "?"}`;
+  } catch (e) {
+    setProOut(`RevOvClr failed: ${e}`);
+    $("status-msg").textContent = `RevOvClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17188,6 +17244,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-safe-clr-sel", () => void clearSelectionSafeAreasUi());
   proBind("btn-tc-sel", () => void timecodeSelectionUi());
   proBind("btn-tc-clr-sel", () => void clearSelectionTimecodesUi());
+  proBind("btn-revov-sel", () => void applySelectionReviewOverlaysUi());
+  proBind("btn-revov-clr-sel", () => void clearSelectionReviewOverlaysUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

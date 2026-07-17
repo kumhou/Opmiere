@@ -11630,6 +11630,91 @@ class Editor:
             "agent_note": "Stripped timecode FX only; other effects kept.",
         }
 
+    def apply_selection_review_overlays(
+        self,
+        clip_ids: list[str],
+        *,
+        watermark: str | None = "REVIEW",
+        safe_area: bool = True,
+        timecode: bool = True,
+        watermark_position: str = "bottom",
+        timecode_position: str = "bottom",
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """One-shot review overlays on selection: watermark + safe_area + timecode.
+
+        Pass watermark=None to skip watermark. Remove before final delivery.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        steps: dict[str, Any] = {}
+        if watermark is not None and str(watermark).strip():
+            steps["watermark"] = self.watermark_selection(
+                ids,
+                str(watermark),
+                position=watermark_position,
+                video_only=video_only,
+            )
+        if safe_area:
+            steps["safe_area"] = self.safe_area_selection(
+                ids, video_only=video_only,
+            )
+        if timecode:
+            steps["timecode"] = self.timecode_selection(
+                ids, position=timecode_position, video_only=video_only,
+            )
+        applied_n = 0
+        for v in steps.values():
+            if isinstance(v, dict):
+                applied_n += int(v.get("count") or 0)
+        return {
+            "clip_ids": ids,
+            "steps": steps,
+            "applied_total": applied_n,
+            "agent_note": (
+                "Review overlays applied. Clear: clear_selection_review_overlays. "
+                "Do not ship final with these FX."
+            ),
+        }
+
+    def clear_selection_review_overlays(
+        self,
+        clip_ids: list[str],
+        *,
+        watermark: bool = True,
+        safe_area: bool = True,
+        timecode: bool = True,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Strip review overlays (watermark / safe_area / timecode) from selection."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        steps: dict[str, Any] = {}
+        if watermark:
+            steps["watermark"] = self.clear_selection_watermarks(
+                ids, video_only=video_only,
+            )
+        if safe_area:
+            steps["safe_area"] = self.clear_selection_safe_areas(
+                ids, video_only=video_only,
+            )
+        if timecode:
+            steps["timecode"] = self.clear_selection_timecodes(
+                ids, video_only=video_only,
+            )
+        cleared_n = 0
+        for v in steps.values():
+            if isinstance(v, dict):
+                cleared_n += int(v.get("count") or 0)
+        return {
+            "clip_ids": ids,
+            "steps": steps,
+            "cleared_total": cleared_n,
+            "agent_note": "Review overlays stripped; grade/other FX kept.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

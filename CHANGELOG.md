@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.73 — 2026-07-17
+
+### Added
+- `apply_selection_review_overlays` / `clear_selection_review_overlays` + **RevOv** / **RevOvClr**
+
 ## 0.6.72 — 2026-07-17
 
 ### Added
