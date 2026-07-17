@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.59 — 2026-07-17
+
+### Added
+- `duplicate_selection_set_block` / `align_selection_set_ends` + **DupBlockSet** / **AlignEndsSet**
+
 ## 0.9.58 — 2026-07-17
 
 ### Added

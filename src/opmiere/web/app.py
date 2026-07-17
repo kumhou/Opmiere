@@ -15459,6 +15459,56 @@ def ripple_trim_selection_set_edges_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class DuplicateSelectionSetBlockBody(BaseModel):
+    name: str
+    gap_frames: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/duplicate_selection_set_block")
+def duplicate_selection_set_block_api(
+    body: DuplicateSelectionSetBlockBody,
+) -> dict[str, Any]:
+    """Duplicate a named selection set as a rigid block."""
+    ed = _ed()
+    try:
+        r = ed.duplicate_selection_set_block(
+            body.name,
+            gap_frames=body.gap_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"duplicate_selection_set_block failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class AlignSelectionSetEndsBody(BaseModel):
+    name: str
+    to_frame: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/align_selection_set_ends")
+def align_selection_set_ends_api(
+    body: AlignSelectionSetEndsBody,
+) -> dict[str, Any]:
+    """Align named selection set clip ends to a frame."""
+    ed = _ed()
+    try:
+        r = ed.align_selection_set_ends(
+            body.name,
+            to_frame=body.to_frame,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"align_selection_set_ends failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

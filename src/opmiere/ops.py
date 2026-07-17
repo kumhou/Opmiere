@@ -19506,6 +19506,64 @@ class Editor:
             ),
         }
 
+    def duplicate_selection_set_block(
+        self,
+        name: str,
+        *,
+        gap_frames: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then duplicate_selection_block (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.duplicate_selection_block(
+            ids, gap_frames=int(gap_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Rigid block copy of named set after span end. "
+                "Align ends: align_selection_set_ends. "
+                "Duplicate set: duplicate_selection_set."
+            ),
+        }
+
+    def align_selection_set_ends(
+        self,
+        name: str,
+        *,
+        to_frame: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then align_selection_ends (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.align_selection_ends(ids, to_frame=to_frame)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Align ends of named-set clips. Block copy: "
+                "duplicate_selection_set_block. Nudge: "
+                "nudge_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19641,6 +19699,8 @@ class Editor:
                     {"id": "markers_from_selection_set", "writes": True},
                     {"id": "match_frame_selection_set", "writes": False},
                     {"id": "ripple_trim_selection_set_edges", "writes": True},
+                    {"id": "duplicate_selection_set_block", "writes": True},
+                    {"id": "align_selection_set_ends", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

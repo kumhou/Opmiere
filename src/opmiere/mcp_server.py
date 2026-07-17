@@ -9232,6 +9232,34 @@ def ripple_trim_selection_set_edges(
 
 
 @mcp.tool()
+def duplicate_selection_set_block(
+    name: str,
+    gap_frames: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Duplicate named selection set as a rigid block after the union end."""
+    return _require_editor().duplicate_selection_set_block(
+        name,
+        gap_frames=gap_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def align_selection_set_ends(
+    name: str,
+    to_frame: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Align each named-set clip end to to_frame (default max end)."""
+    return _require_editor().align_selection_set_ends(
+        name,
+        to_frame=to_frame,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

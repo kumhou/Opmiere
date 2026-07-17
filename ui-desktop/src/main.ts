@@ -19096,6 +19096,66 @@ async function rippleTrimSelectionSetEdgesUi() {
   }
 }
 
+async function duplicateSelectionSetBlockUi() {
+  try {
+    const name = await promptSelectionSetName("Duplicate block named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DupBlockSet cancelled";
+      return;
+    }
+    const rawGap = window.prompt("gap_frames", "0");
+    if (rawGap === null) {
+      $("status-msg").textContent = "DupBlockSet cancelled";
+      return;
+    }
+    const gap_frames = Number(rawGap);
+    $("status-msg").textContent = `DupBlockSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      gap_frames?: number;
+    }>("/api/edit/duplicate_selection_set_block", {
+      name,
+      gap_frames: Number.isFinite(gap_frames) ? gap_frames : 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DupBlockSet · ${r.selection_set || name} dups=${r.count ?? "?"} gap=${r.gap_frames ?? gap_frames} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DupBlockSet failed: ${e}`);
+    $("status-msg").textContent = `DupBlockSet failed: ${e}`;
+  }
+}
+
+async function alignSelectionSetEndsUi() {
+  try {
+    const name = await promptSelectionSetName("Align ends named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "AlignEndsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `AlignEndsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      to_frame?: number;
+      clip_count?: number;
+    }>("/api/edit/align_selection_set_ends", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AlignEndsSet · ${r.selection_set || name} to=${r.to_frame ?? "?"} moved=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`AlignEndsSet failed: ${e}`);
+    $("status-msg").textContent = `AlignEndsSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23774,6 +23834,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-mkr-from-set", () => void markersFromSelectionSetUi());
   proBind("btn-match-fr-set", () => void matchFrameSelectionSetUi());
   proBind("btn-rip-trim-set", () => void rippleTrimSelectionSetEdgesUi());
+  proBind("btn-dup-block-set", () => void duplicateSelectionSetBlockUi());
+  proBind("btn-align-ends-set", () => void alignSelectionSetEndsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
