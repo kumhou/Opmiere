@@ -12241,6 +12241,74 @@ def export_selection_set_contact_sheet_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetClientPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_card: bool = True
+    include_stills: bool = True
+    include_export: bool = True
+    include_review_export: bool = False
+    normalize_preset: str | None = None
+    stills_width: int = 640
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_client_pack")
+def export_selection_set_client_pack_api(
+    body: ExportSelectionSetClientPackBody,
+) -> dict[str, Any]:
+    """Export client pack for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_client_pack(
+            body.name,
+            out_dir=body.out_dir,
+            include_card=body.include_card,
+            include_stills=body.include_stills,
+            include_export=body.include_export,
+            include_review_export=body.include_review_export,
+            normalize_preset=body.normalize_preset,
+            stills_width=body.stills_width,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_client_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetSocialPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    variants: list[str] | None = None
+    normalize_preset: str | None = None
+    name_prefix: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_social_pack")
+def export_selection_set_social_pack_api(
+    body: ExportSelectionSetSocialPackBody,
+) -> dict[str, Any]:
+    """Export social pack for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_social_pack(
+            body.name,
+            out_dir=body.out_dir,
+            variants=body.variants,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_social_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

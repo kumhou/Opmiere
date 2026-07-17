@@ -15566,7 +15566,111 @@ class Editor:
             "export_path": path,
             "agent_note": (
                 "Contact sheet from named set. Stills: "
-                "export_selection_set_stills."
+                "export_selection_set_stills. Client pack: "
+                "export_selection_set_client_pack. Social: "
+                "export_selection_set_social_pack."
+            ),
+        }
+
+    def export_selection_set_client_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_card: bool = True,
+        include_stills: bool = True,
+        include_export: bool = True,
+        include_review_export: bool = False,
+        normalize_preset: str | None = None,
+        stills_width: int = 640,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export client handoff pack."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_client_pack"
+        )
+        r = self.export_selection_client_pack(
+            ids,
+            out_dir=root,
+            include_card=include_card,
+            include_stills=include_stills,
+            include_export=include_export,
+            include_review_export=include_review_export,
+            normalize_preset=normalize_preset,
+            stills_width=int(stills_width),
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "out_dir": str(root.resolve()),
+            "agent_note": (
+                "Client pack from named set. Social variants: "
+                "export_selection_set_social_pack."
+            ),
+        }
+
+    def export_selection_set_social_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        variants: list[str] | None = None,
+        normalize_preset: str | None = None,
+        name_prefix: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export social canvas MP4 pack."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_social"
+        )
+        prefix = name_prefix if name_prefix is not None else f"selection_set_{safe}"
+        r = self.export_selection_social_pack(
+            ids,
+            out_dir=root,
+            variants=variants,
+            normalize_preset=normalize_preset,
+            name_prefix=prefix,
+        )
+        return {
+            **r,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "out_dir": str(root.resolve()),
+            "agent_note": (
+                "Social pack from named set. Client handoff: "
+                "export_selection_set_client_pack."
             ),
         }
 

@@ -15357,6 +15357,67 @@ async function exportSelectionSetContactSheetUi() {
   }
 }
 
+async function exportSelectionSetClientPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export set client pack (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetClient cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetClient ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_client_pack", {
+      name,
+      include_card: true,
+      include_stills: true,
+      include_export: true,
+      include_review_export: false,
+      stills_width: 640,
+      normalize_preset: null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetClient · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetClient failed: ${e}`);
+    $("status-msg").textContent = `SetClient failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetSocialPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export set social pack (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetSocial cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetSocial ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/export_selection_set_social_pack", {
+      name,
+      variants: ["square"],
+      normalize_preset: null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetSocial · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetSocial failed: ${e}`);
+    $("status-msg").textContent = `SetSocial failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19872,6 +19933,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-fmt-pack", () => void exportSelectionSetFormatsPackUi());
   proBind("btn-set-stills", () => void exportSelectionSetStillsUi());
   proBind("btn-set-sheet", () => void exportSelectionSetContactSheetUi());
+  proBind("btn-set-client", () => void exportSelectionSetClientPackUi());
+  proBind("btn-set-social", () => void exportSelectionSetSocialPackUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

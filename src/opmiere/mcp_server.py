@@ -7331,6 +7331,52 @@ def export_selection_set_contact_sheet(
 
 
 @mcp.tool()
+def export_selection_set_client_pack(
+    name: str,
+    out_dir: str | None = None,
+    include_card: bool = True,
+    include_stills: bool = True,
+    include_export: bool = True,
+    include_review_export: bool = False,
+    normalize_preset: str | None = None,
+    stills_width: int = 640,
+    set_work_area: bool = False,
+) -> dict:
+    """Export client handoff pack for a named selection set."""
+    return _require_editor().export_selection_set_client_pack(
+        name,
+        out_dir=out_dir,
+        include_card=include_card,
+        include_stills=include_stills,
+        include_export=include_export,
+        include_review_export=include_review_export,
+        normalize_preset=normalize_preset,
+        stills_width=stills_width,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_social_pack(
+    name: str,
+    out_dir: str | None = None,
+    variants: list[str] | None = None,
+    normalize_preset: str | None = None,
+    name_prefix: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export social canvas pack for a named selection set."""
+    return _require_editor().export_selection_set_social_pack(
+        name,
+        out_dir=out_dir,
+        variants=variants,
+        normalize_preset=normalize_preset,
+        name_prefix=name_prefix,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

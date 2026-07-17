@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.8 — 2026-07-17
+
+### Added
+- `export_selection_set_client_pack` / `export_selection_set_social_pack` + **SetClient** / **SetSocial**
+
 ## 0.8.7 — 2026-07-17
 
 ### Added
