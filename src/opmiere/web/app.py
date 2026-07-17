@@ -11013,6 +11013,64 @@ def export_selection_client_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ValidateSelectionBody(BaseModel):
+    clip_ids: list[str]
+    min_clip_seconds: float = 0.4
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/validate_selection")
+def validate_selection_api(body: ValidateSelectionBody) -> dict[str, Any]:
+    """Validate selection export readiness."""
+    ed = _ed()
+    try:
+        r = ed.validate_selection(
+            body.clip_ids,
+            min_clip_seconds=body.min_clip_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"validate_selection failed: {e}") from e
+    if body.set_work_area:
+        return {**r, "timeline": ed.timeline_view()}
+    return r
+
+
+class FinishSelectionSocialPackBody(BaseModel):
+    clip_ids: list[str]
+    variants: list[str] | None = None
+    reframe: bool = False
+    aspect: str = "9:16"
+    prepare: bool = False
+    normalize_preset: str | None = None
+    name_prefix: str = "selection"
+    out_dir: str | None = None
+
+
+@app.post("/api/edit/finish_selection_social_pack")
+def finish_selection_social_pack_api(
+    body: FinishSelectionSocialPackBody,
+) -> dict[str, Any]:
+    """Social pack finish pipeline."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_social_pack(
+            body.clip_ids,
+            variants=body.variants,
+            reframe=body.reframe,
+            aspect=body.aspect,
+            prepare=body.prepare,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+            out_dir=body.out_dir,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_social_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

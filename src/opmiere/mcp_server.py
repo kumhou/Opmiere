@@ -6536,6 +6536,44 @@ def export_selection_client_pack(
 
 
 @mcp.tool()
+def validate_selection(
+    clip_ids: list[str],
+    min_clip_seconds: float = 0.4,
+    set_work_area: bool = False,
+) -> dict:
+    """Hard/soft export readiness gates for selection."""
+    return _require_editor().validate_selection(
+        clip_ids,
+        min_clip_seconds=min_clip_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def finish_selection_social_pack(
+    clip_ids: list[str],
+    variants: list[str] | None = None,
+    reframe: bool = False,
+    aspect: str = "9:16",
+    prepare: bool = False,
+    normalize_preset: str | None = None,
+    name_prefix: str = "selection",
+    out_dir: str | None = None,
+) -> dict:
+    """Optional reframe/prepare then multi-canvas social pack export."""
+    return _require_editor().finish_selection_social_pack(
+        clip_ids,
+        variants=variants,
+        reframe=reframe,
+        aspect=aspect,
+        prepare=prepare,
+        normalize_preset=normalize_preset,
+        name_prefix=name_prefix,
+        out_dir=out_dir,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

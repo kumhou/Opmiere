@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.89 — 2026-07-17
+
+### Added
+- `validate_selection` / `finish_selection_social_pack` + **ValSel** / **SocPack**
+
 ## 0.6.88 — 2026-07-17
 
 ### Added

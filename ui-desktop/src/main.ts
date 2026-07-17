@@ -13871,6 +13871,60 @@ async function exportSelectionClientPackUi() {
   }
 }
 
+async function validateSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to validate";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      hard_count?: number;
+      soft_count?: number;
+      hard_fails?: string[];
+    }>("/api/edit/validate_selection", {
+      clip_ids: ids,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ValSel · ok=${r.ok ?? "?"} hard=${r.hard_count ?? "?"} soft=${r.soft_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ValSel failed: ${e}`);
+    $("status-msg").textContent = `ValSel failed: ${e}`;
+  }
+}
+
+async function finishSelectionSocialPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for social pack finish";
+    return;
+  }
+  $("status-msg").textContent = "Finishing selection social pack…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      out_dir?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/finish_selection_social_pack", {
+      clip_ids: ids,
+      variants: ["square"],
+      reframe: false,
+      prepare: false,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SocPack · ok=${r.ok ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SocPack failed: ${e}`);
+    $("status-msg").textContent = `SocPack failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17946,6 +18000,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-trk-rep-sel", () => void selectionTrackReportUi());
   proBind("btn-fin-rev-sel", () => void finishSelectionReviewExportUi());
   proBind("btn-client-pack-sel", () => void exportSelectionClientPackUi());
+  proBind("btn-val-sel", () => void validateSelectionUi());
+  proBind("btn-soc-pack-fin", () => void finishSelectionSocialPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -12894,6 +12894,142 @@ class Editor:
             ),
         }
 
+    def validate_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        min_clip_seconds: float = 0.4,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Hard/soft gate card for selection export readiness (read-only by default).
+
+        Combines export preflight, review, media health. ok=no hard fails.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        pre = self.selection_export_preflight(
+            ids, set_work_area=bool(set_work_area),
+        )
+        review = self.review_selection(
+            ids, min_clip_seconds=float(min_clip_seconds),
+        )
+        health = self.selection_media_health(ids)
+        hard: list[str] = []
+        soft: list[str] = []
+        offline_n = int(health.get("offline_count") or pre.get("offline_count") or 0)
+        if offline_n > 0:
+            hard.append(f"offline_media:{offline_n}")
+        locked_n = int(pre.get("locked_count") or 0)
+        if locked_n > 0:
+            hard.append(f"locked_tracks:{locked_n}")
+        if pre.get("empty_span") or (
+            isinstance(pre.get("span"), dict)
+            and int(pre["span"].get("end_frame") or 0)
+            <= int(pre["span"].get("start_frame") or 0)
+        ):
+            hard.append("empty_span")
+        short_n = len(review.get("short_clips") or []) if isinstance(review, dict) else 0
+        if short_n:
+            soft.append(f"short_clips:{short_n}")
+        not_ready = int(
+            (health.get("path_c") or {}).get("not_ready_count")
+            if isinstance(health.get("path_c"), dict)
+            else 0
+        )
+        if not_ready:
+            soft.append(f"path_c_not_ready:{not_ready}")
+        gaps_n = 0
+        if isinstance(pre.get("gaps"), dict):
+            gaps_n = int(pre["gaps"].get("count") or 0)
+        if gaps_n:
+            soft.append(f"gaps:{gaps_n}")
+        ok = len(hard) == 0
+        return {
+            "ok": ok,
+            "hard_fails": hard,
+            "soft_warns": soft,
+            "hard_count": len(hard),
+            "soft_count": len(soft),
+            "preflight": pre,
+            "review": review,
+            "health": health,
+            "clip_ids": ids,
+            "next_steps": (
+                []
+                if ok
+                else [
+                    "relink offline media",
+                    "unlock_selection_tracks",
+                    "selection_agent_preflight",
+                ]
+            ),
+            "agent_note": (
+                "ok=no hard fails (offline/locked/empty). "
+                "soft_warns are craft hints. Full: selection_agent_preflight."
+            ),
+        }
+
+    def finish_selection_social_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        variants: list[str] | None = None,
+        reframe: bool = False,
+        aspect: str = "9:16",
+        prepare: bool = False,
+        normalize_preset: str | None = None,
+        name_prefix: str = "selection",
+        out_dir: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """Social pack finish: optional reframe/prepare → export_selection_social_pack."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "steps": [],
+            "ok": False,
+        }
+        if reframe:
+            try:
+                out["reframe"] = self.reframe_selection(
+                    ids, aspect=aspect, video_only=True,
+                )
+                out["steps"].append("reframe_selection")
+            except Exception as e:
+                out["reframe"] = {"error": str(e)[:400]}
+                out["steps"].append("reframe_selection:error")
+        if prepare:
+            try:
+                out["prepare"] = self.prepare_selection_export(ids)
+                out["steps"].append("prepare_selection_export")
+            except Exception as e:
+                out["prepare"] = {"error": str(e)[:400]}
+                out["steps"].append("prepare_selection_export:error")
+        try:
+            pack = self.export_selection_social_pack(
+                ids,
+                out_dir=out_dir,
+                variants=variants,
+                normalize_preset=normalize_preset,
+                name_prefix=name_prefix,
+            )
+            out["pack"] = pack
+            out["steps"].append("export_selection_social_pack")
+            out["out_dir"] = pack.get("out_dir")
+            out["ok"] = int(pack.get("count") or 0) > 0 and int(
+                pack.get("error_count") or 0
+            ) == 0
+        except Exception as e:
+            out["pack"] = {"error": str(e)[:400]}
+            out["steps"].append("export_selection_social_pack:error")
+        out["agent_note"] = (
+            "Social pack finish. Single canvas: finish_selection_social / "
+            "export_selection_social."
+        )
+        return out
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
