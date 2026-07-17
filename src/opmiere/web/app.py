@@ -11797,6 +11797,60 @@ def export_selection_set_cutlist_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetFcpxmlBody(BaseModel):
+    name: str
+    path: str | None = None
+    filename: str | None = None
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_set_fcpxml")
+def export_selection_set_fcpxml_api(
+    body: ExportSelectionSetFcpxmlBody,
+) -> dict[str, Any]:
+    """Export FCPXML for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_fcpxml(
+            body.name,
+            path=body.path,
+            filename=body.filename,
+            title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_fcpxml failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetOtioBody(BaseModel):
+    name: str
+    path: str | None = None
+    filename: str | None = None
+    title: str | None = None
+
+
+@app.post("/api/edit/export_selection_set_otio")
+def export_selection_set_otio_api(
+    body: ExportSelectionSetOtioBody,
+) -> dict[str, Any]:
+    """Export OTIO-like JSON for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_otio(
+            body.name,
+            path=body.path,
+            filename=body.filename,
+            title=body.title,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_otio failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

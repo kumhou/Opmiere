@@ -14932,6 +14932,52 @@ async function exportSelectionSetCutlistUi() {
   }
 }
 
+async function exportSelectionSetFcpxmlUi() {
+  try {
+    const name = await promptSelectionSetName("Export set FCPXML (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetFCP cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetFCP ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_fcpxml", { name });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetFCP · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetFCP failed: ${e}`);
+    $("status-msg").textContent = `SetFCP failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetOtioUi() {
+  try {
+    const name = await promptSelectionSetName("Export set OTIO (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetOTIO cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetOTIO ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_otio", { name });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetOTIO · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetOTIO failed: ${e}`);
+    $("status-msg").textContent = `SetOTIO failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19433,6 +19479,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-edl", () => void exportSelectionSetEdlUi());
   proBind("btn-mkr-to-set", () => void markersToSelectionSetUi());
   proBind("btn-set-cutlist", () => void exportSelectionSetCutlistUi());
+  proBind("btn-set-fcpxml", () => void exportSelectionSetFcpxmlUi());
+  proBind("btn-set-otio", () => void exportSelectionSetOtioUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

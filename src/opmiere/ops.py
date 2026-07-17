@@ -14824,7 +14824,88 @@ class Editor:
             "format": fmt,
             "agent_note": (
                 "Cutlist from named set. EDL: export_selection_set_edl. "
+                "FCPXML: export_selection_set_fcpxml. OTIO: export_selection_set_otio. "
                 "Markers→set: markers_to_selection_set."
+            ),
+        }
+
+    def export_selection_set_fcpxml(
+        self,
+        name: str,
+        *,
+        path: str | Path | None = None,
+        filename: str | None = None,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Load named selection set and export minimal FCPXML under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        ttl = title or f"selection_set:{name}"
+        if path is not None:
+            r = self.export_selection_fcpxml(ids, path=path, title=ttl)
+        else:
+            r = self.export_selection_fcpxml_default(
+                ids,
+                filename=filename or f"selection_set_{safe}.fcpxml",
+                title=ttl,
+            )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "agent_note": (
+                "FCPXML from named set (video spine). OTIO: export_selection_set_otio. "
+                "EDL: export_selection_set_edl."
+            ),
+        }
+
+    def export_selection_set_otio(
+        self,
+        name: str,
+        *,
+        path: str | Path | None = None,
+        filename: str | None = None,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        """Load named selection set and export OTIO-like JSON under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        ttl = title or f"selection_set:{name}"
+        if path is not None:
+            r = self.export_selection_otio_json(ids, path=path, title=ttl)
+        else:
+            r = self.export_selection_otio_default(
+                ids,
+                filename=filename or f"selection_set_{safe}.otio.json",
+                title=ttl,
+            )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "agent_note": (
+                "OTIO-like JSON from named set. FCPXML: export_selection_set_fcpxml. "
+                "Cutlist: export_selection_set_cutlist."
             ),
         }
 

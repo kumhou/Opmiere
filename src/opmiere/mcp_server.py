@@ -7041,6 +7041,38 @@ def export_selection_set_cutlist(
 
 
 @mcp.tool()
+def export_selection_set_fcpxml(
+    name: str,
+    path: str | None = None,
+    filename: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Export FCPXML for a named selection set."""
+    return _require_editor().export_selection_set_fcpxml(
+        name,
+        path=path,
+        filename=filename,
+        title=title,
+    )
+
+
+@mcp.tool()
+def export_selection_set_otio(
+    name: str,
+    path: str | None = None,
+    filename: str | None = None,
+    title: str | None = None,
+) -> dict:
+    """Export OTIO-like JSON for a named selection set."""
+    return _require_editor().export_selection_set_otio(
+        name,
+        path=path,
+        filename=filename,
+        title=title,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

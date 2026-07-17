@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 — 2026-07-17
+
+### Added
+- `export_selection_set_fcpxml` / `export_selection_set_otio` + **SetFCP** / **SetOTIO**
+
 ## 0.8.0 — 2026-07-17
 
 ### Added
