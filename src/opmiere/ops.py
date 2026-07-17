@@ -17285,6 +17285,63 @@ class Editor:
             ),
         }
 
+    def rename_selection_set_from_media(
+        self,
+        name: str,
+        *,
+        suffix_index: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then rename_selection_from_media (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.rename_selection_from_media(
+            ids, suffix_index=bool(suffix_index),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Rename clips from media stems. Strip path-C: "
+                "strip_selection_set_path_c_unmapped. Meta: "
+                "set_selection_set_meta."
+            ),
+        }
+
+    def strip_selection_set_path_c_unmapped(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then strip_selection_path_c_unmapped (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.strip_selection_path_c_unmapped(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Strip path-C unmapped FX from named set. Report: "
+                "selection_set_path_c_report. Rename: "
+                "rename_selection_set_from_media."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17352,6 +17409,8 @@ class Editor:
                     {"id": "rate_stretch_selection_set", "writes": True},
                     {"id": "add_transitions_to_selection_set", "writes": True},
                     {"id": "remove_transitions_from_selection_set", "writes": True},
+                    {"id": "rename_selection_set_from_media", "writes": True},
+                    {"id": "strip_selection_set_path_c_unmapped", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

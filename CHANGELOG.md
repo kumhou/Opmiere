@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.25 — 2026-07-17
+
+### Added
+- `rename_selection_set_from_media` / `strip_selection_set_path_c_unmapped` + **RenMediaSet** / **StripPCSet**
+
 ## 0.9.24 — 2026-07-17
 
 ### Added

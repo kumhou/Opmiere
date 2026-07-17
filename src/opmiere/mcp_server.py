@@ -8088,6 +8088,32 @@ def remove_transitions_from_selection_set(
 
 
 @mcp.tool()
+def rename_selection_set_from_media(
+    name: str,
+    suffix_index: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Rename clips in a named selection set from media filename stems."""
+    return _require_editor().rename_selection_set_from_media(
+        name,
+        suffix_index=suffix_index,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def strip_selection_set_path_c_unmapped(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Strip path-C unmapped effects from a named selection set."""
+    return _require_editor().strip_selection_set_path_c_unmapped(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

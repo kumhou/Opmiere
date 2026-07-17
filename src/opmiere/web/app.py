@@ -13567,6 +13567,54 @@ def remove_transitions_from_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RenameSelectionSetFromMediaBody(BaseModel):
+    name: str
+    suffix_index: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/rename_selection_set_from_media")
+def rename_selection_set_from_media_api(
+    body: RenameSelectionSetFromMediaBody,
+) -> dict[str, Any]:
+    """Rename clips in a named selection set from media stems."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection_set_from_media(
+            body.name,
+            suffix_index=body.suffix_index,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"rename_selection_set_from_media failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class StripSelectionSetPathCUnmappedBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/strip_selection_set_path_c_unmapped")
+def strip_selection_set_path_c_unmapped_api(
+    body: StripSelectionSetPathCUnmappedBody,
+) -> dict[str, Any]:
+    """Strip path-C unmapped effects from a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.strip_selection_set_path_c_unmapped(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"strip_selection_set_path_c_unmapped failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

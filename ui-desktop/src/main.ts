@@ -16846,6 +16846,63 @@ async function removeTransitionsFromSelectionSetUi() {
   }
 }
 
+async function renameSelectionSetFromMediaUi() {
+  try {
+    const name = await promptSelectionSetName("Rename from media stems (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RenMediaSet cancelled";
+      return;
+    }
+    const raw = window.prompt("suffix_index? (true/false)", "false");
+    if (raw === null) {
+      $("status-msg").textContent = "RenMediaSet cancelled";
+      return;
+    }
+    const suffix_index = /^(1|true|yes|on)$/i.test(String(raw).trim());
+    $("status-msg").textContent = `RenMediaSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/rename_selection_set_from_media", {
+      name,
+      suffix_index,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RenMediaSet · ${r.selection_set || name} renamed=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RenMediaSet failed: ${e}`);
+    $("status-msg").textContent = `RenMediaSet failed: ${e}`;
+  }
+}
+
+async function stripSelectionSetPathCUnmappedUi() {
+  try {
+    const name = await promptSelectionSetName("Strip path-C unmapped FX (set name)");
+    if (!name) {
+      $("status-msg").textContent = "StripPCSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `StripPCSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/strip_selection_set_path_c_unmapped", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StripPCSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`StripPCSet failed: ${e}`);
+    $("status-msg").textContent = `StripPCSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21456,6 +21513,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-stretch-set", () => void rateStretchSelectionSetUi());
   proBind("btn-add-x-set", () => void addTransitionsToSelectionSetUi());
   proBind("btn-rm-x-set", () => void removeTransitionsFromSelectionSetUi());
+  proBind("btn-ren-media-set", () => void renameSelectionSetFromMediaUi());
+  proBind("btn-strip-pc-set", () => void stripSelectionSetPathCUnmappedUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
