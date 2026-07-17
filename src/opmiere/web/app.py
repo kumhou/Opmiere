@@ -13371,6 +13371,56 @@ def clear_selection_set_position_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SoloSelectionSetTracksBody(BaseModel):
+    name: str
+    exclusive: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/solo_selection_set_tracks")
+def solo_selection_set_tracks_api(
+    body: SoloSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Solo tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.solo_selection_set_tracks(
+            body.name,
+            exclusive=body.exclusive,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"solo_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSetEffectsBody(BaseModel):
+    name: str
+    types: list[str] | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_effects")
+def clear_selection_set_effects_api(
+    body: ClearSelectionSetEffectsBody,
+) -> dict[str, Any]:
+    """Clear effects on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_effects(
+            body.name,
+            types=body.types,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_effects failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

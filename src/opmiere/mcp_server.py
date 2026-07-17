@@ -7980,6 +7980,34 @@ def clear_selection_set_position(
 
 
 @mcp.tool()
+def solo_selection_set_tracks(
+    name: str,
+    exclusive: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Solo tracks touched by a named selection set."""
+    return _require_editor().solo_selection_set_tracks(
+        name,
+        exclusive=exclusive,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_selection_set_effects(
+    name: str,
+    types: list[str] | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Clear effects on clips in a named selection set."""
+    return _require_editor().clear_selection_set_effects(
+        name,
+        types=types,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

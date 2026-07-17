@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.21 — 2026-07-17
+
+### Added
+- `solo_selection_set_tracks` / `clear_selection_set_effects` + **SoloSetTr** / **ClrFxSet**
+
 ## 0.9.20 — 2026-07-17
 
 ### Added

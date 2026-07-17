@@ -16619,6 +16619,59 @@ async function clearSelectionSetPositionUi() {
   }
 }
 
+async function soloSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Solo tracks of named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SoloSetTr cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SoloSetTr ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+      exclusive?: boolean;
+    }>("/api/edit/solo_selection_set_tracks", {
+      name,
+      exclusive: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SoloSetTr · ${r.selection_set || name} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SoloSetTr failed: ${e}`);
+    $("status-msg").textContent = `SoloSetTr failed: ${e}`;
+  }
+}
+
+async function clearSelectionSetEffectsUi() {
+  try {
+    const name = await promptSelectionSetName("Clear effects on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrFxSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrFxSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/clear_selection_set_effects", {
+      name,
+      types: null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrFxSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrFxSet failed: ${e}`);
+    $("status-msg").textContent = `ClrFxSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21221,6 +21274,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-unlock-set-tr", () => void unlockSelectionSetTracksUi());
   proBind("btn-clr-fade-set", () => void clearSelectionSetFadesUi());
   proBind("btn-clr-pos-set", () => void clearSelectionSetPositionUi());
+  proBind("btn-solo-set-tr", () => void soloSelectionSetTracksUi());
+  proBind("btn-clr-fx-set", () => void clearSelectionSetEffectsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

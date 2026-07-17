@@ -17056,6 +17056,62 @@ class Editor:
             ),
         }
 
+    def solo_selection_set_tracks(
+        self,
+        name: str,
+        *,
+        exclusive: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then solo_selection_tracks (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.solo_selection_tracks(ids, exclusive=bool(exclusive))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Solo tracks of named set. Clear FX: "
+                "clear_selection_set_effects. Mute tracks: "
+                "mute_selection_set_tracks."
+            ),
+        }
+
+    def clear_selection_set_effects(
+        self,
+        name: str,
+        *,
+        types: list[str] | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_effects (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_effects(ids, types=types)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Clear effects on named set. Report: "
+                "selection_set_effects_report. Solo tracks: "
+                "solo_selection_set_tracks."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17115,6 +17171,8 @@ class Editor:
                     {"id": "unlock_selection_set_tracks", "writes": True},
                     {"id": "clear_selection_set_fades", "writes": True},
                     {"id": "clear_selection_set_position", "writes": True},
+                    {"id": "solo_selection_set_tracks", "writes": True},
+                    {"id": "clear_selection_set_effects", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
