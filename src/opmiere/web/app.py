@@ -10764,6 +10764,40 @@ def clear_selection_fades_api(body: ClearSelectionFadesBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionFadesReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_fades_report")
+def selection_fades_report_api(body: SelectionFadesReportBody) -> dict[str, Any]:
+    """Fade report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_fades_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_fades_report failed: {e}",
+        ) from e
+
+
+class SelectionTransitionReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_transition_report")
+def selection_transition_report_api(
+    body: SelectionTransitionReportBody,
+) -> dict[str, Any]:
+    """Transition report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_transition_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_transition_report failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

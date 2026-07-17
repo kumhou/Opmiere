@@ -12377,6 +12377,84 @@ class Editor:
             "agent_note": "Stripped fade FX only. Set: set_selection_fades.",
         }
 
+    def selection_fades_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Read fade-in/out frames for each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        with_fade = 0
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                fades = self.get_clip_fades(cid)
+            except Exception as e:
+                rows.append({"clip_id": cid, "error": str(e)[:200]})
+                continue
+            fi = int(fades.get("fade_in_frames") or 0)
+            fo = int(fades.get("fade_out_frames") or 0)
+            if fi > 0 or fo > 0:
+                with_fade += 1
+            rows.append({
+                "clip_id": cid,
+                "fade_in_frames": fi,
+                "fade_out_frames": fo,
+            })
+        return {
+            "count": len(rows),
+            "with_fades": with_fade,
+            "clips": rows,
+            "agent_note": "Read-only. Set: set_selection_fades. Clear: clear_selection_fades.",
+        }
+
+    def selection_transition_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Report transition_in on selected clips (type/duration if present)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        with_x = 0
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            tr, _ = self._find_clip_and_track(cid)
+            tin = clip.transition_in
+            if tin is None:
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "has_transition": False,
+                })
+                continue
+            with_x += 1
+            if isinstance(tin, dict):
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "has_transition": True,
+                    "type": tin.get("type"),
+                    "duration_frames": tin.get("duration_frames"),
+                    "transition": dict(tin),
+                })
+            else:
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "has_transition": True,
+                    "transition": tin,
+                })
+        return {
+            "count": len(rows),
+            "with_transitions": with_x,
+            "clips": rows,
+            "agent_note": (
+                "Read-only. Add: add_transitions_to_selection. "
+                "Remove: remove_transitions_from_selection."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

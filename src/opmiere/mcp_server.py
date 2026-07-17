@@ -6424,6 +6424,18 @@ def clear_selection_fades(
 
 
 @mcp.tool()
+def selection_fades_report(clip_ids: list[str]) -> dict:
+    """Read fade-in/out frames for selection."""
+    return _require_editor().selection_fades_report(clip_ids)
+
+
+@mcp.tool()
+def selection_transition_report(clip_ids: list[str]) -> dict:
+    """Report transition_in on selection clips."""
+    return _require_editor().selection_transition_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

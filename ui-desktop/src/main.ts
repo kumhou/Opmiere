@@ -13603,6 +13603,46 @@ async function clearSelectionFadesUi() {
   }
 }
 
+async function selectionFadesReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for fades report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      with_fades?: number;
+    }>("/api/edit/selection_fades_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FadeRep · n=${r.count ?? "?"} with=${r.with_fades ?? "?"}`;
+  } catch (e) {
+    setProOut(`FadeRep failed: ${e}`);
+    $("status-msg").textContent = `FadeRep failed: ${e}`;
+  }
+}
+
+async function selectionTransitionReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for transition report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      with_transitions?: number;
+    }>("/api/edit/selection_transition_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `XRep · n=${r.count ?? "?"} with=${r.with_transitions ?? "?"}`;
+  } catch (e) {
+    setProOut(`XRep failed: ${e}`);
+    $("status-msg").textContent = `XRep failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17666,6 +17706,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-lut-sel", () => void applyLutSelectionUi());
   proBind("btn-fade-sel", () => void setSelectionFadesUi());
   proBind("btn-fade-clr-sel", () => void clearSelectionFadesUi());
+  proBind("btn-fade-rep-sel", () => void selectionFadesReportUi());
+  proBind("btn-x-rep-sel", () => void selectionTransitionReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

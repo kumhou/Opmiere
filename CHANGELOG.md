@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.83 — 2026-07-17
+
+### Added
+- `selection_fades_report` / `selection_transition_report` + **FadeRep** / **XRep**
+
 ## 0.6.82 — 2026-07-17
 
 ### Added
