@@ -6226,6 +6226,47 @@ def luma_key_selection(
 
 
 @mcp.tool()
+def shape_mask_selection(
+    clip_ids: list[str],
+    shape: str = "circle",
+    cx: float = 0.5,
+    cy: float = 0.5,
+    size: float = 0.5,
+    feather: float = 0.05,
+    width: float = 0.5,
+    height: float = 0.5,
+    invert: bool = False,
+    replace: bool = True,
+    video_only: bool = True,
+) -> dict:
+    """Apply circle/rect shape mask to selection."""
+    return _require_editor().shape_mask_selection(
+        clip_ids,
+        shape=shape,
+        cx=cx,
+        cy=cy,
+        size=size,
+        feather=feather,
+        width=width,
+        height=height,
+        invert=invert,
+        replace=replace,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def clear_selection_shape_masks(
+    clip_ids: list[str],
+    video_only: bool = True,
+) -> dict:
+    """Remove shape_mask effects from selection."""
+    return _require_editor().clear_selection_shape_masks(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

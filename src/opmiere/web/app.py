@@ -10440,6 +10440,65 @@ def luma_key_selection_api(body: LumaKeySelectionBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ShapeMaskSelectionBody(BaseModel):
+    clip_ids: list[str]
+    shape: str = "circle"
+    cx: float = 0.5
+    cy: float = 0.5
+    size: float = 0.5
+    feather: float = 0.05
+    width: float = 0.5
+    height: float = 0.5
+    invert: bool = False
+    replace: bool = True
+    video_only: bool = True
+
+
+@app.post("/api/edit/shape_mask_selection")
+def shape_mask_selection_api(body: ShapeMaskSelectionBody) -> dict[str, Any]:
+    """Shape mask on selection."""
+    ed = _ed()
+    try:
+        r = ed.shape_mask_selection(
+            body.clip_ids,
+            shape=body.shape,
+            cx=body.cx,
+            cy=body.cy,
+            size=body.size,
+            feather=body.feather,
+            width=body.width,
+            height=body.height,
+            invert=body.invert,
+            replace=body.replace,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"shape_mask_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionShapeMasksBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_shape_masks")
+def clear_selection_shape_masks_api(
+    body: ClearSelectionShapeMasksBody,
+) -> dict[str, Any]:
+    """Strip shape_mask FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_shape_masks(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_shape_masks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

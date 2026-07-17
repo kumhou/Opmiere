@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.76 — 2026-07-17
+
+### Added
+- `shape_mask_selection` / `clear_selection_shape_masks` + **MaskSel** / **MaskClr**
+
 ## 0.6.75 — 2026-07-17
 
 ### Added

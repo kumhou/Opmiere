@@ -13257,6 +13257,60 @@ async function lumaKeySelectionUi() {
   }
 }
 
+async function shapeMaskSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for shape mask";
+    return;
+  }
+  $("status-msg").textContent = "Applying shape mask…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/shape_mask_selection", {
+      clip_ids: ids,
+      shape: "circle",
+      size: 0.5,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MaskSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`MaskSel failed: ${e}`);
+    $("status-msg").textContent = `MaskSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionShapeMasksUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear shape masks";
+    return;
+  }
+  $("status-msg").textContent = "Clearing shape masks…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_shape_masks", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MaskClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MaskClr failed: ${e}`);
+    $("status-msg").textContent = `MaskClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17306,6 +17360,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-revov-clr-sel", () => void clearSelectionReviewOverlaysUi());
   proBind("btn-kb-sel", () => void kenBurnsSelectionUi());
   proBind("btn-luma-sel", () => void lumaKeySelectionUi());
+  proBind("btn-mask-sel", () => void shapeMaskSelectionUi());
+  proBind("btn-mask-clr-sel", () => void clearSelectionShapeMasksUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
