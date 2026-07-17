@@ -7155,6 +7155,50 @@ def export_selection_set_handoff(
 
 
 @mcp.tool()
+def export_selection_set_mp4(
+    name: str,
+    filename: str | None = None,
+    normalize_preset: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named selection set union as MP4 under exports/."""
+    return _require_editor().export_selection_set_mp4(
+        name,
+        filename=filename,
+        normalize_preset=normalize_preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def finish_selection_set_delivery(
+    name: str,
+    filename: str | None = None,
+    prepare: bool = True,
+    unlock_tracks: bool = True,
+    set_work_area: bool = True,
+    pack_gaps: bool = False,
+    run_review: bool = True,
+    write_manifest: bool = True,
+    normalize_preset: str | None = "streaming",
+    delivery_preset: str = "streaming",
+) -> dict:
+    """Load named selection set then finish_selection_delivery."""
+    return _require_editor().finish_selection_set_delivery(
+        name,
+        filename=filename,
+        prepare=prepare,
+        unlock_tracks=unlock_tracks,
+        set_work_area=set_work_area,
+        pack_gaps=pack_gaps,
+        run_review=run_review,
+        write_manifest=write_manifest,
+        normalize_preset=normalize_preset,
+        delivery_preset=delivery_preset,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

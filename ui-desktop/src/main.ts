@@ -15104,6 +15104,71 @@ async function exportSelectionSetHandoffUi() {
   }
 }
 
+async function exportSelectionSetMp4Ui() {
+  try {
+    const name = await promptSelectionSetName("Export set MP4 (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetMP4 cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetMP4 ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      export_path?: string;
+      path?: string;
+      clip_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/export_selection_set_mp4", {
+      name,
+      normalize_preset: null,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetMP4 · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.export_path || r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetMP4 failed: ${e}`);
+    $("status-msg").textContent = `SetMP4 failed: ${e}`;
+  }
+}
+
+async function finishSelectionSetDeliveryUi() {
+  try {
+    const name = await promptSelectionSetName("Finish set delivery (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetDeliv cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetDeliv ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      delivery_ok?: boolean;
+      selection_set?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/finish_selection_set_delivery", {
+      name,
+      prepare: true,
+      unlock_tracks: true,
+      set_work_area: true,
+      pack_gaps: false,
+      run_review: true,
+      write_manifest: true,
+      normalize_preset: "streaming",
+      delivery_preset: "streaming",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetDeliv · ${r.selection_set || name} ok=${r.ok ?? "?"} deliv=${r.delivery_ok ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetDeliv failed: ${e}`);
+    $("status-msg").textContent = `SetDeliv failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19611,6 +19676,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-ix-pack", () => void exportSelectionSetInterchangePackUi());
   proBind("btn-set-new-trk", () => void selectionSetToNewTrackUi());
   proBind("btn-set-handoff", () => void exportSelectionSetHandoffUi());
+  proBind("btn-set-mp4", () => void exportSelectionSetMp4Ui());
+  proBind("btn-set-deliv", () => void finishSelectionSetDeliveryUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

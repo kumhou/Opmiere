@@ -15195,8 +15195,100 @@ class Editor:
             "interchange": interchange,
             "agent_note": (
                 "Named-set agent handoff. Move to track: "
-                "selection_set_to_new_track. Interchange-only: "
-                "export_selection_set_interchange_pack."
+                "selection_set_to_new_track. Delivery: finish_selection_set_delivery. "
+                "MP4 only: export_selection_set_mp4."
+            ),
+        }
+
+    def export_selection_set_mp4(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        normalize_preset: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export union-span MP4 under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_mp4_default(
+            ids,
+            filename=filename or f"selection_set_{safe}.mp4",
+            normalize_preset=normalize_preset,
+        )
+        path = r.get("path") or r.get("output_path")
+        ok = bool(path and Path(str(path)).is_file())
+        return {
+            **r,
+            "ok": ok,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "export_path": path,
+            "agent_note": (
+                "MP4 from named set. Full delivery gates: "
+                "finish_selection_set_delivery. Agent finish: agent_finish_selection_set."
+            ),
+        }
+
+    def finish_selection_set_delivery(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        prepare: bool = True,
+        unlock_tracks: bool = True,
+        set_work_area: bool = True,
+        pack_gaps: bool = False,
+        run_review: bool = True,
+        write_manifest: bool = True,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+    ) -> dict[str, Any]:
+        """Load named selection set then finish_selection_delivery."""
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        out_name = filename or f"selection_set_{safe}_delivery.mp4"
+        fin = self.finish_selection_delivery(
+            ids,
+            filename=out_name,
+            prepare=prepare,
+            unlock_tracks=unlock_tracks,
+            set_work_area=set_work_area,
+            pack_gaps=pack_gaps,
+            run_review=run_review,
+            write_manifest=write_manifest,
+            normalize_preset=normalize_preset,
+            delivery_preset=delivery_preset,
+        )
+        return {
+            **fin,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "note": loaded.get("note") or "",
+            },
+            "agent_note": (
+                "Named-set delivery finish. Quick MP4: export_selection_set_mp4. "
+                "Agent checklist/card path: agent_finish_selection_set."
             ),
         }
 

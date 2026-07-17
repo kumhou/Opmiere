@@ -11977,6 +11977,72 @@ def export_selection_set_handoff_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetMp4Body(BaseModel):
+    name: str
+    filename: str | None = None
+    normalize_preset: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_mp4")
+def export_selection_set_mp4_api(
+    body: ExportSelectionSetMp4Body,
+) -> dict[str, Any]:
+    """Export named selection set as MP4."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_mp4(
+            body.name,
+            filename=body.filename,
+            normalize_preset=body.normalize_preset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_mp4 failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FinishSelectionSetDeliveryBody(BaseModel):
+    name: str
+    filename: str | None = None
+    prepare: bool = True
+    unlock_tracks: bool = True
+    set_work_area: bool = True
+    pack_gaps: bool = False
+    run_review: bool = True
+    write_manifest: bool = True
+    normalize_preset: str | None = "streaming"
+    delivery_preset: str = "streaming"
+
+
+@app.post("/api/edit/finish_selection_set_delivery")
+def finish_selection_set_delivery_api(
+    body: FinishSelectionSetDeliveryBody,
+) -> dict[str, Any]:
+    """Finish delivery for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_set_delivery(
+            body.name,
+            filename=body.filename,
+            prepare=body.prepare,
+            unlock_tracks=body.unlock_tracks,
+            set_work_area=body.set_work_area,
+            pack_gaps=body.pack_gaps,
+            run_review=body.run_review,
+            write_manifest=body.write_manifest,
+            normalize_preset=body.normalize_preset,
+            delivery_preset=body.delivery_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_set_delivery failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

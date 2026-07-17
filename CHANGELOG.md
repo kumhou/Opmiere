@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.4 — 2026-07-17
+
+### Added
+- `export_selection_set_mp4` / `finish_selection_set_delivery` + **SetMP4** / **SetDeliv**
+
 ## 0.8.3 — 2026-07-17
 
 ### Added
