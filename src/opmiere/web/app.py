@@ -12971,6 +12971,52 @@ def selection_set_track_report_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetMediaReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_media_report")
+def selection_set_media_report_api(
+    body: SelectionSetMediaReportBody,
+) -> dict[str, Any]:
+    """Media inventory for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_media_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_media_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetAgentCardBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_agent_card")
+def selection_set_agent_card_api(
+    body: SelectionSetAgentCardBody,
+) -> dict[str, Any]:
+    """In-memory agent card for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_agent_card(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_agent_card failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

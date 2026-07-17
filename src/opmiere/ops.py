@@ -16586,6 +16586,61 @@ class Editor:
             ),
         }
 
+    def selection_set_media_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_media_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_media_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Media inventory for named set. Health: "
+                "selection_set_media_health. Agent card: "
+                "selection_set_agent_card."
+            ),
+        }
+
+    def selection_set_agent_card(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_agent_card (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        card = self.selection_agent_card(ids)
+        return {
+            **card,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "In-memory super-card for named set. Write disk: "
+                "export_selection_set_agent_card. Media map: "
+                "selection_set_media_report. Gate: "
+                "selection_set_agent_preflight."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16629,6 +16684,8 @@ class Editor:
                     {"id": "selection_set_meta_report", "writes": False},
                     {"id": "selection_set_cut_report", "writes": False},
                     {"id": "selection_set_track_report", "writes": False},
+                    {"id": "selection_set_media_report", "writes": False},
+                    {"id": "selection_set_agent_card", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

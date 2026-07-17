@@ -7753,6 +7753,30 @@ def selection_set_track_report(
 
 
 @mcp.tool()
+def selection_set_media_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Media inventory report for a named selection set."""
+    return _require_editor().selection_set_media_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_agent_card(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """In-memory agent super-card for a named selection set."""
+    return _require_editor().selection_set_agent_card(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

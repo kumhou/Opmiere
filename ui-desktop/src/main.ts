@@ -16131,6 +16131,58 @@ async function selectionSetTrackReportUi() {
   }
 }
 
+async function selectionSetMediaReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set media report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetMedia cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetMedia ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      media_count?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_media_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetMedia · ${r.selection_set || name} media=${r.media_count ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetMedia failed: ${e}`);
+    $("status-msg").textContent = `SetMedia failed: ${e}`;
+  }
+}
+
+async function selectionSetAgentCardUi() {
+  try {
+    const name = await promptSelectionSetName("Set agent card in-memory (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetACard cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetACard ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      clip_count?: number;
+      schema?: string;
+    }>("/api/edit/selection_set_agent_card", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetACard · ${r.selection_set || name} ok=${r.ok ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetACard failed: ${e}`);
+    $("status-msg").textContent = `SetACard failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20717,6 +20769,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-meta", () => void selectionSetMetaReportUi());
   proBind("btn-set-cut", () => void selectionSetCutReportUi());
   proBind("btn-set-tracks", () => void selectionSetTrackReportUi());
+  proBind("btn-set-media", () => void selectionSetMediaReportUi());
+  proBind("btn-set-acard", () => void selectionSetAgentCardUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

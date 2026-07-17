@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.13 — 2026-07-17
+
+### Added
+- `selection_set_media_report` / `selection_set_agent_card` + **SetMedia** / **SetACard**
+
 ## 0.9.12 — 2026-07-17
 
 ### Added
