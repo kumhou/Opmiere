@@ -15781,6 +15781,97 @@ class Editor:
             "out_dir": str(root.resolve()),
             "agent_note": (
                 "Review package from named set. Light reports only: "
+                "export_selection_set_report_pack. Storyboard: "
+                "export_selection_set_storyboard. Card: "
+                "export_selection_set_agent_card."
+            ),
+        }
+
+    def export_selection_set_storyboard(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_markers: bool = True,
+        include_clip_mids: bool = True,
+        include_contact: bool = True,
+        width: int = 640,
+        max_stills: int = 64,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and export storyboard folder."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_storyboard"
+        )
+        r = self.export_selection_storyboard(
+            ids,
+            out_dir=root,
+            include_markers=include_markers,
+            include_clip_mids=include_clip_mids,
+            include_contact=include_contact,
+            width=int(width),
+            max_stills=int(max_stills),
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "out_dir": str(root.resolve()),
+            "agent_note": (
+                "Storyboard from named set. Agent card: "
+                "export_selection_set_agent_card."
+            ),
+        }
+
+    def export_selection_set_agent_card(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        path: str | Path | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and write selection_agent_card JSON."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.export_selection_agent_card(
+            ids,
+            filename=filename or f"selection_set_{safe}_agent_card.json",
+            path=path,
+        )
+        return {
+            **r,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "note": loaded.get("note") or "",
+            "agent_note": (
+                "Agent card from named set. Storyboard: "
+                "export_selection_set_storyboard. Reports: "
                 "export_selection_set_report_pack."
             ),
         }

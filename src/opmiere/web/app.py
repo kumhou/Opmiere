@@ -12383,6 +12383,68 @@ def export_selection_set_review_package_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetStoryboardBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_markers: bool = True
+    include_clip_mids: bool = True
+    include_contact: bool = True
+    width: int = 640
+    max_stills: int = 64
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_storyboard")
+def export_selection_set_storyboard_api(
+    body: ExportSelectionSetStoryboardBody,
+) -> dict[str, Any]:
+    """Export storyboard for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_storyboard(
+            body.name,
+            out_dir=body.out_dir,
+            include_markers=body.include_markers,
+            include_clip_mids=body.include_clip_mids,
+            include_contact=body.include_contact,
+            width=body.width,
+            max_stills=body.max_stills,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_storyboard failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetAgentCardBody(BaseModel):
+    name: str
+    filename: str | None = None
+    path: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_agent_card")
+def export_selection_set_agent_card_api(
+    body: ExportSelectionSetAgentCardBody,
+) -> dict[str, Any]:
+    """Export agent card for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_agent_card(
+            body.name,
+            filename=body.filename,
+            path=body.path,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_agent_card failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

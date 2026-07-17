@@ -15482,6 +15482,65 @@ async function exportSelectionSetReviewPackageUi() {
   }
 }
 
+async function exportSelectionSetStoryboardUi() {
+  try {
+    const name = await promptSelectionSetName(
+      "Export set storyboard (set name)",
+    );
+    if (!name) {
+      $("status-msg").textContent = "SetStory cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetStory ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_storyboard", {
+      name,
+      include_markers: true,
+      include_clip_mids: true,
+      include_contact: true,
+      width: 320,
+      max_stills: 32,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetStory · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetStory failed: ${e}`);
+    $("status-msg").textContent = `SetStory failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetAgentCardUi() {
+  try {
+    const name = await promptSelectionSetName("Export set agent card (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetCard cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetCard ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_agent_card", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetCard · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetCard failed: ${e}`);
+    $("status-msg").textContent = `SetCard failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -20001,6 +20060,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-social", () => void exportSelectionSetSocialPackUi());
   proBind("btn-set-reports", () => void exportSelectionSetReportPackUi());
   proBind("btn-set-review", () => void exportSelectionSetReviewPackageUi());
+  proBind("btn-set-story", () => void exportSelectionSetStoryboardUi());
+  proBind("btn-set-card", () => void exportSelectionSetAgentCardUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

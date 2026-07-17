@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0 — 2026-07-17
+
+### Added
+- `export_selection_set_storyboard` / `export_selection_set_agent_card` + **SetStory** / **SetCard**
+
 ## 0.8.9 — 2026-07-17
 
 ### Added

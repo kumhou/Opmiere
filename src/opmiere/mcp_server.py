@@ -7429,6 +7429,46 @@ def export_selection_set_review_package(
 
 
 @mcp.tool()
+def export_selection_set_storyboard(
+    name: str,
+    out_dir: str | None = None,
+    include_markers: bool = True,
+    include_clip_mids: bool = True,
+    include_contact: bool = True,
+    width: int = 640,
+    max_stills: int = 64,
+    set_work_area: bool = False,
+) -> dict:
+    """Export storyboard folder for a named selection set."""
+    return _require_editor().export_selection_set_storyboard(
+        name,
+        out_dir=out_dir,
+        include_markers=include_markers,
+        include_clip_mids=include_clip_mids,
+        include_contact=include_contact,
+        width=width,
+        max_stills=max_stills,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_agent_card(
+    name: str,
+    filename: str | None = None,
+    path: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export agent card JSON for a named selection set."""
+    return _require_editor().export_selection_set_agent_card(
+        name,
+        filename=filename,
+        path=path,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],
