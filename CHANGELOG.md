@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.8 — 2026-07-17
+
+### Added
+- `selection_set_effects_report` / `selection_set_muted_report` + **SetFX** / **SetMute**
+
 ## 0.9.7 — 2026-07-17
 
 ### Added

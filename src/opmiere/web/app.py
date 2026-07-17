@@ -12741,6 +12741,52 @@ def selection_set_locked_tracks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetEffectsReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_effects_report")
+def selection_set_effects_report_api(
+    body: SelectionSetEffectsReportBody,
+) -> dict[str, Any]:
+    """Effects report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_effects_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_effects_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetMutedReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_muted_report")
+def selection_set_muted_report_api(
+    body: SelectionSetMutedReportBody,
+) -> dict[str, Any]:
+    """Muted report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_muted_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_muted_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

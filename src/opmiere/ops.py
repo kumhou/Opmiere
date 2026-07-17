@@ -16309,7 +16309,63 @@ class Editor:
             "missing": loaded.get("missing") or [],
             "agent_note": (
                 "Locked tracks for named set. Unlock via repair_selection_set. "
-                "path-C: selection_set_path_c_report."
+                "path-C: selection_set_path_c_report. Effects: "
+                "selection_set_effects_report. Muted: "
+                "selection_set_muted_report."
+            ),
+        }
+
+    def selection_set_effects_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_effects_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_effects_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Effects histogram for named set. Muted: "
+                "selection_set_muted_report. path-C: "
+                "selection_set_path_c_report."
+            ),
+        }
+
+    def selection_set_muted_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_muted_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_muted_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Muted state for named set. Effects: "
+                "selection_set_effects_report. Locks: "
+                "selection_set_locked_tracks."
             ),
         }
 
@@ -16346,6 +16402,8 @@ class Editor:
                     {"id": "selection_set_duration_report", "writes": False},
                     {"id": "selection_set_path_c_report", "writes": False},
                     {"id": "selection_set_locked_tracks", "writes": False},
+                    {"id": "selection_set_effects_report", "writes": False},
+                    {"id": "selection_set_muted_report", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

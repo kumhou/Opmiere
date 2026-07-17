@@ -7633,6 +7633,30 @@ def selection_set_locked_tracks(
 
 
 @mcp.tool()
+def selection_set_effects_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Effects histogram for a named selection set."""
+    return _require_editor().selection_set_effects_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_muted_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Muted state report for a named selection set."""
+    return _require_editor().selection_set_muted_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
