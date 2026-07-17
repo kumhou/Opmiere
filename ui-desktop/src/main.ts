@@ -15035,6 +15035,75 @@ async function exportSelectionSetInterchangePackUi() {
   }
 }
 
+async function selectionSetToNewTrackUi() {
+  try {
+    const name = await promptSelectionSetName("Set → new track (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetTrk cancelled";
+      return;
+    }
+    const trackName =
+      window.prompt("New track name", `Set:${name}`)?.trim() || `Set:${name}`;
+    $("status-msg").textContent = `SetTrk ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      new_track_id?: string;
+      track_name?: string;
+      clip_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/selection_set_to_new_track", {
+      name,
+      track_name: trackName,
+      preserve_starts: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetTrk · ${r.selection_set || name} → ${r.track_name || trackName} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetTrk failed: ${e}`);
+    $("status-msg").textContent = `SetTrk failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetHandoffUi() {
+  try {
+    const name = await promptSelectionSetName("Set handoff folder (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetHand cancelled";
+      return;
+    }
+    const withIx =
+      (window.prompt("Include interchange pack? y/n", "n")?.trim().toLowerCase() ||
+        "n") === "y";
+    $("status-msg").textContent = `SetHand ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      clip_count?: number;
+      meta_path?: string;
+    }>("/api/edit/export_selection_set_handoff", {
+      name,
+      include_manifest: true,
+      include_preflight: true,
+      include_otio: true,
+      include_markers: true,
+      include_review: true,
+      include_media: true,
+      include_interchange: withIx,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetHand · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetHand failed: ${e}`);
+    $("status-msg").textContent = `SetHand failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19540,6 +19609,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-otio", () => void exportSelectionSetOtioUi());
   proBind("btn-set-manifest", () => void exportSelectionSetManifestUi());
   proBind("btn-set-ix-pack", () => void exportSelectionSetInterchangePackUi());
+  proBind("btn-set-new-trk", () => void selectionSetToNewTrackUi());
+  proBind("btn-set-handoff", () => void exportSelectionSetHandoffUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

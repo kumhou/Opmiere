@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.3 — 2026-07-17
+
+### Added
+- `selection_set_to_new_track` / `export_selection_set_handoff` + **SetTrk** / **SetHand**
+
 ## 0.8.2 — 2026-07-17
 
 ### Added

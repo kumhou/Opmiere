@@ -7111,6 +7111,50 @@ def export_selection_set_interchange_pack(
 
 
 @mcp.tool()
+def selection_set_to_new_track(
+    name: str,
+    track_name: str | None = None,
+    preserve_starts: bool = True,
+    stack_start: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Move named selection set clips onto a new track."""
+    return _require_editor().selection_set_to_new_track(
+        name,
+        track_name=track_name,
+        preserve_starts=preserve_starts,
+        stack_start=stack_start,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_handoff(
+    name: str,
+    out_dir: str | None = None,
+    include_manifest: bool = True,
+    include_preflight: bool = True,
+    include_otio: bool = True,
+    include_markers: bool = True,
+    include_review: bool = True,
+    include_media: bool = True,
+    include_interchange: bool = False,
+) -> dict:
+    """Export agent handoff folder for a named selection set."""
+    return _require_editor().export_selection_set_handoff(
+        name,
+        out_dir=out_dir,
+        include_manifest=include_manifest,
+        include_preflight=include_preflight,
+        include_otio=include_otio,
+        include_markers=include_markers,
+        include_review=include_review,
+        include_media=include_media,
+        include_interchange=include_interchange,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

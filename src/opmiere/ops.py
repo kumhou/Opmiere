@@ -15072,7 +15072,131 @@ class Editor:
             "error_count": len(errors),
             "agent_note": (
                 "Interchange pack for named set. Single formats: "
-                "export_selection_set_edl|cutlist|fcpxml|otio|manifest."
+                "export_selection_set_edl|cutlist|fcpxml|otio|manifest. "
+                "Agent handoff: export_selection_set_handoff."
+            ),
+        }
+
+    def selection_set_to_new_track(
+        self,
+        name: str,
+        *,
+        track_name: str | None = None,
+        preserve_starts: bool = True,
+        stack_start: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and move clips to a new track.
+
+        All clips in the set must share one track kind (video or audio).
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        tname = track_name if track_name is not None else f"Set:{name}"
+        r = self.selection_to_new_track(
+            ids,
+            name=tname,
+            preserve_starts=preserve_starts,
+            stack_start=stack_start,
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "loaded_missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named set moved to new track. Handoff folder: "
+                "export_selection_set_handoff."
+            ),
+        }
+
+    def export_selection_set_handoff(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_manifest: bool = True,
+        include_preflight: bool = True,
+        include_otio: bool = True,
+        include_markers: bool = True,
+        include_review: bool = True,
+        include_media: bool = True,
+        include_interchange: bool = False,
+    ) -> dict[str, Any]:
+        """Agent handoff folder for a named selection set.
+
+        Default: exports/selection_set_{name}_handoff/
+        include_interchange also writes EDL/cutlist/FCPXML/OTIO/manifest pack.
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_handoff"
+        )
+        hand = self.export_selection_handoff(
+            ids,
+            out_dir=root,
+            include_manifest=include_manifest,
+            include_preflight=include_preflight,
+            include_otio=include_otio,
+            include_markers=include_markers,
+            include_review=include_review,
+            include_media=include_media,
+        )
+        # annotate set meta
+        meta_path = root / "selection_set_meta.json"
+        meta = {
+            "schema": "opmiere.selection_set_handoff.v1",
+            "selection_set": name,
+            "note": loaded.get("note") or "",
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "generated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        }
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        interchange = None
+        if include_interchange:
+            interchange = self.export_selection_set_interchange_pack(
+                name,
+                out_dir=root / "interchange",
+            )
+        return {
+            **hand,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "meta_path": str(meta_path.resolve()),
+            "out_dir": str(root.resolve()),
+            "interchange": interchange,
+            "agent_note": (
+                "Named-set agent handoff. Move to track: "
+                "selection_set_to_new_track. Interchange-only: "
+                "export_selection_set_interchange_pack."
             ),
         }
 

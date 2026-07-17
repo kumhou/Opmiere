@@ -11911,6 +11911,72 @@ def export_selection_set_interchange_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetToNewTrackBody(BaseModel):
+    name: str
+    track_name: str | None = None
+    preserve_starts: bool = True
+    stack_start: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_to_new_track")
+def selection_set_to_new_track_api(
+    body: SelectionSetToNewTrackBody,
+) -> dict[str, Any]:
+    """Move named selection set onto a new track."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_to_new_track(
+            body.name,
+            track_name=body.track_name,
+            preserve_starts=body.preserve_starts,
+            stack_start=body.stack_start,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_to_new_track failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetHandoffBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_manifest: bool = True
+    include_preflight: bool = True
+    include_otio: bool = True
+    include_markers: bool = True
+    include_review: bool = True
+    include_media: bool = True
+    include_interchange: bool = False
+
+
+@app.post("/api/edit/export_selection_set_handoff")
+def export_selection_set_handoff_api(
+    body: ExportSelectionSetHandoffBody,
+) -> dict[str, Any]:
+    """Export agent handoff folder for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_handoff(
+            body.name,
+            out_dir=body.out_dir,
+            include_manifest=body.include_manifest,
+            include_preflight=body.include_preflight,
+            include_otio=body.include_otio,
+            include_markers=body.include_markers,
+            include_review=body.include_review,
+            include_media=body.include_media,
+            include_interchange=body.include_interchange,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_handoff failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]
