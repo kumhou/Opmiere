@@ -12770,6 +12770,65 @@ async function exportSelectionWithBurninsUi() {
   }
 }
 
+async function exportSelectionPresetsPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for preset pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection preset pack…";
+  try {
+    const r = await postJson<{
+      out_dir?: string;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/export_selection_presets_pack", {
+      clip_ids: ids,
+      presets: ["draft", "streaming"],
+      prepare: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PresetPack · n=${r.count ?? "?"} err=${r.error_count ?? 0} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`PresetPack failed: ${e}`);
+    $("status-msg").textContent = `PresetPack failed: ${e}`;
+  }
+}
+
+async function finishSelectionSocialUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for social finish";
+    return;
+  }
+  $("status-msg").textContent = "Finishing selection social (reels)…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      delivery_ok?: boolean;
+      export_path?: string;
+      variant?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/finish_selection_social", {
+      clip_ids: ids,
+      variant: "reels",
+      reframe: true,
+      prepare: false,
+      run_review: true,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinishSoc · ${r.variant ?? "reels"} ok=${r.ok ?? "?"} deliv=${r.delivery_ok ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`FinishSoc failed: ${e}`);
+    $("status-msg").textContent = `FinishSoc failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -16801,6 +16860,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-social1-sel", () => void exportSelectionSocialUi());
   proBind("btn-preset-sel", () => void exportSelectionWithPresetUi());
   proBind("btn-burn-sel", () => void exportSelectionWithBurninsUi());
+  proBind("btn-preset-pack-sel", () => void exportSelectionPresetsPackUi());
+  proBind("btn-finish-social-sel", () => void finishSelectionSocialUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

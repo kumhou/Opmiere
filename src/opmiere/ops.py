@@ -10611,6 +10611,194 @@ class Editor:
             except OSError:
                 pass
 
+    def export_selection_presets_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        presets: list[str] | None = None,
+        name_prefix: str = "selection",
+        prepare: bool | None = False,
+    ) -> dict[str, Any]:
+        """Export selection with multiple named EXPORT_PRESETS into a folder.
+
+        Default presets: draft, streaming. prepare defaults False (no gap pack
+        between variants). Heavy: N selection encodes.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_presets"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        names = presets or ["draft", "streaming"]
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for name in names:
+            key = str(name).strip()
+            if key not in self.EXPORT_PRESETS:
+                errors.append({
+                    "preset": key,
+                    "reason": f"unknown; known={sorted(self.EXPORT_PRESETS)}",
+                })
+                continue
+            dest_name = f"{name_prefix}_{key}.mp4"
+            try:
+                r = self.export_selection_with_preset(
+                    ids,
+                    preset=key,
+                    filename=dest_name,
+                    prepare=prepare,
+                )
+                # move/copy into pack dir if export wrote under exports/
+                path = r.get("path")
+                if path:
+                    src = Path(str(path))
+                    dest = root / dest_name
+                    if src.is_file() and src.resolve() != dest.resolve():
+                        import shutil
+                        shutil.copy2(src, dest)
+                        r = dict(r)
+                        r["path"] = str(dest.resolve())
+                        r["pack_path"] = str(dest.resolve())
+                written.append(r)
+            except Exception as e:
+                errors.append({"preset": key, "reason": str(e)[:300]})
+        return {
+            "out_dir": str(root.resolve()),
+            "count": len(written),
+            "written": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "presets": names,
+            "clip_ids": ids,
+            "agent_note": (
+                "Selection preset pack. Heavy: N encodes. "
+                "Full timeline: export_presets_pack."
+            ),
+        }
+
+    def finish_selection_social(
+        self,
+        clip_ids: list[str],
+        *,
+        variant: str = "reels",
+        reframe: bool = True,
+        aspect: str | None = None,
+        anchor: str = "center",
+        prepare: bool = True,
+        unlock_tracks: bool = True,
+        set_work_area: bool = True,
+        pack_gaps: bool = False,
+        run_review: bool = True,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """Selection social finish: optional reframe → prepare → review → social export + gate.
+
+        Mutates timeline only when reframe=True (crop effects). Export uses
+        social canvas; delivery_check uses match_project=False with canvas size.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        key = str(variant).lower().strip()
+        preset = self.SOCIAL_PRESETS.get(key)
+        if not preset:
+            raise ValueError(
+                f"unknown social variant {variant!r}; "
+                f"known={sorted(self.SOCIAL_PRESETS)}"
+            )
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "variant": key,
+            "steps": [],
+            "ok": False,
+            "delivery_ok": False,
+        }
+        target_aspect = aspect
+        if reframe:
+            if not target_aspect:
+                w, h = int(preset["width"]), int(preset["height"])
+                # common social aspects
+                if w == h:
+                    target_aspect = "1:1"
+                elif h > w:
+                    target_aspect = "9:16"
+                else:
+                    target_aspect = "16:9"
+            try:
+                out["reframe"] = self.reframe_selection(
+                    ids, aspect=target_aspect, anchor=anchor, video_only=True,
+                )
+                out["steps"].append("reframe_selection")
+            except Exception as e:
+                out["reframe"] = {"error": str(e)[:400]}
+                out["steps"].append("reframe_selection:error")
+        if prepare:
+            try:
+                out["prepare"] = self.prepare_selection_export(
+                    ids,
+                    unlock_tracks=unlock_tracks,
+                    set_work_area=set_work_area,
+                    pack_gaps=pack_gaps,
+                )
+                out["steps"].append("prepare_selection_export")
+            except Exception as e:
+                out["prepare"] = {"error": str(e)[:400]}
+                out["steps"].append("prepare_selection_export:error")
+        if run_review:
+            try:
+                out["review"] = self.review_selection(ids)
+                out["steps"].append("review_selection")
+            except Exception as e:
+                out["review"] = {"error": str(e)[:400]}
+                out["steps"].append("review_selection:error")
+        if not filename:
+            filename = f"selection_{key}_finish.mp4"
+        try:
+            exp = self.export_selection_social(
+                ids,
+                variant=key,
+                filename=filename,
+                normalize_preset=normalize_preset,
+            )
+            out["export"] = exp
+            out["steps"].append("export_selection_social")
+            path = exp.get("path") if isinstance(exp, dict) else None
+            out["export_path"] = path
+            if path and Path(str(path)).is_file():
+                out["ok"] = Path(str(path)).stat().st_size > 500
+                try:
+                    check = self.delivery_check(
+                        path,
+                        preset=delivery_preset,
+                        expected_width=int(preset["width"]),
+                        expected_height=int(preset["height"]),
+                        match_project=False,
+                    )
+                    out["delivery"] = check
+                    out["delivery_ok"] = bool(
+                        check.get("ok") if isinstance(check, dict) else False
+                    )
+                    out["steps"].append("delivery_check")
+                except Exception as e:
+                    out["delivery"] = {"error": str(e)[:400]}
+                    out["steps"].append("delivery_check:error")
+        except Exception as e:
+            out["export"] = {"error": str(e)[:400]}
+            out["steps"].append("export_selection_social:error")
+        out["agent_note"] = (
+            f"Selection social finish ({key}). "
+            "ok=export present; delivery_ok=canvas gates. "
+            "Full selection: finish_selection_delivery."
+        )
+        return out
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

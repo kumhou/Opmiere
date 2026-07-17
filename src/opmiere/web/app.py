@@ -9910,6 +9910,79 @@ def export_selection_with_burnins_api(
         ) from e
 
 
+class ExportSelectionPresetsPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    presets: list[str] | None = None
+    name_prefix: str = "selection"
+    prepare: bool | None = False
+
+
+@app.post("/api/edit/export_selection_presets_pack")
+def export_selection_presets_pack_api(
+    body: ExportSelectionPresetsPackBody,
+) -> dict[str, Any]:
+    """Export selection with multiple named presets into a folder."""
+    ed = _ed()
+    try:
+        return ed.export_selection_presets_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            presets=body.presets,
+            name_prefix=body.name_prefix,
+            prepare=body.prepare,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_presets_pack failed: {e}",
+        ) from e
+
+
+class FinishSelectionSocialBody(BaseModel):
+    clip_ids: list[str]
+    variant: str = "reels"
+    reframe: bool = True
+    aspect: str | None = None
+    anchor: str = "center"
+    prepare: bool = True
+    unlock_tracks: bool = True
+    set_work_area: bool = True
+    pack_gaps: bool = False
+    run_review: bool = True
+    normalize_preset: str | None = "streaming"
+    delivery_preset: str = "streaming"
+    filename: str | None = None
+
+
+@app.post("/api/edit/finish_selection_social")
+def finish_selection_social_api(
+    body: FinishSelectionSocialBody,
+) -> dict[str, Any]:
+    """Selection social finish pipeline."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_social(
+            body.clip_ids,
+            variant=body.variant,
+            reframe=body.reframe,
+            aspect=body.aspect,
+            anchor=body.anchor,
+            prepare=body.prepare,
+            unlock_tracks=body.unlock_tracks,
+            set_work_area=body.set_work_area,
+            pack_gaps=body.pack_gaps,
+            run_review=body.run_review,
+            normalize_preset=body.normalize_preset,
+            delivery_preset=body.delivery_preset,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_social failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

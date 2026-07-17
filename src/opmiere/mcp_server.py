@@ -5871,6 +5871,58 @@ def export_selection_with_burnins(
 
 
 @mcp.tool()
+def export_selection_presets_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    presets: list[str] | None = None,
+    name_prefix: str = "selection",
+    prepare: bool | None = False,
+) -> dict:
+    """Export selection with multiple named presets (draft/streaming/…)."""
+    return _require_editor().export_selection_presets_pack(
+        clip_ids,
+        out_dir=out_dir,
+        presets=presets,
+        name_prefix=name_prefix,
+        prepare=prepare,
+    )
+
+
+@mcp.tool()
+def finish_selection_social(
+    clip_ids: list[str],
+    variant: str = "reels",
+    reframe: bool = True,
+    aspect: str | None = None,
+    anchor: str = "center",
+    prepare: bool = True,
+    unlock_tracks: bool = True,
+    set_work_area: bool = True,
+    pack_gaps: bool = False,
+    run_review: bool = True,
+    normalize_preset: str | None = "streaming",
+    delivery_preset: str = "streaming",
+    filename: str | None = None,
+) -> dict:
+    """Selection social finish: reframe → prepare → review → social export + gate."""
+    return _require_editor().finish_selection_social(
+        clip_ids,
+        variant=variant,
+        reframe=reframe,
+        aspect=aspect,
+        anchor=anchor,
+        prepare=prepare,
+        unlock_tracks=unlock_tracks,
+        set_work_area=set_work_area,
+        pack_gaps=pack_gaps,
+        run_review=run_review,
+        normalize_preset=normalize_preset,
+        delivery_preset=delivery_preset,
+        filename=filename,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

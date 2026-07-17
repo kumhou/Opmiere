@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.65 — 2026-07-17
+
+### Added
+- `export_selection_presets_pack` / `finish_selection_social` + **PresetPack** / **FinishSoc**
+
 ## 0.6.64 — 2026-07-17
 
 ### Added
