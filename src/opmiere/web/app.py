@@ -14051,6 +14051,66 @@ def apply_silence_to_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class DuplicateSelectionSetToTrackBody(BaseModel):
+    name: str
+    track_id: str
+    preserve_starts: bool = True
+    start_offset: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/duplicate_selection_set_to_track")
+def duplicate_selection_set_to_track_api(
+    body: DuplicateSelectionSetToTrackBody,
+) -> dict[str, Any]:
+    """Copy a named selection set onto another track."""
+    ed = _ed()
+    try:
+        r = ed.duplicate_selection_set_to_track(
+            body.name,
+            body.track_id,
+            preserve_starts=body.preserve_starts,
+            start_offset=body.start_offset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"duplicate_selection_set_to_track failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SetSelectionSetFlipBody(BaseModel):
+    name: str
+    horizontal: bool | None = None
+    vertical: bool | None = None
+    toggle_h: bool = False
+    toggle_v: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_flip")
+def set_selection_set_flip_api(
+    body: SetSelectionSetFlipBody,
+) -> dict[str, Any]:
+    """Flip clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_flip(
+            body.name,
+            horizontal=body.horizontal,
+            vertical=body.vertical,
+            toggle_h=body.toggle_h,
+            toggle_v=body.toggle_v,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_flip failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

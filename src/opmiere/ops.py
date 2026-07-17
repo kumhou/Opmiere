@@ -17852,6 +17852,78 @@ class Editor:
             ),
         }
 
+    def duplicate_selection_set_to_track(
+        self,
+        name: str,
+        track_id: str,
+        *,
+        preserve_starts: bool = True,
+        start_offset: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then duplicate_selection_to_track (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.duplicate_selection_to_track(
+            ids,
+            track_id,
+            preserve_starts=bool(preserve_starts),
+            start_offset=int(start_offset),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Copy named set onto dest track. Flip: "
+                "set_selection_set_flip. Duplicate same track: "
+                "duplicate_selection_set."
+            ),
+        }
+
+    def set_selection_set_flip(
+        self,
+        name: str,
+        *,
+        horizontal: bool | None = None,
+        vertical: bool | None = None,
+        toggle_h: bool = False,
+        toggle_v: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_clips_flip (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_clips_flip(
+            ids,
+            horizontal=horizontal,
+            vertical=vertical,
+            toggle_h=bool(toggle_h),
+            toggle_v=bool(toggle_v),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Flip clips in named set. Dup to track: "
+                "duplicate_selection_set_to_track. Effects: "
+                "selection_set_effects_report."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17937,6 +18009,8 @@ class Editor:
                     {"id": "split_selection_set_at_silences", "writes": True},
                     {"id": "suggest_silence_cuts_selection_set", "writes": False},
                     {"id": "apply_silence_to_selection_set", "writes": True},
+                    {"id": "duplicate_selection_set_to_track", "writes": True},
+                    {"id": "set_selection_set_flip", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

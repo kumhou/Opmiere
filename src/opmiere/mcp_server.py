@@ -8374,6 +8374,44 @@ def apply_silence_to_selection_set(
 
 
 @mcp.tool()
+def duplicate_selection_set_to_track(
+    name: str,
+    track_id: str,
+    preserve_starts: bool = True,
+    start_offset: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Copy a named selection set onto another track."""
+    return _require_editor().duplicate_selection_set_to_track(
+        name,
+        track_id,
+        preserve_starts=preserve_starts,
+        start_offset=start_offset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def set_selection_set_flip(
+    name: str,
+    horizontal: bool | None = None,
+    vertical: bool | None = None,
+    toggle_h: bool = False,
+    toggle_v: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Flip clips in a named selection set (h/v)."""
+    return _require_editor().set_selection_set_flip(
+        name,
+        horizontal=horizontal,
+        vertical=vertical,
+        toggle_h=toggle_h,
+        toggle_v=toggle_v,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

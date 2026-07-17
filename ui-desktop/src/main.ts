@@ -17426,6 +17426,75 @@ async function applySilenceToSelectionSetUi() {
   }
 }
 
+async function duplicateSelectionSetToTrackUi() {
+  try {
+    const name = await promptSelectionSetName("Dup set to track (set name)");
+    if (!name) {
+      $("status-msg").textContent = "DupTrkSet cancelled";
+      return;
+    }
+    const track_id = window.prompt("dest track_id", "");
+    if (!track_id) {
+      $("status-msg").textContent = "DupTrkSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `DupTrkSet ${name} → ${track_id}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      track_id?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/duplicate_selection_set_to_track", {
+      name,
+      track_id: track_id.trim(),
+      preserve_starts: true,
+      start_offset: 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DupTrkSet · ${r.selection_set || name} → ${r.track_id ?? track_id} dups=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`DupTrkSet failed: ${e}`);
+    $("status-msg").textContent = `DupTrkSet failed: ${e}`;
+  }
+}
+
+async function setSelectionSetFlipUi() {
+  try {
+    const name = await promptSelectionSetName("Flip named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FlipSet cancelled";
+      return;
+    }
+    const axis = window.prompt("axis: h / v / both", "h");
+    if (axis === null) {
+      $("status-msg").textContent = "FlipSet cancelled";
+      return;
+    }
+    const a = String(axis).trim().toLowerCase();
+    const horizontal = a === "h" || a === "both" || a === "hv" ? true : null;
+    const vertical = a === "v" || a === "both" || a === "hv" ? true : null;
+    $("status-msg").textContent = `FlipSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_flip", {
+      name,
+      horizontal,
+      vertical,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FlipSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FlipSet failed: ${e}`);
+    $("status-msg").textContent = `FlipSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22054,6 +22123,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-sil-split-set", () => void splitSelectionSetAtSilencesUi());
   proBind("btn-sil-sug-set", () => void suggestSilenceCutsSelectionSetUi());
   proBind("btn-sil-app-set", () => void applySilenceToSelectionSetUi());
+  proBind("btn-dup-trk-set", () => void duplicateSelectionSetToTrackUi());
+  proBind("btn-flip-set", () => void setSelectionSetFlipUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

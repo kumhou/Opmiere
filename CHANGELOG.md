@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.34 — 2026-07-17
+
+### Added
+- `duplicate_selection_set_to_track` / `set_selection_set_flip` + **DupTrkSet** / **FlipSet**
+
 ## 0.9.33 — 2026-07-17
 
 ### Added
