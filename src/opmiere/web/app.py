@@ -10597,6 +10597,52 @@ def export_selection_clips_webm_pack_api(
         ) from e
 
 
+class ExportSelectionClipsAudioPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    prefix: str = "clip"
+    ext: str = "wav"
+    sample_rate: int | None = None
+
+
+@app.post("/api/edit/export_selection_clips_audio_pack")
+def export_selection_clips_audio_pack_api(
+    body: ExportSelectionClipsAudioPackBody,
+) -> dict[str, Any]:
+    """Per-clip audio pack for selection."""
+    ed = _ed()
+    try:
+        return ed.export_selection_clips_audio_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            ext=body.ext,
+            sample_rate=body.sample_rate,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_clips_audio_pack failed: {e}",
+        ) from e
+
+
+class SelectionDurationReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_duration_report")
+def selection_duration_report_api(
+    body: SelectionDurationReportBody,
+) -> dict[str, Any]:
+    """Duration census for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_duration_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_duration_report failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

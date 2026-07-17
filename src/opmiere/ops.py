@@ -12083,6 +12083,107 @@ class Editor:
             ),
         }
 
+    def export_selection_clips_audio_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str = "clip",
+        ext: str = "wav",
+        sample_rate: int | None = None,
+    ) -> dict[str, Any]:
+        """Export each selected clip's timeline audio under exports/selection_audio."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ext_n = (ext or "wav").lstrip(".").lower()
+        if ext_n not in ("wav", "m4a", "mp3", "flac"):
+            raise ValueError("ext must be wav|m4a|mp3|flac")
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_audio"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        items: list[dict[str, Any]] = []
+        for i, cid in enumerate(dict.fromkeys(clip_ids)):
+            clip = self._find_clip(cid)
+            name = (clip.name or cid)[:40]
+            safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
+            dest = root / f"{prefix}_{i + 1:02d}_{safe}.{ext_n}"
+            try:
+                r = self.export_clip_audio(
+                    cid, dest, sample_rate=sample_rate,
+                )
+                items.append({
+                    "clip_id": cid,
+                    "path": r.get("path") or str(dest),
+                    "ok": True,
+                })
+            except Exception as e:
+                items.append({
+                    "clip_id": cid,
+                    "ok": False,
+                    "error": str(e)[:300],
+                })
+        ok_n = sum(1 for x in items if x.get("ok"))
+        return {
+            "count": ok_n,
+            "total": len(items),
+            "clips": items,
+            "output_dir": str(root.resolve()),
+            "ok": ok_n == len(items) and ok_n > 0,
+            "ext": ext_n,
+            "agent_note": (
+                "Per-clip audio pack. Union mix: export_selection_audio."
+            ),
+        }
+
+    def selection_duration_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Duration census for selection: per clip + totals (frames & seconds)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        fps = float(self.project.timebase.fps or 30.0)
+        ids = list(dict.fromkeys(clip_ids))
+        rows: list[dict[str, Any]] = []
+        total_frames = 0
+        by_kind: dict[str, int] = {}
+        for cid in ids:
+            tr, clip = self._find_clip_and_track(cid)
+            dur = int(clip.timeline_duration_frames)
+            total_frames += dur
+            by_kind[tr.kind] = by_kind.get(tr.kind, 0) + dur
+            rows.append({
+                "clip_id": cid,
+                "name": clip.name,
+                "track_id": tr.id,
+                "kind": tr.kind,
+                "start": int(clip.start),
+                "end": int(clip.end),
+                "duration_frames": dur,
+                "duration_seconds": round(dur / fps, 4),
+            })
+        span = self.selection_span(ids)
+        span_frames = int(span["end_frame"]) - int(span["start_frame"])
+        return {
+            "clip_count": len(rows),
+            "clips": rows,
+            "sum_clip_duration_frames": total_frames,
+            "sum_clip_duration_seconds": round(total_frames / fps, 4),
+            "by_kind_frames": by_kind,
+            "selection_span": span,
+            "union_span_frames": span_frames,
+            "union_span_seconds": round(span_frames / fps, 4),
+            "overlap_or_gaps": total_frames != span_frames,
+            "fps": fps,
+            "agent_note": (
+                "sum_clip is additive per clip; union_span is selection bounding box. "
+                "overlap_or_gaps=True when clips overlap or leave gaps in span."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

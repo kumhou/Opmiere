@@ -6328,6 +6328,30 @@ def export_selection_clips_webm_pack(
 
 
 @mcp.tool()
+def export_selection_clips_audio_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    prefix: str = "clip",
+    ext: str = "wav",
+    sample_rate: int | None = None,
+) -> dict:
+    """Export each selected clip's audio into a pack folder."""
+    return _require_editor().export_selection_clips_audio_pack(
+        clip_ids,
+        out_dir=out_dir,
+        prefix=prefix,
+        ext=ext,
+        sample_rate=sample_rate,
+    )
+
+
+@mcp.tool()
+def selection_duration_report(clip_ids: list[str]) -> dict:
+    """Duration census for selection (per clip + union span)."""
+    return _require_editor().selection_duration_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

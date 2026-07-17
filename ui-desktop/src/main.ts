@@ -13414,6 +13414,53 @@ async function exportSelectionClipsWebmPackUi() {
   }
 }
 
+async function exportSelectionClipsAudioPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for audio pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection audio pack…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/edit/export_selection_clips_audio_pack", {
+      clip_ids: ids,
+      ext: "wav",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AudPack · n=${r.count ?? "?"} ok=${r.ok ?? "?"} → ${r.output_dir || "?"}`;
+  } catch (e) {
+    setProOut(`AudPack failed: ${e}`);
+    $("status-msg").textContent = `AudPack failed: ${e}`;
+  }
+}
+
+async function selectionDurationReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for duration report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      clip_count?: number;
+      sum_clip_duration_seconds?: number;
+      union_span_seconds?: number;
+      overlap_or_gaps?: boolean;
+    }>("/api/edit/selection_duration_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `DurSel · n=${r.clip_count ?? "?"} sum=${r.sum_clip_duration_seconds ?? "?"}s union=${r.union_span_seconds ?? "?"}s gap/ov=${r.overlap_or_gaps ?? "?"}`;
+  } catch (e) {
+    setProOut(`DurSel failed: ${e}`);
+    $("status-msg").textContent = `DurSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17469,6 +17516,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-lut-clr-sel", () => void clearSelectionLutsUi());
   proBind("btn-gif-pack-sel", () => void exportSelectionClipsGifPackUi());
   proBind("btn-webm-pack-sel", () => void exportSelectionClipsWebmPackUi());
+  proBind("btn-aud-pack-sel", () => void exportSelectionClipsAudioPackUi());
+  proBind("btn-dur-sel", () => void selectionDurationReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
