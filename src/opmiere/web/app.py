@@ -13323,6 +13323,54 @@ def unlock_selection_set_tracks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClearSelectionSetFadesBody(BaseModel):
+    name: str
+    video_only: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_fades")
+def clear_selection_set_fades_api(
+    body: ClearSelectionSetFadesBody,
+) -> dict[str, Any]:
+    """Clear fades on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_fades(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_fades failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSetPositionBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_position")
+def clear_selection_set_position_api(
+    body: ClearSelectionSetPositionBody,
+) -> dict[str, Any]:
+    """Clear PiP position on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_position(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_position failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -17001,6 +17001,61 @@ class Editor:
             ),
         }
 
+    def clear_selection_set_fades(
+        self,
+        name: str,
+        *,
+        video_only: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_fades (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_fades(ids, video_only=video_only)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Clear fades on named set. Set: "
+                "set_selection_set_fades. Clear position: "
+                "clear_selection_set_position."
+            ),
+        }
+
+    def clear_selection_set_position(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_position (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_position(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Clear PiP position on named set. Set: "
+                "set_selection_set_position. Clear fades: "
+                "clear_selection_set_fades."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17058,6 +17113,8 @@ class Editor:
                     {"id": "lock_selection_set_tracks", "writes": True},
                     {"id": "mute_selection_set_tracks", "writes": True},
                     {"id": "unlock_selection_set_tracks", "writes": True},
+                    {"id": "clear_selection_set_fades", "writes": True},
+                    {"id": "clear_selection_set_position", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

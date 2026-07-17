@@ -7954,6 +7954,32 @@ def unlock_selection_set_tracks(
 
 
 @mcp.tool()
+def clear_selection_set_fades(
+    name: str,
+    video_only: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Clear edge fades on clips in a named selection set."""
+    return _require_editor().clear_selection_set_fades(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_selection_set_position(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Clear PiP position on clips in a named selection set."""
+    return _require_editor().clear_selection_set_position(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

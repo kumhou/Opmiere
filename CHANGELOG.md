@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.20 — 2026-07-17
+
+### Added
+- `clear_selection_set_fades` / `clear_selection_set_position` + **ClrFadeSet** / **ClrPosSet**
+
 ## 0.9.19 — 2026-07-17
 
 ### Added

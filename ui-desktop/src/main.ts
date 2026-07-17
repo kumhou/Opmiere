@@ -16568,6 +16568,57 @@ async function unlockSelectionSetTracksUi() {
   }
 }
 
+async function clearSelectionSetFadesUi() {
+  try {
+    const name = await promptSelectionSetName("Clear fades on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrFadeSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrFadeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/clear_selection_set_fades", {
+      name,
+      video_only: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrFadeSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrFadeSet failed: ${e}`);
+    $("status-msg").textContent = `ClrFadeSet failed: ${e}`;
+  }
+}
+
+async function clearSelectionSetPositionUi() {
+  try {
+    const name = await promptSelectionSetName("Clear PiP on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrPosSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrPosSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/clear_selection_set_position", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrPosSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrPosSet failed: ${e}`);
+    $("status-msg").textContent = `ClrPosSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21168,6 +21219,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-lock-set-tr", () => void lockSelectionSetTracksUi());
   proBind("btn-mute-set-tr", () => void muteSelectionSetTracksUi());
   proBind("btn-unlock-set-tr", () => void unlockSelectionSetTracksUi());
+  proBind("btn-clr-fade-set", () => void clearSelectionSetFadesUi());
+  proBind("btn-clr-pos-set", () => void clearSelectionSetPositionUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
