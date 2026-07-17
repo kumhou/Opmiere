@@ -20721,6 +20721,91 @@ class Editor:
             ),
         }
 
+    def export_selection_set_with_preset(
+        self,
+        name: str,
+        *,
+        preset: str = "streaming",
+        filename: str | None = None,
+        prepare: bool | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_with_preset (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        rep = self.export_selection_with_preset(
+            ids,
+            preset=str(preset),
+            filename=filename or f"selection_set_{safe}_{preset}.mp4",
+            prepare=prepare,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set export via EXPORT_PRESETS. Frame sequence: "
+                "export_selection_set_frame_sequence. Sized: "
+                "export_selection_set_to_size."
+            ),
+        }
+
+    def export_selection_set_frame_sequence(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        pattern: str = "frame_%06d.png",
+        max_frames: int | None = None,
+        height: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_frame_sequence (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / f"selection_set_{safe}_frames"
+        )
+        rep = self.export_selection_frame_sequence(
+            ids,
+            out_dir=root,
+            pattern=str(pattern),
+            max_frames=max_frames,
+            height=height,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set frame sequence (VFX handoff). Preset MP4: "
+                "export_selection_set_with_preset. Stills: "
+                "export_selection_set_stills."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20892,6 +20977,8 @@ class Editor:
                     {"id": "export_selection_set_social", "writes": True},
                     {"id": "export_selection_set_to_size", "writes": True},
                     {"id": "repair_and_export_selection_set", "writes": True},
+                    {"id": "export_selection_set_with_preset", "writes": True},
+                    {"id": "export_selection_set_frame_sequence", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

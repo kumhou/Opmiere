@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.77 — 2026-07-17
+
+### Added
+- `export_selection_set_with_preset` / `export_selection_set_frame_sequence` + **ExpPresetSet** / **ExpFramesSet**
+
 ## 0.9.76 — 2026-07-17
 
 ### Added

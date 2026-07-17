@@ -9842,6 +9842,44 @@ def repair_and_export_selection_set(
 
 
 @mcp.tool()
+def export_selection_set_with_preset(
+    name: str,
+    preset: str = "streaming",
+    filename: str | None = None,
+    prepare: bool | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named set using a named EXPORT_PRESETS recipe."""
+    return _require_editor().export_selection_set_with_preset(
+        name,
+        preset=preset,
+        filename=filename,
+        prepare=prepare,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_frame_sequence(
+    name: str,
+    out_dir: str | None = None,
+    pattern: str = "frame_%06d.png",
+    max_frames: int | None = None,
+    height: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named set union span as an image sequence."""
+    return _require_editor().export_selection_set_frame_sequence(
+        name,
+        out_dir=out_dir,
+        pattern=pattern,
+        max_frames=max_frames,
+        height=height,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

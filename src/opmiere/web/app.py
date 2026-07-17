@@ -16465,6 +16465,66 @@ def repair_and_export_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetWithPresetBody(BaseModel):
+    name: str
+    preset: str = "streaming"
+    filename: str | None = None
+    prepare: bool | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_with_preset")
+def export_selection_set_with_preset_api(
+    body: ExportSelectionSetWithPresetBody,
+) -> dict[str, Any]:
+    """Export named set using a named export preset."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_with_preset(
+            body.name,
+            preset=body.preset,
+            filename=body.filename,
+            prepare=body.prepare,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_with_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetFrameSequenceBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    pattern: str = "frame_%06d.png"
+    max_frames: int | None = None
+    height: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_frame_sequence")
+def export_selection_set_frame_sequence_api(
+    body: ExportSelectionSetFrameSequenceBody,
+) -> dict[str, Any]:
+    """Export named set union span as image sequence."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_frame_sequence(
+            body.name,
+            out_dir=body.out_dir,
+            pattern=body.pattern,
+            max_frames=body.max_frames,
+            height=body.height,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_frame_sequence failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

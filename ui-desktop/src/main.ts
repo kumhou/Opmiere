@@ -20216,6 +20216,74 @@ async function repairAndExportSelectionSetUi() {
   }
 }
 
+async function exportSelectionSetWithPresetUi() {
+  try {
+    const name = await promptSelectionSetName("Export named set with preset (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpPresetSet cancelled";
+      return;
+    }
+    const rawPreset = window.prompt("preset (streaming|draft|broadcast|…)", "streaming");
+    if (rawPreset === null) {
+      $("status-msg").textContent = "ExpPresetSet cancelled";
+      return;
+    }
+    const preset = String(rawPreset).trim() || "streaming";
+    $("status-msg").textContent = `ExpPresetSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      preset?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_with_preset", {
+      name,
+      preset,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpPresetSet · ${r.selection_set || name} preset=${r.preset ?? preset} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpPresetSet failed: ${e}`);
+    $("status-msg").textContent = `ExpPresetSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetFrameSequenceUi() {
+  try {
+    const name = await promptSelectionSetName("Export named set frame sequence (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpFramesSet cancelled";
+      return;
+    }
+    const rawMax = window.prompt("max_frames (blank = all)", "12");
+    if (rawMax === null) {
+      $("status-msg").textContent = "ExpFramesSet cancelled";
+      return;
+    }
+    const maxFrames = String(rawMax).trim() === "" ? null : Number(rawMax);
+    $("status-msg").textContent = `ExpFramesSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      out_dir?: string;
+      path?: string;
+      frame_count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_frame_sequence", {
+      name,
+      pattern: "frame_%06d.png",
+      max_frames: maxFrames !== null && Number.isFinite(maxFrames) ? maxFrames : null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpFramesSet · ${r.selection_set || name} frames=${r.frame_count ?? "?"} dir=${r.out_dir ?? r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpFramesSet failed: ${e}`);
+    $("status-msg").textContent = `ExpFramesSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24930,6 +24998,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-social-set", () => void exportSelectionSetSocialUi());
   proBind("btn-exp-size-set", () => void exportSelectionSetToSizeUi());
   proBind("btn-repair-exp-set", () => void repairAndExportSelectionSetUi());
+  proBind("btn-exp-preset-set", () => void exportSelectionSetWithPresetUi());
+  proBind("btn-exp-frames-set", () => void exportSelectionSetFrameSequenceUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
