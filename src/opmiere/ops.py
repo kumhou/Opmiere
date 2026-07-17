@@ -19989,6 +19989,67 @@ class Editor:
             ),
         }
 
+    def markers_at_selection_set_mids(
+        self,
+        name: str,
+        *,
+        prefix: str = "Mid ",
+        color: str = "#90be6d",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then markers_at_selection_mids (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.markers_at_selection_mids(
+            ids, prefix=str(prefix), color=str(color),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Mid-clip markers on named set. Edge markers: "
+                "markers_from_selection_set. Clear subtitles: "
+                "clear_selection_set_subtitles."
+            ),
+        }
+
+    def clear_selection_set_subtitles(
+        self,
+        name: str,
+        *,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_subtitles (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_subtitles(
+            ids, video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Stripped subtitles FX on named set. Mid markers: "
+                "markers_at_selection_set_mids. Clear FX: "
+                "clear_selection_set_effects."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20140,6 +20201,8 @@ class Editor:
                     {"id": "reverse_selection_set_order", "writes": True},
                     {"id": "fill_selection_set_gaps", "writes": True},
                     {"id": "retarget_selection_set_media", "writes": True},
+                    {"id": "markers_at_selection_set_mids", "writes": True},
+                    {"id": "clear_selection_set_subtitles", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

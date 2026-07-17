@@ -15867,6 +15867,58 @@ def retarget_selection_set_media_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MarkersAtSelectionSetMidsBody(BaseModel):
+    name: str
+    prefix: str = "Mid "
+    color: str = "#90be6d"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/markers_at_selection_set_mids")
+def markers_at_selection_set_mids_api(
+    body: MarkersAtSelectionSetMidsBody,
+) -> dict[str, Any]:
+    """Place mid-clip markers for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.markers_at_selection_set_mids(
+            body.name,
+            prefix=body.prefix,
+            color=body.color,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"markers_at_selection_set_mids failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSetSubtitlesBody(BaseModel):
+    name: str
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_subtitles")
+def clear_selection_set_subtitles_api(
+    body: ClearSelectionSetSubtitlesBody,
+) -> dict[str, Any]:
+    """Clear subtitles burn-in on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_subtitles(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_subtitles failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

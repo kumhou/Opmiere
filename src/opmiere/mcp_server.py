@@ -9464,6 +9464,36 @@ def retarget_selection_set_media(
 
 
 @mcp.tool()
+def markers_at_selection_set_mids(
+    name: str,
+    prefix: str = "Mid ",
+    color: str = "#90be6d",
+    set_work_area: bool = False,
+) -> dict:
+    """Place markers at midpoints of named-set clips."""
+    return _require_editor().markers_at_selection_set_mids(
+        name,
+        prefix=prefix,
+        color=color,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def clear_selection_set_subtitles(
+    name: str,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove subtitles burn-in effects from a named selection set."""
+    return _require_editor().clear_selection_set_subtitles(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.67 — 2026-07-17
+
+### Added
+- `markers_at_selection_set_mids` / `clear_selection_set_subtitles` + **MidMkrSet** / **ClrSubSet**
+
 ## 0.9.66 — 2026-07-17
 
 ### Added

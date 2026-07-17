@@ -19599,6 +19599,63 @@ async function retargetSelectionSetMediaUi() {
   }
 }
 
+async function markersAtSelectionSetMidsUi() {
+  try {
+    const name = await promptSelectionSetName("Mid markers named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MidMkrSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `MidMkrSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/markers_at_selection_set_mids", {
+      name,
+      prefix: "Mid ",
+      color: "#90be6d",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MidMkrSet · ${r.selection_set || name} markers=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MidMkrSet failed: ${e}`);
+    $("status-msg").textContent = `MidMkrSet failed: ${e}`;
+  }
+}
+
+async function clearSelectionSetSubtitlesUi() {
+  try {
+    const name = await promptSelectionSetName("Clear subtitles named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrSubSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear subtitles burn-in on set "${name}"?`)) {
+      $("status-msg").textContent = "ClrSubSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrSubSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_selection_set_subtitles", {
+      name,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrSubSet · ${r.selection_set || name} cleared=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrSubSet failed: ${e}`);
+    $("status-msg").textContent = `ClrSubSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24293,6 +24350,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rev-order-set", () => void reverseSelectionSetOrderUi());
   proBind("btn-fill-gaps-set", () => void fillSelectionSetGapsUi());
   proBind("btn-retarget-set", () => void retargetSelectionSetMediaUi());
+  proBind("btn-mid-mkr-set", () => void markersAtSelectionSetMidsUi());
+  proBind("btn-clr-sub-set", () => void clearSelectionSetSubtitlesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
