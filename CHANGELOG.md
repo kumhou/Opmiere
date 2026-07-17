@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.43 — 2026-07-17
+
+### Added
+- `isolate_selection_set` / `selection_jl_cut_set` + **IsolateSet** / **JLSet**
+
 ## 0.9.42 — 2026-07-17
 
 ### Added

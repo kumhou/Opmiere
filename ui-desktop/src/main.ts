@@ -18034,6 +18034,72 @@ async function matchSelectionDurationSetUi() {
   }
 }
 
+async function isolateSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Isolate named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "IsolateSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `IsolateSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      muted_count?: number;
+      unmuted_count?: number;
+      clip_count?: number;
+    }>("/api/edit/isolate_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `IsolateSet · ${r.selection_set || name} muted=${r.muted_count ?? "?"} unmuted=${r.unmuted_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`IsolateSet failed: ${e}`);
+    $("status-msg").textContent = `IsolateSet failed: ${e}`;
+  }
+}
+
+async function selectionJlCutSetUi() {
+  try {
+    const name = await promptSelectionSetName("J/L cut named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "JLSet cancelled";
+      return;
+    }
+    const style = window.prompt("style j|l", "j");
+    if (style === null) {
+      $("status-msg").textContent = "JLSet cancelled";
+      return;
+    }
+    const fRaw = window.prompt("frames", "15");
+    if (fRaw === null) {
+      $("status-msg").textContent = "JLSet cancelled";
+      return;
+    }
+    const frames = Number(fRaw);
+    $("status-msg").textContent = `JLSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      style?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_jl_cut_set", {
+      name,
+      style: (style.trim() || "j").toLowerCase(),
+      frames: Number.isFinite(frames) && frames > 0 ? Math.trunc(frames) : 15,
+      link: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `JLSet · ${r.selection_set || name} style=${r.style ?? "?"} det=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`JLSet failed: ${e}`);
+    $("status-msg").textContent = `JLSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22680,6 +22746,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-detach-set", () => void detachAudioSelectionSetUi());
   proBind("btn-stagger-set", () => void staggerSelectionSetUi());
   proBind("btn-match-dur-set", () => void matchSelectionDurationSetUi());
+  proBind("btn-isolate-set", () => void isolateSelectionSetUi());
+  proBind("btn-jl-set", () => void selectionJlCutSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

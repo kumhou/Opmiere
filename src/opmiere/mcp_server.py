@@ -8654,6 +8654,38 @@ def match_selection_duration_set(
 
 
 @mcp.tool()
+def isolate_selection_set(
+    name: str,
+    kind: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Mute all clips not in a named selection set (unmute set)."""
+    return _require_editor().isolate_selection_set(
+        name,
+        kind=kind,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_jl_cut_set(
+    name: str,
+    style: str = "j",
+    frames: int = 15,
+    link: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply J-cut or L-cut on video clips in a named selection set."""
+    return _require_editor().selection_jl_cut_set(
+        name,
+        style=style,
+        frames=frames,
+        link=link,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

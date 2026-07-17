@@ -18402,6 +18402,66 @@ class Editor:
             ),
         }
 
+    def isolate_selection_set(
+        self,
+        name: str,
+        *,
+        kind: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then isolate_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.isolate_selection(ids, kind=kind)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Mute non-set clips; unmute set. J/L cut: "
+                "selection_jl_cut_set. Mute clips: "
+                "mute_selection_set."
+            ),
+        }
+
+    def selection_jl_cut_set(
+        self,
+        name: str,
+        *,
+        style: str = "j",
+        frames: int = 15,
+        link: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_jl_cut (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_jl_cut(
+            ids, style=str(style), frames=int(frames), link=bool(link),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "J/L cut via detach offset on named set. Isolate: "
+                "isolate_selection_set. Detach: "
+                "detach_audio_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18505,6 +18565,8 @@ class Editor:
                     {"id": "detach_audio_selection_set", "writes": True},
                     {"id": "stagger_selection_set", "writes": True},
                     {"id": "match_selection_duration_set", "writes": True},
+                    {"id": "isolate_selection_set", "writes": True},
+                    {"id": "selection_jl_cut_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

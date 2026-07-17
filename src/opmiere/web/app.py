@@ -14529,6 +14529,60 @@ def match_selection_duration_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class IsolateSelectionSetBody(BaseModel):
+    name: str
+    kind: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/isolate_selection_set")
+def isolate_selection_set_api(
+    body: IsolateSelectionSetBody,
+) -> dict[str, Any]:
+    """Isolate a named selection set (mute others)."""
+    ed = _ed()
+    try:
+        r = ed.isolate_selection_set(
+            body.name,
+            kind=body.kind,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"isolate_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionJlCutSetBody(BaseModel):
+    name: str
+    style: str = "j"
+    frames: int = 15
+    link: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_jl_cut_set")
+def selection_jl_cut_set_api(
+    body: SelectionJlCutSetBody,
+) -> dict[str, Any]:
+    """J/L cut on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_jl_cut_set(
+            body.name,
+            style=body.style,
+            frames=body.frames,
+            link=body.link,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_jl_cut_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
