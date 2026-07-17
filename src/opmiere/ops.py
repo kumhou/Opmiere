@@ -16831,6 +16831,66 @@ class Editor:
             ),
         }
 
+    def link_selection_set(
+        self,
+        name: str,
+        *,
+        group_id: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then link_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.link_selection(ids, group_id=group_id)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Link clips in named set. Report: "
+                "selection_set_link_report. Position: "
+                "set_selection_set_position."
+            ),
+        }
+
+    def set_selection_set_position(
+        self,
+        name: str,
+        x: float,
+        y: float,
+        scale: float,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_position (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_position(
+            ids, float(x), float(y), float(scale),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "PiP position on named set. Report: "
+                "selection_set_position_report. Link: "
+                "link_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16882,6 +16942,8 @@ class Editor:
                     {"id": "set_selection_set_meta", "writes": True},
                     {"id": "set_selection_set_opacity", "writes": True},
                     {"id": "set_selection_set_speed", "writes": True},
+                    {"id": "link_selection_set", "writes": True},
+                    {"id": "set_selection_set_position", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

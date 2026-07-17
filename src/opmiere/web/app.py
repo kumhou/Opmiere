@@ -13175,6 +13175,60 @@ def set_selection_set_speed_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class LinkSelectionSetBody(BaseModel):
+    name: str
+    group_id: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/link_selection_set")
+def link_selection_set_api(
+    body: LinkSelectionSetBody,
+) -> dict[str, Any]:
+    """Link clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.link_selection_set(
+            body.name,
+            group_id=body.group_id,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"link_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SetSelectionSetPositionBody(BaseModel):
+    name: str
+    x: float
+    y: float
+    scale: float
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_position")
+def set_selection_set_position_api(
+    body: SetSelectionSetPositionBody,
+) -> dict[str, Any]:
+    """Set PiP position on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_position(
+            body.name,
+            body.x,
+            body.y,
+            body.scale,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_position failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

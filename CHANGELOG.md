@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.17 — 2026-07-17
+
+### Added
+- `link_selection_set` / `set_selection_set_position` + **LinkSet** / **PosSet**
+
 ## 0.9.16 — 2026-07-17
 
 ### Added

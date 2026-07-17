@@ -16386,6 +16386,81 @@ async function setSelectionSetSpeedUi() {
   }
 }
 
+async function linkSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Link named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "LinkSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `LinkSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      group_id?: string;
+      link_group?: string;
+    }>("/api/edit/link_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LinkSet · ${r.selection_set || name} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LinkSet failed: ${e}`);
+    $("status-msg").textContent = `LinkSet failed: ${e}`;
+  }
+}
+
+async function setSelectionSetPositionUi() {
+  try {
+    const name = await promptSelectionSetName("Set PiP position on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PosSet cancelled";
+      return;
+    }
+    const xRaw = window.prompt("x (0-1)", "0.1");
+    if (xRaw === null) {
+      $("status-msg").textContent = "PosSet cancelled";
+      return;
+    }
+    const yRaw = window.prompt("y (0-1)", "0.1");
+    if (yRaw === null) {
+      $("status-msg").textContent = "PosSet cancelled";
+      return;
+    }
+    const sRaw = window.prompt("scale (0-1]", "0.4");
+    if (sRaw === null) {
+      $("status-msg").textContent = "PosSet cancelled";
+      return;
+    }
+    const x = Number(xRaw);
+    const y = Number(yRaw);
+    const scale = Number(sRaw);
+    $("status-msg").textContent = `PosSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+      x?: number;
+      y?: number;
+      scale?: number;
+    }>("/api/edit/set_selection_set_position", {
+      name,
+      x: Number.isFinite(x) ? x : 0.1,
+      y: Number.isFinite(y) ? y : 0.1,
+      scale: Number.isFinite(scale) ? scale : 0.4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PosSet · ${r.selection_set || name} scale=${r.scale ?? scale} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`PosSet failed: ${e}`);
+    $("status-msg").textContent = `PosSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20980,6 +21055,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-meta-set", () => void setSelectionSetMetaUi());
   proBind("btn-opac-set", () => void setSelectionSetOpacityUi());
   proBind("btn-speed-set", () => void setSelectionSetSpeedUi());
+  proBind("btn-link-set", () => void linkSelectionSetUi());
+  proBind("btn-pos-set", () => void setSelectionSetPositionUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

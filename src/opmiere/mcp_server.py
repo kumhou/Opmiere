@@ -7872,6 +7872,38 @@ def set_selection_set_speed(
 
 
 @mcp.tool()
+def link_selection_set(
+    name: str,
+    group_id: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Link clips in a named selection set into one link_group."""
+    return _require_editor().link_selection_set(
+        name,
+        group_id=group_id,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def set_selection_set_position(
+    name: str,
+    x: float,
+    y: float,
+    scale: float,
+    set_work_area: bool = False,
+) -> dict:
+    """Set PiP position (x,y,scale) on clips in a named selection set."""
+    return _require_editor().set_selection_set_position(
+        name,
+        x,
+        y,
+        scale,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
