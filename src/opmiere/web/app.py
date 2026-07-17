@@ -10382,6 +10382,52 @@ def clear_selection_review_overlays_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class VignetteSelectionBody(BaseModel):
+    clip_ids: list[str]
+    strength: float = 0.45
+    replace: bool = True
+    video_only: bool = True
+
+
+@app.post("/api/edit/vignette_selection")
+def vignette_selection_api(body: VignetteSelectionBody) -> dict[str, Any]:
+    """Vignette on selection."""
+    ed = _ed()
+    try:
+        r = ed.vignette_selection(
+            body.clip_ids,
+            strength=body.strength,
+            replace=body.replace,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"vignette_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FilmGrainSelectionBody(BaseModel):
+    clip_ids: list[str]
+    amount: float = 12.0
+    replace: bool = True
+    video_only: bool = True
+
+
+@app.post("/api/edit/film_grain_selection")
+def film_grain_selection_api(body: FilmGrainSelectionBody) -> dict[str, Any]:
+    """Film grain on selection."""
+    ed = _ed()
+    try:
+        r = ed.film_grain_selection(
+            body.clip_ids,
+            amount=body.amount,
+            replace=body.replace,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"film_grain_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

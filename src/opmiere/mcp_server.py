@@ -6182,6 +6182,38 @@ def clear_selection_review_overlays(
 
 
 @mcp.tool()
+def vignette_selection(
+    clip_ids: list[str],
+    strength: float = 0.45,
+    replace: bool = True,
+    video_only: bool = True,
+) -> dict:
+    """Apply vignette to selection video clips."""
+    return _require_editor().vignette_selection(
+        clip_ids,
+        strength=strength,
+        replace=replace,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def film_grain_selection(
+    clip_ids: list[str],
+    amount: float = 12.0,
+    replace: bool = True,
+    video_only: bool = True,
+) -> dict:
+    """Apply film grain to selection video clips."""
+    return _require_editor().film_grain_selection(
+        clip_ids,
+        amount=amount,
+        replace=replace,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

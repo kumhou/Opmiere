@@ -11715,6 +11715,80 @@ class Editor:
             "agent_note": "Review overlays stripped; grade/other FX kept.",
         }
 
+    def vignette_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        strength: float = 0.45,
+        replace: bool = True,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Apply vignette to every selected video clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        done: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, _ = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                r = self.apply_vignette(cid, strength=strength, replace=replace)
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["clip_id"] = cid
+                done.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "strength": float(strength),
+            "count": len(done),
+            "applied": done,
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Vignette on selection. Single-clip: apply_vignette.",
+        }
+
+    def film_grain_selection(
+        self,
+        clip_ids: list[str],
+        *,
+        amount: float = 12.0,
+        replace: bool = True,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Apply film grain to every selected video clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        done: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, _ = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                r = self.apply_film_grain(cid, amount=amount, replace=replace)
+                if isinstance(r, dict):
+                    r = dict(r)
+                    r["clip_id"] = cid
+                done.append(r if isinstance(r, dict) else {"clip_id": cid})
+            except Exception as e:
+                errors.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "amount": float(amount),
+            "count": len(done),
+            "applied": done,
+            "skipped": skipped,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": "Film grain on selection. Single-clip: apply_film_grain.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

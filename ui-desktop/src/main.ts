@@ -13199,6 +13199,62 @@ async function clearSelectionReviewOverlaysUi() {
   }
 }
 
+async function vignetteSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for vignette";
+    return;
+  }
+  $("status-msg").textContent = "Applying vignette…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/vignette_selection", {
+      clip_ids: ids,
+      strength: 0.45,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `VigSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`VigSel failed: ${e}`);
+    $("status-msg").textContent = `VigSel failed: ${e}`;
+  }
+}
+
+async function filmGrainSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for film grain";
+    return;
+  }
+  $("status-msg").textContent = "Applying film grain…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/film_grain_selection", {
+      clip_ids: ids,
+      amount: 12,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GrainSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`GrainSel failed: ${e}`);
+    $("status-msg").textContent = `GrainSel failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17246,6 +17302,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-tc-clr-sel", () => void clearSelectionTimecodesUi());
   proBind("btn-revov-sel", () => void applySelectionReviewOverlaysUi());
   proBind("btn-revov-clr-sel", () => void clearSelectionReviewOverlaysUi());
+  proBind("btn-vig-sel", () => void vignetteSelectionUi());
+  proBind("btn-grain-sel", () => void filmGrainSelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

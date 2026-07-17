@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.74 — 2026-07-17
+
+### Added
+- `vignette_selection` / `film_grain_selection` + **VigSel** / **GrainSel**
+
 ## 0.6.73 — 2026-07-17
 
 ### Added
