@@ -18553,6 +18553,78 @@ async function reframeSelectionSetUi() {
   }
 }
 
+async function watermarkSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Watermark named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "WmSet cancelled";
+      return;
+    }
+    const raw = window.prompt("watermark text", "DRAFT");
+    if (raw === null) {
+      $("status-msg").textContent = "WmSet cancelled";
+      return;
+    }
+    const content = String(raw).trim() || "DRAFT";
+    $("status-msg").textContent = `WmSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      content?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/watermark_selection_set", {
+      name,
+      content,
+      position: "bottom",
+      size: 22,
+      alpha: 0.55,
+      color: "white",
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WmSet · ${r.selection_set || name} text=${r.content ?? content} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`WmSet failed: ${e}`);
+    $("status-msg").textContent = `WmSet failed: ${e}`;
+  }
+}
+
+async function applyLutSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("LUT named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "LutSet cancelled";
+      return;
+    }
+    const rawPath = window.prompt("LUT path (.cube / .3dl)", "");
+    if (rawPath === null || !String(rawPath).trim()) {
+      $("status-msg").textContent = "LutSet cancelled";
+      return;
+    }
+    const path = String(rawPath).trim();
+    $("status-msg").textContent = `LutSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/apply_lut_selection_set", {
+      name,
+      path,
+      replace: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LutSet · ${r.selection_set || name} applied=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LutSet failed: ${e}`);
+    $("status-msg").textContent = `LutSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23215,6 +23287,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rev-set", () => void reverseSelectionSetUi());
   proBind("btn-stab-set", () => void stabilizeSelectionSetUi());
   proBind("btn-reframe-set", () => void reframeSelectionSetUi());
+  proBind("btn-wm-set", () => void watermarkSelectionSetUi());
+  proBind("btn-lut-set", () => void applyLutSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

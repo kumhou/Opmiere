@@ -18920,6 +18920,78 @@ class Editor:
             ),
         }
 
+    def watermark_selection_set(
+        self,
+        name: str,
+        content: str,
+        *,
+        position: str = "bottom",
+        size: int = 22,
+        alpha: float = 0.55,
+        color: str = "white",
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then watermark_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.watermark_selection(
+            ids,
+            content,
+            position=str(position),
+            size=int(size),
+            alpha=float(alpha),
+            color=str(color),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Text watermark on named set. LUT: "
+                "apply_lut_selection_set. Clear FX: "
+                "clear_selection_set_effects."
+            ),
+        }
+
+    def apply_lut_selection_set(
+        self,
+        name: str,
+        path: str,
+        *,
+        replace: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then apply_lut_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.apply_lut_selection(
+            ids, path, replace=bool(replace),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "LUT on named set. Watermark: "
+                "watermark_selection_set. Look: "
+                "apply_look_to_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19039,6 +19111,8 @@ class Editor:
                     {"id": "reverse_selection_set", "writes": True},
                     {"id": "stabilize_selection_set", "writes": True},
                     {"id": "reframe_selection_set", "writes": True},
+                    {"id": "watermark_selection_set", "writes": True},
+                    {"id": "apply_lut_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

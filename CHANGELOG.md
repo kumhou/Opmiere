@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.51 — 2026-07-17
+
+### Added
+- `watermark_selection_set` / `apply_lut_selection_set` + **WmSet** / **LutSet**
+
 ## 0.9.50 — 2026-07-17
 
 ### Added

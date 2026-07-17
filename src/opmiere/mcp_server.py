@@ -8912,6 +8912,46 @@ def reframe_selection_set(
 
 
 @mcp.tool()
+def watermark_selection_set(
+    name: str,
+    content: str,
+    position: str = "bottom",
+    size: int = 22,
+    alpha: float = 0.55,
+    color: str = "white",
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply text watermark to clips in a named selection set."""
+    return _require_editor().watermark_selection_set(
+        name,
+        content,
+        position=position,
+        size=size,
+        alpha=alpha,
+        color=color,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def apply_lut_selection_set(
+    name: str,
+    path: str,
+    replace: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply a .cube/.3dl LUT to clips in a named selection set."""
+    return _require_editor().apply_lut_selection_set(
+        name,
+        path,
+        replace=replace,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

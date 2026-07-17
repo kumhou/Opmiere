@@ -14963,6 +14963,68 @@ def reframe_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class WatermarkSelectionSetBody(BaseModel):
+    name: str
+    content: str
+    position: str = "bottom"
+    size: int = 22
+    alpha: float = 0.55
+    color: str = "white"
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/watermark_selection_set")
+def watermark_selection_set_api(
+    body: WatermarkSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply text watermark to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.watermark_selection_set(
+            body.name,
+            body.content,
+            position=body.position,
+            size=body.size,
+            alpha=body.alpha,
+            color=body.color,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"watermark_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ApplyLutSelectionSetBody(BaseModel):
+    name: str
+    path: str
+    replace: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/apply_lut_selection_set")
+def apply_lut_selection_set_api(
+    body: ApplyLutSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply a LUT file to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.apply_lut_selection_set(
+            body.name,
+            body.path,
+            replace=body.replace,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_lut_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
