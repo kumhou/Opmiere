@@ -6773,6 +6773,48 @@ def run_selection_pipeline(
 
 
 @mcp.tool()
+def save_selection_set(
+    name: str,
+    clip_ids: list[str],
+    note: str = "",
+    overwrite: bool = True,
+) -> dict:
+    """Persist a named clip selection set on the project bundle."""
+    return _require_editor().save_selection_set(
+        name,
+        clip_ids,
+        note=note,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool()
+def list_selection_sets() -> dict:
+    """List named selection sets stored on this project."""
+    return _require_editor().list_selection_sets()
+
+
+@mcp.tool()
+def load_selection_set(
+    name: str,
+    set_work_area: bool = True,
+    drop_missing: bool = True,
+) -> dict:
+    """Load a named selection set; optionally set work In/Out."""
+    return _require_editor().load_selection_set(
+        name,
+        set_work_area=set_work_area,
+        drop_missing=drop_missing,
+    )
+
+
+@mcp.tool()
+def delete_selection_set(name: str) -> dict:
+    """Delete a named selection set from the project sidecar."""
+    return _require_editor().delete_selection_set(name)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

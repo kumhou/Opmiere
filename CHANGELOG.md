@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.95 — 2026-07-17
+
+### Added
+- `save_selection_set` / `load_selection_set` (+ list/delete) + **SaveSet** / **LoadSet**
+
 ## 0.6.94 — 2026-07-17
 
 ### Added

@@ -14196,6 +14196,98 @@ async function runSelectionPipelineUi() {
   }
 }
 
+async function saveSelectionSetUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to save as a set";
+    return;
+  }
+  const name = window.prompt("Selection set name", "default")?.trim();
+  if (!name) {
+    $("status-msg").textContent = "SaveSet cancelled";
+    return;
+  }
+  const note = window.prompt("Note (optional)", "") ?? "";
+  $("status-msg").textContent = "Saving selection set…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      name?: string;
+      clip_count?: number;
+      path?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/save_selection_set", {
+      name,
+      clip_ids: ids,
+      note,
+      overwrite: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SaveSet · ${r.name || name} n=${r.clip_count ?? ids.length}`;
+  } catch (e) {
+    setProOut(`SaveSet failed: ${e}`);
+    $("status-msg").textContent = `SaveSet failed: ${e}`;
+  }
+}
+
+async function loadSelectionSetUi() {
+  $("status-msg").textContent = "Listing selection sets…";
+  try {
+    const listed = await getJson<{
+      sets?: { name?: string; clip_count?: number }[];
+      count?: number;
+    }>("/api/edit/list_selection_sets");
+    const names = (listed.sets || [])
+      .map((s) => s.name)
+      .filter((n): n is string => !!n);
+    const hint =
+      names.length > 0
+        ? names.join(", ")
+        : "(none yet — SaveSet first)";
+    const name = window
+      .prompt(`Load selection set name\nKnown: ${hint}`, names[0] || "default")
+      ?.trim();
+    if (!name) {
+      $("status-msg").textContent = "LoadSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `Loading set ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      name?: string;
+      clip_ids?: string[];
+      clip_count?: number;
+      missing_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/load_selection_set", {
+      name,
+      set_work_area: true,
+      drop_missing: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    if (r.clip_ids?.length) {
+      // best-effort: select returned clips in UI if helper exists
+      try {
+        const selFn = (window as unknown as { selectClipsByIds?: (ids: string[]) => void })
+          .selectClipsByIds;
+        if (typeof selFn === "function") selFn(r.clip_ids);
+      } catch {
+        /* ignore */
+      }
+    }
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LoadSet · ${r.name || name} n=${r.clip_count ?? "?"} miss=${r.missing_count ?? 0}`;
+  } catch (e) {
+    setProOut(`LoadSet failed: ${e}`);
+    $("status-msg").textContent = `LoadSet failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18283,6 +18375,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fmt-pack-sel", () => void exportSelectionFormatsPackUi());
   proBind("btn-agent-fin-sel", () => void agentFinishSelectionUi());
   proBind("btn-pipe-sel", () => void runSelectionPipelineUi());
+  proBind("btn-save-sel-set", () => void saveSelectionSetUi());
+  proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -11364,6 +11364,75 @@ def run_selection_pipeline_api(body: RunSelectionPipelineBody) -> dict[str, Any]
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SaveSelectionSetBody(BaseModel):
+    name: str
+    clip_ids: list[str]
+    note: str = ""
+    overwrite: bool = True
+
+
+@app.post("/api/edit/save_selection_set")
+def save_selection_set_api(body: SaveSelectionSetBody) -> dict[str, Any]:
+    """Persist a named selection set on the project bundle."""
+    ed = _ed()
+    try:
+        r = ed.save_selection_set(
+            body.name,
+            body.clip_ids,
+            note=body.note,
+            overwrite=body.overwrite,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"save_selection_set failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/edit/list_selection_sets")
+def list_selection_sets_api() -> dict[str, Any]:
+    """List named selection sets."""
+    ed = _ed()
+    try:
+        return ed.list_selection_sets()
+    except Exception as e:
+        raise HTTPException(400, f"list_selection_sets failed: {e}") from e
+
+
+class LoadSelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = True
+    drop_missing: bool = True
+
+
+@app.post("/api/edit/load_selection_set")
+def load_selection_set_api(body: LoadSelectionSetBody) -> dict[str, Any]:
+    """Load a named selection set; optionally set work In/Out."""
+    ed = _ed()
+    try:
+        r = ed.load_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+            drop_missing=body.drop_missing,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"load_selection_set failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DeleteSelectionSetBody(BaseModel):
+    name: str
+
+
+@app.post("/api/edit/delete_selection_set")
+def delete_selection_set_api(body: DeleteSelectionSetBody) -> dict[str, Any]:
+    """Delete a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.delete_selection_set(body.name)
+    except Exception as e:
+        raise HTTPException(400, f"delete_selection_set failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

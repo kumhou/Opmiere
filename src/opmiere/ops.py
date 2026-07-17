@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -13796,6 +13797,221 @@ class Editor:
                 "Named step pipeline. Default: validate→repair→export_mp4→checklist. "
                 "One-shot: agent_finish_selection."
             ),
+        }
+
+    def _selection_sets_path(self) -> Path:
+        return Path(self.bundle.root) / "selection_sets.json"
+
+    def _read_selection_sets(self) -> dict[str, Any]:
+        p = self._selection_sets_path()
+        if not p.is_file():
+            return {"schema": "opmiere.selection_sets.v1", "sets": {}}
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"schema": "opmiere.selection_sets.v1", "sets": {}}
+        if not isinstance(data, dict):
+            return {"schema": "opmiere.selection_sets.v1", "sets": {}}
+        sets = data.get("sets")
+        if not isinstance(sets, dict):
+            sets = {}
+        return {
+            "schema": str(data.get("schema") or "opmiere.selection_sets.v1"),
+            "sets": sets,
+        }
+
+    def _write_selection_sets(self, data: dict[str, Any]) -> Path:
+        p = self._selection_sets_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "opmiere.selection_sets.v1",
+            "sets": data.get("sets") if isinstance(data.get("sets"), dict) else {},
+        }
+        p.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return p
+
+    def save_selection_set(
+        self,
+        name: str,
+        clip_ids: list[str],
+        *,
+        note: str = "",
+        overwrite: bool = True,
+    ) -> dict[str, Any]:
+        """Persist a named clip-id selection under the project bundle.
+
+        Stored at ``selection_sets.json`` (sidecar, not in project.json undo).
+        """
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(str(c) for c in clip_ids if str(c).strip()))
+        if not ids:
+            raise ValueError("clip_ids is empty after normalize")
+        # resolve present clips + span snapshot
+        present: list[str] = []
+        missing: list[str] = []
+        for cid in ids:
+            try:
+                self._find_clip(cid)
+                present.append(cid)
+            except Exception:
+                missing.append(cid)
+        if not present:
+            raise ValueError("no clip_ids found on timeline")
+        span = self.selection_span(present)
+        store = self._read_selection_sets()
+        sets: dict[str, Any] = dict(store.get("sets") or {})
+        if key in sets and not overwrite:
+            raise ValueError(f"selection set {key!r} exists (overwrite=False)")
+        entry = {
+            "name": key,
+            "clip_ids": present,
+            "note": str(note or ""),
+            "clip_count": len(present),
+            "span": {
+                "start_frame": span.get("start_frame"),
+                "end_frame": span.get("end_frame"),
+                "duration_frames": span.get("duration_frames"),
+                "start_seconds": span.get("start_seconds"),
+                "end_seconds": span.get("end_seconds"),
+            },
+            "missing_at_save": missing,
+            "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        sets[key] = entry
+        store["sets"] = sets
+        path = self._write_selection_sets(store)
+        return {
+            "ok": True,
+            "name": key,
+            "path": str(path.resolve()),
+            "clip_ids": present,
+            "clip_count": len(present),
+            "missing_at_save": missing,
+            "span": entry["span"],
+            "note": entry["note"],
+            "agent_note": (
+                "Named selection set saved. Restore: load_selection_set. "
+                "List: list_selection_sets."
+            ),
+        }
+
+    def list_selection_sets(self) -> dict[str, Any]:
+        """List named selection sets stored on this project."""
+        store = self._read_selection_sets()
+        sets = store.get("sets") or {}
+        rows: list[dict[str, Any]] = []
+        for name, entry in sorted(sets.items(), key=lambda kv: str(kv[0]).lower()):
+            if not isinstance(entry, dict):
+                continue
+            rows.append({
+                "name": name,
+                "clip_count": entry.get("clip_count")
+                or len(entry.get("clip_ids") or []),
+                "note": entry.get("note") or "",
+                "updated_at": entry.get("updated_at"),
+                "span": entry.get("span"),
+            })
+        return {
+            "ok": True,
+            "count": len(rows),
+            "sets": rows,
+            "path": str(self._selection_sets_path().resolve()),
+            "agent_note": "Sidecar sets. Load: load_selection_set(name).",
+        }
+
+    def load_selection_set(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = True,
+        drop_missing: bool = True,
+    ) -> dict[str, Any]:
+        """Load a named selection set; optionally set work In/Out to its live span.
+
+        Missing clips (deleted since save) are reported; dropped when
+        drop_missing=True. Raises if nothing remains.
+        """
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        store = self._read_selection_sets()
+        sets = store.get("sets") or {}
+        if key not in sets:
+            raise KeyError(
+                f"no selection set {key!r}; known={sorted(sets.keys())}"
+            )
+        entry = sets[key]
+        if not isinstance(entry, dict):
+            raise ValueError(f"corrupt selection set {key!r}")
+        raw_ids = list(entry.get("clip_ids") or [])
+        present: list[str] = []
+        missing: list[str] = []
+        for cid in raw_ids:
+            try:
+                self._find_clip(str(cid))
+                present.append(str(cid))
+            except Exception:
+                missing.append(str(cid))
+        if not present and not drop_missing and missing:
+            raise ValueError(
+                f"selection set {key!r}: all {len(missing)} clips missing"
+            )
+        if not present:
+            raise ValueError(
+                f"selection set {key!r}: no clips remain on timeline "
+                f"(missing={missing})"
+            )
+        live = present  # only live clips are operable
+        _ = drop_missing  # reserved: currently always drop missing from clip_ids
+        span = self.selection_span(live)
+        work = None
+        if set_work_area:
+            work = self.set_work_area_from_selection(live)
+        return {
+            "ok": True,
+            "name": key,
+            "clip_ids": live,
+            "clip_count": len(live),
+            "missing": missing,
+            "missing_count": len(missing),
+            "note": entry.get("note") or "",
+            "saved_span": entry.get("span"),
+            "span": span,
+            "work_area": work,
+            "set_work_area": bool(set_work_area),
+            "agent_note": (
+                "Resolved live clip_ids. Use as input to agent_finish_selection / "
+                "run_selection_pipeline. Persist new: save_selection_set."
+            ),
+        }
+
+    def delete_selection_set(self, name: str) -> dict[str, Any]:
+        """Delete a named selection set from the project sidecar."""
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        store = self._read_selection_sets()
+        sets: dict[str, Any] = dict(store.get("sets") or {})
+        if key not in sets:
+            raise KeyError(
+                f"no selection set {key!r}; known={sorted(sets.keys())}"
+            )
+        del sets[key]
+        store["sets"] = sets
+        path = self._write_selection_sets(store)
+        return {
+            "ok": True,
+            "deleted": key,
+            "remaining": sorted(sets.keys()),
+            "path": str(path.resolve()),
+            "agent_note": "Selection set removed from selection_sets.json.",
         }
 
     def detach_audio_all(
