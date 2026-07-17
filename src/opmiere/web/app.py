@@ -16811,6 +16811,68 @@ def export_selection_set_clips_gif_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetClipsWebmPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    prefix: str | None = None
+    crf: int = 32
+    width: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_clips_webm_pack")
+def export_selection_set_clips_webm_pack_api(
+    body: ExportSelectionSetClipsWebmPackBody,
+) -> dict[str, Any]:
+    """Export each clip in named set as WebM."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_clips_webm_pack(
+            body.name,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            crf=body.crf,
+            width=body.width,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_clips_webm_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetClipsAudioPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    prefix: str | None = None
+    ext: str = "wav"
+    sample_rate: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_clips_audio_pack")
+def export_selection_set_clips_audio_pack_api(
+    body: ExportSelectionSetClipsAudioPackBody,
+) -> dict[str, Any]:
+    """Export each clip in named set as audio."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_clips_audio_pack(
+            body.name,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            ext=body.ext,
+            sample_rate=body.sample_rate,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_clips_audio_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

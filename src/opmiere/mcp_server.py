@@ -10056,6 +10056,46 @@ def export_selection_set_clips_gif_pack(
 
 
 @mcp.tool()
+def export_selection_set_clips_webm_pack(
+    name: str,
+    out_dir: str | None = None,
+    prefix: str | None = None,
+    crf: int = 32,
+    width: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export each clip in a named set as WebM."""
+    return _require_editor().export_selection_set_clips_webm_pack(
+        name,
+        out_dir=out_dir,
+        prefix=prefix,
+        crf=crf,
+        width=width,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_clips_audio_pack(
+    name: str,
+    out_dir: str | None = None,
+    prefix: str | None = None,
+    ext: str = "wav",
+    sample_rate: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export each clip in a named set as audio (wav/m4a/mp3/flac)."""
+    return _require_editor().export_selection_set_clips_audio_pack(
+        name,
+        out_dir=out_dir,
+        prefix=prefix,
+        ext=ext,
+        sample_rate=sample_rate,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

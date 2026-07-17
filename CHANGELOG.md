@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.83 — 2026-07-17
+
+### Added
+- `export_selection_set_clips_webm_pack` / `export_selection_set_clips_audio_pack` + **ExpClipsWebmSet** / **ExpClipsAudioSet**
+
 ## 0.9.82 — 2026-07-17
 
 ### Added

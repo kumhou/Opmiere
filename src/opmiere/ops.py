@@ -21191,7 +21191,99 @@ class Editor:
             "agent_note": (
                 "Named-set per-clip GIF pack. Marker segments: "
                 "export_selection_set_marker_segments. WebM pack: "
-                "export_selection_clips_webm_pack (set wrapper next)."
+                "export_selection_set_clips_webm_pack."
+            ),
+        }
+
+    def export_selection_set_clips_webm_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str | None = None,
+        crf: int = 32,
+        width: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_clips_webm_pack (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / f"selection_set_{safe}_webms"
+        )
+        rep = self.export_selection_clips_webm_pack(
+            ids,
+            out_dir=root,
+            prefix=prefix or f"set_{safe}",
+            crf=int(crf),
+            width=width,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set per-clip WebM pack. Audio pack: "
+                "export_selection_set_clips_audio_pack. GIF: "
+                "export_selection_set_clips_gif_pack."
+            ),
+        }
+
+    def export_selection_set_clips_audio_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str | None = None,
+        ext: str = "wav",
+        sample_rate: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_clips_audio_pack (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / f"selection_set_{safe}_audio"
+        )
+        rep = self.export_selection_clips_audio_pack(
+            ids,
+            out_dir=root,
+            prefix=prefix or f"set_{safe}",
+            ext=str(ext),
+            sample_rate=sample_rate,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set per-clip audio pack. WebM pack: "
+                "export_selection_set_clips_webm_pack. Union audio: "
+                "export_selection_set_audio."
             ),
         }
 
@@ -21378,6 +21470,8 @@ class Editor:
                     {"id": "selection_set_track_states", "writes": False},
                     {"id": "export_selection_set_marker_segments", "writes": True},
                     {"id": "export_selection_set_clips_gif_pack", "writes": True},
+                    {"id": "export_selection_set_clips_webm_pack", "writes": True},
+                    {"id": "export_selection_set_clips_audio_pack", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

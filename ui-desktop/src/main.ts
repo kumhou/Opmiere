@@ -20564,6 +20564,60 @@ async function exportSelectionSetClipsGifPackUi() {
   }
 }
 
+async function exportSelectionSetClipsWebmPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export per-clip WebM pack for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpClipsWebmSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpClipsWebmSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      output_dir?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_clips_webm_pack", {
+      name,
+      crf: 36,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpClipsWebmSet · ${r.selection_set || name} count=${r.count ?? "?"} dir=${r.output_dir ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpClipsWebmSet failed: ${e}`);
+    $("status-msg").textContent = `ExpClipsWebmSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetClipsAudioPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export per-clip audio pack for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpClipsAudioSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpClipsAudioSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      output_dir?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_clips_audio_pack", {
+      name,
+      ext: "wav",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpClipsAudioSet · ${r.selection_set || name} count=${r.count ?? "?"} dir=${r.output_dir ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpClipsAudioSet failed: ${e}`);
+    $("status-msg").textContent = `ExpClipsAudioSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25290,6 +25344,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-track-states-set", () => void selectionSetTrackStatesUi());
   proBind("btn-exp-mkr-seg-set", () => void exportSelectionSetMarkerSegmentsUi());
   proBind("btn-exp-clips-gif-set", () => void exportSelectionSetClipsGifPackUi());
+  proBind("btn-exp-clips-webm-set", () => void exportSelectionSetClipsWebmPackUi());
+  proBind("btn-exp-clips-audio-set", () => void exportSelectionSetClipsAudioPackUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
