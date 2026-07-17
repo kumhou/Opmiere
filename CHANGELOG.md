@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 — 2026-07-17
+
+### Added
+- `markers_to_selection_set` / `export_selection_set_cutlist` + **MkrSet** / **SetCut**
+
 ## 0.7.9 — 2026-07-17
 
 ### Added

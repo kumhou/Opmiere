@@ -7003,6 +7003,44 @@ def export_selection_set_edl(
 
 
 @mcp.tool()
+def markers_to_selection_set(
+    name: str,
+    marker_ids: list[str] | None = None,
+    label_prefix: str | None = None,
+    kind: str | None = None,
+    track_id: str | None = None,
+    note: str = "",
+    overwrite: bool = True,
+) -> dict:
+    """Build a named selection set from clips under timeline markers."""
+    return _require_editor().markers_to_selection_set(
+        name,
+        marker_ids=marker_ids,
+        label_prefix=label_prefix,
+        kind=kind,
+        track_id=track_id,
+        note=note,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool()
+def export_selection_set_cutlist(
+    name: str,
+    path: str | None = None,
+    filename: str | None = None,
+    format: str = "csv",
+) -> dict:
+    """Export cutlist (csv|json) for a named selection set."""
+    return _require_editor().export_selection_set_cutlist(
+        name,
+        path=path,
+        filename=filename,
+        format=format,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

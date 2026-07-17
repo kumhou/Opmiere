@@ -14870,6 +14870,68 @@ async function exportSelectionSetEdlUi() {
   }
 }
 
+async function markersToSelectionSetUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const name =
+    window.prompt("New selection set name from markers", "from_markers")
+      ?.trim() || "from_markers";
+  const prefix = window.prompt("Marker label prefix (empty = all)", "")?.trim() || null;
+  $("status-msg").textContent = `MkrSet → ${name}…`;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      name?: string;
+      clip_count?: number;
+      marker_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/markers_to_selection_set", {
+      name,
+      label_prefix: prefix,
+      kind: "video",
+      overwrite: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MkrSet · ${r.name || name} clips=${r.clip_count ?? "?"} markers=${r.marker_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MkrSet failed: ${e}`);
+    $("status-msg").textContent = `MkrSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetCutlistUi() {
+  try {
+    const name = await promptSelectionSetName("Export set cutlist (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetCut cancelled";
+      return;
+    }
+    const format =
+      window.prompt("Format: csv | json", "csv")?.trim().toLowerCase() || "csv";
+    $("status-msg").textContent = `SetCut ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+      format?: string;
+    }>("/api/edit/export_selection_set_cutlist", {
+      name,
+      format,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetCut · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetCut failed: ${e}`);
+    $("status-msg").textContent = `SetCut failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19369,6 +19431,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-val-rpt-set", () => void exportSelectionSetsValidateReportUi());
   proBind("btn-set-markers", () => void selectionSetToMarkersUi());
   proBind("btn-set-edl", () => void exportSelectionSetEdlUi());
+  proBind("btn-mkr-to-set", () => void markersToSelectionSetUi());
+  proBind("btn-set-cutlist", () => void exportSelectionSetCutlistUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

@@ -11737,6 +11737,66 @@ def export_selection_set_edl_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MarkersToSelectionSetBody(BaseModel):
+    name: str
+    marker_ids: list[str] | None = None
+    label_prefix: str | None = None
+    kind: str | None = None
+    track_id: str | None = None
+    note: str = ""
+    overwrite: bool = True
+
+
+@app.post("/api/edit/markers_to_selection_set")
+def markers_to_selection_set_api(
+    body: MarkersToSelectionSetBody,
+) -> dict[str, Any]:
+    """Build a named selection set from marker hit-tests."""
+    ed = _ed()
+    try:
+        r = ed.markers_to_selection_set(
+            body.name,
+            marker_ids=body.marker_ids,
+            label_prefix=body.label_prefix,
+            kind=body.kind,
+            track_id=body.track_id,
+            note=body.note,
+            overwrite=body.overwrite,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"markers_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetCutlistBody(BaseModel):
+    name: str
+    path: str | None = None
+    filename: str | None = None
+    format: str = "csv"
+
+
+@app.post("/api/edit/export_selection_set_cutlist")
+def export_selection_set_cutlist_api(
+    body: ExportSelectionSetCutlistBody,
+) -> dict[str, Any]:
+    """Export cutlist for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_cutlist(
+            body.name,
+            path=body.path,
+            filename=body.filename,
+            format=body.format,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_cutlist failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

@@ -14698,7 +14698,133 @@ class Editor:
             "clip_count": len(ids),
             "agent_note": (
                 "EDL from named set. Markers: selection_set_to_markers. "
-                "Finish: agent_finish_selection_set."
+                "Cutlist: export_selection_set_cutlist. "
+                "Reverse: markers_to_selection_set."
+            ),
+        }
+
+    def markers_to_selection_set(
+        self,
+        name: str,
+        *,
+        marker_ids: list[str] | None = None,
+        label_prefix: str | None = None,
+        kind: str | None = None,
+        track_id: str | None = None,
+        note: str = "",
+        overwrite: bool = True,
+    ) -> dict[str, Any]:
+        """Build a named selection set from clips under timeline markers.
+
+        If marker_ids is None, uses all markers (optionally filtered by
+        label_prefix). Each marker frame is hit-tested via clips_at.
+        """
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        markers = sorted(self.project.markers, key=lambda m: m.frame)
+        if marker_ids is not None:
+            want = set(str(i) for i in marker_ids if str(i).strip())
+            markers = [m for m in markers if m.id in want]
+        if label_prefix is not None:
+            pref = str(label_prefix)
+            markers = [
+                m for m in markers
+                if str(getattr(m, "label", "") or "").startswith(pref)
+            ]
+        if not markers:
+            raise ValueError("no markers match filter")
+
+        ids: list[str] = []
+        seen: set[str] = set()
+        hit_rows: list[dict[str, Any]] = []
+        for m in markers:
+            hit = self.clips_at(
+                int(m.frame),
+                track_id=track_id,
+                kind=kind,
+            )
+            for h in hit.get("hits") or []:
+                cid = str(h.get("clip_id") or "")
+                if not cid or cid in seen:
+                    continue
+                seen.add(cid)
+                ids.append(cid)
+                hit_rows.append({
+                    "marker_id": m.id,
+                    "marker_frame": int(m.frame),
+                    "marker_label": getattr(m, "label", "") or "",
+                    "clip_id": cid,
+                    "track_id": h.get("track_id"),
+                })
+        if not ids:
+            raise ValueError(
+                "no clips under matched markers "
+                f"(markers={len(markers)}, kind={kind!r}, track_id={track_id!r})"
+            )
+        note_text = note or (
+            f"from {len(markers)} markers"
+            + (f" prefix={label_prefix}" if label_prefix else "")
+        )
+        saved = self.save_selection_set(
+            key,
+            ids,
+            note=note_text,
+            overwrite=overwrite,
+        )
+        return {
+            "ok": True,
+            "name": key,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "marker_count": len(markers),
+            "hits": hit_rows,
+            "saved": saved,
+            "agent_note": (
+                "Selection set built from markers. Place markers: "
+                "selection_set_to_markers. Cutlist: export_selection_set_cutlist."
+            ),
+        }
+
+    def export_selection_set_cutlist(
+        self,
+        name: str,
+        *,
+        path: str | Path | None = None,
+        filename: str | None = None,
+        format: str = "csv",
+    ) -> dict[str, Any]:
+        """Load named selection set and export cutlist under exports/."""
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        fmt = str(format or "csv").strip().lower()
+        if path is not None:
+            r = self.export_selection_cutlist(ids, path=path, format=fmt)
+        else:
+            ext = "json" if fmt == "json" else "csv"
+            r = self.export_selection_cutlist_default(
+                ids,
+                filename=filename or f"selection_set_{safe}_cutlist.{ext}",
+                format=fmt,
+            )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "format": fmt,
+            "agent_note": (
+                "Cutlist from named set. EDL: export_selection_set_edl. "
+                "Markers→set: markers_to_selection_set."
             ),
         }
 
