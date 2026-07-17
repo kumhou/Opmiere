@@ -17475,6 +17475,62 @@ class Editor:
             ),
         }
 
+    def insert_time_before_selection_set(
+        self,
+        name: str,
+        frames: int,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then insert_time_before_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.insert_time_before_selection(ids, int(frames))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Insert empty time before named set (ripple). Remove: "
+                "remove_time_before_selection_set. Nudge: "
+                "nudge_selection_set."
+            ),
+        }
+
+    def remove_time_before_selection_set(
+        self,
+        name: str,
+        frames: int,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then remove_time_before_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.remove_time_before_selection(ids, int(frames))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Remove empty time before named set (ripple). Insert: "
+                "insert_time_before_selection_set. Extract: "
+                "extract_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17548,6 +17604,8 @@ class Editor:
                     {"id": "apply_edge_fades_to_selection_set", "writes": True},
                     {"id": "move_selection_set_to_frame", "writes": True},
                     {"id": "rename_clips_in_selection_set", "writes": True},
+                    {"id": "insert_time_before_selection_set", "writes": True},
+                    {"id": "remove_time_before_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

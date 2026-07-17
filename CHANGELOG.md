@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.28 — 2026-07-17
+
+### Added
+- `insert_time_before_selection_set` / `remove_time_before_selection_set` + **InsTimeSet** / **RmTimeSet**
+
 ## 0.9.27 — 2026-07-17
 
 ### Added

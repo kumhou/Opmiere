@@ -17042,6 +17042,72 @@ async function renameClipsInSelectionSetUi() {
   }
 }
 
+async function insertTimeBeforeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Insert time before set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "InsTimeSet cancelled";
+      return;
+    }
+    const raw = window.prompt("frames to insert", "12");
+    if (raw === null) {
+      $("status-msg").textContent = "InsTimeSet cancelled";
+      return;
+    }
+    const frames = Number(raw);
+    $("status-msg").textContent = `InsTimeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      frames?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/insert_time_before_selection_set", {
+      name,
+      frames: Number.isFinite(frames) && frames > 0 ? frames : 12,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `InsTimeSet · ${r.selection_set || name} frames=${r.frames ?? "?"} moved=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`InsTimeSet failed: ${e}`);
+    $("status-msg").textContent = `InsTimeSet failed: ${e}`;
+  }
+}
+
+async function removeTimeBeforeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Remove time before set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RmTimeSet cancelled";
+      return;
+    }
+    const raw = window.prompt("frames to remove", "12");
+    if (raw === null) {
+      $("status-msg").textContent = "RmTimeSet cancelled";
+      return;
+    }
+    const frames = Number(raw);
+    $("status-msg").textContent = `RmTimeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      frames?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/remove_time_before_selection_set", {
+      name,
+      frames: Number.isFinite(frames) && frames > 0 ? frames : 12,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RmTimeSet · ${r.selection_set || name} frames=${r.frames ?? "?"} moved=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RmTimeSet failed: ${e}`);
+    $("status-msg").textContent = `RmTimeSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21658,6 +21724,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-edge-fade-set", () => void applyEdgeFadesToSelectionSetUi());
   proBind("btn-move-set", () => void moveSelectionSetToFrameUi());
   proBind("btn-ren-clips-set", () => void renameClipsInSelectionSetUi());
+  proBind("btn-ins-time-set", () => void insertTimeBeforeSelectionSetUi());
+  proBind("btn-rm-time-set", () => void removeTimeBeforeSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

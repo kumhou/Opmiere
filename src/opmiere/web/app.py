@@ -13725,6 +13725,56 @@ def rename_clips_in_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class InsertTimeBeforeSelectionSetBody(BaseModel):
+    name: str
+    frames: int
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/insert_time_before_selection_set")
+def insert_time_before_selection_set_api(
+    body: InsertTimeBeforeSelectionSetBody,
+) -> dict[str, Any]:
+    """Ripple-insert empty time before a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.insert_time_before_selection_set(
+            body.name,
+            body.frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"insert_time_before_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RemoveTimeBeforeSelectionSetBody(BaseModel):
+    name: str
+    frames: int
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/remove_time_before_selection_set")
+def remove_time_before_selection_set_api(
+    body: RemoveTimeBeforeSelectionSetBody,
+) -> dict[str, Any]:
+    """Ripple-remove empty time before a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.remove_time_before_selection_set(
+            body.name,
+            body.frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"remove_time_before_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -8180,6 +8180,34 @@ def rename_clips_in_selection_set(
 
 
 @mcp.tool()
+def insert_time_before_selection_set(
+    name: str,
+    frames: int,
+    set_work_area: bool = False,
+) -> dict:
+    """Ripple-insert empty time before a named selection set."""
+    return _require_editor().insert_time_before_selection_set(
+        name,
+        frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def remove_time_before_selection_set(
+    name: str,
+    frames: int,
+    set_work_area: bool = False,
+) -> dict:
+    """Ripple-remove empty time before a named selection set."""
+    return _require_editor().remove_time_before_selection_set(
+        name,
+        frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
