@@ -21610,6 +21610,74 @@ class Editor:
             ),
         }
 
+    def flip_selection_set(
+        self,
+        name: str,
+        *,
+        horizontal: bool | None = None,
+        vertical: bool | None = None,
+        toggle_h: bool = False,
+        toggle_v: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then flip_selection (hflip/vflip effects)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.flip_selection(
+            ids,
+            horizontal=horizontal,
+            vertical=vertical,
+            toggle_h=bool(toggle_h),
+            toggle_v=bool(toggle_v),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set h/v flip. Grid snap: quantize_selection_set. "
+                "Rotate: rotate_selection_set."
+            ),
+        }
+
+    def quantize_selection_set(
+        self,
+        name: str,
+        grid_frames: int,
+        *,
+        edge: str = "start",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then quantize_clips (snap starts/ends to grid)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.quantize_clips(
+            ids,
+            int(grid_frames),
+            edge=str(edge),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set quantize to frame grid. Flip: flip_selection_set. "
+                "Stagger: stagger_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21804,6 +21872,8 @@ class Editor:
                     {"id": "export_selection_set_path_c_stills_plan", "writes": True},
                     {"id": "selection_set_span", "writes": False},
                     {"id": "export_selection_set_otio_json", "writes": True},
+                    {"id": "flip_selection_set", "writes": True},
+                    {"id": "quantize_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

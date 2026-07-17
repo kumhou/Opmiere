@@ -20884,6 +20884,74 @@ async function exportSelectionSetOtioJsonUi() {
   }
 }
 
+async function flipSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Flip named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FlipSet cancelled";
+      return;
+    }
+    const rawAxis = window.prompt("axis (h|v|both)", "h");
+    if (rawAxis === null) {
+      $("status-msg").textContent = "FlipSet cancelled";
+      return;
+    }
+    const axis = String(rawAxis).trim().toLowerCase() || "h";
+    const horizontal = axis === "h" || axis === "both" ? true : null;
+    const vertical = axis === "v" || axis === "both" ? true : null;
+    $("status-msg").textContent = `FlipSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/flip_selection_set", {
+      name,
+      horizontal,
+      vertical,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FlipSet · ${r.selection_set || name} count=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FlipSet failed: ${e}`);
+    $("status-msg").textContent = `FlipSet failed: ${e}`;
+  }
+}
+
+async function quantizeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Quantize named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "QuantizeSet cancelled";
+      return;
+    }
+    const rawGrid = window.prompt("grid_frames", "15");
+    if (rawGrid === null) {
+      $("status-msg").textContent = "QuantizeSet cancelled";
+      return;
+    }
+    const grid = Number(rawGrid);
+    $("status-msg").textContent = `QuantizeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/quantize_selection_set", {
+      name,
+      grid_frames: Number.isFinite(grid) && grid > 0 ? Math.floor(grid) : 15,
+      edge: "start",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `QuantizeSet · ${r.selection_set || name} count=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`QuantizeSet failed: ${e}`);
+    $("status-msg").textContent = `QuantizeSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25621,6 +25689,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-path-c-stills-set", () => void exportSelectionSetPathCStillsPlanUi());
   proBind("btn-span-set", () => void selectionSetSpanUi());
   proBind("btn-exp-otio-json-set", () => void exportSelectionSetOtioJsonUi());
+  proBind("btn-flip-set", () => void flipSelectionSetUi());
+  proBind("btn-quantize-set", () => void quantizeSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

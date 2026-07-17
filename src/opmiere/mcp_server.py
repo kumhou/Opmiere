@@ -10240,6 +10240,42 @@ def export_selection_set_otio_json(
 
 
 @mcp.tool()
+def flip_selection_set(
+    name: str,
+    horizontal: bool | None = None,
+    vertical: bool | None = None,
+    toggle_h: bool = False,
+    toggle_v: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """hflip/vflip effects on clips in a named selection set."""
+    return _require_editor().flip_selection_set(
+        name,
+        horizontal=horizontal,
+        vertical=vertical,
+        toggle_h=toggle_h,
+        toggle_v=toggle_v,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def quantize_selection_set(
+    name: str,
+    grid_frames: int,
+    edge: str = "start",
+    set_work_area: bool = False,
+) -> dict:
+    """Snap named-set clip starts/ends to a frame grid."""
+    return _require_editor().quantize_selection_set(
+        name,
+        grid_frames,
+        edge=edge,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

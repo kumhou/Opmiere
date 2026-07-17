@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.89 — 2026-07-17
+
+### Added
+- `flip_selection_set` / `quantize_selection_set` + **FlipSet** / **QuantizeSet**
+
 ## 0.9.88 — 2026-07-17
 
 ### Added

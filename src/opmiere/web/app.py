@@ -17116,6 +17116,64 @@ def export_selection_set_otio_json_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FlipSelectionSetBody(BaseModel):
+    name: str
+    horizontal: bool | None = None
+    vertical: bool | None = None
+    toggle_h: bool = False
+    toggle_v: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/flip_selection_set")
+def flip_selection_set_api(
+    body: FlipSelectionSetBody,
+) -> dict[str, Any]:
+    """hflip/vflip on named set."""
+    ed = _ed()
+    try:
+        r = ed.flip_selection_set(
+            body.name,
+            horizontal=body.horizontal,
+            vertical=body.vertical,
+            toggle_h=body.toggle_h,
+            toggle_v=body.toggle_v,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"flip_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class QuantizeSelectionSetBody(BaseModel):
+    name: str
+    grid_frames: int
+    edge: str = "start"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/quantize_selection_set")
+def quantize_selection_set_api(
+    body: QuantizeSelectionSetBody,
+) -> dict[str, Any]:
+    """Snap named set clips to frame grid."""
+    ed = _ed()
+    try:
+        r = ed.quantize_selection_set(
+            body.name,
+            body.grid_frames,
+            edge=body.edge,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"quantize_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
