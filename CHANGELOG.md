@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.10 — 2026-07-17
+
+### Added
+- `selection_set_levels_report` / `selection_set_link_report` + **SetLevels** / **SetLink**
+
 ## 0.9.9 — 2026-07-17
 
 ### Added

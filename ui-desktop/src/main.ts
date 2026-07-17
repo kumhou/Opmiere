@@ -15972,6 +15972,59 @@ async function selectionSetTransitionReportUi() {
   }
 }
 
+async function selectionSetLevelsReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set levels report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetLevels cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetLevels ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      non_default_count?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_levels_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetLevels · ${r.selection_set || name} non_default=${r.non_default_count ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetLevels failed: ${e}`);
+    $("status-msg").textContent = `SetLevels failed: ${e}`;
+  }
+}
+
+async function selectionSetLinkReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set link report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetLink cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetLink ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      linked_count?: number;
+      group_count?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_link_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetLink · ${r.selection_set || name} linked=${r.linked_count ?? "?"} groups=${r.group_count ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetLink failed: ${e}`);
+    $("status-msg").textContent = `SetLink failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20552,6 +20605,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-mute", () => void selectionSetMutedReportUi());
   proBind("btn-set-fades", () => void selectionSetFadesReportUi());
   proBind("btn-set-x", () => void selectionSetTransitionReportUi());
+  proBind("btn-set-levels", () => void selectionSetLevelsReportUi());
+  proBind("btn-set-link", () => void selectionSetLinkReportUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
