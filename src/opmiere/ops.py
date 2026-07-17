@@ -18523,6 +18523,77 @@ class Editor:
             ),
         }
 
+    def move_selection_set_to_track(
+        self,
+        name: str,
+        track_id: str,
+        *,
+        preserve_starts: bool = True,
+        stack_start: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then move_selection_to_track (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.move_selection_to_track(
+            ids,
+            track_id,
+            preserve_starts=bool(preserve_starts),
+            stack_start=stack_start,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Move named set onto dest track. Dup copy: "
+                "duplicate_selection_set_to_track. New track: "
+                "selection_set_to_new_track. Expand links: "
+                "expand_selection_set_links."
+            ),
+        }
+
+    def expand_selection_set_links(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+        resave: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then expand_selection_links (read-only unless resave)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.expand_selection_links(ids)
+        out = {
+            **rep,
+            "selection_set": name,
+            "source_clip_ids": ids,
+            "source_clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "resaved": False,
+            "agent_note": (
+                "Expand link peers for named set. Move track: "
+                "move_selection_set_to_track. resave=True writes "
+                "expanded ids back to the set."
+            ),
+        }
+        if resave:
+            expanded = list(rep.get("clip_ids") or ids)
+            self.save_selection_set(name, expanded)
+            out["resaved"] = True
+            out["clip_count"] = len(expanded)
+        return out
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18630,6 +18701,8 @@ class Editor:
                     {"id": "selection_jl_cut_set", "writes": True},
                     {"id": "ripple_nudge_selection_set", "writes": True},
                     {"id": "close_gaps_on_selection_set_tracks", "writes": True},
+                    {"id": "move_selection_set_to_track", "writes": True},
+                    {"id": "expand_selection_set_links", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

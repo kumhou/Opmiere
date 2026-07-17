@@ -14635,6 +14635,60 @@ def close_gaps_on_selection_set_tracks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MoveSelectionSetToTrackBody(BaseModel):
+    name: str
+    track_id: str
+    preserve_starts: bool = True
+    stack_start: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/move_selection_set_to_track")
+def move_selection_set_to_track_api(
+    body: MoveSelectionSetToTrackBody,
+) -> dict[str, Any]:
+    """Move a named selection set onto another track."""
+    ed = _ed()
+    try:
+        r = ed.move_selection_set_to_track(
+            body.name,
+            body.track_id,
+            preserve_starts=body.preserve_starts,
+            stack_start=body.stack_start,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"move_selection_set_to_track failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExpandSelectionSetLinksBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+    resave: bool = False
+
+
+@app.post("/api/edit/expand_selection_set_links")
+def expand_selection_set_links_api(
+    body: ExpandSelectionSetLinksBody,
+) -> dict[str, Any]:
+    """Expand a named selection set to include link peers."""
+    ed = _ed()
+    try:
+        r = ed.expand_selection_set_links(
+            body.name,
+            set_work_area=body.set_work_area,
+            resave=body.resave,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"expand_selection_set_links failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

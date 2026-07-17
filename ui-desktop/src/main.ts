@@ -18160,6 +18160,73 @@ async function closeGapsOnSelectionSetTracksUi() {
   }
 }
 
+async function moveSelectionSetToTrackUi() {
+  try {
+    const name = await promptSelectionSetName("Move set to track (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MoveTrkSet cancelled";
+      return;
+    }
+    const track_id = window.prompt("dest track_id", "");
+    if (!track_id) {
+      $("status-msg").textContent = "MoveTrkSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `MoveTrkSet ${name} → ${track_id}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      track_id?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/move_selection_set_to_track", {
+      name,
+      track_id: track_id.trim(),
+      preserve_starts: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MoveTrkSet · ${r.selection_set || name} → ${r.track_id ?? track_id} moved=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MoveTrkSet failed: ${e}`);
+    $("status-msg").textContent = `MoveTrkSet failed: ${e}`;
+  }
+}
+
+async function expandSelectionSetLinksUi() {
+  try {
+    const name = await promptSelectionSetName("Expand links named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpLinksSet cancelled";
+      return;
+    }
+    const raw = window.prompt("resave expanded ids? (true/false)", "false");
+    if (raw === null) {
+      $("status-msg").textContent = "ExpLinksSet cancelled";
+      return;
+    }
+    const resave = /^(1|true|yes|on)$/i.test(String(raw).trim());
+    $("status-msg").textContent = `ExpLinksSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      added_count?: number;
+      resaved?: boolean;
+      source_clip_count?: number;
+    }>("/api/edit/expand_selection_set_links", {
+      name,
+      resave,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpLinksSet · ${r.selection_set || name} n=${r.count ?? "?"} added=${r.added_count ?? "?"} resave=${r.resaved ?? resave}`;
+  } catch (e) {
+    setProOut(`ExpLinksSet failed: ${e}`);
+    $("status-msg").textContent = `ExpLinksSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22810,6 +22877,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-jl-set", () => void selectionJlCutSetUi());
   proBind("btn-rip-nudge-set", () => void rippleNudgeSelectionSetUi());
   proBind("btn-close-gaps-set", () => void closeGapsOnSelectionSetTracksUi());
+  proBind("btn-move-trk-set", () => void moveSelectionSetToTrackUi());
+  proBind("btn-exp-links-set", () => void expandSelectionSetLinksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

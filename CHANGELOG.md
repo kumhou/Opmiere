@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.45 — 2026-07-17
+
+### Added
+- `move_selection_set_to_track` / `expand_selection_set_links` + **MoveTrkSet** / **ExpLinksSet**
+
 ## 0.9.44 — 2026-07-17
 
 ### Added

@@ -8716,6 +8716,38 @@ def close_gaps_on_selection_set_tracks(
 
 
 @mcp.tool()
+def move_selection_set_to_track(
+    name: str,
+    track_id: str,
+    preserve_starts: bool = True,
+    stack_start: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Move clips in a named selection set onto another track."""
+    return _require_editor().move_selection_set_to_track(
+        name,
+        track_id,
+        preserve_starts=preserve_starts,
+        stack_start=stack_start,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def expand_selection_set_links(
+    name: str,
+    set_work_area: bool = False,
+    resave: bool = False,
+) -> dict:
+    """Expand named selection set to include link-group peers."""
+    return _require_editor().expand_selection_set_links(
+        name,
+        set_work_area=set_work_area,
+        resave=resave,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
