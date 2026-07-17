@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — 2026-07-17
+
+### Added
+- `selection_set_status` / `dry_run_selection_set_pipeline` + **SetStat** / **SetDry**
+
 ## 0.7.0 — 2026-07-17
 
 ### Added

@@ -13977,6 +13977,109 @@ class Editor:
             ),
         }
 
+    def selection_set_status(
+        self,
+        name: str,
+        *,
+        validate: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Status for a named selection set: live clips, missing, span, optional validate."""
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        store = self._read_selection_sets()
+        sets = store.get("sets") or {}
+        if key not in sets:
+            raise KeyError(
+                f"no selection set {key!r}; known={sorted(sets.keys())}"
+            )
+        entry = sets[key]
+        if not isinstance(entry, dict):
+            raise ValueError(f"corrupt selection set {key!r}")
+        raw_ids = [
+            str(c) for c in (entry.get("clip_ids") or []) if str(c).strip()
+        ]
+        present: list[str] = []
+        missing: list[str] = []
+        for cid in dict.fromkeys(raw_ids):
+            try:
+                self._find_clip(cid)
+                present.append(cid)
+            except Exception:
+                missing.append(cid)
+        span = self.selection_span(present) if present else None
+        work = None
+        if set_work_area and present:
+            work = self.set_work_area_from_selection(present)
+        val = None
+        if validate and present:
+            try:
+                val = self.validate_selection(present, set_work_area=False)
+            except Exception as e:
+                val = {"ok": False, "error": str(e)[:400]}
+        ok = bool(present) and (
+            True if not validate else bool((val or {}).get("ok"))
+        )
+        return {
+            "ok": ok,
+            "name": key,
+            "note": entry.get("note") or "",
+            "saved_clip_count": len(raw_ids),
+            "clip_ids": present,
+            "clip_count": len(present),
+            "missing": missing,
+            "missing_count": len(missing),
+            "empty": not present,
+            "span": span,
+            "saved_span": entry.get("span"),
+            "updated_at": entry.get("updated_at"),
+            "validate": val,
+            "work_area": work,
+            "agent_note": (
+                "Named-set status. Dry-run pipeline: dry_run_selection_set_pipeline. "
+                "Finish: agent_finish_selection_set."
+            ),
+        }
+
+    def dry_run_selection_set_pipeline(
+        self,
+        name: str,
+        steps: list[str] | None = None,
+        *,
+        execute_read_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then dry_run_selection_pipeline."""
+        loaded = self.load_selection_set(
+            name,
+            set_work_area=set_work_area,
+            drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        dry = self.dry_run_selection_pipeline(
+            ids,
+            steps=steps,
+            execute_read_only=execute_read_only,
+        )
+        return {
+            **dry,
+            "selection_set": name,
+            "loaded": {
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+                "missing_count": loaded.get("missing_count") or 0,
+                "note": loaded.get("note") or "",
+            },
+            "agent_note": (
+                "Named-set dry-run. Real run: run_selection_set_pipeline. "
+                "Status: selection_set_status."
+            ),
+        }
+
     def _selection_sets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_sets.json"
 

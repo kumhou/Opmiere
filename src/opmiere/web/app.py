@@ -11401,6 +11401,56 @@ def dry_run_selection_pipeline_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetStatusBody(BaseModel):
+    name: str
+    validate: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_status")
+def selection_set_status_api(body: SelectionSetStatusBody) -> dict[str, Any]:
+    """Status for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_status(
+            body.name,
+            validate=body.validate,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_status failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class DryRunSelectionSetPipelineBody(BaseModel):
+    name: str
+    steps: list[str] | None = None
+    execute_read_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/dry_run_selection_set_pipeline")
+def dry_run_selection_set_pipeline_api(
+    body: DryRunSelectionSetPipelineBody,
+) -> dict[str, Any]:
+    """Dry-run pipeline for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.dry_run_selection_set_pipeline(
+            body.name,
+            steps=body.steps,
+            execute_read_only=body.execute_read_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"dry_run_selection_set_pipeline failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionSetBody(BaseModel):
     name: str
     clip_ids: list[str]

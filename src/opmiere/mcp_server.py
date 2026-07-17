@@ -6793,6 +6793,36 @@ def dry_run_selection_pipeline(
 
 
 @mcp.tool()
+def selection_set_status(
+    name: str,
+    validate: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Status for a named selection set (live/missing/span/validate)."""
+    return _require_editor().selection_set_status(
+        name,
+        validate=validate,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def dry_run_selection_set_pipeline(
+    name: str,
+    steps: list[str] | None = None,
+    execute_read_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Load named selection set then dry-run the selection pipeline."""
+    return _require_editor().dry_run_selection_set_pipeline(
+        name,
+        steps=steps,
+        execute_read_only=execute_read_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_set(
     name: str,
     clip_ids: list[str],

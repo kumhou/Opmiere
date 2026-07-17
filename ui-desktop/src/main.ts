@@ -14242,6 +14242,66 @@ async function dryRunSelectionPipelineUi() {
   }
 }
 
+async function selectionSetStatusUi() {
+  try {
+    const name = await promptSelectionSetName("Selection set status name");
+    if (!name) {
+      $("status-msg").textContent = "SetStat cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetStat ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      name?: string;
+      clip_count?: number;
+      missing_count?: number;
+      empty?: boolean;
+      timeline?: TimelineView;
+    }>("/api/edit/selection_set_status", {
+      name,
+      validate: true,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetStat · ${r.name || name} ok=${r.ok ?? "?"} n=${r.clip_count ?? "?"} miss=${r.missing_count ?? 0}`;
+  } catch (e) {
+    setProOut(`SetStat failed: ${e}`);
+    $("status-msg").textContent = `SetStat failed: ${e}`;
+  }
+}
+
+async function dryRunSelectionSetPipelineUi() {
+  try {
+    const name = await promptSelectionSetName("Dry-run set pipeline name");
+    if (!name) {
+      $("status-msg").textContent = "SetDry cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetDry ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      would_execute?: string[];
+      executed?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/dry_run_selection_set_pipeline", {
+      name,
+      steps: null,
+      execute_read_only: true,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetDry · ${r.selection_set || name} ok=${r.ok ?? "?"} exec=${(r.executed || []).length} would=${(r.would_execute || []).length}`;
+  } catch (e) {
+    setProOut(`SetDry failed: ${e}`);
+    $("status-msg").textContent = `SetDry failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -18723,6 +18783,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pipe-sel", () => void runSelectionPipelineUi());
   proBind("btn-pipe-cat", () => void selectionPipelineCatalogUi());
   proBind("btn-pipe-dry", () => void dryRunSelectionPipelineUi());
+  proBind("btn-set-stat", () => void selectionSetStatusUi());
+  proBind("btn-set-dry", () => void dryRunSelectionSetPipelineUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());
