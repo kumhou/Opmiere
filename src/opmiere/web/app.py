@@ -16591,6 +16591,58 @@ def export_selection_set_with_burnins_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetPreviewBody(BaseModel):
+    name: str
+    output_path: str | None = None
+    height: int = 360
+    fps: float = 12.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_preview")
+def export_selection_set_preview_api(
+    body: ExportSelectionSetPreviewBody,
+) -> dict[str, Any]:
+    """Low-res preview of named set union span."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_preview(
+            body.name,
+            output_path=body.output_path,
+            height=body.height,
+            fps=body.fps,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_preview failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetGapsBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_gaps")
+def selection_set_gaps_api(
+    body: SelectionSetGapsBody,
+) -> dict[str, Any]:
+    """Report inter-clip gaps/overlaps in named set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_gaps(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_gaps failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

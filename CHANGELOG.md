@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.79 — 2026-07-17
+
+### Added
+- `export_selection_set_preview` / `selection_set_gaps` + **ExpPreviewSet** / **GapsSet**
+
 ## 0.9.78 — 2026-07-17
 
 ### Added

@@ -20346,6 +20346,60 @@ async function exportSelectionSetWithBurninsUi() {
   }
 }
 
+async function exportSelectionSetPreviewUi() {
+  try {
+    const name = await promptSelectionSetName("Export named set preview (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpPreviewSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpPreviewSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      height?: number;
+      fps?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_preview", {
+      name,
+      height: 360,
+      fps: 12,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpPreviewSet · ${r.selection_set || name} path=${r.path ?? "?"} h=${r.height ?? "?"} fps=${r.fps ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpPreviewSet failed: ${e}`);
+    $("status-msg").textContent = `ExpPreviewSet failed: ${e}`;
+  }
+}
+
+async function selectionSetGapsUi() {
+  try {
+    const name = await promptSelectionSetName("Gaps report for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "GapsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `GapsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_gaps", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GapsSet · ${r.selection_set || name} gaps=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`GapsSet failed: ${e}`);
+    $("status-msg").textContent = `GapsSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25064,6 +25118,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-frames-set", () => void exportSelectionSetFrameSequenceUi());
   proBind("btn-exp-presets-pack-set", () => void exportSelectionSetPresetsPackUi());
   proBind("btn-exp-burnins-set", () => void exportSelectionSetWithBurninsUi());
+  proBind("btn-exp-preview-set", () => void exportSelectionSetPreviewUi());
+  proBind("btn-gaps-set", () => void selectionSetGapsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

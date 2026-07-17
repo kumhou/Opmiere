@@ -9924,6 +9924,36 @@ def export_selection_set_with_burnins(
 
 
 @mcp.tool()
+def export_selection_set_preview(
+    name: str,
+    output_path: str | None = None,
+    height: int = 360,
+    fps: float = 12.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Low-res preview of named set union span (not delivery)."""
+    return _require_editor().export_selection_set_preview(
+        name,
+        output_path=output_path,
+        height=height,
+        fps=fps,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_gaps(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Report inter-clip gaps/overlaps in a named selection set."""
+    return _require_editor().selection_set_gaps(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

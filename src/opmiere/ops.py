@@ -20897,6 +20897,76 @@ class Editor:
             ),
         }
 
+    def export_selection_set_preview(
+        self,
+        name: str,
+        output_path: str | Path | None = None,
+        *,
+        height: int = 360,
+        fps: float = 12.0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_preview (low-res scrub, writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        out = output_path
+        if out is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / f"selection_set_{safe}_preview.mp4"
+        rep = self.export_selection_preview(
+            ids,
+            output_path=out,
+            height=int(height),
+            fps=float(fps),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set low-res preview (not delivery). Gaps report: "
+                "selection_set_gaps. Full preset: export_selection_set_with_preset."
+            ),
+        }
+
+    def selection_set_gaps(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_gaps (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_gaps(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set inter-clip gaps/overlaps. Close holes: "
+                "fill_selection_set_gaps / pack. Preview: "
+                "export_selection_set_preview."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21072,6 +21142,8 @@ class Editor:
                     {"id": "export_selection_set_frame_sequence", "writes": True},
                     {"id": "export_selection_set_presets_pack", "writes": True},
                     {"id": "export_selection_set_with_burnins", "writes": True},
+                    {"id": "export_selection_set_preview", "writes": True},
+                    {"id": "selection_set_gaps", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
