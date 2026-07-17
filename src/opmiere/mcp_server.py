@@ -8468,6 +8468,34 @@ def blur_selection_set(
 
 
 @mcp.tool()
+def sharpen_selection_set(
+    name: str,
+    amount: float = 1.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply sharpen to clips in a named selection set."""
+    return _require_editor().sharpen_selection_set(
+        name,
+        amount=amount,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def film_grain_selection_set(
+    name: str,
+    amount: float = 12.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply film grain to clips in a named selection set."""
+    return _require_editor().film_grain_selection_set(
+        name,
+        amount=amount,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -14211,6 +14211,56 @@ def blur_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SharpenSelectionSetBody(BaseModel):
+    name: str
+    amount: float = 1.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/sharpen_selection_set")
+def sharpen_selection_set_api(
+    body: SharpenSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply sharpen to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.sharpen_selection_set(
+            body.name,
+            amount=body.amount,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"sharpen_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FilmGrainSelectionSetBody(BaseModel):
+    name: str
+    amount: float = 12.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/film_grain_selection_set")
+def film_grain_selection_set_api(
+    body: FilmGrainSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply film grain to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.film_grain_selection_set(
+            body.name,
+            amount=body.amount,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"film_grain_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

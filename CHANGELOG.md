@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.37 — 2026-07-17
+
+### Added
+- `sharpen_selection_set` / `film_grain_selection_set` + **SharpenSet** / **GrainSet**
+
 ## 0.9.36 — 2026-07-17
 
 ### Added

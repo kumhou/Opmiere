@@ -17627,6 +17627,72 @@ async function blurSelectionSetUi() {
   }
 }
 
+async function sharpenSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Sharpen named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SharpenSet cancelled";
+      return;
+    }
+    const raw = window.prompt("amount", "1");
+    if (raw === null) {
+      $("status-msg").textContent = "SharpenSet cancelled";
+      return;
+    }
+    const amount = Number(raw);
+    $("status-msg").textContent = `SharpenSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      amount?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/sharpen_selection_set", {
+      name,
+      amount: Number.isFinite(amount) ? amount : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SharpenSet · ${r.selection_set || name} amount=${r.amount ?? amount} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SharpenSet failed: ${e}`);
+    $("status-msg").textContent = `SharpenSet failed: ${e}`;
+  }
+}
+
+async function filmGrainSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Film grain named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "GrainSet cancelled";
+      return;
+    }
+    const raw = window.prompt("amount", "12");
+    if (raw === null) {
+      $("status-msg").textContent = "GrainSet cancelled";
+      return;
+    }
+    const amount = Number(raw);
+    $("status-msg").textContent = `GrainSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      amount?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/film_grain_selection_set", {
+      name,
+      amount: Number.isFinite(amount) ? amount : 12,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GrainSet · ${r.selection_set || name} amount=${r.amount ?? amount} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`GrainSet failed: ${e}`);
+    $("status-msg").textContent = `GrainSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22261,6 +22327,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-crop-set", () => void cropSelectionSetCenterUi());
   proBind("btn-vignette-set", () => void vignetteSelectionSetUi());
   proBind("btn-blur-set", () => void blurSelectionSetUi());
+  proBind("btn-sharpen-set", () => void sharpenSelectionSetUi());
+  proBind("btn-grain-set", () => void filmGrainSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
