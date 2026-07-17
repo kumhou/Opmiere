@@ -17066,27 +17066,52 @@ def export_selection_set_path_c_stills_plan_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
-class MatchFrameSelectionSetBody(BaseModel):
+class SelectionSetSpanBody(BaseModel):
     name: str
-    timeline_frame: int | None = None
     set_work_area: bool = False
 
 
-@app.post("/api/edit/match_frame_selection_set")
-def match_frame_selection_set_api(
-    body: MatchFrameSelectionSetBody,
+@app.post("/api/edit/selection_set_span")
+def selection_set_span_api(
+    body: SelectionSetSpanBody,
 ) -> dict[str, Any]:
-    """Match Frame batch for named set."""
+    """Union timeline span for named set."""
     ed = _ed()
     try:
-        r = ed.match_frame_selection_set(
+        r = ed.selection_set_span(
             body.name,
-            timeline_frame=body.timeline_frame,
             set_work_area=body.set_work_area,
         )
     except Exception as e:
         raise HTTPException(
-            400, f"match_frame_selection_set failed: {e}",
+            400, f"selection_set_span failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetOtioJsonBody(BaseModel):
+    name: str
+    path: str | None = None
+    title: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_otio_json")
+def export_selection_set_otio_json_api(
+    body: ExportSelectionSetOtioJsonBody,
+) -> dict[str, Any]:
+    """Export OTIO-like JSON for named set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_otio_json(
+            body.name,
+            path=body.path,
+            title=body.title,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_otio_json failed: {e}",
         ) from e
     return {**r, "timeline": ed.timeline_view()}
 

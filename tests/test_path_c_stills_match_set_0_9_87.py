@@ -59,7 +59,8 @@ def test_ship_wiring_0_9_87():
     assert "def export_selection_set_path_c_stills_plan" in mcp
     assert "def match_frame_selection_set" in mcp
     assert 'id="btn-exp-path-c-stills-set"' in html
-    assert 'id="btn-match-frame-set"' in html
+    # Match Frame set UI already shipped as MatchFrSet (not re-added)
+    assert 'id="btn-match-fr-set"' in html
     assert "exportSelectionSetPathCStillsPlanUi" in ts
     assert "matchFrameSelectionSetUi" in ts
     from opmiere import Editor as Ed

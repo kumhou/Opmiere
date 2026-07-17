@@ -20832,29 +20832,55 @@ async function exportSelectionSetPathCStillsPlanUi() {
   }
 }
 
-async function matchFrameSelectionSetUi() {
+async function selectionSetSpanUi() {
   try {
-    const name = await promptSelectionSetName("Match Frame for named set (set name)");
+    const name = await promptSelectionSetName("Union span for named set (set name)");
     if (!name) {
-      $("status-msg").textContent = "MatchFrameSet cancelled";
+      $("status-msg").textContent = "SpanSet cancelled";
       return;
     }
-    $("status-msg").textContent = `MatchFrameSet ${name}…`;
+    $("status-msg").textContent = `SpanSet ${name}…`;
     const r = await postJson<{
       selection_set?: string;
-      count?: number;
-      error_count?: number;
+      start_frame?: number;
+      end_frame?: number;
+      duration_frames?: number;
       clip_count?: number;
-    }>("/api/edit/match_frame_selection_set", {
+    }>("/api/edit/selection_set_span", {
       name,
       set_work_area: false,
     });
     setProOut(JSON.stringify(r, null, 2));
     $("status-msg").textContent =
-      `MatchFrameSet · ${r.selection_set || name} matches=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+      `SpanSet · ${r.selection_set || name} ${r.start_frame ?? "?"}-${r.end_frame ?? "?"} (${r.duration_frames ?? "?"}f) n=${r.clip_count ?? "?"}`;
   } catch (e) {
-    setProOut(`MatchFrameSet failed: ${e}`);
-    $("status-msg").textContent = `MatchFrameSet failed: ${e}`;
+    setProOut(`SpanSet failed: ${e}`);
+    $("status-msg").textContent = `SpanSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetOtioJsonUi() {
+  try {
+    const name = await promptSelectionSetName("Export OTIO JSON for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpOtioJsonSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpOtioJsonSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_otio_json", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpOtioJsonSet · ${r.selection_set || name} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpOtioJsonSet failed: ${e}`);
+    $("status-msg").textContent = `ExpOtioJsonSet failed: ${e}`;
   }
 }
 
@@ -25593,7 +25619,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-path-c-stills-set", () => void selectionSetPathCStillsPlanUi());
   proBind("btn-jl-cut-set", () => void selectionSetJlCutUi());
   proBind("btn-exp-path-c-stills-set", () => void exportSelectionSetPathCStillsPlanUi());
-  proBind("btn-match-frame-set", () => void matchFrameSelectionSetUi());
+  proBind("btn-span-set", () => void selectionSetSpanUi());
+  proBind("btn-exp-otio-json-set", () => void exportSelectionSetOtioJsonUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

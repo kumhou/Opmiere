@@ -21539,28 +21539,64 @@ class Editor:
             "missing": loaded.get("missing") or [],
             "agent_note": (
                 "Named-set path-C stills plan JSON. In-memory: "
-                "selection_set_path_c_stills_plan. Match frame: "
-                "match_frame_selection_set."
+                "selection_set_path_c_stills_plan. Span: selection_set_span."
             ),
         }
 
-    def match_frame_selection_set(
+    def selection_set_span(
         self,
         name: str,
         *,
-        timeline_frame: int | None = None,
         set_work_area: bool = False,
     ) -> dict[str, Any]:
-        """Load named set then match_frame_selection (read-only)."""
+        """Load named set then selection_span (read-only union range)."""
         loaded = self.load_selection_set(
             name, set_work_area=set_work_area, drop_missing=True,
         )
         ids = list(loaded.get("clip_ids") or [])
         if not ids:
             raise ValueError(f"selection set {name!r} has no live clips")
-        rep = self.match_frame_selection(
+        rep = self.selection_span(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set union timeline span. OTIO JSON: "
+                "export_selection_set_otio_json. Work area: "
+                "selection_set_to_work_area."
+            ),
+        }
+
+    def export_selection_set_otio_json(
+        self,
+        name: str,
+        path: str | Path | None = None,
+        *,
+        title: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_otio_json (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        out = path
+        if out is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / f"selection_set_{safe}.otio.json"
+        rep = self.export_selection_otio_json(
             ids,
-            timeline_frame=timeline_frame,
+            path=out,
+            title=title or f"selection_set:{name}",
         )
         return {
             **rep,
@@ -21569,8 +21605,8 @@ class Editor:
             "clip_count": len(ids),
             "missing": loaded.get("missing") or [],
             "agent_note": (
-                "Named-set Match Frame batch. Stills plan export: "
-                "export_selection_set_path_c_stills_plan."
+                "Named-set OTIO-like JSON. Span: selection_set_span. "
+                "Full OTIO: export_selection_set_otio."
             ),
         }
 
@@ -21766,7 +21802,8 @@ class Editor:
                     {"id": "selection_set_path_c_stills_plan", "writes": False},
                     {"id": "selection_set_jl_cut", "writes": True},
                     {"id": "export_selection_set_path_c_stills_plan", "writes": True},
-                    {"id": "match_frame_selection_set", "writes": False},
+                    {"id": "selection_set_span", "writes": False},
+                    {"id": "export_selection_set_otio_json", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

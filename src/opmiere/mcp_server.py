@@ -10212,15 +10212,29 @@ def export_selection_set_path_c_stills_plan(
 
 
 @mcp.tool()
-def match_frame_selection_set(
+def selection_set_span(
     name: str,
-    timeline_frame: int | None = None,
     set_work_area: bool = False,
 ) -> dict:
-    """Match Frame (source map) for each clip in a named selection set."""
-    return _require_editor().match_frame_selection_set(
+    """Union timeline span of clips in a named selection set."""
+    return _require_editor().selection_set_span(
         name,
-        timeline_frame=timeline_frame,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_otio_json(
+    name: str,
+    path: str | None = None,
+    title: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export OTIO-like JSON for a named selection set."""
+    return _require_editor().export_selection_set_otio_json(
+        name,
+        path=path,
+        title=title,
         set_work_area=set_work_area,
     )
 

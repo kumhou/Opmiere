@@ -1,9 +1,17 @@
 # Changelog
 
+## 0.9.88 — 2026-07-17
+
+### Added
+- `selection_set_span` / `export_selection_set_otio_json` + **SpanSet** / **ExpOtioJsonSet**
+
+### Fixed
+- Removed duplicate `match_frame_selection_set` wiring left over from 0.9.87 (method already existed since MatchFrSet)
+
 ## 0.9.87 — 2026-07-17
 
 ### Added
-- `export_selection_set_path_c_stills_plan` / `match_frame_selection_set` + **ExpPathCStillsSet** / **MatchFrameSet**
+- `export_selection_set_path_c_stills_plan` + **ExpPathCStillsSet** (MatchFrame re-wire skipped; already shipped as MatchFrSet)
 
 ## 0.9.86 — 2026-07-17
 
