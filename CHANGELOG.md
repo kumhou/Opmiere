@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.11 — 2026-07-17
+
+### Added
+- `selection_set_position_report` / `selection_set_meta_report` + **SetPos** / **SetMeta**
+
 ## 0.9.10 — 2026-07-17
 
 ### Added

@@ -16025,6 +16025,59 @@ async function selectionSetLinkReportUi() {
   }
 }
 
+async function selectionSetPositionReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set position report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetPos cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetPos ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      with_position?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_position_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetPos · ${r.selection_set || name} with_pos=${r.with_position ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetPos failed: ${e}`);
+    $("status-msg").textContent = `SetPos failed: ${e}`;
+  }
+}
+
+async function selectionSetMetaReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set meta report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetMeta cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetMeta ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      named_count?: number;
+      colored_count?: number;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_meta_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetMeta · ${r.selection_set || name} named=${r.named_count ?? "?"} colored=${r.colored_count ?? "?"} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetMeta failed: ${e}`);
+    $("status-msg").textContent = `SetMeta failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20607,6 +20660,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-x", () => void selectionSetTransitionReportUi());
   proBind("btn-set-levels", () => void selectionSetLevelsReportUi());
   proBind("btn-set-link", () => void selectionSetLinkReportUi());
+  proBind("btn-set-pos", () => void selectionSetPositionReportUi());
+  proBind("btn-set-meta", () => void selectionSetMetaReportUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

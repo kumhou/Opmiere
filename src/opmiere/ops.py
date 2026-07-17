@@ -16473,8 +16473,62 @@ class Editor:
             "missing": loaded.get("missing") or [],
             "agent_note": (
                 "Link groups for named set. Levels: "
-                "selection_set_levels_report. Muted: "
-                "selection_set_muted_report."
+                "selection_set_levels_report. Position: "
+                "selection_set_position_report."
+            ),
+        }
+
+    def selection_set_position_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_position_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_position_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "PiP/transform positions for named set. Meta: "
+                "selection_set_meta_report. Levels: "
+                "selection_set_levels_report."
+            ),
+        }
+
+    def selection_set_meta_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_meta_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_meta_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Name/color labels for named set. Position: "
+                "selection_set_position_report. Link: "
+                "selection_set_link_report."
             ),
         }
 
@@ -16517,6 +16571,8 @@ class Editor:
                     {"id": "selection_set_transition_report", "writes": False},
                     {"id": "selection_set_levels_report", "writes": False},
                     {"id": "selection_set_link_report", "writes": False},
+                    {"id": "selection_set_position_report", "writes": False},
+                    {"id": "selection_set_meta_report", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

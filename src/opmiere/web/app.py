@@ -12879,6 +12879,52 @@ def selection_set_link_report_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetPositionReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_position_report")
+def selection_set_position_report_api(
+    body: SelectionSetPositionReportBody,
+) -> dict[str, Any]:
+    """Position report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_position_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_position_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetMetaReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_meta_report")
+def selection_set_meta_report_api(
+    body: SelectionSetMetaReportBody,
+) -> dict[str, Any]:
+    """Meta report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_meta_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_meta_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

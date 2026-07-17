@@ -7705,6 +7705,30 @@ def selection_set_link_report(
 
 
 @mcp.tool()
+def selection_set_position_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Layout/PiP position report for a named selection set."""
+    return _require_editor().selection_set_position_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_meta_report(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Name/color meta report for a named selection set."""
+    return _require_editor().selection_set_meta_report(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
