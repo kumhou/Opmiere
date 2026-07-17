@@ -14583,6 +14583,58 @@ def selection_jl_cut_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RippleNudgeSelectionSetBody(BaseModel):
+    name: str
+    delta_frames: int
+    include_self: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/ripple_nudge_selection_set")
+def ripple_nudge_selection_set_api(
+    body: RippleNudgeSelectionSetBody,
+) -> dict[str, Any]:
+    """Ripple-nudge a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.ripple_nudge_selection_set(
+            body.name,
+            body.delta_frames,
+            include_self=body.include_self,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"ripple_nudge_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CloseGapsOnSelectionSetTracksBody(BaseModel):
+    name: str
+    from_frame: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/close_gaps_on_selection_set_tracks")
+def close_gaps_on_selection_set_tracks_api(
+    body: CloseGapsOnSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Close gaps on tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.close_gaps_on_selection_set_tracks(
+            body.name,
+            from_frame=body.from_frame,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"close_gaps_on_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

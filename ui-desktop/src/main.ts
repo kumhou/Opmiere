@@ -18100,6 +18100,66 @@ async function selectionJlCutSetUi() {
   }
 }
 
+async function rippleNudgeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Ripple nudge named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RipNudgeSet cancelled";
+      return;
+    }
+    const raw = window.prompt("delta_frames", "6");
+    if (raw === null) {
+      $("status-msg").textContent = "RipNudgeSet cancelled";
+      return;
+    }
+    const delta_frames = Number(raw);
+    $("status-msg").textContent = `RipNudgeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      delta_frames?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/ripple_nudge_selection_set", {
+      name,
+      delta_frames: Number.isFinite(delta_frames) ? Math.trunc(delta_frames) : 6,
+      include_self: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RipNudgeSet · ${r.selection_set || name} d=${r.delta_frames ?? "?"} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RipNudgeSet failed: ${e}`);
+    $("status-msg").textContent = `RipNudgeSet failed: ${e}`;
+  }
+}
+
+async function closeGapsOnSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Close gaps on set tracks (set name)");
+    if (!name) {
+      $("status-msg").textContent = "CloseGapsSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `CloseGapsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/close_gaps_on_selection_set_tracks", {
+      name,
+      from_frame: 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CloseGapsSet · ${r.selection_set || name} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CloseGapsSet failed: ${e}`);
+    $("status-msg").textContent = `CloseGapsSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22748,6 +22808,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-match-dur-set", () => void matchSelectionDurationSetUi());
   proBind("btn-isolate-set", () => void isolateSelectionSetUi());
   proBind("btn-jl-set", () => void selectionJlCutSetUi());
+  proBind("btn-rip-nudge-set", () => void rippleNudgeSelectionSetUi());
+  proBind("btn-close-gaps-set", () => void closeGapsOnSelectionSetTracksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

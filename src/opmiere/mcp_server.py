@@ -8686,6 +8686,36 @@ def selection_jl_cut_set(
 
 
 @mcp.tool()
+def ripple_nudge_selection_set(
+    name: str,
+    delta_frames: int,
+    include_self: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Ripple-nudge from earliest clip per track for a named selection set."""
+    return _require_editor().ripple_nudge_selection_set(
+        name,
+        delta_frames,
+        include_self=include_self,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def close_gaps_on_selection_set_tracks(
+    name: str,
+    from_frame: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Close gaps on tracks touched by a named selection set."""
+    return _require_editor().close_gaps_on_selection_set_tracks(
+        name,
+        from_frame=from_frame,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

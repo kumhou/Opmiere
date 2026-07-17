@@ -11,7 +11,7 @@ Generative AI (image / video / audio) runs **locally on your own GPU first** via
 **paid cloud APIs (Runway, Kling, Sora, Flux, ElevenLabs) as an optional quality boost**. Cheap local
 drafts; pay only for the shots you commit to.
 
-> **Status: 0.9.43.** Headless NLE + MCP + path-C OpenShot preview (install optional) + **Tauri product shell** (`ui-desktop/` — primary human GUI). HTML `opmiere web` remains a dogfood / API host.
+> **Status: 0.9.44.** Headless NLE + MCP + path-C OpenShot preview (install optional) + **Tauri product shell** (`ui-desktop/` — primary human GUI). HTML `opmiere web` remains a dogfood / API host.
 > Product is the **NLE**; director/style is a **hero feature**. Dual surface: human GUI + agent MCP on one Editor.
 > See [CHANGELOG.md](CHANGELOG.md), [docs/ADR_UI_AND_PREVIEW.md](docs/ADR_UI_AND_PREVIEW.md), [docs/TOOLS.md](docs/TOOLS.md), [docs/CI.md](docs/CI.md).
 

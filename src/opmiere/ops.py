@@ -18462,6 +18462,67 @@ class Editor:
             ),
         }
 
+    def ripple_nudge_selection_set(
+        self,
+        name: str,
+        delta_frames: int,
+        *,
+        include_self: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then ripple_nudge_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.ripple_nudge_selection(
+            ids, int(delta_frames), include_self=bool(include_self),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Ripple nudge from earliest clip per track. Close gaps: "
+                "close_gaps_on_selection_set_tracks. Nudge: "
+                "nudge_selection_set."
+            ),
+        }
+
+    def close_gaps_on_selection_set_tracks(
+        self,
+        name: str,
+        *,
+        from_frame: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then close_gaps_on_selection_tracks (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.close_gaps_on_selection_tracks(
+            ids, from_frame=int(from_frame),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Close gaps only on tracks touched by named set. "
+                "Ripple nudge: ripple_nudge_selection_set. Pack: "
+                "pack_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18567,6 +18628,8 @@ class Editor:
                     {"id": "match_selection_duration_set", "writes": True},
                     {"id": "isolate_selection_set", "writes": True},
                     {"id": "selection_jl_cut_set", "writes": True},
+                    {"id": "ripple_nudge_selection_set", "writes": True},
+                    {"id": "close_gaps_on_selection_set_tracks", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

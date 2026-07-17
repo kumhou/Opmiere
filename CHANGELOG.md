@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.44 — 2026-07-17
+
+### Added
+- `ripple_nudge_selection_set` / `close_gaps_on_selection_set_tracks` + **RipNudgeSet** / **CloseGapsSet**
+
 ## 0.9.43 — 2026-07-17
 
 ### Added
