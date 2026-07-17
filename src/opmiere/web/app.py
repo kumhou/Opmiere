@@ -13877,6 +13877,56 @@ def slide_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SplitSelectionSetAtBody(BaseModel):
+    name: str
+    at_frame: int
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/split_selection_set_at")
+def split_selection_set_at_api(
+    body: SplitSelectionSetAtBody,
+) -> dict[str, Any]:
+    """Razor a named selection set at at_frame."""
+    ed = _ed()
+    try:
+        r = ed.split_selection_set_at(
+            body.name,
+            body.at_frame,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"split_selection_set_at failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SplitSelectionSetEvenlyBody(BaseModel):
+    name: str
+    parts: int = 2
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/split_selection_set_evenly")
+def split_selection_set_evenly_api(
+    body: SplitSelectionSetEvenlyBody,
+) -> dict[str, Any]:
+    """Even-split clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.split_selection_set_evenly(
+            body.name,
+            parts=body.parts,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"split_selection_set_evenly failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

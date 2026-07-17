@@ -8266,6 +8266,34 @@ def slide_selection_set(
 
 
 @mcp.tool()
+def split_selection_set_at(
+    name: str,
+    at_frame: int,
+    set_work_area: bool = False,
+) -> dict:
+    """Razor clips in a named selection set at at_frame."""
+    return _require_editor().split_selection_set_at(
+        name,
+        at_frame,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def split_selection_set_evenly(
+    name: str,
+    parts: int = 2,
+    set_work_area: bool = False,
+) -> dict:
+    """Split each clip in a named selection set into equal parts."""
+    return _require_editor().split_selection_set_evenly(
+        name,
+        parts=parts,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

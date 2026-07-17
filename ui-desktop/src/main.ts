@@ -17231,6 +17231,71 @@ async function slideSelectionSetUi() {
   }
 }
 
+async function splitSelectionSetAtUi() {
+  try {
+    const name = await promptSelectionSetName("Razor named set at frame (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SplitAtSet cancelled";
+      return;
+    }
+    const raw = window.prompt("at_frame", "6");
+    if (raw === null) {
+      $("status-msg").textContent = "SplitAtSet cancelled";
+      return;
+    }
+    const at_frame = Number(raw);
+    $("status-msg").textContent = `SplitAtSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      skipped_count?: number;
+      clip_count?: number;
+    }>("/api/edit/split_selection_set_at", {
+      name,
+      at_frame: Number.isFinite(at_frame) ? Math.trunc(at_frame) : 6,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SplitAtSet · ${r.selection_set || name} splits=${r.count ?? "?"} skip=${r.skipped_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SplitAtSet failed: ${e}`);
+    $("status-msg").textContent = `SplitAtSet failed: ${e}`;
+  }
+}
+
+async function splitSelectionSetEvenlyUi() {
+  try {
+    const name = await promptSelectionSetName("Even-split named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SplitEqSet cancelled";
+      return;
+    }
+    const raw = window.prompt("parts (>=2)", "2");
+    if (raw === null) {
+      $("status-msg").textContent = "SplitEqSet cancelled";
+      return;
+    }
+    const parts = Number(raw);
+    $("status-msg").textContent = `SplitEqSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/split_selection_set_evenly", {
+      name,
+      parts: Number.isFinite(parts) && parts >= 2 ? Math.trunc(parts) : 2,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SplitEqSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SplitEqSet failed: ${e}`);
+    $("status-msg").textContent = `SplitEqSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21853,6 +21918,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-dup-set", () => void duplicateSelectionSetUi());
   proBind("btn-slip-set", () => void slipSelectionSetUi());
   proBind("btn-slide-set", () => void slideSelectionSetUi());
+  proBind("btn-split-at-set", () => void splitSelectionSetAtUi());
+  proBind("btn-split-eq-set", () => void splitSelectionSetEvenlyUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -17648,6 +17648,61 @@ class Editor:
             ),
         }
 
+    def split_selection_set_at(
+        self,
+        name: str,
+        at_frame: int,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then split_selection_at (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.split_selection_at(ids, int(at_frame))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Razor named set at frame. Even split: "
+                "split_selection_set_evenly. Note: set clip_ids "
+                "may be stale after splits — re-save set if needed."
+            ),
+        }
+
+    def split_selection_set_evenly(
+        self,
+        name: str,
+        parts: int = 2,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then split_selection_evenly (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.split_selection_evenly(ids, parts=int(parts))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Even razor grid on named set. At frame: "
+                "split_selection_set_at. Re-save set for new piece ids."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17727,6 +17782,8 @@ class Editor:
                     {"id": "duplicate_selection_set", "writes": True},
                     {"id": "slip_selection_set", "writes": True},
                     {"id": "slide_selection_set", "writes": True},
+                    {"id": "split_selection_set_at", "writes": True},
+                    {"id": "split_selection_set_evenly", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

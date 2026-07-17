@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.31 — 2026-07-17
+
+### Added
+- `split_selection_set_at` / `split_selection_set_evenly` + **SplitAtSet** / **SplitEqSet**
+
 ## 0.9.30 — 2026-07-17
 
 ### Added
