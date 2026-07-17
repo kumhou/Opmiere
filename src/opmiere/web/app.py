@@ -14161,6 +14161,56 @@ def crop_selection_set_center_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class VignetteSelectionSetBody(BaseModel):
+    name: str
+    strength: float = 0.4
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/vignette_selection_set")
+def vignette_selection_set_api(
+    body: VignetteSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply vignette to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.vignette_selection_set(
+            body.name,
+            strength=body.strength,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"vignette_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class BlurSelectionSetBody(BaseModel):
+    name: str
+    amount: float = 5.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/blur_selection_set")
+def blur_selection_set_api(
+    body: BlurSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply blur to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.blur_selection_set(
+            body.name,
+            amount=body.amount,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"blur_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

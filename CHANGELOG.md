@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.36 — 2026-07-17
+
+### Added
+- `vignette_selection_set` / `blur_selection_set` + **VignetteSet** / **BlurSet**
+
 ## 0.9.35 — 2026-07-17
 
 ### Added

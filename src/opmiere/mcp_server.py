@@ -8440,6 +8440,34 @@ def crop_selection_set_center(
 
 
 @mcp.tool()
+def vignette_selection_set(
+    name: str,
+    strength: float = 0.4,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply vignette to clips in a named selection set."""
+    return _require_editor().vignette_selection_set(
+        name,
+        strength=strength,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def blur_selection_set(
+    name: str,
+    amount: float = 5.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply blur to clips in a named selection set."""
+    return _require_editor().blur_selection_set(
+        name,
+        amount=amount,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -17561,6 +17561,72 @@ async function cropSelectionSetCenterUi() {
   }
 }
 
+async function vignetteSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Vignette named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "VignetteSet cancelled";
+      return;
+    }
+    const raw = window.prompt("strength", "0.4");
+    if (raw === null) {
+      $("status-msg").textContent = "VignetteSet cancelled";
+      return;
+    }
+    const strength = Number(raw);
+    $("status-msg").textContent = `VignetteSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      strength?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/vignette_selection_set", {
+      name,
+      strength: Number.isFinite(strength) ? strength : 0.4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `VignetteSet · ${r.selection_set || name} strength=${r.strength ?? strength} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`VignetteSet failed: ${e}`);
+    $("status-msg").textContent = `VignetteSet failed: ${e}`;
+  }
+}
+
+async function blurSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Blur named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "BlurSet cancelled";
+      return;
+    }
+    const raw = window.prompt("amount", "5");
+    if (raw === null) {
+      $("status-msg").textContent = "BlurSet cancelled";
+      return;
+    }
+    const amount = Number(raw);
+    $("status-msg").textContent = `BlurSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      amount?: number;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/blur_selection_set", {
+      name,
+      amount: Number.isFinite(amount) ? amount : 5,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BlurSet · ${r.selection_set || name} amount=${r.amount ?? amount} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`BlurSet failed: ${e}`);
+    $("status-msg").textContent = `BlurSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22193,6 +22259,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-flip-set", () => void setSelectionSetFlipUi());
   proBind("btn-spd-rip-set", () => void setSelectionSetSpeedRippleUi());
   proBind("btn-crop-set", () => void cropSelectionSetCenterUi());
+  proBind("btn-vignette-set", () => void vignetteSelectionSetUi());
+  proBind("btn-blur-set", () => void blurSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
