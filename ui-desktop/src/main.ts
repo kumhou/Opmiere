@@ -14302,6 +14302,107 @@ async function dryRunSelectionSetPipelineUi() {
   }
 }
 
+async function saveSelectionPipelinePresetUi() {
+  const name = window.prompt("Pipeline preset name", "default")?.trim();
+  if (!name) {
+    $("status-msg").textContent = "SavePipe cancelled";
+    return;
+  }
+  const stepsRaw =
+    window.prompt(
+      "Steps (comma-separated)\ne.g. validate,repair,export_mp4,checklist",
+      "validate,repair,export_mp4,checklist",
+    )?.trim() || "";
+  const steps = stepsRaw
+    .split(/[,|]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (!steps.length) {
+    $("status-msg").textContent = "SavePipe needs steps";
+    return;
+  }
+  const note = window.prompt("Note (optional)", "") ?? "";
+  $("status-msg").textContent = `Saving pipeline preset ${name}…`;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      name?: string;
+      step_count?: number;
+      steps?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/save_selection_pipeline_preset", {
+      name,
+      steps,
+      note,
+      overwrite: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SavePipe · ${r.name || name} steps=${r.step_count ?? steps.length}`;
+  } catch (e) {
+    setProOut(`SavePipe failed: ${e}`);
+    $("status-msg").textContent = `SavePipe failed: ${e}`;
+  }
+}
+
+async function runSelectionPipelinePresetUi() {
+  try {
+    const listed = await getJson<{
+      presets?: { name?: string; steps?: string[] }[];
+    }>("/api/edit/list_selection_pipeline_presets");
+    const names = (listed.presets || [])
+      .map((p) => p.name)
+      .filter((n): n is string => !!n);
+    const hint = names.length ? names.join(", ") : "(none — SavePipe first)";
+    const name = window
+      .prompt(`Run pipeline preset\nKnown: ${hint}`, names[0] || "default")
+      ?.trim();
+    if (!name) {
+      $("status-msg").textContent = "RunPipe cancelled";
+      return;
+    }
+    const ids = selectionList();
+    let selectionSet: string | null = null;
+    let clipIds: string[] | null = ids.length ? ids : null;
+    if (!clipIds?.length) {
+      selectionSet = await promptSelectionSetName(
+        "No clip selection — use selection set name",
+      );
+      if (!selectionSet) {
+        $("status-msg").textContent = "RunPipe needs clips or a set";
+        return;
+      }
+    }
+    const dry =
+      (window.prompt("Dry-run? y/n", "y")?.trim().toLowerCase() || "y") ===
+      "y";
+    $("status-msg").textContent = `RunPipe ${name}${dry ? " (dry)" : ""}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      preset?: string;
+      dry_run?: boolean;
+      plan?: string[];
+      would_execute?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/run_selection_pipeline_preset", {
+      name,
+      clip_ids: clipIds,
+      selection_set: selectionSet,
+      dry_run: dry,
+      execute_read_only: true,
+      set_work_area: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RunPipe · ${r.preset || name} dry=${r.dry_run ?? dry} ok=${r.ok ?? "?"} plan=${(r.plan || []).length}`;
+  } catch (e) {
+    setProOut(`RunPipe failed: ${e}`);
+    $("status-msg").textContent = `RunPipe failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -18785,6 +18886,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-pipe-dry", () => void dryRunSelectionPipelineUi());
   proBind("btn-set-stat", () => void selectionSetStatusUi());
   proBind("btn-set-dry", () => void dryRunSelectionSetPipelineUi());
+  proBind("btn-save-pipe-pre", () => void saveSelectionPipelinePresetUi());
+  proBind("btn-run-pipe-pre", () => void runSelectionPipelinePresetUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 — 2026-07-17
+
+### Added
+- `save_selection_pipeline_preset` / `run_selection_pipeline_preset` (+ list/delete) + **SavePipe** / **RunPipe**
+
 ## 0.7.1 — 2026-07-17
 
 ### Added

@@ -11451,6 +11451,99 @@ def dry_run_selection_set_pipeline_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SaveSelectionPipelinePresetBody(BaseModel):
+    name: str
+    steps: list[str]
+    note: str = ""
+    overwrite: bool = True
+
+
+@app.post("/api/edit/save_selection_pipeline_preset")
+def save_selection_pipeline_preset_api(
+    body: SaveSelectionPipelinePresetBody,
+) -> dict[str, Any]:
+    """Save a named selection pipeline preset."""
+    ed = _ed()
+    try:
+        r = ed.save_selection_pipeline_preset(
+            body.name,
+            body.steps,
+            note=body.note,
+            overwrite=body.overwrite,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"save_selection_pipeline_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+@app.get("/api/edit/list_selection_pipeline_presets")
+def list_selection_pipeline_presets_api() -> dict[str, Any]:
+    """List selection pipeline presets."""
+    ed = _ed()
+    try:
+        return ed.list_selection_pipeline_presets()
+    except Exception as e:
+        raise HTTPException(
+            400, f"list_selection_pipeline_presets failed: {e}",
+        ) from e
+
+
+class DeleteSelectionPipelinePresetBody(BaseModel):
+    name: str
+
+
+@app.post("/api/edit/delete_selection_pipeline_preset")
+def delete_selection_pipeline_preset_api(
+    body: DeleteSelectionPipelinePresetBody,
+) -> dict[str, Any]:
+    """Delete a selection pipeline preset."""
+    ed = _ed()
+    try:
+        r = ed.delete_selection_pipeline_preset(body.name)
+    except Exception as e:
+        raise HTTPException(
+            400, f"delete_selection_pipeline_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RunSelectionPipelinePresetBody(BaseModel):
+    name: str
+    clip_ids: list[str] | None = None
+    selection_set: str | None = None
+    dry_run: bool = False
+    execute_read_only: bool = True
+    normalize_preset: str | None = None
+    social_variants: list[str] | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/run_selection_pipeline_preset")
+def run_selection_pipeline_preset_api(
+    body: RunSelectionPipelinePresetBody,
+) -> dict[str, Any]:
+    """Run or dry-run a saved pipeline preset."""
+    ed = _ed()
+    try:
+        r = ed.run_selection_pipeline_preset(
+            body.name,
+            clip_ids=body.clip_ids,
+            selection_set=body.selection_set,
+            dry_run=body.dry_run,
+            execute_read_only=body.execute_read_only,
+            normalize_preset=body.normalize_preset,
+            social_variants=body.social_variants,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"run_selection_pipeline_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionSetBody(BaseModel):
     name: str
     clip_ids: list[str]

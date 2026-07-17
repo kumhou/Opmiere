@@ -6823,6 +6823,58 @@ def dry_run_selection_set_pipeline(
 
 
 @mcp.tool()
+def save_selection_pipeline_preset(
+    name: str,
+    steps: list[str],
+    note: str = "",
+    overwrite: bool = True,
+) -> dict:
+    """Save a named selection pipeline step plan."""
+    return _require_editor().save_selection_pipeline_preset(
+        name,
+        steps,
+        note=note,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool()
+def list_selection_pipeline_presets() -> dict:
+    """List saved selection pipeline presets."""
+    return _require_editor().list_selection_pipeline_presets()
+
+
+@mcp.tool()
+def delete_selection_pipeline_preset(name: str) -> dict:
+    """Delete a saved selection pipeline preset."""
+    return _require_editor().delete_selection_pipeline_preset(name)
+
+
+@mcp.tool()
+def run_selection_pipeline_preset(
+    name: str,
+    clip_ids: list[str] | None = None,
+    selection_set: str | None = None,
+    dry_run: bool = False,
+    execute_read_only: bool = True,
+    normalize_preset: str | None = None,
+    social_variants: list[str] | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Run or dry-run a saved pipeline preset on clips or a named set."""
+    return _require_editor().run_selection_pipeline_preset(
+        name,
+        clip_ids=clip_ids,
+        selection_set=selection_set,
+        dry_run=dry_run,
+        execute_read_only=execute_read_only,
+        normalize_preset=normalize_preset,
+        social_variants=social_variants,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_set(
     name: str,
     clip_ids: list[str],

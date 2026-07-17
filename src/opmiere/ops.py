@@ -14080,6 +14080,242 @@ class Editor:
             ),
         }
 
+    def _pipeline_presets_path(self) -> Path:
+        return Path(self.bundle.root) / "selection_pipeline_presets.json"
+
+    def _read_pipeline_presets(self) -> dict[str, Any]:
+        p = self._pipeline_presets_path()
+        if not p.is_file():
+            return {"schema": "opmiere.selection_pipeline_presets.v1", "presets": {}}
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {"schema": "opmiere.selection_pipeline_presets.v1", "presets": {}}
+        if not isinstance(data, dict):
+            return {"schema": "opmiere.selection_pipeline_presets.v1", "presets": {}}
+        presets = data.get("presets")
+        if not isinstance(presets, dict):
+            presets = {}
+        return {
+            "schema": str(
+                data.get("schema") or "opmiere.selection_pipeline_presets.v1"
+            ),
+            "presets": presets,
+        }
+
+    def _write_pipeline_presets(self, data: dict[str, Any]) -> Path:
+        p = self._pipeline_presets_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "opmiere.selection_pipeline_presets.v1",
+            "presets": (
+                data.get("presets")
+                if isinstance(data.get("presets"), dict)
+                else {}
+            ),
+        }
+        p.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return p
+
+    def save_selection_pipeline_preset(
+        self,
+        name: str,
+        steps: list[str],
+        *,
+        note: str = "",
+        overwrite: bool = True,
+    ) -> dict[str, Any]:
+        """Save a named selection pipeline step plan on the project bundle."""
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        if not steps:
+            raise ValueError("steps is empty")
+        cat = self.selection_pipeline_catalog()
+        known = set(cat["step_ids"])
+        plan: list[str] = []
+        unknown: list[str] = []
+        for s in steps:
+            k = str(s).strip().lower()
+            if not k:
+                continue
+            if k not in known:
+                unknown.append(k)
+            else:
+                plan.append(k)
+        if unknown:
+            raise ValueError(
+                f"unknown steps {unknown}; known={sorted(known)}"
+            )
+        if not plan:
+            raise ValueError("steps is empty after normalize")
+        store = self._read_pipeline_presets()
+        presets: dict[str, Any] = dict(store.get("presets") or {})
+        if key in presets and not overwrite:
+            raise ValueError(
+                f"pipeline preset {key!r} exists (overwrite=False)"
+            )
+        entry = {
+            "name": key,
+            "steps": plan,
+            "step_count": len(plan),
+            "note": str(note or ""),
+            "updated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        }
+        presets[key] = entry
+        store["presets"] = presets
+        path = self._write_pipeline_presets(store)
+        return {
+            "ok": True,
+            "name": key,
+            "steps": plan,
+            "step_count": len(plan),
+            "note": entry["note"],
+            "path": str(path.resolve()),
+            "agent_note": (
+                "Preset saved. Run: run_selection_pipeline_preset. "
+                "List: list_selection_pipeline_presets."
+            ),
+        }
+
+    def list_selection_pipeline_presets(self) -> dict[str, Any]:
+        """List saved selection pipeline presets."""
+        store = self._read_pipeline_presets()
+        presets = store.get("presets") or {}
+        rows: list[dict[str, Any]] = []
+        for name, entry in sorted(
+            presets.items(), key=lambda kv: str(kv[0]).lower()
+        ):
+            if not isinstance(entry, dict):
+                continue
+            rows.append({
+                "name": name,
+                "steps": list(entry.get("steps") or []),
+                "step_count": entry.get("step_count")
+                or len(entry.get("steps") or []),
+                "note": entry.get("note") or "",
+                "updated_at": entry.get("updated_at"),
+            })
+        return {
+            "ok": True,
+            "count": len(rows),
+            "presets": rows,
+            "path": str(self._pipeline_presets_path().resolve()),
+            "agent_note": (
+                "Presets sidecar. Run: run_selection_pipeline_preset(name, …)."
+            ),
+        }
+
+    def delete_selection_pipeline_preset(self, name: str) -> dict[str, Any]:
+        """Delete a saved selection pipeline preset."""
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        store = self._read_pipeline_presets()
+        presets: dict[str, Any] = dict(store.get("presets") or {})
+        if key not in presets:
+            raise KeyError(
+                f"no pipeline preset {key!r}; known={sorted(presets.keys())}"
+            )
+        del presets[key]
+        store["presets"] = presets
+        path = self._write_pipeline_presets(store)
+        return {
+            "ok": True,
+            "deleted": key,
+            "remaining": sorted(presets.keys()),
+            "path": str(path.resolve()),
+            "agent_note": "Pipeline preset removed.",
+        }
+
+    def run_selection_pipeline_preset(
+        self,
+        name: str,
+        clip_ids: list[str] | None = None,
+        *,
+        selection_set: str | None = None,
+        dry_run: bool = False,
+        execute_read_only: bool = True,
+        normalize_preset: str | None = None,
+        social_variants: list[str] | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Run (or dry-run) a saved pipeline preset on clips or a named set.
+
+        Provide clip_ids and/or selection_set (selection_set wins for ids).
+        """
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        store = self._read_pipeline_presets()
+        presets = store.get("presets") or {}
+        if key not in presets:
+            raise KeyError(
+                f"no pipeline preset {key!r}; known={sorted(presets.keys())}"
+            )
+        entry = presets[key]
+        if not isinstance(entry, dict):
+            raise ValueError(f"corrupt pipeline preset {key!r}")
+        steps = [str(s).strip().lower() for s in (entry.get("steps") or [])]
+        steps = [s for s in steps if s]
+        if not steps:
+            raise ValueError(f"pipeline preset {key!r} has empty steps")
+
+        loaded_meta: dict[str, Any] | None = None
+        ids: list[str]
+        set_name = str(selection_set or "").strip() or None
+        if set_name:
+            loaded = self.load_selection_set(
+                set_name,
+                set_work_area=set_work_area,
+                drop_missing=True,
+            )
+            ids = list(loaded.get("clip_ids") or [])
+            loaded_meta = {
+                "selection_set": set_name,
+                "clip_ids": ids,
+                "clip_count": len(ids),
+                "missing": loaded.get("missing") or [],
+            }
+        else:
+            if not clip_ids:
+                raise ValueError("clip_ids or selection_set is required")
+            ids = list(dict.fromkeys(str(c) for c in clip_ids if str(c).strip()))
+            if not ids:
+                raise ValueError("clip_ids is empty")
+            if set_work_area:
+                self.set_work_area_from_selection(ids)
+
+        if dry_run:
+            result = self.dry_run_selection_pipeline(
+                ids,
+                steps=steps,
+                execute_read_only=execute_read_only,
+            )
+        else:
+            result = self.run_selection_pipeline(
+                ids,
+                steps=steps,
+                normalize_preset=normalize_preset,
+                social_variants=social_variants,
+            )
+        return {
+            **result,
+            "preset": key,
+            "preset_steps": steps,
+            "dry_run": bool(dry_run),
+            "loaded": loaded_meta,
+            "agent_note": (
+                "Ran saved pipeline preset. Save: save_selection_pipeline_preset. "
+                "Catalog: selection_pipeline_catalog."
+            ),
+        }
+
     def _selection_sets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_sets.json"
 
