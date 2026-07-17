@@ -12549,6 +12549,60 @@ def selection_set_checklist_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetToWorkAreaBody(BaseModel):
+    name: str
+    drop_missing: bool = True
+
+
+@app.post("/api/edit/selection_set_to_work_area")
+def selection_set_to_work_area_api(
+    body: SelectionSetToWorkAreaBody,
+) -> dict[str, Any]:
+    """Set work In/Out from a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_to_work_area(
+            body.name,
+            drop_missing=body.drop_missing,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_to_work_area failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class WorkAreaToSelectionSetBody(BaseModel):
+    name: str
+    kind: str | None = None
+    track_id: str | None = None
+    mode: str = "overlap"
+    note: str = ""
+    overwrite: bool = True
+
+
+@app.post("/api/edit/work_area_to_selection_set")
+def work_area_to_selection_set_api(
+    body: WorkAreaToSelectionSetBody,
+) -> dict[str, Any]:
+    """Build named selection set from work In/Out."""
+    ed = _ed()
+    try:
+        r = ed.work_area_to_selection_set(
+            body.name,
+            kind=body.kind,
+            track_id=body.track_id,
+            mode=body.mode,
+            note=body.note,
+            overwrite=body.overwrite,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"work_area_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -7529,6 +7529,38 @@ def selection_set_checklist(
 
 
 @mcp.tool()
+def selection_set_to_work_area(
+    name: str,
+    drop_missing: bool = True,
+) -> dict:
+    """Set work In/Out to a named selection set union span."""
+    return _require_editor().selection_set_to_work_area(
+        name,
+        drop_missing=drop_missing,
+    )
+
+
+@mcp.tool()
+def work_area_to_selection_set(
+    name: str,
+    kind: str | None = None,
+    track_id: str | None = None,
+    mode: str = "overlap",
+    note: str = "",
+    overwrite: bool = True,
+) -> dict:
+    """Build a named selection set from clips under current work In/Out."""
+    return _require_editor().work_area_to_selection_set(
+        name,
+        kind=kind,
+        track_id=track_id,
+        mode=mode,
+        note=note,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

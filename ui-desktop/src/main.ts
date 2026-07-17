@@ -15650,6 +15650,70 @@ async function selectionSetChecklistUi() {
   }
 }
 
+async function selectionSetToWorkAreaUi() {
+  try {
+    const name = await promptSelectionSetName("Set → work area (set name)");
+    if (!name) {
+      $("status-msg").textContent = "Set→WA cancelled";
+      return;
+    }
+    $("status-msg").textContent = `Set→WA ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      clip_count?: number;
+      work_area?: { in_frame?: number; out_frame?: number; ready?: boolean };
+      timeline?: TimelineView;
+    }>("/api/edit/selection_set_to_work_area", {
+      name,
+      drop_missing: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    const wa = r.work_area || {};
+    $("status-msg").textContent =
+      `Set→WA · ${r.selection_set || name} n=${r.clip_count ?? "?"} in=${wa.in_frame ?? "?"} out=${wa.out_frame ?? "?"}`;
+  } catch (e) {
+    setProOut(`Set→WA failed: ${e}`);
+    $("status-msg").textContent = `Set→WA failed: ${e}`;
+  }
+}
+
+async function workAreaToSelectionSetUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const name =
+    window.prompt("New selection set name from work area", "from_wa")?.trim() ||
+    "from_wa";
+  const mode =
+    window.prompt("Mode: overlap | contained", "overlap")?.trim() || "overlap";
+  $("status-msg").textContent = `WA→Set ${name}…`;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      name?: string;
+      clip_count?: number;
+      mode?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/work_area_to_selection_set", {
+      name,
+      mode,
+      kind: "video",
+      overwrite: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `WA→Set · ${r.name || name} mode=${r.mode || mode} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`WA→Set failed: ${e}`);
+    $("status-msg").textContent = `WA→Set failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20218,6 +20282,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-sum", () => void selectionSetExportSummaryUi());
   proBind("btn-set-pre", () => void selectionSetAgentPreflightUi());
   proBind("btn-set-clist", () => void selectionSetChecklistUi());
+  proBind("btn-set-to-wa", () => void selectionSetToWorkAreaUi());
+  proBind("btn-wa-to-set", () => void workAreaToSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

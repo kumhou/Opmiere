@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.4 — 2026-07-17
+
+### Added
+- `selection_set_to_work_area` / `work_area_to_selection_set` + **Set→WA** / **WA→Set**
+
 ## 0.9.3 — 2026-07-17
 
 ### Added

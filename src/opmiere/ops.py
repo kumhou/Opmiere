@@ -16033,7 +16033,118 @@ class Editor:
             "agent_note": (
                 "In-memory checklist for named set. Write to disk: "
                 "export_selection_set_checklist. Preflight: "
-                "selection_set_agent_preflight."
+                "selection_set_agent_preflight. Work area: "
+                "selection_set_to_work_area / work_area_to_selection_set."
+            ),
+        }
+
+    def selection_set_to_work_area(
+        self,
+        name: str,
+        *,
+        drop_missing: bool = True,
+    ) -> dict[str, Any]:
+        """Load named selection set and set In/Out to its live union span."""
+        loaded = self.load_selection_set(
+            name, set_work_area=True, drop_missing=drop_missing,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        return {
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "span": loaded.get("span"),
+            "work_area": loaded.get("work_area"),
+            "agent_note": (
+                "Work In/Out = named set span. Reverse: work_area_to_selection_set. "
+                "Export WA: export_work_area_mp4_default."
+            ),
+        }
+
+    def work_area_to_selection_set(
+        self,
+        name: str,
+        *,
+        kind: str | None = None,
+        track_id: str | None = None,
+        mode: str = "overlap",
+        note: str = "",
+        overwrite: bool = True,
+    ) -> dict[str, Any]:
+        """Build a named selection set from clips under current work In/Out.
+
+        mode:
+          - overlap (default): clip intersects [in, out)
+          - contained: clip fully inside [in, out)
+        Requires ready work area (set_in_point + set_out_point).
+        """
+        key = str(name or "").strip()
+        if not key:
+            raise ValueError("name is empty")
+        io = self.get_in_out()
+        if not io.get("ready"):
+            raise ValueError(
+                "work area not ready; set_in_point + set_out_point first"
+            )
+        inn = int(io["in_frame"])
+        out = int(io["out_frame"])
+        mode_n = str(mode or "overlap").strip().lower()
+        if mode_n not in ("overlap", "contained"):
+            raise ValueError("mode must be overlap|contained")
+        kind_f = str(kind).strip().lower() if kind else None
+        if kind_f is not None and kind_f not in ("video", "audio"):
+            raise ValueError("kind must be video|audio|None")
+
+        ids: list[str] = []
+        rows: list[dict[str, Any]] = []
+        for track in self.project.tracks:
+            if track_id is not None and track.id != track_id:
+                continue
+            if kind_f is not None and track.kind != kind_f:
+                continue
+            for clip in track.clips_in_order():
+                cs, ce = int(clip.start), int(clip.end)
+                if mode_n == "overlap":
+                    hit = cs < out and ce > inn
+                else:
+                    hit = cs >= inn and ce <= out
+                if not hit:
+                    continue
+                ids.append(clip.id)
+                rows.append({
+                    "clip_id": clip.id,
+                    "track_id": track.id,
+                    "kind": track.kind,
+                    "start": cs,
+                    "end": ce,
+                })
+        # stable unique order
+        ids = list(dict.fromkeys(ids))
+        if not ids:
+            raise ValueError(
+                f"no clips {mode_n} work area [{inn},{out}) "
+                f"(kind={kind_f!r}, track_id={track_id!r})"
+            )
+        note_text = note or f"work_area {mode_n} [{inn},{out})"
+        saved = self.save_selection_set(
+            key, ids, note=note_text, overwrite=overwrite,
+        )
+        return {
+            "ok": True,
+            "name": key,
+            "mode": mode_n,
+            "work_area": io,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "clips": rows,
+            "saved": saved,
+            "agent_note": (
+                "Named set from work area. Set WA from set: "
+                "selection_set_to_work_area."
             ),
         }
 
@@ -16084,11 +16195,13 @@ class Editor:
             },
             {
                 "id": "timeline",
-                "title": "Timeline / markers",
+                "title": "Timeline / markers / work area",
                 "tools": [
                     {"id": "selection_set_to_markers", "writes": True},
                     {"id": "markers_to_selection_set", "writes": True},
                     {"id": "selection_set_to_new_track", "writes": True},
+                    {"id": "selection_set_to_work_area", "writes": True},
+                    {"id": "work_area_to_selection_set", "writes": True},
                 ],
             },
             {
