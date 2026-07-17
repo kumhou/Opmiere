@@ -19809,6 +19809,69 @@ class Editor:
             ),
         }
 
+    def clear_selection_set_watermarks(
+        self,
+        name: str,
+        *,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then clear_selection_watermarks (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.clear_selection_watermarks(
+            ids, video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Stripped watermark on named set. Apply: "
+                "watermark_selection_set. Trim: "
+                "trim_selection_set_edges."
+            ),
+        }
+
+    def trim_selection_set_edges(
+        self,
+        name: str,
+        *,
+        head_frames: int = 0,
+        tail_frames: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then trim_selection_edges (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.trim_selection_edges(
+            ids,
+            head_frames=int(head_frames),
+            tail_frames=int(tail_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Timeline edge trim on named set. Ripple trim: "
+                "ripple_trim_selection_set_edges. Clear wm: "
+                "clear_selection_set_watermarks."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19954,6 +20017,8 @@ class Editor:
                     {"id": "rename_selection_set_tracks", "writes": True},
                     {"id": "clear_selection_set_safe_areas", "writes": True},
                     {"id": "clear_selection_set_timecodes", "writes": True},
+                    {"id": "clear_selection_set_watermarks", "writes": True},
+                    {"id": "trim_selection_set_edges", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

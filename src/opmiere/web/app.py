@@ -15715,6 +15715,58 @@ def clear_selection_set_timecodes_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ClearSelectionSetWatermarksBody(BaseModel):
+    name: str
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/clear_selection_set_watermarks")
+def clear_selection_set_watermarks_api(
+    body: ClearSelectionSetWatermarksBody,
+) -> dict[str, Any]:
+    """Clear watermark effects on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_set_watermarks(
+            body.name,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_set_watermarks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class TrimSelectionSetEdgesBody(BaseModel):
+    name: str
+    head_frames: int = 0
+    tail_frames: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/trim_selection_set_edges")
+def trim_selection_set_edges_api(
+    body: TrimSelectionSetEdgesBody,
+) -> dict[str, Any]:
+    """Trim head/tail timeline frames on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.trim_selection_set_edges(
+            body.name,
+            head_frames=body.head_frames,
+            tail_frames=body.tail_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"trim_selection_set_edges failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

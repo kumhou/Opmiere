@@ -9378,6 +9378,36 @@ def clear_selection_set_timecodes(
 
 
 @mcp.tool()
+def clear_selection_set_watermarks(
+    name: str,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Remove watermark effects from a named selection set."""
+    return _require_editor().clear_selection_set_watermarks(
+        name,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def trim_selection_set_edges(
+    name: str,
+    head_frames: int = 0,
+    tail_frames: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Trim timeline frames from head and/or tail of a named selection set."""
+    return _require_editor().trim_selection_set_edges(
+        name,
+        head_frames=head_frames,
+        tail_frames=tail_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

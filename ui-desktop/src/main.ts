@@ -19403,6 +19403,80 @@ async function clearSelectionSetTimecodesUi() {
   }
 }
 
+async function clearSelectionSetWatermarksUi() {
+  try {
+    const name = await promptSelectionSetName("Clear watermarks named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ClrWmSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Clear watermark effects on set "${name}"?`)) {
+      $("status-msg").textContent = "ClrWmSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ClrWmSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/clear_selection_set_watermarks", {
+      name,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClrWmSet · ${r.selection_set || name} cleared=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ClrWmSet failed: ${e}`);
+    $("status-msg").textContent = `ClrWmSet failed: ${e}`;
+  }
+}
+
+async function trimSelectionSetEdgesUi() {
+  try {
+    const name = await promptSelectionSetName("Trim edges named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "TrimEdgesSet cancelled";
+      return;
+    }
+    const rawHead = window.prompt("head_frames", "0");
+    if (rawHead === null) {
+      $("status-msg").textContent = "TrimEdgesSet cancelled";
+      return;
+    }
+    const rawTail = window.prompt("tail_frames", "1");
+    if (rawTail === null) {
+      $("status-msg").textContent = "TrimEdgesSet cancelled";
+      return;
+    }
+    const head_frames = Number(rawHead);
+    const tail_frames = Number(rawTail);
+    if (!window.confirm(`Trim set "${name}" head=${head_frames} tail=${tail_frames}?`)) {
+      $("status-msg").textContent = "TrimEdgesSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `TrimEdgesSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/trim_selection_set_edges", {
+      name,
+      head_frames: Number.isFinite(head_frames) ? head_frames : 0,
+      tail_frames: Number.isFinite(tail_frames) ? tail_frames : 1,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `TrimEdgesSet · ${r.selection_set || name} trimmed=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`TrimEdgesSet failed: ${e}`);
+    $("status-msg").textContent = `TrimEdgesSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24091,6 +24165,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-ren-trk-set", () => void renameSelectionSetTracksUi());
   proBind("btn-clr-safe-set", () => void clearSelectionSetSafeAreasUi());
   proBind("btn-clr-tc-set", () => void clearSelectionSetTimecodesUi());
+  proBind("btn-clr-wm-set", () => void clearSelectionSetWatermarksUi());
+  proBind("btn-trim-edges-set", () => void trimSelectionSetEdgesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

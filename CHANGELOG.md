@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.64 — 2026-07-17
+
+### Added
+- `clear_selection_set_watermarks` / `trim_selection_set_edges` + **ClrWmSet** / **TrimEdgesSet**
+
 ## 0.9.63 — 2026-07-17
 
 ### Added
