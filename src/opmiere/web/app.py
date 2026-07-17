@@ -10870,6 +10870,44 @@ def selection_meta_report_api(
         ) from e
 
 
+class SelectionAgentCardBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_agent_card")
+def selection_agent_card_api(body: SelectionAgentCardBody) -> dict[str, Any]:
+    """One-shot selection agent card."""
+    ed = _ed()
+    try:
+        return ed.selection_agent_card(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_agent_card failed: {e}",
+        ) from e
+
+
+class ExportSelectionAgentCardBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_agent_card.json"
+    path: str | None = None
+
+
+@app.post("/api/edit/export_selection_agent_card")
+def export_selection_agent_card_api(
+    body: ExportSelectionAgentCardBody,
+) -> dict[str, Any]:
+    """Write selection agent card JSON."""
+    ed = _ed()
+    try:
+        return ed.export_selection_agent_card(
+            body.clip_ids, filename=body.filename, path=body.path,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_agent_card failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

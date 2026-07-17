@@ -12610,6 +12610,69 @@ class Editor:
             "agent_note": "Read-only. Set: set_selection_meta.",
         }
 
+    def selection_agent_card(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """One-shot agent card: health + duration + levels + fades + transitions + links + meta + position.
+
+        Read-only aggregate for pre-edit / pre-export briefing.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        health = self.selection_media_health(ids)
+        card = {
+            "schema": "opmiere.selection_agent_card.v1",
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "health": health,
+            "duration": self.selection_duration_report(ids),
+            "levels": self.selection_levels_report(ids),
+            "fades": self.selection_fades_report(ids),
+            "transitions": self.selection_transition_report(ids),
+            "links": self.selection_link_report(ids),
+            "meta": self.selection_meta_report(ids),
+            "position": self.selection_position_report(ids),
+            "span": self.selection_span(ids),
+            "ok": bool(health.get("ok")),
+            "agent_note": (
+                "Read-only super-card. Write to disk: export_selection_agent_card. "
+                "Full edit gate: selection_agent_preflight."
+            ),
+        }
+        return card
+
+    def export_selection_agent_card(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_agent_card.json",
+        path: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """Write selection_agent_card JSON under exports/ (or path)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        card = self.selection_agent_card(list(dict.fromkeys(clip_ids)))
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / (filename or "selection_agent_card.json")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(card, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "path": str(out.resolve()),
+            "ok": bool(card.get("ok")),
+            "clip_count": card.get("clip_count"),
+            "schema": card.get("schema"),
+            "agent_note": "Agent card written. In-memory: selection_agent_card.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

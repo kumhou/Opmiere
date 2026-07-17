@@ -6460,6 +6460,24 @@ def selection_meta_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def selection_agent_card(clip_ids: list[str]) -> dict:
+    """One-shot agent super-card for selection (read-only aggregate)."""
+    return _require_editor().selection_agent_card(clip_ids)
+
+
+@mcp.tool()
+def export_selection_agent_card(
+    clip_ids: list[str],
+    filename: str = "selection_agent_card.json",
+    path: str | None = None,
+) -> dict:
+    """Write selection_agent_card JSON to exports/ or path."""
+    return _require_editor().export_selection_agent_card(
+        clip_ids, filename=filename, path=path,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

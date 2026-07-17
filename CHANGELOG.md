@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.86 — 2026-07-17
+
+### Added
+- `selection_agent_card` / `export_selection_agent_card` + **AgentCard** / **CardExp**
+
 ## 0.6.85 — 2026-07-17
 
 ### Added

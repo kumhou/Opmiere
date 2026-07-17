@@ -13725,6 +13725,52 @@ async function selectionMetaReportUi() {
   }
 }
 
+async function selectionAgentCardUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for agent card";
+    return;
+  }
+  $("status-msg").textContent = "Building selection agent card…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      clip_count?: number;
+      schema?: string;
+    }>("/api/edit/selection_agent_card", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `AgentCard · ok=${r.ok ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`AgentCard failed: ${e}`);
+    $("status-msg").textContent = `AgentCard failed: ${e}`;
+  }
+}
+
+async function exportSelectionAgentCardUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to export agent card";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection agent card…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      ok?: boolean;
+      clip_count?: number;
+    }>("/api/edit/export_selection_agent_card", {
+      clip_ids: ids,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CardExp · ok=${r.ok ?? "?"} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`CardExp failed: ${e}`);
+    $("status-msg").textContent = `CardExp failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17794,6 +17840,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-link-rep-sel", () => void selectionLinkReportUi());
   proBind("btn-pos-rep-sel", () => void selectionPositionReportUi());
   proBind("btn-meta-rep-sel", () => void selectionMetaReportUi());
+  proBind("btn-agent-card-sel", () => void selectionAgentCardUi());
+  proBind("btn-agent-card-exp-sel", () => void exportSelectionAgentCardUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
