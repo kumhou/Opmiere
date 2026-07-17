@@ -20195,6 +20195,73 @@ class Editor:
             ),
         }
 
+    def prepare_selection_set_export(
+        self,
+        name: str,
+        *,
+        unlock_tracks: bool = True,
+        export_set_work_area: bool = True,
+        pack_gaps: bool = False,
+        gap_frames: int = 0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then prepare_selection_export (may unlock/pack).
+
+        export_set_work_area maps to prepare_selection_export(set_work_area=...).
+        set_work_area is only for load_selection_set.
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.prepare_selection_export(
+            ids,
+            unlock_tracks=bool(unlock_tracks),
+            set_work_area=bool(export_set_work_area),
+            pack_gaps=bool(pack_gaps),
+            gap_frames=int(gap_frames),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Export prep on named set. Ripple delete: "
+                "ripple_delete_selection_set. Finish delivery: "
+                "finish_selection_set_delivery."
+            ),
+        }
+
+    def ripple_delete_selection_set(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then ripple_delete_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.ripple_delete_selection(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Ripple-deleted named-set clips. Re-save/repair set after. "
+                "Export prep: prepare_selection_set_export."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20352,6 +20419,8 @@ class Editor:
                     {"id": "trim_selection_set_to_playhead", "writes": True},
                     {"id": "review_selection_set", "writes": False},
                     {"id": "swap_selection_set_pair", "writes": True},
+                    {"id": "prepare_selection_set_export", "writes": True},
+                    {"id": "ripple_delete_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

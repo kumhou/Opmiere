@@ -9558,6 +9558,38 @@ def swap_selection_set_pair(
 
 
 @mcp.tool()
+def prepare_selection_set_export(
+    name: str,
+    unlock_tracks: bool = True,
+    export_set_work_area: bool = True,
+    pack_gaps: bool = False,
+    gap_frames: int = 0,
+    set_work_area: bool = False,
+) -> dict:
+    """Unlock/pack/work-area + preflight for a named selection set."""
+    return _require_editor().prepare_selection_set_export(
+        name,
+        unlock_tracks=unlock_tracks,
+        export_set_work_area=export_set_work_area,
+        pack_gaps=pack_gaps,
+        gap_frames=gap_frames,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def ripple_delete_selection_set(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Ripple-delete all clips in a named selection set."""
+    return _require_editor().ripple_delete_selection_set(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

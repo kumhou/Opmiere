@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.70 — 2026-07-17
+
+### Added
+- `prepare_selection_set_export` / `ripple_delete_selection_set` + **PrepExpSet** / **RipDelSet**
+
 ## 0.9.69 — 2026-07-17
 
 ### Added

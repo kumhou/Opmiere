@@ -16027,6 +16027,60 @@ def swap_selection_set_pair_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class PrepareSelectionSetExportBody(BaseModel):
+    name: str
+    unlock_tracks: bool = True
+    export_set_work_area: bool = True
+    pack_gaps: bool = False
+    gap_frames: int = 0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/prepare_selection_set_export")
+def prepare_selection_set_export_api(
+    body: PrepareSelectionSetExportBody,
+) -> dict[str, Any]:
+    """Prepare a named selection set for export."""
+    ed = _ed()
+    try:
+        r = ed.prepare_selection_set_export(
+            body.name,
+            unlock_tracks=body.unlock_tracks,
+            export_set_work_area=body.export_set_work_area,
+            pack_gaps=body.pack_gaps,
+            gap_frames=body.gap_frames,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"prepare_selection_set_export failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RippleDeleteSelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/ripple_delete_selection_set")
+def ripple_delete_selection_set_api(
+    body: RippleDeleteSelectionSetBody,
+) -> dict[str, Any]:
+    """Ripple-delete all clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.ripple_delete_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"ripple_delete_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

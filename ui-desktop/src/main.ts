@@ -19787,6 +19787,63 @@ async function swapSelectionSetPairUi() {
   }
 }
 
+async function prepareSelectionSetExportUi() {
+  try {
+    const name = await promptSelectionSetName("Prepare export named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PrepExpSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `PrepExpSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      soft_ready?: boolean;
+      clip_count?: number;
+    }>("/api/edit/prepare_selection_set_export", {
+      name,
+      unlock_tracks: true,
+      export_set_work_area: true,
+      pack_gaps: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PrepExpSet · ${r.selection_set || name} soft_ready=${r.soft_ready ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`PrepExpSet failed: ${e}`);
+    $("status-msg").textContent = `PrepExpSet failed: ${e}`;
+  }
+}
+
+async function rippleDeleteSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Ripple-delete named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RipDelSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Ripple-DELETE all clips in set "${name}"? This cannot be undone easily.`)) {
+      $("status-msg").textContent = "RipDelSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RipDelSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/ripple_delete_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RipDelSet · ${r.selection_set || name} deleted=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RipDelSet failed: ${e}`);
+    $("status-msg").textContent = `RipDelSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24487,6 +24544,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-trim-ph-set", () => void trimSelectionSetToPlayheadUi());
   proBind("btn-review-set2", () => void reviewSelectionSetUi());
   proBind("btn-swap-pair-set", () => void swapSelectionSetPairUi());
+  proBind("btn-prep-exp-set", () => void prepareSelectionSetExportUi());
+  proBind("btn-rip-del-set", () => void rippleDeleteSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
