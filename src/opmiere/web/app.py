@@ -16743,6 +16743,74 @@ def selection_set_track_states_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetMarkerSegmentsBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    name_prefix: str | None = None
+    include_tail: bool = True
+    min_duration_frames: int = 3
+    filename_from_label: bool = True
+    normalize_preset: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_marker_segments")
+def export_selection_set_marker_segments_api(
+    body: ExportSelectionSetMarkerSegmentsBody,
+) -> dict[str, Any]:
+    """Export marker-to-marker MP4s for named set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_marker_segments(
+            body.name,
+            out_dir=body.out_dir,
+            name_prefix=body.name_prefix,
+            include_tail=body.include_tail,
+            min_duration_frames=body.min_duration_frames,
+            filename_from_label=body.filename_from_label,
+            normalize_preset=body.normalize_preset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_marker_segments failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetClipsGifPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    prefix: str | None = None
+    fps: float = 12.0
+    width: int = 480
+    max_duration_seconds: float = 12.0
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_clips_gif_pack")
+def export_selection_set_clips_gif_pack_api(
+    body: ExportSelectionSetClipsGifPackBody,
+) -> dict[str, Any]:
+    """Export each clip in named set as GIF."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_clips_gif_pack(
+            body.name,
+            out_dir=body.out_dir,
+            prefix=body.prefix,
+            fps=body.fps,
+            width=body.width,
+            max_duration_seconds=body.max_duration_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_clips_gif_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -21095,6 +21095,106 @@ class Editor:
             ),
         }
 
+    def export_selection_set_marker_segments(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        name_prefix: str | None = None,
+        include_tail: bool = True,
+        min_duration_frames: int = 3,
+        filename_from_label: bool = True,
+        normalize_preset: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_marker_segments (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_marker_segments"
+        )
+        rep = self.export_selection_marker_segments(
+            ids,
+            out_dir=root,
+            name_prefix=name_prefix or f"set_{safe}_seg",
+            include_tail=bool(include_tail),
+            min_duration_frames=int(min_duration_frames),
+            filename_from_label=bool(filename_from_label),
+            normalize_preset=normalize_preset,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set marker-to-marker segments. Per-clip GIF pack: "
+                "export_selection_set_clips_gif_pack. MP4 pack: "
+                "export_selection_set_clips_pack."
+            ),
+        }
+
+    def export_selection_set_clips_gif_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str | None = None,
+        fps: float = 12.0,
+        width: int = 480,
+        max_duration_seconds: float = 12.0,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_clips_gif_pack (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / f"selection_set_{safe}_gifs"
+        )
+        rep = self.export_selection_clips_gif_pack(
+            ids,
+            out_dir=root,
+            prefix=prefix or f"set_{safe}",
+            fps=float(fps),
+            width=int(width),
+            max_duration_seconds=float(max_duration_seconds),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set per-clip GIF pack. Marker segments: "
+                "export_selection_set_marker_segments. WebM pack: "
+                "export_selection_clips_webm_pack (set wrapper next)."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21276,6 +21376,8 @@ class Editor:
                     {"id": "selection_set_waveforms", "writes": False},
                     {"id": "export_selection_set_clips_pack", "writes": True},
                     {"id": "selection_set_track_states", "writes": False},
+                    {"id": "export_selection_set_marker_segments", "writes": True},
+                    {"id": "export_selection_set_clips_gif_pack", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

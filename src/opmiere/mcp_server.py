@@ -10010,6 +10010,52 @@ def selection_set_track_states(
 
 
 @mcp.tool()
+def export_selection_set_marker_segments(
+    name: str,
+    out_dir: str | None = None,
+    name_prefix: str | None = None,
+    include_tail: bool = True,
+    min_duration_frames: int = 3,
+    filename_from_label: bool = True,
+    normalize_preset: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export marker-to-marker MP4s for a named selection set span."""
+    return _require_editor().export_selection_set_marker_segments(
+        name,
+        out_dir=out_dir,
+        name_prefix=name_prefix,
+        include_tail=include_tail,
+        min_duration_frames=min_duration_frames,
+        filename_from_label=filename_from_label,
+        normalize_preset=normalize_preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_clips_gif_pack(
+    name: str,
+    out_dir: str | None = None,
+    prefix: str | None = None,
+    fps: float = 12.0,
+    width: int = 480,
+    max_duration_seconds: float = 12.0,
+    set_work_area: bool = False,
+) -> dict:
+    """Export each clip in a named set as a GIF."""
+    return _require_editor().export_selection_set_clips_gif_pack(
+        name,
+        out_dir=out_dir,
+        prefix=prefix,
+        fps=fps,
+        width=width,
+        max_duration_seconds=max_duration_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.82 — 2026-07-17
+
+### Added
+- `export_selection_set_marker_segments` / `export_selection_set_clips_gif_pack` + **ExpMkrSegSet** / **ExpClipsGifSet**
+
 ## 0.9.81 — 2026-07-17
 
 ### Added

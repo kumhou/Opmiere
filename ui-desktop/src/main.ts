@@ -20506,6 +20506,64 @@ async function selectionSetTrackStatesUi() {
   }
 }
 
+async function exportSelectionSetMarkerSegmentsUi() {
+  try {
+    const name = await promptSelectionSetName("Export marker segments for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpMkrSegSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpMkrSegSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      output_dir?: string;
+      count?: number;
+      segment_count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_marker_segments", {
+      name,
+      include_tail: true,
+      min_duration_frames: 3,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpMkrSegSet · ${r.selection_set || name} segs=${r.segment_count ?? r.count ?? "?"} dir=${r.output_dir ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpMkrSegSet failed: ${e}`);
+    $("status-msg").textContent = `ExpMkrSegSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetClipsGifPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export per-clip GIF pack for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpClipsGifSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpClipsGifSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      output_dir?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_clips_gif_pack", {
+      name,
+      fps: 10,
+      width: 320,
+      max_duration_seconds: 4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpClipsGifSet · ${r.selection_set || name} count=${r.count ?? "?"} dir=${r.output_dir ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpClipsGifSet failed: ${e}`);
+    $("status-msg").textContent = `ExpClipsGifSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25230,6 +25288,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-waveforms-set", () => void selectionSetWaveformsUi());
   proBind("btn-exp-clips-pack-set", () => void exportSelectionSetClipsPackUi());
   proBind("btn-track-states-set", () => void selectionSetTrackStatesUi());
+  proBind("btn-exp-mkr-seg-set", () => void exportSelectionSetMarkerSegmentsUi());
+  proBind("btn-exp-clips-gif-set", () => void exportSelectionSetClipsGifPackUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
