@@ -14196,6 +14196,52 @@ async function runSelectionPipelineUi() {
   }
 }
 
+async function selectionPipelineCatalogUi() {
+  $("status-msg").textContent = "Loading pipeline catalog…";
+  try {
+    const r = await getJson<{
+      ok?: boolean;
+      step_ids?: string[];
+      default_plan?: string[];
+    }>("/api/edit/selection_pipeline_catalog");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PipeCat · steps=${(r.step_ids || []).length} default=${(r.default_plan || []).join("→")}`;
+  } catch (e) {
+    setProOut(`PipeCat failed: ${e}`);
+    $("status-msg").textContent = `PipeCat failed: ${e}`;
+  }
+}
+
+async function dryRunSelectionPipelineUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for dry-run pipeline";
+    return;
+  }
+  $("status-msg").textContent = "Dry-running selection pipeline…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      plan?: string[];
+      would_execute?: string[];
+      executed?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/dry_run_selection_pipeline", {
+      clip_ids: ids,
+      steps: null,
+      execute_read_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PipeDry · ok=${r.ok ?? "?"} exec=${(r.executed || []).length} would=${(r.would_execute || []).length}`;
+  } catch (e) {
+    setProOut(`PipeDry failed: ${e}`);
+    $("status-msg").textContent = `PipeDry failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -18675,6 +18721,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fmt-pack-sel", () => void exportSelectionFormatsPackUi());
   proBind("btn-agent-fin-sel", () => void agentFinishSelectionUi());
   proBind("btn-pipe-sel", () => void runSelectionPipelineUi());
+  proBind("btn-pipe-cat", () => void selectionPipelineCatalogUi());
+  proBind("btn-pipe-dry", () => void dryRunSelectionPipelineUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

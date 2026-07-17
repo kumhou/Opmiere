@@ -11364,6 +11364,43 @@ def run_selection_pipeline_api(body: RunSelectionPipelineBody) -> dict[str, Any]
     return {**r, "timeline": ed.timeline_view()}
 
 
+@app.get("/api/edit/selection_pipeline_catalog")
+def selection_pipeline_catalog_api() -> dict[str, Any]:
+    """List known selection pipeline steps."""
+    ed = _ed()
+    try:
+        return ed.selection_pipeline_catalog()
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_pipeline_catalog failed: {e}",
+        ) from e
+
+
+class DryRunSelectionPipelineBody(BaseModel):
+    clip_ids: list[str]
+    steps: list[str] | None = None
+    execute_read_only: bool = True
+
+
+@app.post("/api/edit/dry_run_selection_pipeline")
+def dry_run_selection_pipeline_api(
+    body: DryRunSelectionPipelineBody,
+) -> dict[str, Any]:
+    """Preview selection pipeline without side effects."""
+    ed = _ed()
+    try:
+        r = ed.dry_run_selection_pipeline(
+            body.clip_ids,
+            steps=body.steps,
+            execute_read_only=body.execute_read_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"dry_run_selection_pipeline failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionSetBody(BaseModel):
     name: str
     clip_ids: list[str]

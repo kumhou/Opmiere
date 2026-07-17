@@ -13795,7 +13795,185 @@ class Editor:
             "ok": ctx["ok"],
             "agent_note": (
                 "Named step pipeline. Default: validate→repair→export_mp4→checklist. "
-                "One-shot: agent_finish_selection."
+                "One-shot: agent_finish_selection. Preview: dry_run_selection_pipeline. "
+                "Catalog: selection_pipeline_catalog."
+            ),
+        }
+
+    @staticmethod
+    def selection_pipeline_catalog() -> dict[str, Any]:
+        """List known run_selection_pipeline steps and defaults (read-only)."""
+        steps = [
+            {
+                "id": "validate",
+                "mutates": False,
+                "writes_files": False,
+                "description": "validate_selection — hard fails / soft warns",
+            },
+            {
+                "id": "checklist",
+                "mutates": False,
+                "writes_files": False,
+                "description": "selection_checklist — agent pre-export checklist",
+            },
+            {
+                "id": "repair",
+                "mutates": True,
+                "writes_files": False,
+                "description": "repair_selection — unlock + optional proxies",
+            },
+            {
+                "id": "export_mp4",
+                "mutates": False,
+                "writes_files": True,
+                "description": "export_selection_mp4_default → exports/",
+            },
+            {
+                "id": "formats_pack",
+                "mutates": False,
+                "writes_files": True,
+                "description": "export_selection_formats_pack (mp4/gif/audio)",
+            },
+            {
+                "id": "report_pack",
+                "mutates": False,
+                "writes_files": True,
+                "description": "export_selection_report_pack",
+            },
+            {
+                "id": "client_pack",
+                "mutates": False,
+                "writes_files": True,
+                "description": "export_selection_client_pack",
+            },
+            {
+                "id": "social_pack",
+                "mutates": False,
+                "writes_files": True,
+                "description": "finish_selection_social_pack",
+            },
+            {
+                "id": "agent_card",
+                "mutates": False,
+                "writes_files": True,
+                "description": "export_selection_agent_card JSON",
+            },
+            {
+                "id": "stills_default",
+                "mutates": False,
+                "writes_files": True,
+                "description": "export_selection_stills_default",
+            },
+        ]
+        default_plan = ["validate", "repair", "export_mp4", "checklist"]
+        return {
+            "ok": True,
+            "schema": "opmiere.selection_pipeline_catalog.v1",
+            "default_plan": default_plan,
+            "steps": steps,
+            "step_ids": [s["id"] for s in steps],
+            "read_only_steps": [s["id"] for s in steps if not s["mutates"] and not s["writes_files"]],
+            "mutating_steps": [s["id"] for s in steps if s["mutates"]],
+            "file_writing_steps": [s["id"] for s in steps if s["writes_files"]],
+            "agent_note": (
+                "Catalog only. Execute: run_selection_pipeline. "
+                "Preview without writes: dry_run_selection_pipeline."
+            ),
+        }
+
+    def dry_run_selection_pipeline(
+        self,
+        clip_ids: list[str],
+        steps: list[str] | None = None,
+        *,
+        execute_read_only: bool = True,
+    ) -> dict[str, Any]:
+        """Preview a selection pipeline without mutating timeline or writing packs.
+
+        Read-only steps (validate, checklist) may still execute when
+        execute_read_only=True. Mutating / file-writing steps are reported as
+        would_run and skipped.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        cat = self.selection_pipeline_catalog()
+        known = set(cat["step_ids"])
+        read_only = set(cat["read_only_steps"])
+        plan = steps or list(cat["default_plan"])
+        results: list[dict[str, Any]] = []
+        ok = True
+        for step in plan:
+            key = str(step).strip().lower()
+            if key not in known:
+                results.append({
+                    "step": key,
+                    "ok": False,
+                    "dry_run": True,
+                    "error": f"unknown step; known={sorted(known)}",
+                })
+                ok = False
+                continue
+            meta = next(s for s in cat["steps"] if s["id"] == key)
+            if key in read_only and execute_read_only:
+                try:
+                    if key == "validate":
+                        r = self.validate_selection(ids, set_work_area=False)
+                    else:
+                        r = self.selection_checklist(ids)
+                    step_ok = True
+                    if isinstance(r, dict) and r.get("ok") is False and key == "validate":
+                        step_ok = False
+                        ok = False
+                    results.append({
+                        "step": key,
+                        "ok": step_ok,
+                        "dry_run": True,
+                        "executed": True,
+                        "result": r,
+                        "mutates": meta["mutates"],
+                        "writes_files": meta["writes_files"],
+                    })
+                except Exception as e:
+                    ok = False
+                    results.append({
+                        "step": key,
+                        "ok": False,
+                        "dry_run": True,
+                        "executed": True,
+                        "error": str(e)[:400],
+                    })
+            else:
+                results.append({
+                    "step": key,
+                    "ok": True,
+                    "dry_run": True,
+                    "executed": False,
+                    "would_run": True,
+                    "skipped_reason": (
+                        "read_only_disabled"
+                        if key in read_only and not execute_read_only
+                        else "dry_run_skip_side_effects"
+                    ),
+                    "mutates": meta["mutates"],
+                    "writes_files": meta["writes_files"],
+                    "description": meta["description"],
+                })
+        return {
+            "ok": ok,
+            "dry_run": True,
+            "clip_ids": ids,
+            "plan": plan,
+            "results": results,
+            "would_execute": [
+                r["step"] for r in results if r.get("would_run")
+            ],
+            "executed": [
+                r["step"] for r in results if r.get("executed")
+            ],
+            "agent_note": (
+                "Dry-run only. Side-effect steps skipped. "
+                "Run for real: run_selection_pipeline. Catalog: selection_pipeline_catalog."
             ),
         }
 

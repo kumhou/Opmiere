@@ -6773,6 +6773,26 @@ def run_selection_pipeline(
 
 
 @mcp.tool()
+def selection_pipeline_catalog() -> dict:
+    """List known selection pipeline steps and defaults."""
+    return _require_editor().selection_pipeline_catalog()
+
+
+@mcp.tool()
+def dry_run_selection_pipeline(
+    clip_ids: list[str],
+    steps: list[str] | None = None,
+    execute_read_only: bool = True,
+) -> dict:
+    """Preview selection pipeline without writes/mutations (optional RO exec)."""
+    return _require_editor().dry_run_selection_pipeline(
+        clip_ids,
+        steps=steps,
+        execute_read_only=execute_read_only,
+    )
+
+
+@mcp.tool()
 def save_selection_set(
     name: str,
     clip_ids: list[str],

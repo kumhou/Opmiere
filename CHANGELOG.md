@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 — 2026-07-17
+
+### Added
+- `selection_pipeline_catalog` / `dry_run_selection_pipeline` + **PipeCat** / **PipeDry**
+
 ## 0.6.99 — 2026-07-17
 
 ### Added
