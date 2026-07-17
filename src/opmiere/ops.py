@@ -13030,6 +13030,170 @@ class Editor:
         )
         return out
 
+    def selection_checklist(
+        self,
+        clip_ids: list[str],
+        *,
+        min_clip_seconds: float = 0.4,
+    ) -> dict[str, Any]:
+        """Ordered agent checklist from validate_selection + health signals.
+
+        Each item: id, status (pass|warn|fail), label, action (tool hint).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        val = self.validate_selection(
+            ids, min_clip_seconds=min_clip_seconds, set_work_area=False,
+        )
+        health = val.get("health") if isinstance(val.get("health"), dict) else {}
+        items: list[dict[str, Any]] = []
+
+        def add(iid: str, status: str, label: str, action: str) -> None:
+            items.append({
+                "id": iid,
+                "status": status,
+                "label": label,
+                "action": action,
+            })
+
+        offline_n = int(health.get("offline_count") or 0)
+        add(
+            "media_online",
+            "fail" if offline_n else "pass",
+            f"Media online ({offline_n} offline)" if offline_n else "Media online",
+            "selection_offline_media / batch_relink",
+        )
+        hard = list(val.get("hard_fails") or [])
+        locked = any(h.startswith("locked") for h in hard)
+        add(
+            "tracks_unlocked",
+            "fail" if locked else "pass",
+            "Tracks unlocked" if not locked else "Locked tracks present",
+            "unlock_selection_tracks",
+        )
+        empty = any("empty_span" in h for h in hard)
+        add(
+            "nonempty_span",
+            "fail" if empty else "pass",
+            "Non-empty selection span" if not empty else "Empty selection span",
+            "selection_span / place clips",
+        )
+        soft = list(val.get("soft_warns") or [])
+        short = any(s.startswith("short_clips") for s in soft)
+        add(
+            "clip_lengths",
+            "warn" if short else "pass",
+            "Clip lengths OK" if not short else "Short clips present",
+            "review_selection / trim",
+        )
+        path_c = any(s.startswith("path_c") for s in soft)
+        add(
+            "path_c_floor",
+            "warn" if path_c else "pass",
+            "Path-C effects OK" if not path_c else "Path-C unmapped effects",
+            "selection_path_c_report / strip_selection_path_c_unmapped",
+        )
+        gaps = any(s.startswith("gaps") for s in soft)
+        add(
+            "gaps",
+            "warn" if gaps else "pass",
+            "No gaps in selection tracks" if not gaps else "Gaps between clips",
+            "selection_gaps / fill_selection_gaps / pack_selection",
+        )
+        proxy_miss = int(health.get("proxy_missing_count") or 0)
+        add(
+            "proxies",
+            "warn" if proxy_miss else "pass",
+            "Proxies ready" if not proxy_miss else f"Proxies missing ({proxy_miss})",
+            "ensure_selection_proxies",
+        )
+        fail_n = sum(1 for i in items if i["status"] == "fail")
+        warn_n = sum(1 for i in items if i["status"] == "warn")
+        next_actions = [
+            i["action"] for i in items if i["status"] in ("fail", "warn")
+        ]
+        return {
+            "ok": fail_n == 0,
+            "fail_count": fail_n,
+            "warn_count": warn_n,
+            "pass_count": sum(1 for i in items if i["status"] == "pass"),
+            "items": items,
+            "next_actions": next_actions,
+            "validate": {
+                "ok": val.get("ok"),
+                "hard_fails": val.get("hard_fails"),
+                "soft_warns": val.get("soft_warns"),
+            },
+            "clip_ids": ids,
+            "agent_note": (
+                "ok=no fail items. Walk next_actions in order. "
+                "Write: export_selection_checklist."
+            ),
+        }
+
+    def export_selection_checklist(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_checklist.md",
+        path: str | Path | None = None,
+        min_clip_seconds: float = 0.4,
+        format: str = "md",
+    ) -> dict[str, Any]:
+        """Write selection_checklist as Markdown or JSON under exports/."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        fmt = (format or "md").lower().strip()
+        if fmt not in ("md", "markdown", "json"):
+            raise ValueError("format must be md|json")
+        cl = self.selection_checklist(
+            list(dict.fromkeys(clip_ids)),
+            min_clip_seconds=min_clip_seconds,
+        )
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            if fmt == "json" and filename.endswith(".md"):
+                filename = filename[:-3] + ".json"
+            out = out_dir / (filename or "selection_checklist.md")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        if fmt == "json":
+            body = json.dumps(cl, indent=2, ensure_ascii=False) + "\n"
+        else:
+            lines = [
+                "# Selection checklist",
+                "",
+                f"- ok: **{cl.get('ok')}**",
+                f"- fail: {cl.get('fail_count')} · warn: {cl.get('warn_count')} · "
+                f"pass: {cl.get('pass_count')}",
+                "",
+                "| Status | Item | Action |",
+                "|--------|------|--------|",
+            ]
+            for it in cl.get("items") or []:
+                lines.append(
+                    f"| {it.get('status')} | {it.get('label')} | `{it.get('action')}` |"
+                )
+            if cl.get("next_actions"):
+                lines.extend(["", "## Next actions", ""])
+                for a in cl["next_actions"]:
+                    lines.append(f"- `{a}`")
+            lines.append("")
+            body = "\n".join(lines)
+        out.write_text(body, encoding="utf-8")
+        return {
+            "path": str(out.resolve()),
+            "format": "json" if fmt == "json" else "md",
+            "ok": bool(cl.get("ok")),
+            "fail_count": cl.get("fail_count"),
+            "warn_count": cl.get("warn_count"),
+            "checklist": cl,
+            "agent_note": "Checklist written. In-memory: selection_checklist.",
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

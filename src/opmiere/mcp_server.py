@@ -6574,6 +6574,35 @@ def finish_selection_social_pack(
 
 
 @mcp.tool()
+def selection_checklist(
+    clip_ids: list[str],
+    min_clip_seconds: float = 0.4,
+) -> dict:
+    """Ordered agent checklist (pass/warn/fail) for selection."""
+    return _require_editor().selection_checklist(
+        clip_ids, min_clip_seconds=min_clip_seconds,
+    )
+
+
+@mcp.tool()
+def export_selection_checklist(
+    clip_ids: list[str],
+    filename: str = "selection_checklist.md",
+    path: str | None = None,
+    min_clip_seconds: float = 0.4,
+    format: str = "md",
+) -> dict:
+    """Write selection checklist as Markdown or JSON."""
+    return _require_editor().export_selection_checklist(
+        clip_ids,
+        filename=filename,
+        path=path,
+        min_clip_seconds=min_clip_seconds,
+        format=format,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

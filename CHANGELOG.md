@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.90 — 2026-07-17
+
+### Added
+- `selection_checklist` / `export_selection_checklist` + **CheckSel** / **CheckExp**
+
 ## 0.6.89 — 2026-07-17
 
 ### Added

@@ -13925,6 +13925,53 @@ async function finishSelectionSocialPackUi() {
   }
 }
 
+async function selectionChecklistUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for checklist";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      fail_count?: number;
+      warn_count?: number;
+      pass_count?: number;
+    }>("/api/edit/selection_checklist", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CheckSel · ok=${r.ok ?? "?"} F=${r.fail_count ?? "?"} W=${r.warn_count ?? "?"} P=${r.pass_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CheckSel failed: ${e}`);
+    $("status-msg").textContent = `CheckSel failed: ${e}`;
+  }
+}
+
+async function exportSelectionChecklistUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to export checklist";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection checklist…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      ok?: boolean;
+      format?: string;
+    }>("/api/edit/export_selection_checklist", {
+      clip_ids: ids,
+      format: "md",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CheckExp · ok=${r.ok ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`CheckExp failed: ${e}`);
+    $("status-msg").textContent = `CheckExp failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18002,6 +18049,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-client-pack-sel", () => void exportSelectionClientPackUi());
   proBind("btn-val-sel", () => void validateSelectionUi());
   proBind("btn-soc-pack-fin", () => void finishSelectionSocialPackUi());
+  proBind("btn-check-sel", () => void selectionChecklistUi());
+  proBind("btn-check-exp-sel", () => void exportSelectionChecklistUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

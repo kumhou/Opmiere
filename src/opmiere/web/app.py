@@ -11071,6 +11071,51 @@ def finish_selection_social_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionChecklistBody(BaseModel):
+    clip_ids: list[str]
+    min_clip_seconds: float = 0.4
+
+
+@app.post("/api/edit/selection_checklist")
+def selection_checklist_api(body: SelectionChecklistBody) -> dict[str, Any]:
+    """Agent checklist for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_checklist(
+            body.clip_ids, min_clip_seconds=body.min_clip_seconds,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"selection_checklist failed: {e}") from e
+
+
+class ExportSelectionChecklistBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_checklist.md"
+    path: str | None = None
+    min_clip_seconds: float = 0.4
+    format: str = "md"
+
+
+@app.post("/api/edit/export_selection_checklist")
+def export_selection_checklist_api(
+    body: ExportSelectionChecklistBody,
+) -> dict[str, Any]:
+    """Write selection checklist to disk."""
+    ed = _ed()
+    try:
+        return ed.export_selection_checklist(
+            body.clip_ids,
+            filename=body.filename,
+            path=body.path,
+            min_clip_seconds=body.min_clip_seconds,
+            format=body.format,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_checklist failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
