@@ -12184,6 +12184,69 @@ class Editor:
             ),
         }
 
+    def set_selection_meta(
+        self,
+        clip_ids: list[str],
+        *,
+        name: str | None = None,
+        color: str | None = None,
+        clear_name: bool = False,
+        clear_color: bool = False,
+    ) -> dict[str, Any]:
+        """Batch set name/color on selection (alias of set_clips_meta)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        r = self.set_clips_meta(
+            list(dict.fromkeys(clip_ids)),
+            name=name,
+            color=color,
+            clear_name=clear_name,
+            clear_color=clear_color,
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["agent_note"] = (
+                "Selection meta (name/color). Same as set_clips_meta."
+            )
+        return r
+
+    def clear_selection_subtitles(
+        self,
+        clip_ids: list[str],
+        *,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Remove subtitles burn-in effects from selected clips."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        cleared: list[str] = []
+        skipped: list[dict[str, Any]] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                tr, clip = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                self._assert_clip_track_unlocked(cid)
+                before = len(clip.effects or [])
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if not (isinstance(e, dict) and e.get("type") == "subtitles")
+                ]
+                after = len(clip.effects or [])
+                if after < before:
+                    cleared.append(cid)
+                else:
+                    skipped.append({"clip_id": cid, "reason": "no_subtitles"})
+        return {
+            "count": len(cleared),
+            "cleared": cleared,
+            "skipped": skipped,
+            "agent_note": (
+                "Stripped subtitles FX only. Apply: caption_clip / apply_effect subtitles."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

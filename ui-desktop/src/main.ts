@@ -13461,6 +13461,57 @@ async function selectionDurationReportUi() {
   }
 }
 
+async function setSelectionMetaUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for meta";
+    return;
+  }
+  $("status-msg").textContent = "Setting selection meta…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/set_selection_meta", {
+      clip_ids: ids,
+      name: `Sel ${ids.length}`,
+      color: "#7c9cff",
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `MetaSel · n=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MetaSel failed: ${e}`);
+    $("status-msg").textContent = `MetaSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionSubtitlesUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear subtitles";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection subtitles…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_subtitles", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SubClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SubClr failed: ${e}`);
+    $("status-msg").textContent = `SubClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17518,6 +17569,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-webm-pack-sel", () => void exportSelectionClipsWebmPackUi());
   proBind("btn-aud-pack-sel", () => void exportSelectionClipsAudioPackUi());
   proBind("btn-dur-sel", () => void selectionDurationReportUi());
+  proBind("btn-meta-sel", () => void setSelectionMetaUi());
+  proBind("btn-sub-clr-sel", () => void clearSelectionSubtitlesUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

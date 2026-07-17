@@ -10643,6 +10643,53 @@ def selection_duration_report_api(
         ) from e
 
 
+class SetSelectionMetaBody(BaseModel):
+    clip_ids: list[str]
+    name: str | None = None
+    color: str | None = None
+    clear_name: bool = False
+    clear_color: bool = False
+
+
+@app.post("/api/edit/set_selection_meta")
+def set_selection_meta_api(body: SetSelectionMetaBody) -> dict[str, Any]:
+    """Batch name/color on selection."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_meta(
+            body.clip_ids,
+            name=body.name,
+            color=body.color,
+            clear_name=body.clear_name,
+            clear_color=body.clear_color,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"set_selection_meta failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSubtitlesBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_subtitles")
+def clear_selection_subtitles_api(
+    body: ClearSelectionSubtitlesBody,
+) -> dict[str, Any]:
+    """Strip subtitles FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_subtitles(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_subtitles failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

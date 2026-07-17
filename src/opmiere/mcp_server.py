@@ -6352,6 +6352,35 @@ def selection_duration_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def set_selection_meta(
+    clip_ids: list[str],
+    name: str | None = None,
+    color: str | None = None,
+    clear_name: bool = False,
+    clear_color: bool = False,
+) -> dict:
+    """Batch set name/color on selection clips."""
+    return _require_editor().set_selection_meta(
+        clip_ids,
+        name=name,
+        color=color,
+        clear_name=clear_name,
+        clear_color=clear_color,
+    )
+
+
+@mcp.tool()
+def clear_selection_subtitles(
+    clip_ids: list[str],
+    video_only: bool = True,
+) -> dict:
+    """Remove subtitles burn-in effects from selection."""
+    return _require_editor().clear_selection_subtitles(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

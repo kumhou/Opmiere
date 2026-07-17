@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.80 — 2026-07-17
+
+### Added
+- `set_selection_meta` / `clear_selection_subtitles` + **MetaSel** / **SubClr**
+
 ## 0.6.79 — 2026-07-17
 
 ### Added
