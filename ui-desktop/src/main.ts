@@ -14681,6 +14681,78 @@ async function repairSelectionSetUi() {
   }
 }
 
+async function batchValidateSelectionSetsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const setsRaw = window
+    .prompt("Sets to validate (comma-separated, empty = all)", "")
+    ?.trim();
+  const names =
+    setsRaw && setsRaw.length
+      ? setsRaw.split(/[,|]/).map((s) => s.trim()).filter(Boolean)
+      : null;
+  $("status-msg").textContent = "Batch validating selection sets…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      count?: number;
+      ok_count?: number;
+      fail_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/batch_validate_selection_sets", {
+      names,
+      min_clip_seconds: 0.4,
+      stop_on_error: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BatchVal · ok=${r.ok_count ?? "?"}/${r.count ?? "?"} fail=${r.fail_count ?? 0}`;
+  } catch (e) {
+    setProOut(`BatchVal failed: ${e}`);
+    $("status-msg").textContent = `BatchVal failed: ${e}`;
+  }
+}
+
+async function batchRepairSelectionSetsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const setsRaw = window
+    .prompt("Sets to repair (comma-separated, empty = all)", "")
+    ?.trim();
+  const names =
+    setsRaw && setsRaw.length
+      ? setsRaw.split(/[,|]/).map((s) => s.trim()).filter(Boolean)
+      : null;
+  $("status-msg").textContent = "Batch repairing selection sets…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      count?: number;
+      ok_count?: number;
+      fail_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/batch_repair_selection_sets", {
+      names,
+      unlock: true,
+      ensure_proxies: false,
+      pack_gaps: false,
+      stop_on_error: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BatchRep · ok=${r.ok_count ?? "?"}/${r.count ?? "?"} fail=${r.fail_count ?? 0}`;
+  } catch (e) {
+    setProOut(`BatchRep failed: ${e}`);
+    $("status-msg").textContent = `BatchRep failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19174,6 +19246,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-batch-pipe", () => void batchRunSelectionPipelinePresetUi());
   proBind("btn-val-sel-set", () => void validateSelectionSetUi());
   proBind("btn-rep-sel-set", () => void repairSelectionSetUi());
+  proBind("btn-batch-val-set", () => void batchValidateSelectionSetsUi());
+  proBind("btn-batch-rep-set", () => void batchRepairSelectionSetsUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

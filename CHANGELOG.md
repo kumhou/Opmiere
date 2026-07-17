@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.7 — 2026-07-17
+
+### Added
+- `batch_validate_selection_sets` / `batch_repair_selection_sets` + **BatchVal** / **BatchRep**
+
 ## 0.7.6 — 2026-07-17
 
 ### Added

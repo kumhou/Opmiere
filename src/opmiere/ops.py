@@ -14305,6 +14305,148 @@ class Editor:
             ),
         }
 
+    def batch_validate_selection_sets(
+        self,
+        names: list[str] | None = None,
+        *,
+        min_clip_seconds: float = 0.4,
+        stop_on_error: bool = False,
+    ) -> dict[str, Any]:
+        """Validate many named selection sets (names=None → all)."""
+        store = self._read_selection_sets()
+        all_sets = store.get("sets") or {}
+        if names is None:
+            keys = sorted(all_sets.keys())
+        else:
+            keys = [str(n).strip() for n in names if str(n).strip()]
+            missing = [k for k in keys if k not in all_sets]
+            if missing:
+                raise KeyError(
+                    f"unknown selection sets {missing}; "
+                    f"known={sorted(all_sets.keys())}"
+                )
+        if not keys:
+            raise ValueError("no selection sets to validate")
+        results: list[dict[str, Any]] = []
+        ok_n = 0
+        fail_n = 0
+        for key in keys:
+            try:
+                r = self.validate_selection_set(
+                    key,
+                    min_clip_seconds=min_clip_seconds,
+                    set_work_area=False,
+                )
+                step_ok = bool(r.get("ok"))
+                if step_ok:
+                    ok_n += 1
+                else:
+                    fail_n += 1
+                results.append({
+                    "selection_set": key,
+                    "ok": step_ok,
+                    "result": r,
+                })
+                if not step_ok and stop_on_error:
+                    break
+            except Exception as e:
+                fail_n += 1
+                results.append({
+                    "selection_set": key,
+                    "ok": False,
+                    "error": str(e)[:400],
+                })
+                if stop_on_error:
+                    break
+        return {
+            "ok": fail_n == 0 and ok_n > 0,
+            "count": len(results),
+            "ok_count": ok_n,
+            "fail_count": fail_n,
+            "stop_on_error": bool(stop_on_error),
+            "results": results,
+            "agent_note": (
+                "Batch validate. Repair: batch_repair_selection_sets. "
+                "Single: validate_selection_set."
+            ),
+        }
+
+    def batch_repair_selection_sets(
+        self,
+        names: list[str] | None = None,
+        *,
+        unlock: bool = True,
+        ensure_proxies: bool = False,
+        pack_gaps: bool = False,
+        gap_frames: int = 0,
+        strip_path_c_unmapped: bool = False,
+        proxy_height: int = 360,
+        stop_on_error: bool = False,
+    ) -> dict[str, Any]:
+        """Repair many named selection sets (names=None → all)."""
+        store = self._read_selection_sets()
+        all_sets = store.get("sets") or {}
+        if names is None:
+            keys = sorted(all_sets.keys())
+        else:
+            keys = [str(n).strip() for n in names if str(n).strip()]
+            missing = [k for k in keys if k not in all_sets]
+            if missing:
+                raise KeyError(
+                    f"unknown selection sets {missing}; "
+                    f"known={sorted(all_sets.keys())}"
+                )
+        if not keys:
+            raise ValueError("no selection sets to repair")
+        results: list[dict[str, Any]] = []
+        ok_n = 0
+        fail_n = 0
+        for key in keys:
+            try:
+                r = self.repair_selection_set(
+                    key,
+                    unlock=unlock,
+                    ensure_proxies=ensure_proxies,
+                    pack_gaps=pack_gaps,
+                    gap_frames=gap_frames,
+                    strip_path_c_unmapped=strip_path_c_unmapped,
+                    set_work_area=False,
+                    proxy_height=proxy_height,
+                )
+                step_ok = bool(r.get("ok"))
+                if step_ok:
+                    ok_n += 1
+                else:
+                    fail_n += 1
+                results.append({
+                    "selection_set": key,
+                    "ok": step_ok,
+                    "result": r,
+                })
+                if not step_ok and stop_on_error:
+                    break
+            except Exception as e:
+                fail_n += 1
+                results.append({
+                    "selection_set": key,
+                    "ok": False,
+                    "error": str(e)[:400],
+                })
+                if stop_on_error:
+                    break
+        return {
+            "ok": fail_n == 0 and ok_n > 0,
+            "count": len(results),
+            "ok_count": ok_n,
+            "fail_count": fail_n,
+            "stop_on_error": bool(stop_on_error),
+            "results": results,
+            "agent_note": (
+                "Batch repair. Validate: batch_validate_selection_sets. "
+                "Single: repair_selection_set."
+            ),
+        }
+
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"
 

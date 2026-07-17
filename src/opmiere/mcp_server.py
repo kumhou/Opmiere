@@ -6895,6 +6895,44 @@ def repair_selection_set(
 
 
 @mcp.tool()
+def batch_validate_selection_sets(
+    names: list[str] | None = None,
+    min_clip_seconds: float = 0.4,
+    stop_on_error: bool = False,
+) -> dict:
+    """Validate many named selection sets (names=None → all)."""
+    return _require_editor().batch_validate_selection_sets(
+        names,
+        min_clip_seconds=min_clip_seconds,
+        stop_on_error=stop_on_error,
+    )
+
+
+@mcp.tool()
+def batch_repair_selection_sets(
+    names: list[str] | None = None,
+    unlock: bool = True,
+    ensure_proxies: bool = False,
+    pack_gaps: bool = False,
+    gap_frames: int = 0,
+    strip_path_c_unmapped: bool = False,
+    proxy_height: int = 360,
+    stop_on_error: bool = False,
+) -> dict:
+    """Repair many named selection sets (names=None → all)."""
+    return _require_editor().batch_repair_selection_sets(
+        names,
+        unlock=unlock,
+        ensure_proxies=ensure_proxies,
+        pack_gaps=pack_gaps,
+        gap_frames=gap_frames,
+        strip_path_c_unmapped=strip_path_c_unmapped,
+        proxy_height=proxy_height,
+        stop_on_error=stop_on_error,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

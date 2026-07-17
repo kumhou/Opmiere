@@ -11563,6 +11563,66 @@ def repair_selection_set_api(body: RepairSelectionSetBody) -> dict[str, Any]:
     return {**r, "timeline": ed.timeline_view()}
 
 
+class BatchValidateSelectionSetsBody(BaseModel):
+    names: list[str] | None = None
+    min_clip_seconds: float = 0.4
+    stop_on_error: bool = False
+
+
+@app.post("/api/edit/batch_validate_selection_sets")
+def batch_validate_selection_sets_api(
+    body: BatchValidateSelectionSetsBody,
+) -> dict[str, Any]:
+    """Validate many named selection sets."""
+    ed = _ed()
+    try:
+        r = ed.batch_validate_selection_sets(
+            body.names,
+            min_clip_seconds=body.min_clip_seconds,
+            stop_on_error=body.stop_on_error,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"batch_validate_selection_sets failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class BatchRepairSelectionSetsBody(BaseModel):
+    names: list[str] | None = None
+    unlock: bool = True
+    ensure_proxies: bool = False
+    pack_gaps: bool = False
+    gap_frames: int = 0
+    strip_path_c_unmapped: bool = False
+    proxy_height: int = 360
+    stop_on_error: bool = False
+
+
+@app.post("/api/edit/batch_repair_selection_sets")
+def batch_repair_selection_sets_api(
+    body: BatchRepairSelectionSetsBody,
+) -> dict[str, Any]:
+    """Repair many named selection sets."""
+    ed = _ed()
+    try:
+        r = ed.batch_repair_selection_sets(
+            body.names,
+            unlock=body.unlock,
+            ensure_proxies=body.ensure_proxies,
+            pack_gaps=body.pack_gaps,
+            gap_frames=body.gap_frames,
+            strip_path_c_unmapped=body.strip_path_c_unmapped,
+            proxy_height=body.proxy_height,
+            stop_on_error=body.stop_on_error,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"batch_repair_selection_sets failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]
