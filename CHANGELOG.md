@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.78 — 2026-07-17
+
+### Added
+- `export_selection_set_presets_pack` / `export_selection_set_with_burnins` + **ExpPresetsPackSet** / **ExpBurninsSet**
+
 ## 0.9.77 — 2026-07-17
 
 ### Added

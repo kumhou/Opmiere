@@ -20806,6 +20806,97 @@ class Editor:
             ),
         }
 
+    def export_selection_set_presets_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        presets: list[str] | None = None,
+        name_prefix: str | None = None,
+        prepare: bool | None = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_presets_pack (writes N files)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / f"selection_set_{safe}_presets"
+        )
+        rep = self.export_selection_presets_pack(
+            ids,
+            out_dir=root,
+            presets=presets,
+            name_prefix=name_prefix or f"selection_set_{safe}",
+            prepare=prepare,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set multi-preset pack. Single preset: "
+                "export_selection_set_with_preset. Burn-ins: "
+                "export_selection_set_with_burnins."
+            ),
+        }
+
+    def export_selection_set_with_burnins(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        timecode: bool = True,
+        safe_area: bool = True,
+        watermark: str | None = None,
+        timecode_start: str = "00:00:00:00",
+        normalize_preset: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_with_burnins (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        rep = self.export_selection_with_burnins(
+            ids,
+            filename=filename or f"selection_set_{safe}_review.mp4",
+            timecode=bool(timecode),
+            safe_area=bool(safe_area),
+            watermark=watermark,
+            timecode_start=str(timecode_start),
+            normalize_preset=normalize_preset,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set review burn-ins. Preset pack: "
+                "export_selection_set_presets_pack. Plain preset: "
+                "export_selection_set_with_preset."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20979,6 +21070,8 @@ class Editor:
                     {"id": "repair_and_export_selection_set", "writes": True},
                     {"id": "export_selection_set_with_preset", "writes": True},
                     {"id": "export_selection_set_frame_sequence", "writes": True},
+                    {"id": "export_selection_set_presets_pack", "writes": True},
+                    {"id": "export_selection_set_with_burnins", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

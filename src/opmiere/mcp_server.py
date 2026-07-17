@@ -9880,6 +9880,50 @@ def export_selection_set_frame_sequence(
 
 
 @mcp.tool()
+def export_selection_set_presets_pack(
+    name: str,
+    out_dir: str | None = None,
+    presets: list[str] | None = None,
+    name_prefix: str | None = None,
+    prepare: bool | None = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named set with multiple EXPORT_PRESETS into a folder."""
+    return _require_editor().export_selection_set_presets_pack(
+        name,
+        out_dir=out_dir,
+        presets=presets,
+        name_prefix=name_prefix,
+        prepare=prepare,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_with_burnins(
+    name: str,
+    filename: str | None = None,
+    timecode: bool = True,
+    safe_area: bool = True,
+    watermark: str | None = None,
+    timecode_start: str = "00:00:00:00",
+    normalize_preset: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named set with review burn-ins (TC / safe area / watermark)."""
+    return _require_editor().export_selection_set_with_burnins(
+        name,
+        filename=filename,
+        timecode=timecode,
+        safe_area=safe_area,
+        watermark=watermark,
+        timecode_start=timecode_start,
+        normalize_preset=normalize_preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

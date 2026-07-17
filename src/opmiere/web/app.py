@@ -16525,6 +16525,72 @@ def export_selection_set_frame_sequence_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetPresetsPackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    presets: list[str] | None = None
+    name_prefix: str | None = None
+    prepare: bool | None = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_presets_pack")
+def export_selection_set_presets_pack_api(
+    body: ExportSelectionSetPresetsPackBody,
+) -> dict[str, Any]:
+    """Export named set with multiple named export presets."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_presets_pack(
+            body.name,
+            out_dir=body.out_dir,
+            presets=body.presets,
+            name_prefix=body.name_prefix,
+            prepare=body.prepare,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_presets_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetWithBurninsBody(BaseModel):
+    name: str
+    filename: str | None = None
+    timecode: bool = True
+    safe_area: bool = True
+    watermark: str | None = None
+    timecode_start: str = "00:00:00:00"
+    normalize_preset: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_with_burnins")
+def export_selection_set_with_burnins_api(
+    body: ExportSelectionSetWithBurninsBody,
+) -> dict[str, Any]:
+    """Export named set with review burn-ins."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_with_burnins(
+            body.name,
+            filename=body.filename,
+            timecode=body.timecode,
+            safe_area=body.safe_area,
+            watermark=body.watermark,
+            timecode_start=body.timecode_start,
+            normalize_preset=body.normalize_preset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_with_burnins failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

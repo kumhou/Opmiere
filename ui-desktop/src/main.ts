@@ -20284,6 +20284,68 @@ async function exportSelectionSetFrameSequenceUi() {
   }
 }
 
+async function exportSelectionSetPresetsPackUi() {
+  try {
+    const name = await promptSelectionSetName("Export named set presets pack (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpPresetsPackSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpPresetsPackSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      out_dir?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_presets_pack", {
+      name,
+      presets: ["draft", "streaming"],
+      prepare: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpPresetsPackSet · ${r.selection_set || name} count=${r.count ?? "?"} dir=${r.out_dir ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpPresetsPackSet failed: ${e}`);
+    $("status-msg").textContent = `ExpPresetsPackSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetWithBurninsUi() {
+  try {
+    const name = await promptSelectionSetName("Export named set with burn-ins (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpBurninsSet cancelled";
+      return;
+    }
+    const rawWm = window.prompt("watermark (blank = none)", "REVIEW");
+    if (rawWm === null) {
+      $("status-msg").textContent = "ExpBurninsSet cancelled";
+      return;
+    }
+    const watermark = String(rawWm).trim() || null;
+    $("status-msg").textContent = `ExpBurninsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_with_burnins", {
+      name,
+      timecode: true,
+      safe_area: true,
+      watermark,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpBurninsSet · ${r.selection_set || name} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpBurninsSet failed: ${e}`);
+    $("status-msg").textContent = `ExpBurninsSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25000,6 +25062,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-repair-exp-set", () => void repairAndExportSelectionSetUi());
   proBind("btn-exp-preset-set", () => void exportSelectionSetWithPresetUi());
   proBind("btn-exp-frames-set", () => void exportSelectionSetFrameSequenceUi());
+  proBind("btn-exp-presets-pack-set", () => void exportSelectionSetPresetsPackUi());
+  proBind("btn-exp-burnins-set", () => void exportSelectionSetWithBurninsUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
