@@ -15919,6 +15919,62 @@ def clear_selection_set_subtitles_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FreezeSelectionSetMidsBody(BaseModel):
+    name: str
+    duration_frames: int = 30
+    insert: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/freeze_selection_set_mids")
+def freeze_selection_set_mids_api(
+    body: FreezeSelectionSetMidsBody,
+) -> dict[str, Any]:
+    """Freeze mid-frame stills for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.freeze_selection_set_mids(
+            body.name,
+            duration_frames=body.duration_frames,
+            insert=body.insert,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"freeze_selection_set_mids failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class TrimSelectionSetToPlayheadBody(BaseModel):
+    name: str
+    playhead_frame: int
+    edge: str = "head"
+    mode: str = "ripple"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/trim_selection_set_to_playhead")
+def trim_selection_set_to_playhead_api(
+    body: TrimSelectionSetToPlayheadBody,
+) -> dict[str, Any]:
+    """Trim named-set clips at playhead (Q/W batch)."""
+    ed = _ed()
+    try:
+        r = ed.trim_selection_set_to_playhead(
+            body.name,
+            body.playhead_frame,
+            edge=body.edge,
+            mode=body.mode,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"trim_selection_set_to_playhead failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

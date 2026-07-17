@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.68 — 2026-07-17
+
+### Added
+- `freeze_selection_set_mids` / `trim_selection_set_to_playhead` + **FreezeMidSet** / **TrimPhSet**
+
 ## 0.9.67 — 2026-07-17
 
 ### Added

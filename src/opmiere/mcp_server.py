@@ -9494,6 +9494,40 @@ def clear_selection_set_subtitles(
 
 
 @mcp.tool()
+def freeze_selection_set_mids(
+    name: str,
+    duration_frames: int = 30,
+    insert: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Freeze mid-frame still after each named-set clip."""
+    return _require_editor().freeze_selection_set_mids(
+        name,
+        duration_frames=duration_frames,
+        insert=insert,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def trim_selection_set_to_playhead(
+    name: str,
+    playhead_frame: int,
+    edge: str = "head",
+    mode: str = "ripple",
+    set_work_area: bool = False,
+) -> dict:
+    """Batch Q/W trim named-set clips spanning playhead_frame."""
+    return _require_editor().trim_selection_set_to_playhead(
+        name,
+        playhead_frame,
+        edge=edge,
+        mode=mode,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

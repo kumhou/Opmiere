@@ -19656,6 +19656,80 @@ async function clearSelectionSetSubtitlesUi() {
   }
 }
 
+async function freezeSelectionSetMidsUi() {
+  try {
+    const name = await promptSelectionSetName("Freeze mids named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FreezeMidSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Freeze mid-frame stills for set "${name}"?`)) {
+      $("status-msg").textContent = "FreezeMidSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `FreezeMidSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/freeze_selection_set_mids", {
+      name,
+      duration_frames: 30,
+      insert: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FreezeMidSet · ${r.selection_set || name} freezes=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FreezeMidSet failed: ${e}`);
+    $("status-msg").textContent = `FreezeMidSet failed: ${e}`;
+  }
+}
+
+async function trimSelectionSetToPlayheadUi() {
+  try {
+    const name = await promptSelectionSetName("Trim-to-playhead named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "TrimPhSet cancelled";
+      return;
+    }
+    const rawPh = window.prompt("playhead_frame", "6");
+    if (rawPh === null) {
+      $("status-msg").textContent = "TrimPhSet cancelled";
+      return;
+    }
+    const playhead_frame = Number(rawPh);
+    const rawEdge = window.prompt("edge (head|tail)", "head");
+    if (rawEdge === null) {
+      $("status-msg").textContent = "TrimPhSet cancelled";
+      return;
+    }
+    const edge = String(rawEdge).trim() || "head";
+    $("status-msg").textContent = `TrimPhSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      skipped_count?: number;
+      clip_count?: number;
+      playhead_frame?: number;
+    }>("/api/edit/trim_selection_set_to_playhead", {
+      name,
+      playhead_frame: Number.isFinite(playhead_frame) ? playhead_frame : 0,
+      edge,
+      mode: "ripple",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `TrimPhSet · ${r.selection_set || name} at=${r.playhead_frame ?? playhead_frame} trimmed=${r.count ?? "?"} skip=${r.skipped_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`TrimPhSet failed: ${e}`);
+    $("status-msg").textContent = `TrimPhSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24352,6 +24426,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-retarget-set", () => void retargetSelectionSetMediaUi());
   proBind("btn-mid-mkr-set", () => void markersAtSelectionSetMidsUi());
   proBind("btn-clr-sub-set", () => void clearSelectionSetSubtitlesUi());
+  proBind("btn-freeze-mid-set", () => void freezeSelectionSetMidsUi());
+  proBind("btn-trim-ph-set", () => void trimSelectionSetToPlayheadUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
