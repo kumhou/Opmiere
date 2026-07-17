@@ -17776,6 +17776,82 @@ class Editor:
             ),
         }
 
+    def suggest_silence_cuts_selection_set(
+        self,
+        name: str,
+        *,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.4,
+        pad_seconds: float = 0.08,
+        min_keep_seconds: float = 0.2,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then suggest_silence_cuts_selection (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.suggest_silence_cuts_selection(
+            ids,
+            silence_threshold_db=float(silence_threshold_db),
+            min_silence_seconds=float(min_silence_seconds),
+            pad_seconds=float(pad_seconds),
+            min_keep_seconds=float(min_keep_seconds),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Dry silence-cut plans for named set. Apply: "
+                "apply_silence_to_selection_set. Razor: "
+                "split_selection_set_at_silences."
+            ),
+        }
+
+    def apply_silence_to_selection_set(
+        self,
+        name: str,
+        *,
+        silence_threshold_db: float = -40.0,
+        min_silence_seconds: float = 0.4,
+        pad_seconds: float = 0.08,
+        min_keep_seconds: float = 0.2,
+        dry_run: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then apply_silence_to_selection (writes if not dry)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.apply_silence_to_selection(
+            ids,
+            silence_threshold_db=float(silence_threshold_db),
+            min_silence_seconds=float(min_silence_seconds),
+            pad_seconds=float(pad_seconds),
+            min_keep_seconds=float(min_keep_seconds),
+            dry_run=bool(dry_run),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Apply silence plan on named set (dry_run default). "
+                "Suggest: suggest_silence_cuts_selection_set. "
+                "Split: split_selection_set_at_silences."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17859,6 +17935,8 @@ class Editor:
                     {"id": "split_selection_set_evenly", "writes": True},
                     {"id": "snap_selection_set_to_playhead", "writes": True},
                     {"id": "split_selection_set_at_silences", "writes": True},
+                    {"id": "suggest_silence_cuts_selection_set", "writes": False},
+                    {"id": "apply_silence_to_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

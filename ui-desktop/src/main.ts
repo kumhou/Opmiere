@@ -17362,6 +17362,70 @@ async function splitSelectionSetAtSilencesUi() {
   }
 }
 
+async function suggestSilenceCutsSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Suggest silence cuts (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SilSugSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SilSugSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/suggest_silence_cuts_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilSugSet · ${r.selection_set || name} plans=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SilSugSet failed: ${e}`);
+    $("status-msg").textContent = `SilSugSet failed: ${e}`;
+  }
+}
+
+async function applySilenceToSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Apply silence plan (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SilAppSet cancelled";
+      return;
+    }
+    const raw = window.prompt("dry_run? (true/false)", "true");
+    if (raw === null) {
+      $("status-msg").textContent = "SilAppSet cancelled";
+      return;
+    }
+    const dry_run = !/^(0|false|no|off)$/i.test(String(raw).trim());
+    if (!dry_run && !window.confirm(`Apply silence cuts (live) on set "${name}"?`)) {
+      $("status-msg").textContent = "SilAppSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SilAppSet ${name} dry=${dry_run}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      dry_run?: boolean;
+      applied_count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/apply_silence_to_selection_set", {
+      name,
+      dry_run,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilAppSet · ${r.selection_set || name} dry=${r.dry_run ?? dry_run} applied=${r.applied_count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SilAppSet failed: ${e}`);
+    $("status-msg").textContent = `SilAppSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21988,6 +22052,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-split-eq-set", () => void splitSelectionSetEvenlyUi());
   proBind("btn-snap-set", () => void snapSelectionSetToPlayheadUi());
   proBind("btn-sil-split-set", () => void splitSelectionSetAtSilencesUi());
+  proBind("btn-sil-sug-set", () => void suggestSilenceCutsSelectionSetUi());
+  proBind("btn-sil-app-set", () => void applySilenceToSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

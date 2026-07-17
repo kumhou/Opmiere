@@ -13987,6 +13987,70 @@ def split_selection_set_at_silences_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SuggestSilenceCutsSelectionSetBody(BaseModel):
+    name: str
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.4
+    pad_seconds: float = 0.08
+    min_keep_seconds: float = 0.2
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/suggest_silence_cuts_selection_set")
+def suggest_silence_cuts_selection_set_api(
+    body: SuggestSilenceCutsSelectionSetBody,
+) -> dict[str, Any]:
+    """Dry silence-cut plans for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.suggest_silence_cuts_selection_set(
+            body.name,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            pad_seconds=body.pad_seconds,
+            min_keep_seconds=body.min_keep_seconds,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"suggest_silence_cuts_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ApplySilenceToSelectionSetBody(BaseModel):
+    name: str
+    silence_threshold_db: float = -40.0
+    min_silence_seconds: float = 0.4
+    pad_seconds: float = 0.08
+    min_keep_seconds: float = 0.2
+    dry_run: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/apply_silence_to_selection_set")
+def apply_silence_to_selection_set_api(
+    body: ApplySilenceToSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply silence plan to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.apply_silence_to_selection_set(
+            body.name,
+            silence_threshold_db=body.silence_threshold_db,
+            min_silence_seconds=body.min_silence_seconds,
+            pad_seconds=body.pad_seconds,
+            min_keep_seconds=body.min_keep_seconds,
+            dry_run=body.dry_run,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_silence_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

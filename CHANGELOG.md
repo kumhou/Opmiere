@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.33 — 2026-07-17
+
+### Added
+- `suggest_silence_cuts_selection_set` / `apply_silence_to_selection_set` + **SilSugSet** / **SilAppSet**
+
 ## 0.9.32 — 2026-07-17
 
 ### Added

@@ -8332,6 +8332,48 @@ def split_selection_set_at_silences(
 
 
 @mcp.tool()
+def suggest_silence_cuts_selection_set(
+    name: str,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.4,
+    pad_seconds: float = 0.08,
+    min_keep_seconds: float = 0.2,
+    set_work_area: bool = False,
+) -> dict:
+    """Dry-run silence-cut plans for a named selection set (no timeline edit)."""
+    return _require_editor().suggest_silence_cuts_selection_set(
+        name,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        pad_seconds=pad_seconds,
+        min_keep_seconds=min_keep_seconds,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def apply_silence_to_selection_set(
+    name: str,
+    silence_threshold_db: float = -40.0,
+    min_silence_seconds: float = 0.4,
+    pad_seconds: float = 0.08,
+    min_keep_seconds: float = 0.2,
+    dry_run: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply silence plan to a named selection set (default dry_run=True)."""
+    return _require_editor().apply_silence_to_selection_set(
+        name,
+        silence_threshold_db=silence_threshold_db,
+        min_silence_seconds=min_silence_seconds,
+        pad_seconds=pad_seconds,
+        min_keep_seconds=min_keep_seconds,
+        dry_run=dry_run,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
