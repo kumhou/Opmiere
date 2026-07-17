@@ -18652,6 +18652,72 @@ class Editor:
             ),
         }
 
+    def apply_look_to_selection_set(
+        self,
+        name: str,
+        look: str | list[dict[str, Any]] = "cinematic",
+        *,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then apply_look_to_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.apply_look_to_selection(
+            ids, look, video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Project look on named set. Style: "
+                "apply_style_to_selection_set. Effects: "
+                "selection_set_effects_report."
+            ),
+        }
+
+    def apply_style_to_selection_set(
+        self,
+        name: str,
+        styles: str | list[str],
+        *,
+        apply_motion: bool = True,
+        place_audio_assets: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then apply_style_to_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.apply_style_to_selection(
+            ids,
+            styles,
+            apply_motion=bool(apply_motion),
+            place_audio_assets=bool(place_audio_assets),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Film style stack on named set. Look: "
+                "apply_look_to_selection_set. Clear FX: "
+                "clear_selection_set_effects."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18763,6 +18829,8 @@ class Editor:
                     {"id": "expand_selection_set_links", "writes": True},
                     {"id": "clipboard_copy_selection_set", "writes": False},
                     {"id": "selection_set_diagnostics", "writes": False},
+                    {"id": "apply_look_to_selection_set", "writes": True},
+                    {"id": "apply_style_to_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

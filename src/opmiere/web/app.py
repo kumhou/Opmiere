@@ -14735,6 +14735,62 @@ def selection_set_diagnostics_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ApplyLookToSelectionSetBody(BaseModel):
+    name: str
+    look: str = "cinematic"
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/apply_look_to_selection_set")
+def apply_look_to_selection_set_api(
+    body: ApplyLookToSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply look preset to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.apply_look_to_selection_set(
+            body.name,
+            body.look,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_look_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ApplyStyleToSelectionSetBody(BaseModel):
+    name: str
+    styles: str | list[str]
+    apply_motion: bool = True
+    place_audio_assets: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/apply_style_to_selection_set")
+def apply_style_to_selection_set_api(
+    body: ApplyStyleToSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply film style preset(s) to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.apply_style_to_selection_set(
+            body.name,
+            body.styles,
+            apply_motion=body.apply_motion,
+            place_audio_assets=body.place_audio_assets,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"apply_style_to_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

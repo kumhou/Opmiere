@@ -18280,6 +18280,72 @@ async function selectionSetDiagnosticsUi() {
   }
 }
 
+async function applyLookToSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Apply look to named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "LookSet cancelled";
+      return;
+    }
+    const look = window.prompt("look preset", "cinematic");
+    if (look === null) {
+      $("status-msg").textContent = "LookSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `LookSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      look?: string;
+      clip_count?: number;
+      applied_count?: number;
+    }>("/api/edit/apply_look_to_selection_set", {
+      name,
+      look: look.trim() || "cinematic",
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LookSet · ${r.selection_set || name} look=${r.look ?? "?"} applied=${r.applied_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LookSet failed: ${e}`);
+    $("status-msg").textContent = `LookSet failed: ${e}`;
+  }
+}
+
+async function applyStyleToSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Apply style to named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "StyleSet cancelled";
+      return;
+    }
+    const styles = window.prompt("style preset(s)", "cinematic");
+    if (styles === null) {
+      $("status-msg").textContent = "StyleSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `StyleSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      count?: number;
+    }>("/api/edit/apply_style_to_selection_set", {
+      name,
+      styles: styles.trim() || "cinematic",
+      apply_motion: true,
+      place_audio_assets: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StyleSet · ${r.selection_set || name} n=${r.clip_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`StyleSet failed: ${e}`);
+    $("status-msg").textContent = `StyleSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22934,6 +23000,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-links-set", () => void expandSelectionSetLinksUi());
   proBind("btn-cb-copy-set", () => void clipboardCopySelectionSetUi());
   proBind("btn-diag-set", () => void selectionSetDiagnosticsUi());
+  proBind("btn-look-set", () => void applyLookToSelectionSetUi());
+  proBind("btn-style-set", () => void applyStyleToSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.47 — 2026-07-17
+
+### Added
+- `apply_look_to_selection_set` / `apply_style_to_selection_set` + **LookSet** / **StyleSet**
+
 ## 0.9.46 — 2026-07-17
 
 ### Added

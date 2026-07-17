@@ -8772,6 +8772,40 @@ def selection_set_diagnostics(
 
 
 @mcp.tool()
+def apply_look_to_selection_set(
+    name: str,
+    look: str = "cinematic",
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply a project look preset to a named selection set."""
+    return _require_editor().apply_look_to_selection_set(
+        name,
+        look,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def apply_style_to_selection_set(
+    name: str,
+    styles: str | list[str],
+    apply_motion: bool = True,
+    place_audio_assets: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply film style preset(s) to a named selection set."""
+    return _require_editor().apply_style_to_selection_set(
+        name,
+        styles,
+        apply_motion=apply_motion,
+        place_audio_assets=place_audio_assets,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
