@@ -16144,7 +16144,62 @@ class Editor:
             "saved": saved,
             "agent_note": (
                 "Named set from work area. Set WA from set: "
-                "selection_set_to_work_area."
+                "selection_set_to_work_area. Health: "
+                "selection_set_media_health / selection_set_offline_media."
+            ),
+        }
+
+    def selection_set_media_health(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_media_health (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        health = self.selection_media_health(ids)
+        return {
+            **health,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "note": loaded.get("note") or "",
+            "agent_note": (
+                "Media health for named set. Offline list: "
+                "selection_set_offline_media. Preflight: "
+                "selection_set_agent_preflight."
+            ),
+        }
+
+    def selection_set_offline_media(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_offline_media (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        off = self.selection_offline_media(ids)
+        return {
+            **off,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing_clips": loaded.get("missing") or [],
+            "agent_note": (
+                "Offline media for named set. Full health: "
+                "selection_set_media_health. Repair: repair_selection_set."
             ),
         }
 
@@ -16170,11 +16225,13 @@ class Editor:
             },
             {
                 "id": "status_repair",
-                "title": "Status / validate / repair",
+                "title": "Status / validate / repair / health",
                 "tools": [
                     {"id": "selection_set_status", "writes": False},
                     {"id": "validate_selection_set", "writes": False},
                     {"id": "repair_selection_set", "writes": True},
+                    {"id": "selection_set_media_health", "writes": False},
+                    {"id": "selection_set_offline_media", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

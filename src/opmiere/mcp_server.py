@@ -7561,6 +7561,30 @@ def work_area_to_selection_set(
 
 
 @mcp.tool()
+def selection_set_media_health(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Media health card for a named selection set."""
+    return _require_editor().selection_set_media_health(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_offline_media(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Offline media list for a named selection set."""
+    return _require_editor().selection_set_offline_media(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

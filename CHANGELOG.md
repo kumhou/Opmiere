@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5 — 2026-07-17
+
+### Added
+- `selection_set_media_health` / `selection_set_offline_media` + **SetHealth** / **SetOff**
+
 ## 0.9.4 — 2026-07-17
 
 ### Added

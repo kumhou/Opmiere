@@ -15714,6 +15714,57 @@ async function workAreaToSelectionSetUi() {
   }
 }
 
+async function selectionSetMediaHealthUi() {
+  try {
+    const name = await promptSelectionSetName("Set media health (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetHealth cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetHealth ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      offline_count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_media_health", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetHealth · ${r.selection_set || name} ok=${r.ok ?? "?"} offline=${r.offline_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetHealth failed: ${e}`);
+    $("status-msg").textContent = `SetHealth failed: ${e}`;
+  }
+}
+
+async function selectionSetOfflineMediaUi() {
+  try {
+    const name = await promptSelectionSetName("Set offline media (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetOff cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetOff ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      offline_count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_offline_media", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetOff · ${r.selection_set || name} offline=${r.offline_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetOff failed: ${e}`);
+    $("status-msg").textContent = `SetOff failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20284,6 +20335,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-clist", () => void selectionSetChecklistUi());
   proBind("btn-set-to-wa", () => void selectionSetToWorkAreaUi());
   proBind("btn-wa-to-set", () => void workAreaToSelectionSetUi());
+  proBind("btn-set-health", () => void selectionSetMediaHealthUi());
+  proBind("btn-set-offline", () => void selectionSetOfflineMediaUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

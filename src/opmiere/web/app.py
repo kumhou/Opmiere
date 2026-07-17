@@ -12603,6 +12603,52 @@ def work_area_to_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetMediaHealthBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_media_health")
+def selection_set_media_health_api(
+    body: SelectionSetMediaHealthBody,
+) -> dict[str, Any]:
+    """Media health for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_media_health(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_media_health failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetOfflineMediaBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_offline_media")
+def selection_set_offline_media_api(
+    body: SelectionSetOfflineMediaBody,
+) -> dict[str, Any]:
+    """Offline media for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_offline_media(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_offline_media failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
