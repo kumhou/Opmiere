@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.2 — 2026-07-17
+
+### Added
+- `export_selection_set_manifest` / `export_selection_set_interchange_pack` + **SetMan** / **SetPack**
+
 ## 0.8.1 — 2026-07-17
 
 ### Added

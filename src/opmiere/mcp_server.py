@@ -7073,6 +7073,44 @@ def export_selection_set_otio(
 
 
 @mcp.tool()
+def export_selection_set_manifest(
+    name: str,
+    path: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    """Export selection manifest JSON for a named selection set."""
+    return _require_editor().export_selection_set_manifest(
+        name,
+        path=path,
+        filename=filename,
+    )
+
+
+@mcp.tool()
+def export_selection_set_interchange_pack(
+    name: str,
+    out_dir: str | None = None,
+    include_edl: bool = True,
+    include_cutlist: bool = True,
+    include_fcpxml: bool = True,
+    include_otio: bool = True,
+    include_manifest: bool = True,
+    cutlist_format: str = "csv",
+) -> dict:
+    """Export EDL+cutlist+FCPXML+OTIO+manifest pack for a named set."""
+    return _require_editor().export_selection_set_interchange_pack(
+        name,
+        out_dir=out_dir,
+        include_edl=include_edl,
+        include_cutlist=include_cutlist,
+        include_fcpxml=include_fcpxml,
+        include_otio=include_otio,
+        include_manifest=include_manifest,
+        cutlist_format=cutlist_format,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

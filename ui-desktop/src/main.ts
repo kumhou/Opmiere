@@ -14978,6 +14978,63 @@ async function exportSelectionSetOtioUi() {
   }
 }
 
+async function exportSelectionSetManifestUi() {
+  try {
+    const name = await promptSelectionSetName("Export set manifest (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetMan cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetMan ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_manifest", { name });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetMan · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetMan failed: ${e}`);
+    $("status-msg").textContent = `SetMan failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetInterchangePackUi() {
+  try {
+    const name = await promptSelectionSetName(
+      "Export set interchange pack (set name)",
+    );
+    if (!name) {
+      $("status-msg").textContent = "SetPack cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetPack ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      out_dir?: string;
+      count?: number;
+      error_count?: number;
+    }>("/api/edit/export_selection_set_interchange_pack", {
+      name,
+      include_edl: true,
+      include_cutlist: true,
+      include_fcpxml: true,
+      include_otio: true,
+      include_manifest: true,
+      cutlist_format: "csv",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetPack · ${r.selection_set || name} n=${r.count ?? "?"} err=${r.error_count ?? 0} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`SetPack failed: ${e}`);
+    $("status-msg").textContent = `SetPack failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19481,6 +19538,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-cutlist", () => void exportSelectionSetCutlistUi());
   proBind("btn-set-fcpxml", () => void exportSelectionSetFcpxmlUi());
   proBind("btn-set-otio", () => void exportSelectionSetOtioUi());
+  proBind("btn-set-manifest", () => void exportSelectionSetManifestUi());
+  proBind("btn-set-ix-pack", () => void exportSelectionSetInterchangePackUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

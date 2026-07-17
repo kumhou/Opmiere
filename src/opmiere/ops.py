@@ -14905,7 +14905,174 @@ class Editor:
             "clip_count": len(ids),
             "agent_note": (
                 "OTIO-like JSON from named set. FCPXML: export_selection_set_fcpxml. "
-                "Cutlist: export_selection_set_cutlist."
+                "Pack all: export_selection_set_interchange_pack. "
+                "Manifest: export_selection_set_manifest."
+            ),
+        }
+
+    def export_selection_set_manifest(
+        self,
+        name: str,
+        *,
+        path: str | Path | None = None,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """Load named selection set and export selection manifest JSON."""
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        if path is not None:
+            r = self.export_selection_manifest(ids, path=path)
+        else:
+            r = self.export_selection_manifest_default(
+                ids,
+                filename=filename or f"selection_set_{safe}_manifest.json",
+            )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "note": loaded.get("note") or "",
+            "agent_note": (
+                "Manifest for named set. Full interchange pack: "
+                "export_selection_set_interchange_pack."
+            ),
+        }
+
+    def export_selection_set_interchange_pack(
+        self,
+        name: str,
+        *,
+        out_dir: str | Path | None = None,
+        include_edl: bool = True,
+        include_cutlist: bool = True,
+        include_fcpxml: bool = True,
+        include_otio: bool = True,
+        include_manifest: bool = True,
+        cutlist_format: str = "csv",
+    ) -> dict[str, Any]:
+        """Export EDL + cutlist + FCPXML + OTIO + manifest into one folder.
+
+        Default: exports/selection_set_{name}_interchange/
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=False, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_interchange"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        ttl = f"selection_set:{name}"
+
+        def _try(label: str, fn) -> None:
+            try:
+                r = fn()
+                p = None
+                if isinstance(r, dict):
+                    p = r.get("path") or r.get("output_path")
+                written.append({
+                    "format": label,
+                    "path": p,
+                    "ok": bool(p and Path(str(p)).is_file()),
+                })
+            except Exception as e:
+                errors.append({"format": label, "error": str(e)[:300]})
+
+        if include_edl:
+            dest = root / f"{safe}.edl"
+            _try(
+                "edl",
+                lambda: self.export_selection_edl(
+                    ids, path=dest, title=ttl,
+                ),
+            )
+        if include_cutlist:
+            ext = "json" if str(cutlist_format).lower() == "json" else "csv"
+            dest = root / f"{safe}_cutlist.{ext}"
+            _try(
+                "cutlist",
+                lambda: self.export_selection_cutlist(
+                    ids, path=dest, format=str(cutlist_format).lower(),
+                ),
+            )
+        if include_fcpxml:
+            dest = root / f"{safe}.fcpxml"
+            _try(
+                "fcpxml",
+                lambda: self.export_selection_fcpxml(
+                    ids, path=dest, title=ttl,
+                ),
+            )
+        if include_otio:
+            dest = root / f"{safe}.otio.json"
+            _try(
+                "otio",
+                lambda: self.export_selection_otio_json(
+                    ids, path=dest, title=ttl,
+                ),
+            )
+        if include_manifest:
+            dest = root / f"{safe}_manifest.json"
+            _try(
+                "manifest",
+                lambda: self.export_selection_manifest(ids, path=dest),
+            )
+
+        # small pack index
+        index = {
+            "schema": "opmiere.selection_set_interchange_pack.v1",
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "note": loaded.get("note") or "",
+            "written": written,
+            "errors": errors,
+            "generated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        }
+        index_path = root / "pack_index.json"
+        index_path.write_text(
+            json.dumps(index, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        ok_n = sum(1 for w in written if w.get("ok"))
+        return {
+            "ok": ok_n > 0 and len(errors) == 0,
+            "out_dir": str(root.resolve()),
+            "index_path": str(index_path.resolve()),
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "count": ok_n,
+            "written": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "agent_note": (
+                "Interchange pack for named set. Single formats: "
+                "export_selection_set_edl|cutlist|fcpxml|otio|manifest."
             ),
         }
 

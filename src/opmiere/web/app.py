@@ -11851,6 +11851,66 @@ def export_selection_set_otio_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetManifestBody(BaseModel):
+    name: str
+    path: str | None = None
+    filename: str | None = None
+
+
+@app.post("/api/edit/export_selection_set_manifest")
+def export_selection_set_manifest_api(
+    body: ExportSelectionSetManifestBody,
+) -> dict[str, Any]:
+    """Export manifest for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_manifest(
+            body.name,
+            path=body.path,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_manifest failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetInterchangePackBody(BaseModel):
+    name: str
+    out_dir: str | None = None
+    include_edl: bool = True
+    include_cutlist: bool = True
+    include_fcpxml: bool = True
+    include_otio: bool = True
+    include_manifest: bool = True
+    cutlist_format: str = "csv"
+
+
+@app.post("/api/edit/export_selection_set_interchange_pack")
+def export_selection_set_interchange_pack_api(
+    body: ExportSelectionSetInterchangePackBody,
+) -> dict[str, Any]:
+    """Export multi-format interchange pack for a named set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_interchange_pack(
+            body.name,
+            out_dir=body.out_dir,
+            include_edl=body.include_edl,
+            include_cutlist=body.include_cutlist,
+            include_fcpxml=body.include_fcpxml,
+            include_otio=body.include_otio,
+            include_manifest=body.include_manifest,
+            cutlist_format=body.cutlist_format,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_interchange_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]
