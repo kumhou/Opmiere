@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.77 — 2026-07-17
+
+### Added
+- `export_selection_clips_pack` / `clear_selection_luts` + **ClipsPack** / **LutClr**
+
 ## 0.6.76 — 2026-07-17
 
 ### Added

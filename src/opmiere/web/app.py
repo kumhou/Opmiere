@@ -10499,6 +10499,46 @@ def clear_selection_shape_masks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionClipsPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    prefix: str = "clip"
+
+
+@app.post("/api/edit/export_selection_clips_pack")
+def export_selection_clips_pack_api(
+    body: ExportSelectionClipsPackBody,
+) -> dict[str, Any]:
+    """Per-clip MP4 pack for selection."""
+    ed = _ed()
+    try:
+        return ed.export_selection_clips_pack(
+            body.clip_ids, out_dir=body.out_dir, prefix=body.prefix,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_clips_pack failed: {e}",
+        ) from e
+
+
+class ClearSelectionLutsBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_luts")
+def clear_selection_luts_api(body: ClearSelectionLutsBody) -> dict[str, Any]:
+    """Strip lut3d from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_luts(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"clear_selection_luts failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

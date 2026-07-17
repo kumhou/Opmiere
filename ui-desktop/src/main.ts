@@ -13311,6 +13311,56 @@ async function clearSelectionShapeMasksUi() {
   }
 }
 
+async function exportSelectionClipsPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for pack export";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection clips pack…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      output_dir?: string;
+      ok?: boolean;
+    }>("/api/edit/export_selection_clips_pack", {
+      clip_ids: ids,
+      prefix: "clip",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ClipsPack · n=${r.count ?? "?"} ok=${r.ok ?? "?"} → ${r.output_dir || "?"}`;
+  } catch (e) {
+    setProOut(`ClipsPack failed: ${e}`);
+    $("status-msg").textContent = `ClipsPack failed: ${e}`;
+  }
+}
+
+async function clearSelectionLutsUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear LUTs";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection LUTs…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_luts", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `LutClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LutClr failed: ${e}`);
+    $("status-msg").textContent = `LutClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17362,6 +17412,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-luma-sel", () => void lumaKeySelectionUi());
   proBind("btn-mask-sel", () => void shapeMaskSelectionUi());
   proBind("btn-mask-clr-sel", () => void clearSelectionShapeMasksUi());
+  proBind("btn-clips-pack-sel", () => void exportSelectionClipsPackUi());
+  proBind("btn-lut-clr-sel", () => void clearSelectionLutsUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

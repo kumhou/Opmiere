@@ -6267,6 +6267,29 @@ def clear_selection_shape_masks(
 
 
 @mcp.tool()
+def export_selection_clips_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    prefix: str = "clip",
+) -> dict:
+    """Export each selected clip as its own MP4 (pack folder)."""
+    return _require_editor().export_selection_clips_pack(
+        clip_ids, out_dir=out_dir, prefix=prefix,
+    )
+
+
+@mcp.tool()
+def clear_selection_luts(
+    clip_ids: list[str],
+    video_only: bool = True,
+) -> dict:
+    """Remove lut3d effects from selection."""
+    return _require_editor().clear_selection_luts(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

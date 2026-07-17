@@ -11904,6 +11904,72 @@ class Editor:
             "agent_note": "Stripped shape_mask FX only; other effects kept.",
         }
 
+    def export_selection_clips_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        prefix: str = "clip",
+    ) -> dict[str, Any]:
+        """Export each selected clip as its own MP4 under exports/selection_clips.
+
+        Thin default path over export_clips_pack (per-clip encode cost).
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_clips"
+        )
+        r = self.export_clips_pack(
+            list(dict.fromkeys(clip_ids)), root, prefix=prefix,
+        )
+        if isinstance(r, dict):
+            r = dict(r)
+            r["agent_note"] = (
+                "Selection per-clip MP4 pack under exports/selection_clips. "
+                "Union span export: export_selection_mp4."
+            )
+        return r
+
+    def clear_selection_luts(
+        self,
+        clip_ids: list[str],
+        *,
+        video_only: bool = True,
+    ) -> dict[str, Any]:
+        """Remove lut3d effects from selected clips."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        cleared: list[str] = []
+        skipped: list[dict[str, Any]] = []
+        with self._mutate():
+            for cid in dict.fromkeys(clip_ids):
+                tr, clip = self._find_clip_and_track(cid)
+                if video_only and tr.kind != "video":
+                    skipped.append({"clip_id": cid, "reason": "not_video"})
+                    continue
+                self._assert_clip_track_unlocked(cid)
+                before = len(clip.effects or [])
+                clip.effects = [
+                    e for e in (clip.effects or [])
+                    if not (isinstance(e, dict) and e.get("type") == "lut3d")
+                ]
+                after = len(clip.effects or [])
+                if after < before:
+                    cleared.append(cid)
+                else:
+                    skipped.append({"clip_id": cid, "reason": "no_lut3d"})
+        return {
+            "count": len(cleared),
+            "cleared": cleared,
+            "skipped": skipped,
+            "agent_note": (
+                "Stripped lut3d only. Apply: apply_lut_to_clips."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,
