@@ -19963,6 +19963,71 @@ async function finishSelectionSetReviewExportUi() {
   }
 }
 
+async function finishSelectionSetSocialUi() {
+  try {
+    const name = await promptSelectionSetName("Social finish named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FinSocialSet cancelled";
+      return;
+    }
+    const rawVar = window.prompt("variant (reels|shorts|…)", "reels");
+    if (rawVar === null) {
+      $("status-msg").textContent = "FinSocialSet cancelled";
+      return;
+    }
+    const variant = String(rawVar).trim() || "reels";
+    $("status-msg").textContent = `FinSocialSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      variant?: string;
+      clip_count?: number;
+    }>("/api/edit/finish_selection_set_social", {
+      name,
+      variant,
+      reframe: false,
+      prepare: false,
+      run_review: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinSocialSet · ${r.selection_set || name} variant=${r.variant ?? variant} ok=${r.ok ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FinSocialSet failed: ${e}`);
+    $("status-msg").textContent = `FinSocialSet failed: ${e}`;
+  }
+}
+
+async function finishSelectionSetSocialPackUi() {
+  try {
+    const name = await promptSelectionSetName("Social pack finish named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FinSocPackSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `FinSocPackSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      out_dir?: string;
+      clip_count?: number;
+    }>("/api/edit/finish_selection_set_social_pack", {
+      name,
+      reframe: false,
+      prepare: false,
+      name_prefix: "selection_set",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinSocPackSet · ${r.selection_set || name} ok=${r.ok ?? "?"} dir=${r.out_dir ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FinSocPackSet failed: ${e}`);
+    $("status-msg").textContent = `FinSocPackSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24669,6 +24734,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-deliv-set", () => void deliveryCheckSelectionSetUi());
   proBind("btn-contact-set", () => void makeSelectionSetContactSheetUi());
   proBind("btn-fin-review-set", () => void finishSelectionSetReviewExportUi());
+  proBind("btn-fin-social-set", () => void finishSelectionSetSocialUi());
+  proBind("btn-fin-social-pack-set", () => void finishSelectionSetSocialPackUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.73 — 2026-07-17
+
+### Added
+- `finish_selection_set_social` / `finish_selection_set_social_pack` + **FinSocialSet** / **FinSocPackSet**
+
 ## 0.9.72 — 2026-07-17
 
 ### Added

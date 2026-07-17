@@ -20414,6 +20414,106 @@ class Editor:
             ),
         }
 
+    def finish_selection_set_social(
+        self,
+        name: str,
+        *,
+        variant: str = "reels",
+        reframe: bool = True,
+        aspect: str | None = None,
+        anchor: str = "center",
+        prepare: bool = True,
+        unlock_tracks: bool = True,
+        prep_set_work_area: bool = True,
+        pack_gaps: bool = False,
+        run_review: bool = True,
+        normalize_preset: str | None = "streaming",
+        delivery_preset: str = "streaming",
+        filename: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then finish_selection_social (writes + export).
+
+        prep_set_work_area maps to finish_selection_social(set_work_area=...).
+        set_work_area is only for load_selection_set.
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.finish_selection_social(
+            ids,
+            variant=str(variant),
+            reframe=bool(reframe),
+            aspect=aspect,
+            anchor=str(anchor),
+            prepare=bool(prepare),
+            unlock_tracks=bool(unlock_tracks),
+            set_work_area=bool(prep_set_work_area),
+            pack_gaps=bool(pack_gaps),
+            run_review=bool(run_review),
+            normalize_preset=normalize_preset,
+            delivery_preset=str(delivery_preset),
+            filename=filename,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Social finish for named set. Pack: "
+                "finish_selection_set_social_pack. Review export: "
+                "finish_selection_set_review_export."
+            ),
+        }
+
+    def finish_selection_set_social_pack(
+        self,
+        name: str,
+        *,
+        variants: list[str] | None = None,
+        reframe: bool = False,
+        aspect: str = "9:16",
+        prepare: bool = False,
+        normalize_preset: str | None = None,
+        name_prefix: str = "selection_set",
+        out_dir: str | Path | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then finish_selection_social_pack (writes + export)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.finish_selection_social_pack(
+            ids,
+            variants=variants,
+            reframe=bool(reframe),
+            aspect=str(aspect),
+            prepare=bool(prepare),
+            normalize_preset=normalize_preset,
+            name_prefix=str(name_prefix),
+            out_dir=out_dir,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Social pack finish for named set. Single: "
+                "finish_selection_set_social. Contact: "
+                "make_selection_set_contact_sheet."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20577,6 +20677,8 @@ class Editor:
                     {"id": "delivery_check_selection_set", "writes": True},
                     {"id": "make_selection_set_contact_sheet", "writes": True},
                     {"id": "finish_selection_set_review_export", "writes": True},
+                    {"id": "finish_selection_set_social", "writes": True},
+                    {"id": "finish_selection_set_social_pack", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

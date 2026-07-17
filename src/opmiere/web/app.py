@@ -16209,6 +16209,90 @@ def finish_selection_set_review_export_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FinishSelectionSetSocialBody(BaseModel):
+    name: str
+    variant: str = "reels"
+    reframe: bool = True
+    aspect: str | None = None
+    anchor: str = "center"
+    prepare: bool = True
+    unlock_tracks: bool = True
+    prep_set_work_area: bool = True
+    pack_gaps: bool = False
+    run_review: bool = True
+    normalize_preset: str | None = "streaming"
+    delivery_preset: str = "streaming"
+    filename: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/finish_selection_set_social")
+def finish_selection_set_social_api(
+    body: FinishSelectionSetSocialBody,
+) -> dict[str, Any]:
+    """Social finish one-shot for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_set_social(
+            body.name,
+            variant=body.variant,
+            reframe=body.reframe,
+            aspect=body.aspect,
+            anchor=body.anchor,
+            prepare=body.prepare,
+            unlock_tracks=body.unlock_tracks,
+            prep_set_work_area=body.prep_set_work_area,
+            pack_gaps=body.pack_gaps,
+            run_review=body.run_review,
+            normalize_preset=body.normalize_preset,
+            delivery_preset=body.delivery_preset,
+            filename=body.filename,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_set_social failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FinishSelectionSetSocialPackBody(BaseModel):
+    name: str
+    variants: list[str] | None = None
+    reframe: bool = False
+    aspect: str = "9:16"
+    prepare: bool = False
+    normalize_preset: str | None = None
+    name_prefix: str = "selection_set"
+    out_dir: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/finish_selection_set_social_pack")
+def finish_selection_set_social_pack_api(
+    body: FinishSelectionSetSocialPackBody,
+) -> dict[str, Any]:
+    """Social pack finish for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_set_social_pack(
+            body.name,
+            variants=body.variants,
+            reframe=body.reframe,
+            aspect=body.aspect,
+            prepare=body.prepare,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+            out_dir=body.out_dir,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_set_social_pack failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
