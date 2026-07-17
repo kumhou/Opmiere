@@ -13813,6 +13813,64 @@ async function selectionTrackReportUi() {
   }
 }
 
+async function finishSelectionReviewExportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for review export";
+    return;
+  }
+  $("status-msg").textContent = "Finishing selection review export…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      export_path?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/finish_selection_review_export", {
+      clip_ids: ids,
+      clear_overlays: true,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinRev · ok=${r.ok ?? "?"} → ${r.export_path || "?"}`;
+  } catch (e) {
+    setProOut(`FinRev failed: ${e}`);
+    $("status-msg").textContent = `FinRev failed: ${e}`;
+  }
+}
+
+async function exportSelectionClientPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for client pack";
+    return;
+  }
+  $("status-msg").textContent = "Building selection client pack…";
+  try {
+    const r = await postJson<{
+      path?: string;
+      meta?: string;
+      timeline?: TimelineView;
+    }>("/api/edit/export_selection_client_pack", {
+      clip_ids: ids,
+      include_card: true,
+      include_stills: true,
+      include_export: true,
+      include_review_export: false,
+      stills_width: 320,
+      normalize_preset: null,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `ClientPk → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ClientPk failed: ${e}`);
+    $("status-msg").textContent = `ClientPk failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17886,6 +17944,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-agent-card-exp-sel", () => void exportSelectionAgentCardUi());
   proBind("btn-mute-rep-sel", () => void selectionMutedReportUi());
   proBind("btn-trk-rep-sel", () => void selectionTrackReportUi());
+  proBind("btn-fin-rev-sel", () => void finishSelectionReviewExportUi());
+  proBind("btn-client-pack-sel", () => void exportSelectionClientPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

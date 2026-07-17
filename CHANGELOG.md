@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.88 — 2026-07-17
+
+### Added
+- `finish_selection_review_export` / `export_selection_client_pack` + **FinRev** / **ClientPk**
+
 ## 0.6.87 — 2026-07-17
 
 ### Added

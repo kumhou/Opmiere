@@ -12749,6 +12749,151 @@ class Editor:
             ),
         }
 
+    def finish_selection_review_export(
+        self,
+        clip_ids: list[str],
+        *,
+        filename: str = "selection_client_review.mp4",
+        watermark: str | None = "REVIEW",
+        safe_area: bool = True,
+        timecode: bool = True,
+        clear_overlays: bool = True,
+        normalize_preset: str | None = None,
+    ) -> dict[str, Any]:
+        """Client review one-shot: apply review overlays → export MP4 → optional clear.
+
+        Mutates timeline when applying/clearing overlays. Export is selection union.
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        out: dict[str, Any] = {
+            "clip_ids": ids,
+            "filename": filename,
+            "steps": [],
+            "ok": False,
+        }
+        try:
+            out["overlays"] = self.apply_selection_review_overlays(
+                ids,
+                watermark=watermark,
+                safe_area=safe_area,
+                timecode=timecode,
+            )
+            out["steps"].append("apply_selection_review_overlays")
+        except Exception as e:
+            out["overlays"] = {"error": str(e)[:400]}
+            out["steps"].append("apply_selection_review_overlays:error")
+        try:
+            exp = self.export_selection_mp4_default(
+                ids,
+                filename=filename,
+                normalize_preset=normalize_preset,
+            )
+            out["export"] = exp
+            out["steps"].append("export_selection_mp4_default")
+            path = exp.get("path") or exp.get("output_path")
+            out["export_path"] = path
+            if path and Path(str(path)).is_file() and Path(str(path)).stat().st_size > 500:
+                out["ok"] = True
+        except Exception as e:
+            out["export"] = {"error": str(e)[:400]}
+            out["steps"].append("export_selection_mp4_default:error")
+        if clear_overlays:
+            try:
+                out["clear"] = self.clear_selection_review_overlays(ids)
+                out["steps"].append("clear_selection_review_overlays")
+            except Exception as e:
+                out["clear"] = {"error": str(e)[:400]}
+                out["steps"].append("clear_selection_review_overlays:error")
+        out["agent_note"] = (
+            "Client review export with temporary overlays. "
+            "ok=export file present. Permanent FX: apply without clear_overlays=False."
+        )
+        return out
+
+    def export_selection_client_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        include_card: bool = True,
+        include_stills: bool = True,
+        include_export: bool = True,
+        include_review_export: bool = False,
+        normalize_preset: str | None = None,
+        stills_width: int = 640,
+    ) -> dict[str, Any]:
+        """Client handoff pack: agent card + stills + optional MP4 / review export.
+
+        Default folder: exports/selection_client_pack/
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_client_pack"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        parts: dict[str, Any] = {}
+        if include_card:
+            try:
+                parts["card"] = self.export_selection_agent_card(
+                    ids, path=root / "selection_agent_card.json",
+                )
+            except Exception as e:
+                parts["card"] = {"error": str(e)[:400]}
+        if include_stills:
+            try:
+                parts["stills"] = self.export_selection_stills(
+                    ids, output_dir=root / "stills", edge="mid", width=stills_width,
+                )
+            except Exception as e:
+                parts["stills"] = {"error": str(e)[:400]}
+        if include_export:
+            try:
+                dest = root / "selection.mp4"
+                parts["export"] = self.export_selection_mp4(
+                    ids, dest, normalize_preset=normalize_preset,
+                )
+            except Exception as e:
+                parts["export"] = {"error": str(e)[:400]}
+        if include_review_export:
+            try:
+                # review export writes under project exports/ then we leave path in parts
+                parts["review_export"] = self.finish_selection_review_export(
+                    ids,
+                    filename="selection_client_review.mp4",
+                    normalize_preset=normalize_preset,
+                )
+            except Exception as e:
+                parts["review_export"] = {"error": str(e)[:400]}
+        meta = {
+            "schema": "opmiere.selection_client_pack.v1",
+            "path": str(root.resolve()),
+            "clip_ids": ids,
+            "parts": {
+                k: (v.get("path") if isinstance(v, dict) and v.get("path") else k)
+                for k, v in parts.items()
+            },
+        }
+        meta_path = root / "client_pack.json"
+        meta_path.write_text(
+            json.dumps(meta, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "path": str(root.resolve()),
+            "parts": parts,
+            "meta": str(meta_path.resolve()),
+            "clip_ids": ids,
+            "agent_note": (
+                "Client pack assembled. include_review_export applies temporary overlays."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

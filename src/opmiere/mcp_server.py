@@ -6490,6 +6490,52 @@ def selection_track_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def finish_selection_review_export(
+    clip_ids: list[str],
+    filename: str = "selection_client_review.mp4",
+    watermark: str | None = "REVIEW",
+    safe_area: bool = True,
+    timecode: bool = True,
+    clear_overlays: bool = True,
+    normalize_preset: str | None = None,
+) -> dict:
+    """Apply review overlays, export selection MP4, optional clear overlays."""
+    return _require_editor().finish_selection_review_export(
+        clip_ids,
+        filename=filename,
+        watermark=watermark,
+        safe_area=safe_area,
+        timecode=timecode,
+        clear_overlays=clear_overlays,
+        normalize_preset=normalize_preset,
+    )
+
+
+@mcp.tool()
+def export_selection_client_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    include_card: bool = True,
+    include_stills: bool = True,
+    include_export: bool = True,
+    include_review_export: bool = False,
+    normalize_preset: str | None = None,
+    stills_width: int = 640,
+) -> dict:
+    """Client pack: agent card + stills + optional MP4/review export."""
+    return _require_editor().export_selection_client_pack(
+        clip_ids,
+        out_dir=out_dir,
+        include_card=include_card,
+        include_stills=include_stills,
+        include_export=include_export,
+        include_review_export=include_review_export,
+        normalize_preset=normalize_preset,
+        stills_width=stills_width,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

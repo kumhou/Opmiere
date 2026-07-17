@@ -10944,6 +10944,75 @@ def selection_track_report_api(
         ) from e
 
 
+class FinishSelectionReviewExportBody(BaseModel):
+    clip_ids: list[str]
+    filename: str = "selection_client_review.mp4"
+    watermark: str | None = "REVIEW"
+    safe_area: bool = True
+    timecode: bool = True
+    clear_overlays: bool = True
+    normalize_preset: str | None = None
+
+
+@app.post("/api/edit/finish_selection_review_export")
+def finish_selection_review_export_api(
+    body: FinishSelectionReviewExportBody,
+) -> dict[str, Any]:
+    """Review overlays → export → optional clear."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_review_export(
+            body.clip_ids,
+            filename=body.filename,
+            watermark=body.watermark,
+            safe_area=body.safe_area,
+            timecode=body.timecode,
+            clear_overlays=body.clear_overlays,
+            normalize_preset=body.normalize_preset,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_review_export failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionClientPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    include_card: bool = True
+    include_stills: bool = True
+    include_export: bool = True
+    include_review_export: bool = False
+    normalize_preset: str | None = None
+    stills_width: int = 640
+
+
+@app.post("/api/edit/export_selection_client_pack")
+def export_selection_client_pack_api(
+    body: ExportSelectionClientPackBody,
+) -> dict[str, Any]:
+    """Client handoff pack for selection."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_client_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            include_card=body.include_card,
+            include_stills=body.include_stills,
+            include_export=body.include_export,
+            include_review_export=body.include_review_export,
+            normalize_preset=body.normalize_preset,
+            stills_width=body.stills_width,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_client_pack failed: {e}",
+        ) from e
+    # may have mutated timeline if include_review_export
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
