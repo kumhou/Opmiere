@@ -20618,6 +20618,61 @@ async function exportSelectionSetClipsAudioPackUi() {
   }
 }
 
+async function selectionSetPathCPlanUi() {
+  try {
+    const name = await promptSelectionSetName("Path-C plan for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PathCPlanSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `PathCPlanSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      adapter_version?: number;
+    }>("/api/edit/selection_set_path_c_plan", {
+      name,
+      height: 360,
+      include_audio: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PathCPlanSet · ${r.selection_set || name} clips=${r.clip_count ?? "?"} adapter=${r.adapter_version ?? "?"}`;
+  } catch (e) {
+    setProOut(`PathCPlanSet failed: ${e}`);
+    $("status-msg").textContent = `PathCPlanSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetPathCPlanUi() {
+  try {
+    const name = await promptSelectionSetName("Export path-C plan JSON for named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpPathCPlanSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ExpPathCPlanSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      output_path?: string;
+      clip_count?: number;
+      adapter_version?: number;
+    }>("/api/edit/export_selection_set_path_c_plan", {
+      name,
+      height: 360,
+      include_audio: false,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpPathCPlanSet · ${r.selection_set || name} path=${r.output_path ?? "?"} clips=${r.clip_count ?? "?"} adapter=${r.adapter_version ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpPathCPlanSet failed: ${e}`);
+    $("status-msg").textContent = `ExpPathCPlanSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -25346,6 +25401,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-exp-clips-gif-set", () => void exportSelectionSetClipsGifPackUi());
   proBind("btn-exp-clips-webm-set", () => void exportSelectionSetClipsWebmPackUi());
   proBind("btn-exp-clips-audio-set", () => void exportSelectionSetClipsAudioPackUi());
+  proBind("btn-path-c-plan-set", () => void selectionSetPathCPlanUi());
+  proBind("btn-exp-path-c-plan-set", () => void exportSelectionSetPathCPlanUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

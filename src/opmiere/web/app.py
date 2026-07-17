@@ -16873,6 +16873,62 @@ def export_selection_set_clips_audio_pack_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetPathCPlanBody(BaseModel):
+    name: str
+    height: int = 360
+    include_audio: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_path_c_plan")
+def selection_set_path_c_plan_api(
+    body: SelectionSetPathCPlanBody,
+) -> dict[str, Any]:
+    """Build path-C OpenShot plan for named set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_path_c_plan(
+            body.name,
+            height=body.height,
+            include_audio=body.include_audio,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_path_c_plan failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetPathCPlanBody(BaseModel):
+    name: str
+    output_path: str | None = None
+    height: int = 360
+    include_audio: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_path_c_plan")
+def export_selection_set_path_c_plan_api(
+    body: ExportSelectionSetPathCPlanBody,
+) -> dict[str, Any]:
+    """Write path-C plan JSON for named set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_path_c_plan(
+            body.name,
+            output_path=body.output_path,
+            height=body.height,
+            include_audio=body.include_audio,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_path_c_plan failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

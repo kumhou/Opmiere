@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.84 — 2026-07-17
+
+### Added
+- `selection_set_path_c_plan` / `export_selection_set_path_c_plan` + **PathCPlanSet** / **ExpPathCPlanSet**
+
 ## 0.9.83 — 2026-07-17
 
 ### Added

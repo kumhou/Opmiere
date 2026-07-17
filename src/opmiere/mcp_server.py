@@ -10096,6 +10096,40 @@ def export_selection_set_clips_audio_pack(
 
 
 @mcp.tool()
+def selection_set_path_c_plan(
+    name: str,
+    height: int = 360,
+    include_audio: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Build path-C OpenShot plan for a named selection set."""
+    return _require_editor().selection_set_path_c_plan(
+        name,
+        height=height,
+        include_audio=include_audio,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_path_c_plan(
+    name: str,
+    output_path: str | None = None,
+    height: int = 360,
+    include_audio: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Write path-C OpenShot plan JSON for a named selection set."""
+    return _require_editor().export_selection_set_path_c_plan(
+        name,
+        output_path=output_path,
+        height=height,
+        include_audio=include_audio,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

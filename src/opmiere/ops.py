@@ -21287,6 +21287,84 @@ class Editor:
             ),
         }
 
+    def selection_set_path_c_plan(
+        self,
+        name: str,
+        *,
+        height: int = 360,
+        include_audio: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_path_c_plan (read-only OpenShot plan)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_path_c_plan(
+            ids,
+            height=int(height),
+            include_audio=bool(include_audio),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set path-C OpenShot plan. Write JSON: "
+                "export_selection_set_path_c_plan. Preview report: "
+                "selection_set_path_c_report."
+            ),
+        }
+
+    def export_selection_set_path_c_plan(
+        self,
+        name: str,
+        output_path: str | Path | None = None,
+        *,
+        height: int = 360,
+        include_audio: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_path_c_plan (writes JSON)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        out = (
+            Path(output_path)
+            if output_path is not None
+            else Path(self.bundle.root)
+            / "exports"
+            / f"selection_set_{safe}_path_c_plan.json"
+        )
+        rep = self.export_selection_path_c_plan(
+            ids,
+            out,
+            height=int(height),
+            include_audio=bool(include_audio),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set path-C plan JSON written. In-memory: "
+                "selection_set_path_c_plan."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -21472,6 +21550,8 @@ class Editor:
                     {"id": "export_selection_set_clips_gif_pack", "writes": True},
                     {"id": "export_selection_set_clips_webm_pack", "writes": True},
                     {"id": "export_selection_set_clips_audio_pack", "writes": True},
+                    {"id": "selection_set_path_c_plan", "writes": False},
+                    {"id": "export_selection_set_path_c_plan", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
