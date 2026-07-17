@@ -14468,6 +14468,84 @@ async function importSelectionPipelinePresetsUi() {
   }
 }
 
+async function promptPipelinePresetName(actionLabel: string): Promise<string | null> {
+  const listed = await getJson<{
+    presets?: { name?: string }[];
+  }>("/api/edit/list_selection_pipeline_presets");
+  const names = (listed.presets || [])
+    .map((p) => p.name)
+    .filter((n): n is string => !!n);
+  const hint = names.length ? names.join(", ") : "(none — SavePipe first)";
+  const name = window
+    .prompt(`${actionLabel}\nKnown: ${hint}`, names[0] || "default")
+    ?.trim();
+  return name || null;
+}
+
+async function renameSelectionPipelinePresetUi() {
+  try {
+    const oldName = await promptPipelinePresetName("Rename preset (current name)");
+    if (!oldName) {
+      $("status-msg").textContent = "RenPipe cancelled";
+      return;
+    }
+    const newName = window
+      .prompt("New pipeline preset name", `${oldName}_v2`)
+      ?.trim();
+    if (!newName) {
+      $("status-msg").textContent = "RenPipe cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RenPipe ${oldName} → ${newName}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      old_name?: string;
+      new_name?: string;
+      step_count?: number;
+    }>("/api/edit/rename_selection_pipeline_preset", {
+      old_name: oldName,
+      new_name: newName,
+      overwrite: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RenPipe · ${r.old_name || oldName} → ${r.new_name || newName} steps=${r.step_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RenPipe failed: ${e}`);
+    $("status-msg").textContent = `RenPipe failed: ${e}`;
+  }
+}
+
+async function copySelectionPipelinePresetUi() {
+  try {
+    const source = await promptPipelinePresetName("Copy preset (source name)");
+    if (!source) {
+      $("status-msg").textContent = "CopyPipe cancelled";
+      return;
+    }
+    const dest =
+      window.prompt("Destination preset name", `${source}_copy`)?.trim() ||
+      `${source}_copy`;
+    $("status-msg").textContent = `CopyPipe ${source} → ${dest}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      source?: string;
+      dest?: string;
+      step_count?: number;
+    }>("/api/edit/copy_selection_pipeline_preset", {
+      source,
+      dest,
+      overwrite: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `CopyPipe · ${r.source || source} → ${r.dest || dest} steps=${r.step_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`CopyPipe failed: ${e}`);
+    $("status-msg").textContent = `CopyPipe failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -18955,6 +19033,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-run-pipe-pre", () => void runSelectionPipelinePresetUi());
   proBind("btn-exp-pipe-pre", () => void exportSelectionPipelinePresetsUi());
   proBind("btn-imp-pipe-pre", () => void importSelectionPipelinePresetsUi());
+  proBind("btn-ren-pipe-pre", () => void renameSelectionPipelinePresetUi());
+  proBind("btn-copy-pipe-pre", () => void copySelectionPipelinePresetUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

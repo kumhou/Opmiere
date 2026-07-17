@@ -14233,6 +14233,117 @@ class Editor:
             "agent_note": "Pipeline preset removed.",
         }
 
+    def rename_selection_pipeline_preset(
+        self,
+        old_name: str,
+        new_name: str,
+        *,
+        overwrite: bool = False,
+    ) -> dict[str, Any]:
+        """Rename a saved selection pipeline preset."""
+        old = str(old_name or "").strip()
+        new = str(new_name or "").strip()
+        if not old or not new:
+            raise ValueError("old_name and new_name are required")
+        if old == new:
+            return {
+                "ok": True,
+                "old_name": old,
+                "new_name": new,
+                "noop": True,
+                "agent_note": "Names identical; no change.",
+            }
+        store = self._read_pipeline_presets()
+        presets: dict[str, Any] = dict(store.get("presets") or {})
+        if old not in presets:
+            raise KeyError(
+                f"no pipeline preset {old!r}; known={sorted(presets.keys())}"
+            )
+        if new in presets and not overwrite:
+            raise ValueError(
+                f"pipeline preset {new!r} exists (overwrite=False)"
+            )
+        entry = presets.pop(old)
+        if not isinstance(entry, dict):
+            entry = {"steps": [], "note": ""}
+        entry = dict(entry)
+        entry["name"] = new
+        entry["updated_at"] = datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        presets[new] = entry
+        store["presets"] = presets
+        path = self._write_pipeline_presets(store)
+        return {
+            "ok": True,
+            "old_name": old,
+            "new_name": new,
+            "steps": list(entry.get("steps") or []),
+            "step_count": entry.get("step_count")
+            or len(entry.get("steps") or []),
+            "path": str(path.resolve()),
+            "noop": False,
+            "agent_note": (
+                "Renamed pipeline preset. Copy without delete: "
+                "copy_selection_pipeline_preset."
+            ),
+        }
+
+    def copy_selection_pipeline_preset(
+        self,
+        source: str,
+        dest: str,
+        *,
+        overwrite: bool = True,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Copy a pipeline preset to a new name (keeps source)."""
+        src = str(source or "").strip()
+        dst = str(dest or "").strip()
+        if not src or not dst:
+            raise ValueError("source and dest are required")
+        if src == dst:
+            raise ValueError("source and dest must differ")
+        store = self._read_pipeline_presets()
+        presets = store.get("presets") or {}
+        if src not in presets:
+            raise KeyError(
+                f"no pipeline preset {src!r}; known={sorted(presets.keys())}"
+            )
+        entry = presets[src]
+        if not isinstance(entry, dict):
+            raise ValueError(f"corrupt pipeline preset {src!r}")
+        steps = [
+            str(s).strip().lower()
+            for s in (entry.get("steps") or [])
+            if str(s).strip()
+        ]
+        if not steps:
+            raise ValueError(f"pipeline preset {src!r} has empty steps")
+        note_text = (
+            note
+            if note is not None
+            else str(entry.get("note") or f"copy of {src}")
+        )
+        saved = self.save_selection_pipeline_preset(
+            dst,
+            steps,
+            note=note_text,
+            overwrite=overwrite,
+        )
+        return {
+            "ok": True,
+            "source": src,
+            "dest": dst,
+            "steps": steps,
+            "step_count": len(steps),
+            "saved": saved,
+            "agent_note": (
+                "Copied pipeline preset. Rename (move): "
+                "rename_selection_pipeline_preset."
+            ),
+        }
+
     def run_selection_pipeline_preset(
         self,
         name: str,

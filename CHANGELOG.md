@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4 — 2026-07-17
+
+### Added
+- `rename_selection_pipeline_preset` / `copy_selection_pipeline_preset` + **RenPipe** / **CopyPipe**
+
 ## 0.7.3 — 2026-07-17
 
 ### Added

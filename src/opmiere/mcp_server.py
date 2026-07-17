@@ -6851,6 +6851,36 @@ def delete_selection_pipeline_preset(name: str) -> dict:
 
 
 @mcp.tool()
+def rename_selection_pipeline_preset(
+    old_name: str,
+    new_name: str,
+    overwrite: bool = False,
+) -> dict:
+    """Rename a saved selection pipeline preset."""
+    return _require_editor().rename_selection_pipeline_preset(
+        old_name,
+        new_name,
+        overwrite=overwrite,
+    )
+
+
+@mcp.tool()
+def copy_selection_pipeline_preset(
+    source: str,
+    dest: str,
+    overwrite: bool = True,
+    note: str | None = None,
+) -> dict:
+    """Copy a pipeline preset to a new name (keeps source)."""
+    return _require_editor().copy_selection_pipeline_preset(
+        source,
+        dest,
+        overwrite=overwrite,
+        note=note,
+    )
+
+
+@mcp.tool()
 def run_selection_pipeline_preset(
     name: str,
     clip_ids: list[str] | None = None,

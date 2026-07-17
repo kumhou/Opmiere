@@ -11509,6 +11509,58 @@ def delete_selection_pipeline_preset_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class RenameSelectionPipelinePresetBody(BaseModel):
+    old_name: str
+    new_name: str
+    overwrite: bool = False
+
+
+@app.post("/api/edit/rename_selection_pipeline_preset")
+def rename_selection_pipeline_preset_api(
+    body: RenameSelectionPipelinePresetBody,
+) -> dict[str, Any]:
+    """Rename a selection pipeline preset."""
+    ed = _ed()
+    try:
+        r = ed.rename_selection_pipeline_preset(
+            body.old_name,
+            body.new_name,
+            overwrite=body.overwrite,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"rename_selection_pipeline_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class CopySelectionPipelinePresetBody(BaseModel):
+    source: str
+    dest: str
+    overwrite: bool = True
+    note: str | None = None
+
+
+@app.post("/api/edit/copy_selection_pipeline_preset")
+def copy_selection_pipeline_preset_api(
+    body: CopySelectionPipelinePresetBody,
+) -> dict[str, Any]:
+    """Copy a selection pipeline preset."""
+    ed = _ed()
+    try:
+        r = ed.copy_selection_pipeline_preset(
+            body.source,
+            body.dest,
+            overwrite=body.overwrite,
+            note=body.note,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"copy_selection_pipeline_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class RunSelectionPipelinePresetBody(BaseModel):
     name: str
     clip_ids: list[str] | None = None
