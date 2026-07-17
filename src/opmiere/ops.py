@@ -15966,9 +15966,190 @@ class Editor:
         }
         r["agent_note"] = (
             "Briefing for named set. Checklist: export_selection_set_checklist. "
-            "Multi-format: export_selection_set_formats_pack."
+            "Multi-format: export_selection_set_formats_pack. "
+            "Full catalog: selection_set_tool_catalog."
         )
         return r
+
+    @staticmethod
+    def selection_set_tool_catalog() -> dict[str, Any]:
+        """Catalog of named selection-set tools by category (read-only)."""
+        categories = [
+            {
+                "id": "lifecycle",
+                "title": "CRUD / sidecar",
+                "tools": [
+                    {"id": "save_selection_set", "writes": True},
+                    {"id": "load_selection_set", "writes": False},
+                    {"id": "list_selection_sets", "writes": False},
+                    {"id": "delete_selection_set", "writes": True},
+                    {"id": "rename_selection_set", "writes": True},
+                    {"id": "copy_selection_set", "writes": True},
+                    {"id": "diff_selection_sets", "writes": False},
+                    {"id": "merge_selection_sets", "writes": True},
+                    {"id": "export_selection_sets", "writes": True},
+                    {"id": "import_selection_sets", "writes": True},
+                ],
+            },
+            {
+                "id": "status_repair",
+                "title": "Status / validate / repair",
+                "tools": [
+                    {"id": "selection_set_status", "writes": False},
+                    {"id": "validate_selection_set", "writes": False},
+                    {"id": "repair_selection_set", "writes": True},
+                    {"id": "batch_selection_sets_status", "writes": False},
+                    {"id": "batch_validate_selection_sets", "writes": False},
+                    {"id": "batch_repair_selection_sets", "writes": True},
+                    {"id": "export_selection_sets_status_report", "writes": True},
+                    {"id": "export_selection_sets_validate_report", "writes": True},
+                ],
+            },
+            {
+                "id": "pipeline",
+                "title": "Pipeline / finish",
+                "tools": [
+                    {"id": "run_selection_set_pipeline", "writes": True},
+                    {"id": "dry_run_selection_set_pipeline", "writes": False},
+                    {"id": "agent_finish_selection_set", "writes": True},
+                    {"id": "finish_selection_set_delivery", "writes": True},
+                    {"id": "batch_run_selection_pipeline_preset", "writes": True},
+                ],
+            },
+            {
+                "id": "timeline",
+                "title": "Timeline / markers",
+                "tools": [
+                    {"id": "selection_set_to_markers", "writes": True},
+                    {"id": "markers_to_selection_set", "writes": True},
+                    {"id": "selection_set_to_new_track", "writes": True},
+                ],
+            },
+            {
+                "id": "interchange",
+                "title": "Interchange",
+                "tools": [
+                    {"id": "export_selection_set_edl", "writes": True},
+                    {"id": "export_selection_set_cutlist", "writes": True},
+                    {"id": "export_selection_set_fcpxml", "writes": True},
+                    {"id": "export_selection_set_otio", "writes": True},
+                    {"id": "export_selection_set_manifest", "writes": True},
+                    {"id": "export_selection_set_interchange_pack", "writes": True},
+                    {"id": "export_selection_set_handoff", "writes": True},
+                ],
+            },
+            {
+                "id": "media",
+                "title": "Media export",
+                "tools": [
+                    {"id": "export_selection_set_mp4", "writes": True},
+                    {"id": "export_selection_set_webm", "writes": True},
+                    {"id": "export_selection_set_gif", "writes": True},
+                    {"id": "export_selection_set_audio", "writes": True},
+                    {"id": "export_selection_set_formats_pack", "writes": True},
+                    {"id": "export_selection_set_stills", "writes": True},
+                    {"id": "export_selection_set_contact_sheet", "writes": True},
+                ],
+            },
+            {
+                "id": "delivery_review",
+                "title": "Client / social / review",
+                "tools": [
+                    {"id": "export_selection_set_client_pack", "writes": True},
+                    {"id": "export_selection_set_social_pack", "writes": True},
+                    {"id": "export_selection_set_report_pack", "writes": True},
+                    {"id": "export_selection_set_review_package", "writes": True},
+                    {"id": "export_selection_set_storyboard", "writes": True},
+                    {"id": "export_selection_set_agent_card", "writes": True},
+                    {"id": "export_selection_set_checklist", "writes": True},
+                    {"id": "selection_set_export_summary", "writes": False},
+                ],
+            },
+            {
+                "id": "discovery",
+                "title": "Discovery",
+                "tools": [
+                    {"id": "selection_set_tool_catalog", "writes": False},
+                    {"id": "export_selection_set_tool_catalog", "writes": True},
+                ],
+            },
+        ]
+        tools: list[dict[str, Any]] = []
+        for cat in categories:
+            for t in cat["tools"]:
+                tools.append({
+                    **t,
+                    "category": cat["id"],
+                    "category_title": cat["title"],
+                })
+        return {
+            "ok": True,
+            "schema": "opmiere.selection_set_tool_catalog.v1",
+            "count": len(tools),
+            "categories": categories,
+            "tools": tools,
+            "tool_ids": [t["id"] for t in tools],
+            "agent_note": (
+                "Named-set tool map. Write to disk: "
+                "export_selection_set_tool_catalog. Related: "
+                "selection_pipeline_catalog."
+            ),
+        }
+
+    def export_selection_set_tool_catalog(
+        self,
+        *,
+        path: str | Path | None = None,
+        write_markdown: bool = True,
+        filename: str = "selection_set_tool_catalog.json",
+    ) -> dict[str, Any]:
+        """Write selection_set_tool_catalog JSON (+ optional MD) under exports/."""
+        cat = self.selection_set_tool_catalog()
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / (filename or "selection_set_tool_catalog.json")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            **cat,
+            "generated_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "project_id": getattr(self.project, "id", None),
+        }
+        out.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        md_path = None
+        if write_markdown:
+            md_path = out.with_suffix(".md")
+            lines = [
+                "# Selection set tool catalog",
+                "",
+                f"- generated_at: `{payload['generated_at']}`",
+                f"- count: **{cat.get('count', 0)}**",
+                "",
+            ]
+            for c in cat.get("categories") or []:
+                lines.append(f"## {c.get('title') or c.get('id')}")
+                lines.append("")
+                for t in c.get("tools") or []:
+                    w = "write" if t.get("writes") else "read"
+                    lines.append(f"- `{t.get('id')}` ({w})")
+                lines.append("")
+            md_path.write_text("\n".join(lines), encoding="utf-8")
+        return {
+            "ok": True,
+            "path": str(out.resolve()),
+            "markdown_path": str(md_path.resolve()) if md_path else None,
+            "count": cat.get("count"),
+            "agent_note": (
+                "Catalog written. In-memory: selection_set_tool_catalog."
+            ),
+        }
 
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"

@@ -7501,6 +7501,26 @@ def selection_set_export_summary(
 
 
 @mcp.tool()
+def selection_set_tool_catalog() -> dict:
+    """Catalog of named selection-set tools by category."""
+    return _require_editor().selection_set_tool_catalog()
+
+
+@mcp.tool()
+def export_selection_set_tool_catalog(
+    path: str | None = None,
+    write_markdown: bool = True,
+    filename: str = "selection_set_tool_catalog.json",
+) -> dict:
+    """Write selection-set tool catalog JSON (+ optional MD)."""
+    return _require_editor().export_selection_set_tool_catalog(
+        path=path,
+        write_markdown=write_markdown,
+        filename=filename,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

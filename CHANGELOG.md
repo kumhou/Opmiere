@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2 — 2026-07-17
+
+### Added
+- `selection_set_tool_catalog` / `export_selection_set_tool_catalog` + **SetTools** / **SetToolsExp**
+
 ## 0.9.1 — 2026-07-17
 
 ### Added

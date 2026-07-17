@@ -12499,6 +12499,43 @@ def selection_set_export_summary_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+@app.get("/api/edit/selection_set_tool_catalog")
+def selection_set_tool_catalog_api() -> dict[str, Any]:
+    """List named selection-set tools by category."""
+    ed = _ed()
+    try:
+        return ed.selection_set_tool_catalog()
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_tool_catalog failed: {e}",
+        ) from e
+
+
+class ExportSelectionSetToolCatalogBody(BaseModel):
+    path: str | None = None
+    write_markdown: bool = True
+    filename: str = "selection_set_tool_catalog.json"
+
+
+@app.post("/api/edit/export_selection_set_tool_catalog")
+def export_selection_set_tool_catalog_api(
+    body: ExportSelectionSetToolCatalogBody,
+) -> dict[str, Any]:
+    """Export selection-set tool catalog to disk."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_tool_catalog(
+            path=body.path,
+            write_markdown=body.write_markdown,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_tool_catalog failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

@@ -15595,6 +15595,49 @@ async function selectionSetExportSummaryUi() {
   }
 }
 
+async function selectionSetToolCatalogUi() {
+  $("status-msg").textContent = "Loading selection set tool catalog…";
+  try {
+    const r = await getJson<{
+      ok?: boolean;
+      count?: number;
+      tool_ids?: string[];
+      categories?: { id?: string; title?: string }[];
+    }>("/api/edit/selection_set_tool_catalog");
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetTools · n=${r.count ?? "?"} cats=${(r.categories || []).length}`;
+  } catch (e) {
+    setProOut(`SetTools failed: ${e}`);
+    $("status-msg").textContent = `SetTools failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetToolCatalogUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection set tool catalog…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      markdown_path?: string;
+      count?: number;
+    }>("/api/edit/export_selection_set_tool_catalog", {
+      write_markdown: true,
+      filename: "selection_set_tool_catalog.json",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetToolsExp · n=${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetToolsExp failed: ${e}`);
+    $("status-msg").textContent = `SetToolsExp failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -20118,6 +20161,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-card", () => void exportSelectionSetAgentCardUi());
   proBind("btn-set-check", () => void exportSelectionSetChecklistUi());
   proBind("btn-set-sum", () => void selectionSetExportSummaryUi());
+  proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
+  proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());
