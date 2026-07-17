@@ -18336,6 +18336,72 @@ class Editor:
             ),
         }
 
+    def stagger_selection_set(
+        self,
+        name: str,
+        offset_frames: int,
+        *,
+        from_earliest: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then stagger_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.stagger_selection(
+            ids, int(offset_frames), from_earliest=bool(from_earliest),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Stagger named set stair-step. Match duration: "
+                "match_selection_duration_set. Pack: "
+                "pack_selection_set."
+            ),
+        }
+
+    def match_selection_duration_set(
+        self,
+        name: str,
+        *,
+        target_clip_id: str | None = None,
+        target_frames: int | None = None,
+        clamp: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then match_selection_duration (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.match_selection_duration(
+            ids,
+            target_clip_id=target_clip_id,
+            target_frames=target_frames,
+            clamp=bool(clamp),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Match duration across named set. Stagger: "
+                "stagger_selection_set. Rate stretch: "
+                "rate_stretch_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18437,6 +18503,8 @@ class Editor:
                     {"id": "color_selection_set", "writes": True},
                     {"id": "pack_selection_set", "writes": True},
                     {"id": "detach_audio_selection_set", "writes": True},
+                    {"id": "stagger_selection_set", "writes": True},
+                    {"id": "match_selection_duration_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

@@ -17964,6 +17964,76 @@ async function detachAudioSelectionSetUi() {
   }
 }
 
+async function staggerSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Stagger named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "StaggerSet cancelled";
+      return;
+    }
+    const raw = window.prompt("offset_frames (non-zero)", "6");
+    if (raw === null) {
+      $("status-msg").textContent = "StaggerSet cancelled";
+      return;
+    }
+    const offset_frames = Number(raw);
+    $("status-msg").textContent = `StaggerSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      offset_frames?: number;
+      clip_count?: number;
+    }>("/api/edit/stagger_selection_set", {
+      name,
+      offset_frames: Number.isFinite(offset_frames) && offset_frames !== 0
+        ? Math.trunc(offset_frames)
+        : 6,
+      from_earliest: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StaggerSet · ${r.selection_set || name} moved=${r.count ?? "?"} off=${r.offset_frames ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`StaggerSet failed: ${e}`);
+    $("status-msg").textContent = `StaggerSet failed: ${e}`;
+  }
+}
+
+async function matchSelectionDurationSetUi() {
+  try {
+    const name = await promptSelectionSetName("Match duration named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MatchDurSet cancelled";
+      return;
+    }
+    const raw = window.prompt("target_frames (empty=first clip)", "");
+    if (raw === null) {
+      $("status-msg").textContent = "MatchDurSet cancelled";
+      return;
+    }
+    const tf = raw.trim() === "" ? null : Number(raw);
+    $("status-msg").textContent = `MatchDurSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      target_frames?: number;
+      clip_count?: number;
+    }>("/api/edit/match_selection_duration_set", {
+      name,
+      target_frames: tf !== null && Number.isFinite(tf) ? Math.trunc(tf) : null,
+      clamp: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MatchDurSet · ${r.selection_set || name} matched=${r.count ?? "?"} target=${r.target_frames ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MatchDurSet failed: ${e}`);
+    $("status-msg").textContent = `MatchDurSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -22608,6 +22678,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-chip-set", () => void colorSelectionSetUi());
   proBind("btn-pack-set", () => void packSelectionSetUi());
   proBind("btn-detach-set", () => void detachAudioSelectionSetUi());
+  proBind("btn-stagger-set", () => void staggerSelectionSetUi());
+  proBind("btn-match-dur-set", () => void matchSelectionDurationSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

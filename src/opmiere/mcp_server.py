@@ -8620,6 +8620,40 @@ def detach_audio_selection_set(
 
 
 @mcp.tool()
+def stagger_selection_set(
+    name: str,
+    offset_frames: int,
+    from_earliest: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Stagger clips in a named selection set (stair-step)."""
+    return _require_editor().stagger_selection_set(
+        name,
+        offset_frames,
+        from_earliest=from_earliest,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def match_selection_duration_set(
+    name: str,
+    target_clip_id: str | None = None,
+    target_frames: int | None = None,
+    clamp: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Rate-stretch named set clips to match a target duration."""
+    return _require_editor().match_selection_duration_set(
+        name,
+        target_clip_id=target_clip_id,
+        target_frames=target_frames,
+        clamp=clamp,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

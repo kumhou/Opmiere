@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.42 — 2026-07-17
+
+### Added
+- `stagger_selection_set` / `match_selection_duration_set` + **StaggerSet** / **MatchDurSet**
+
 ## 0.9.41 — 2026-07-17
 
 ### Added

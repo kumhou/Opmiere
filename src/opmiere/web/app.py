@@ -14473,6 +14473,62 @@ def detach_audio_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class StaggerSelectionSetBody(BaseModel):
+    name: str
+    offset_frames: int
+    from_earliest: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/stagger_selection_set")
+def stagger_selection_set_api(
+    body: StaggerSelectionSetBody,
+) -> dict[str, Any]:
+    """Stagger clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.stagger_selection_set(
+            body.name,
+            body.offset_frames,
+            from_earliest=body.from_earliest,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"stagger_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class MatchSelectionDurationSetBody(BaseModel):
+    name: str
+    target_clip_id: str | None = None
+    target_frames: int | None = None
+    clamp: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/match_selection_duration_set")
+def match_selection_duration_set_api(
+    body: MatchSelectionDurationSetBody,
+) -> dict[str, Any]:
+    """Match duration of clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.match_selection_duration_set(
+            body.name,
+            target_clip_id=body.target_clip_id,
+            target_frames=body.target_frames,
+            clamp=body.clamp,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"match_selection_duration_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
