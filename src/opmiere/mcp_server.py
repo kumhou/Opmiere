@@ -9038,6 +9038,58 @@ def ken_burns_selection_set(
 
 
 @mcp.tool()
+def luma_key_selection_set(
+    name: str,
+    threshold: float = 0.1,
+    tolerance: float = 0.1,
+    replace: bool = True,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply luma key (brightness matte) to a named selection set."""
+    return _require_editor().luma_key_selection_set(
+        name,
+        threshold=threshold,
+        tolerance=tolerance,
+        replace=replace,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def shape_mask_selection_set(
+    name: str,
+    shape: str = "circle",
+    cx: float = 0.5,
+    cy: float = 0.5,
+    size: float = 0.5,
+    feather: float = 0.05,
+    width: float = 0.5,
+    height: float = 0.5,
+    invert: bool = False,
+    replace: bool = True,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply circle/rect shape mask to a named selection set."""
+    return _require_editor().shape_mask_selection_set(
+        name,
+        shape=shape,
+        cx=cx,
+        cy=cy,
+        size=size,
+        feather=feather,
+        width=width,
+        height=height,
+        invert=invert,
+        replace=replace,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

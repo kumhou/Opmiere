@@ -19146,6 +19146,92 @@ class Editor:
             ),
         }
 
+    def luma_key_selection_set(
+        self,
+        name: str,
+        *,
+        threshold: float = 0.1,
+        tolerance: float = 0.1,
+        replace: bool = True,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then luma_key_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.luma_key_selection(
+            ids,
+            threshold=float(threshold),
+            tolerance=float(tolerance),
+            replace=bool(replace),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Luma key on named set. Shape mask: "
+                "shape_mask_selection_set. Chroma: "
+                "chroma_key_selection_set."
+            ),
+        }
+
+    def shape_mask_selection_set(
+        self,
+        name: str,
+        *,
+        shape: str = "circle",
+        cx: float = 0.5,
+        cy: float = 0.5,
+        size: float = 0.5,
+        feather: float = 0.05,
+        width: float = 0.5,
+        height: float = 0.5,
+        invert: bool = False,
+        replace: bool = True,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then shape_mask_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.shape_mask_selection(
+            ids,
+            shape=str(shape),
+            cx=float(cx),
+            cy=float(cy),
+            size=float(size),
+            feather=float(feather),
+            width=float(width),
+            height=float(height),
+            invert=bool(invert),
+            replace=bool(replace),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Shape mask on named set. Luma key: "
+                "luma_key_selection_set. Ken Burns: "
+                "ken_burns_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -19271,6 +19357,8 @@ class Editor:
                     {"id": "safe_area_selection_set", "writes": True},
                     {"id": "timecode_selection_set", "writes": True},
                     {"id": "ken_burns_selection_set", "writes": True},
+                    {"id": "luma_key_selection_set", "writes": True},
+                    {"id": "shape_mask_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

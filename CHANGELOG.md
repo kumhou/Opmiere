@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.54 — 2026-07-17
+
+### Added
+- `luma_key_selection_set` / `shape_mask_selection_set` + **LumaSet** / **MaskSet**
+
 ## 0.9.53 — 2026-07-17
 
 ### Added

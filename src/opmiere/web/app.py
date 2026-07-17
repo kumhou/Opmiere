@@ -15155,6 +15155,80 @@ def ken_burns_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class LumaKeySelectionSetBody(BaseModel):
+    name: str
+    threshold: float = 0.1
+    tolerance: float = 0.1
+    replace: bool = True
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/luma_key_selection_set")
+def luma_key_selection_set_api(
+    body: LumaKeySelectionSetBody,
+) -> dict[str, Any]:
+    """Apply luma key to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.luma_key_selection_set(
+            body.name,
+            threshold=body.threshold,
+            tolerance=body.tolerance,
+            replace=body.replace,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"luma_key_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ShapeMaskSelectionSetBody(BaseModel):
+    name: str
+    shape: str = "circle"
+    cx: float = 0.5
+    cy: float = 0.5
+    size: float = 0.5
+    feather: float = 0.05
+    width: float = 0.5
+    height: float = 0.5
+    invert: bool = False
+    replace: bool = True
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/shape_mask_selection_set")
+def shape_mask_selection_set_api(
+    body: ShapeMaskSelectionSetBody,
+) -> dict[str, Any]:
+    """Apply shape mask to a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.shape_mask_selection_set(
+            body.name,
+            shape=body.shape,
+            cx=body.cx,
+            cy=body.cy,
+            size=body.size,
+            feather=body.feather,
+            width=body.width,
+            height=body.height,
+            invert=body.invert,
+            replace=body.replace,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"shape_mask_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

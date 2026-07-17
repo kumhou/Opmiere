@@ -18753,6 +18753,77 @@ async function kenBurnsSelectionSetUi() {
   }
 }
 
+async function lumaKeySelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Luma key named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "LumaSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `LumaSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      threshold?: number;
+    }>("/api/edit/luma_key_selection_set", {
+      name,
+      threshold: 0.1,
+      tolerance: 0.1,
+      replace: true,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LumaSet · ${r.selection_set || name} applied=${r.count ?? "?"} thr=${r.threshold ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LumaSet failed: ${e}`);
+    $("status-msg").textContent = `LumaSet failed: ${e}`;
+  }
+}
+
+async function shapeMaskSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Shape mask named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MaskSet cancelled";
+      return;
+    }
+    const rawShape = window.prompt("shape (circle|rect)", "circle");
+    if (rawShape === null) {
+      $("status-msg").textContent = "MaskSet cancelled";
+      return;
+    }
+    const shape = String(rawShape).trim() || "circle";
+    $("status-msg").textContent = `MaskSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      shape?: string;
+    }>("/api/edit/shape_mask_selection_set", {
+      name,
+      shape,
+      cx: 0.5,
+      cy: 0.5,
+      size: 0.5,
+      feather: 0.05,
+      replace: true,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MaskSet · ${r.selection_set || name} shape=${r.shape ?? shape} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MaskSet failed: ${e}`);
+    $("status-msg").textContent = `MaskSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23421,6 +23492,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-safe-set", () => void safeAreaSelectionSetUi());
   proBind("btn-tc-set", () => void timecodeSelectionSetUi());
   proBind("btn-kb-set", () => void kenBurnsSelectionSetUi());
+  proBind("btn-luma-set", () => void lumaKeySelectionSetUi());
+  proBind("btn-mask-set", () => void shapeMaskSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
