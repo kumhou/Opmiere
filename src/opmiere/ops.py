@@ -16199,7 +16199,63 @@ class Editor:
             "missing_clips": loaded.get("missing") or [],
             "agent_note": (
                 "Offline media for named set. Full health: "
-                "selection_set_media_health. Repair: repair_selection_set."
+                "selection_set_media_health. Proxies: "
+                "selection_set_proxy_report. Duration: "
+                "selection_set_duration_report."
+            ),
+        }
+
+    def selection_set_proxy_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_proxy_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_proxy_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Proxy readiness for named set. Duration: "
+                "selection_set_duration_report. Health: "
+                "selection_set_media_health."
+            ),
+        }
+
+    def selection_set_duration_report(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then selection_duration_report (read-only)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_duration_report(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Duration census for named set. Proxies: "
+                "selection_set_proxy_report. Export briefing: "
+                "selection_set_export_summary."
             ),
         }
 
@@ -16232,6 +16288,8 @@ class Editor:
                     {"id": "repair_selection_set", "writes": True},
                     {"id": "selection_set_media_health", "writes": False},
                     {"id": "selection_set_offline_media", "writes": False},
+                    {"id": "selection_set_proxy_report", "writes": False},
+                    {"id": "selection_set_duration_report", "writes": False},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

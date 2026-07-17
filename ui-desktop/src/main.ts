@@ -15765,6 +15765,58 @@ async function selectionSetOfflineMediaUi() {
   }
 }
 
+async function selectionSetProxyReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set proxy report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetProxy cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetProxy ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      ready_count?: number;
+      count?: number;
+    }>("/api/edit/selection_set_proxy_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetProxy · ${r.selection_set || name} n=${r.clip_count ?? "?"} ready=${r.ready_count ?? r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetProxy failed: ${e}`);
+    $("status-msg").textContent = `SetProxy failed: ${e}`;
+  }
+}
+
+async function selectionSetDurationReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set duration report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetDur cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetDur ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      union_span_seconds?: number;
+      sum_clip_duration_seconds?: number;
+    }>("/api/edit/selection_set_duration_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetDur · ${r.selection_set || name} n=${r.clip_count ?? "?"} span=${r.union_span_seconds ?? "?"}s sum=${r.sum_clip_duration_seconds ?? "?"}s`;
+  } catch (e) {
+    setProOut(`SetDur failed: ${e}`);
+    $("status-msg").textContent = `SetDur failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20337,6 +20389,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-wa-to-set", () => void workAreaToSelectionSetUi());
   proBind("btn-set-health", () => void selectionSetMediaHealthUi());
   proBind("btn-set-offline", () => void selectionSetOfflineMediaUi());
+  proBind("btn-set-proxy", () => void selectionSetProxyReportUi());
+  proBind("btn-set-dur", () => void selectionSetDurationReportUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

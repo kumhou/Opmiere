@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.6 — 2026-07-17
+
+### Added
+- `selection_set_proxy_report` / `selection_set_duration_report` + **SetProxy** / **SetDur**
+
 ## 0.9.5 — 2026-07-17
 
 ### Added

@@ -12649,6 +12649,52 @@ def selection_set_offline_media_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetProxyReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_proxy_report")
+def selection_set_proxy_report_api(
+    body: SelectionSetProxyReportBody,
+) -> dict[str, Any]:
+    """Proxy report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_proxy_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_proxy_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetDurationReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_duration_report")
+def selection_set_duration_report_api(
+    body: SelectionSetDurationReportBody,
+) -> dict[str, Any]:
+    """Duration report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_duration_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_duration_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
