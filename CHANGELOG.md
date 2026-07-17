@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.72 — 2026-07-17
+
+### Added
+- `make_selection_set_contact_sheet` / `finish_selection_set_review_export` + **ContactSet** / **FinReviewSet**
+
 ## 0.9.71 — 2026-07-17
 
 ### Added

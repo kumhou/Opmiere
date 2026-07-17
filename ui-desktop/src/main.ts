@@ -19899,6 +19899,70 @@ async function deliveryCheckSelectionSetUi() {
   }
 }
 
+async function makeSelectionSetContactSheetUi() {
+  try {
+    const name = await promptSelectionSetName("Contact sheet named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ContactSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `ContactSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      path?: string;
+      tile_count?: number;
+      clip_count?: number;
+    }>("/api/edit/make_selection_set_contact_sheet", {
+      name,
+      max_tiles: 12,
+      tile_width: 160,
+      tile_height: 90,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ContactSet · ${r.selection_set || name} tiles=${r.tile_count ?? "?"} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ContactSet failed: ${e}`);
+    $("status-msg").textContent = `ContactSet failed: ${e}`;
+  }
+}
+
+async function finishSelectionSetReviewExportUi() {
+  try {
+    const name = await promptSelectionSetName("Finish review export named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FinReviewSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Apply review overlays + export for set "${name}"?`)) {
+      $("status-msg").textContent = "FinReviewSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `FinReviewSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      ok?: boolean;
+      export_path?: string;
+      clip_count?: number;
+    }>("/api/edit/finish_selection_set_review_export", {
+      name,
+      filename: "selection_set_client_review.mp4",
+      watermark: "REVIEW",
+      safe_area: true,
+      timecode: true,
+      clear_overlays: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FinReviewSet · ${r.selection_set || name} ok=${r.ok ?? "?"} path=${r.export_path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FinReviewSet failed: ${e}`);
+    $("status-msg").textContent = `FinReviewSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24603,6 +24667,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-rip-del-set", () => void rippleDeleteSelectionSetUi());
   proBind("btn-an-audio-set", () => void analyzeSelectionSetAudioUi());
   proBind("btn-deliv-set", () => void deliveryCheckSelectionSetUi());
+  proBind("btn-contact-set", () => void makeSelectionSetContactSheetUi());
+  proBind("btn-fin-review-set", () => void finishSelectionSetReviewExportUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

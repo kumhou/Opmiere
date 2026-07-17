@@ -9628,6 +9628,52 @@ def delivery_check_selection_set(
 
 
 @mcp.tool()
+def make_selection_set_contact_sheet(
+    name: str,
+    output_path: str | None = None,
+    max_tiles: int = 12,
+    tile_width: int = 160,
+    tile_height: int = 90,
+    cols: int | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Build a contact sheet grid from named-set video clip mid-frames."""
+    return _require_editor().make_selection_set_contact_sheet(
+        name,
+        output_path=output_path,
+        max_tiles=max_tiles,
+        tile_width=tile_width,
+        tile_height=tile_height,
+        cols=cols,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def finish_selection_set_review_export(
+    name: str,
+    filename: str = "selection_set_client_review.mp4",
+    watermark: str | None = "REVIEW",
+    safe_area: bool = True,
+    timecode: bool = True,
+    clear_overlays: bool = True,
+    normalize_preset: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Apply review overlays, export named-set MP4, optional clear overlays."""
+    return _require_editor().finish_selection_set_review_export(
+        name,
+        filename=filename,
+        watermark=watermark,
+        safe_area=safe_area,
+        timecode=timecode,
+        clear_overlays=clear_overlays,
+        normalize_preset=normalize_preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

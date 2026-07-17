@@ -20334,6 +20334,86 @@ class Editor:
             ),
         }
 
+    def make_selection_set_contact_sheet(
+        self,
+        name: str,
+        output_path: str | Path | None = None,
+        *,
+        max_tiles: int = 12,
+        tile_width: int = 160,
+        tile_height: int = 90,
+        cols: int | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then make_selection_contact_sheet."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.make_selection_contact_sheet(
+            ids,
+            output_path=output_path,
+            max_tiles=int(max_tiles),
+            tile_width=int(tile_width),
+            tile_height=int(tile_height),
+            cols=cols,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Mid-source contact grid for named set. Review export: "
+                "finish_selection_set_review_export. Also: "
+                "export_selection_set_contact_sheet."
+            ),
+        }
+
+    def finish_selection_set_review_export(
+        self,
+        name: str,
+        *,
+        filename: str = "selection_set_client_review.mp4",
+        watermark: str | None = "REVIEW",
+        safe_area: bool = True,
+        timecode: bool = True,
+        clear_overlays: bool = True,
+        normalize_preset: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then finish_selection_review_export (writes + export)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.finish_selection_review_export(
+            ids,
+            filename=str(filename),
+            watermark=watermark,
+            safe_area=bool(safe_area),
+            timecode=bool(timecode),
+            clear_overlays=bool(clear_overlays),
+            normalize_preset=normalize_preset,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Client review export for named set. Contact sheet: "
+                "make_selection_set_contact_sheet. Delivery: "
+                "delivery_check_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20495,6 +20575,8 @@ class Editor:
                     {"id": "ripple_delete_selection_set", "writes": True},
                     {"id": "analyze_selection_set_audio", "writes": False},
                     {"id": "delivery_check_selection_set", "writes": True},
+                    {"id": "make_selection_set_contact_sheet", "writes": True},
+                    {"id": "finish_selection_set_review_export", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

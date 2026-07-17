@@ -16141,6 +16141,74 @@ def delivery_check_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class MakeSelectionSetContactSheetBody(BaseModel):
+    name: str
+    output_path: str | None = None
+    max_tiles: int = 12
+    tile_width: int = 160
+    tile_height: int = 90
+    cols: int | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/make_selection_set_contact_sheet")
+def make_selection_set_contact_sheet_api(
+    body: MakeSelectionSetContactSheetBody,
+) -> dict[str, Any]:
+    """Build contact sheet for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.make_selection_set_contact_sheet(
+            body.name,
+            output_path=body.output_path,
+            max_tiles=body.max_tiles,
+            tile_width=body.tile_width,
+            tile_height=body.tile_height,
+            cols=body.cols,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"make_selection_set_contact_sheet failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class FinishSelectionSetReviewExportBody(BaseModel):
+    name: str
+    filename: str = "selection_set_client_review.mp4"
+    watermark: str | None = "REVIEW"
+    safe_area: bool = True
+    timecode: bool = True
+    clear_overlays: bool = True
+    normalize_preset: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/finish_selection_set_review_export")
+def finish_selection_set_review_export_api(
+    body: FinishSelectionSetReviewExportBody,
+) -> dict[str, Any]:
+    """Client review one-shot for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.finish_selection_set_review_export(
+            body.name,
+            filename=body.filename,
+            watermark=body.watermark,
+            safe_area=body.safe_area,
+            timecode=body.timecode,
+            clear_overlays=body.clear_overlays,
+            normalize_preset=body.normalize_preset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"finish_selection_set_review_export failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
