@@ -14403,6 +14403,71 @@ async function runSelectionPipelinePresetUi() {
   }
 }
 
+async function exportSelectionPipelinePresetsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Exporting pipeline presets…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      path?: string;
+      count?: number;
+      names?: string[];
+      timeline?: TimelineView;
+    }>("/api/edit/export_selection_pipeline_presets", {
+      filename: "selection_pipeline_presets_export.json",
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpPipe · n=${r.count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`ExpPipe failed: ${e}`);
+    $("status-msg").textContent = `ExpPipe failed: ${e}`;
+  }
+}
+
+async function importSelectionPipelinePresetsUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  const path = window
+    .prompt(
+      "Import pipeline presets JSON path",
+      "selection_pipeline_presets_export.json",
+    )
+    ?.trim();
+  if (!path) {
+    $("status-msg").textContent = "ImpPipe cancelled";
+    return;
+  }
+  const mode =
+    window.prompt("Mode: merge | replace", "merge")?.trim() || "merge";
+  $("status-msg").textContent = `Importing pipeline presets (${mode})…`;
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      imported_count?: number;
+      skipped_count?: number;
+      total_presets?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/import_selection_pipeline_presets", {
+      path,
+      mode,
+      overwrite: true,
+      validate_steps: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ImpPipe · in=${r.imported_count ?? "?"} skip=${r.skipped_count ?? 0} total=${r.total_presets ?? "?"}`;
+  } catch (e) {
+    setProOut(`ImpPipe failed: ${e}`);
+    $("status-msg").textContent = `ImpPipe failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -18888,6 +18953,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-dry", () => void dryRunSelectionSetPipelineUi());
   proBind("btn-save-pipe-pre", () => void saveSelectionPipelinePresetUi());
   proBind("btn-run-pipe-pre", () => void runSelectionPipelinePresetUi());
+  proBind("btn-exp-pipe-pre", () => void exportSelectionPipelinePresetsUi());
+  proBind("btn-imp-pipe-pre", () => void importSelectionPipelinePresetsUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.3 — 2026-07-17
+
+### Added
+- `export_selection_pipeline_presets` / `import_selection_pipeline_presets` + **ExpPipe** / **ImpPipe**
+
 ## 0.7.2 — 2026-07-17
 
 ### Added

@@ -11544,6 +11544,60 @@ def run_selection_pipeline_preset_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionPipelinePresetsBody(BaseModel):
+    path: str | None = None
+    names: list[str] | None = None
+    filename: str = "selection_pipeline_presets_export.json"
+
+
+@app.post("/api/edit/export_selection_pipeline_presets")
+def export_selection_pipeline_presets_api(
+    body: ExportSelectionPipelinePresetsBody,
+) -> dict[str, Any]:
+    """Export pipeline presets to JSON."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_pipeline_presets(
+            path=body.path,
+            names=body.names,
+            filename=body.filename,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_pipeline_presets failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ImportSelectionPipelinePresetsBody(BaseModel):
+    path: str
+    mode: str = "merge"
+    overwrite: bool = True
+    names: list[str] | None = None
+    validate_steps: bool = True
+
+
+@app.post("/api/edit/import_selection_pipeline_presets")
+def import_selection_pipeline_presets_api(
+    body: ImportSelectionPipelinePresetsBody,
+) -> dict[str, Any]:
+    """Import pipeline presets from JSON."""
+    ed = _ed()
+    try:
+        r = ed.import_selection_pipeline_presets(
+            body.path,
+            mode=body.mode,
+            overwrite=body.overwrite,
+            names=body.names,
+            validate_steps=body.validate_steps,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"import_selection_pipeline_presets failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionSetBody(BaseModel):
     name: str
     clip_ids: list[str]

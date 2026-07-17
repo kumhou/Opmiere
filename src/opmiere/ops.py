@@ -14316,6 +14316,174 @@ class Editor:
             ),
         }
 
+    def export_selection_pipeline_presets(
+        self,
+        *,
+        path: str | Path | None = None,
+        names: list[str] | None = None,
+        filename: str = "selection_pipeline_presets_export.json",
+    ) -> dict[str, Any]:
+        """Export pipeline presets to JSON (handoff / backup).
+
+        names=None exports all. Default: exports/selection_pipeline_presets_export.json
+        """
+        store = self._read_pipeline_presets()
+        all_p: dict[str, Any] = dict(store.get("presets") or {})
+        if names is None:
+            keys = sorted(all_p.keys())
+        else:
+            keys = [str(n).strip() for n in names if str(n).strip()]
+            missing = [k for k in keys if k not in all_p]
+            if missing:
+                raise KeyError(
+                    f"unknown pipeline presets {missing}; known={sorted(all_p.keys())}"
+                )
+        exported: dict[str, Any] = {}
+        for key in keys:
+            entry = all_p.get(key)
+            if not isinstance(entry, dict):
+                continue
+            e = dict(entry)
+            steps = [
+                str(s).strip().lower()
+                for s in (e.get("steps") or [])
+                if str(s).strip()
+            ]
+            e["name"] = key
+            e["steps"] = steps
+            e["step_count"] = len(steps)
+            exported[key] = e
+        if path is None:
+            out_dir = Path(self.bundle.root) / "exports"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / (filename or "selection_pipeline_presets_export.json")
+        else:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema": "opmiere.selection_pipeline_presets_export.v1",
+            "project_id": getattr(self.project, "id", None),
+            "exported_at": datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+            "count": len(exported),
+            "presets": exported,
+        }
+        out.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "ok": True,
+            "path": str(out.resolve()),
+            "count": len(exported),
+            "names": sorted(exported.keys()),
+            "agent_note": (
+                "Pipeline presets exported. Import: import_selection_pipeline_presets."
+            ),
+        }
+
+    def import_selection_pipeline_presets(
+        self,
+        path: str | Path,
+        *,
+        mode: str = "merge",
+        overwrite: bool = True,
+        names: list[str] | None = None,
+        validate_steps: bool = True,
+    ) -> dict[str, Any]:
+        """Import pipeline presets from JSON export.
+
+        mode: merge (default) | replace. validate_steps rejects unknown step ids.
+        """
+        p = Path(path)
+        if not p.is_file():
+            raise FileNotFoundError(f"import path not found: {p}")
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            raise ValueError(f"invalid pipeline presets JSON: {e}") from e
+        if not isinstance(data, dict):
+            raise ValueError("pipeline presets export must be an object")
+        raw = data.get("presets")
+        if not isinstance(raw, dict):
+            raise ValueError("export missing presets object")
+        mode_n = str(mode or "merge").strip().lower()
+        if mode_n not in ("merge", "replace"):
+            raise ValueError("mode must be merge|replace")
+
+        want = None
+        if names is not None:
+            want = {str(n).strip() for n in names if str(n).strip()}
+
+        known = set(self.selection_pipeline_catalog()["step_ids"])
+        store = (
+            {"schema": "opmiere.selection_pipeline_presets.v1", "presets": {}}
+            if mode_n == "replace"
+            else self._read_pipeline_presets()
+        )
+        presets: dict[str, Any] = dict(store.get("presets") or {})
+        imported: list[str] = []
+        skipped: list[dict[str, Any]] = []
+
+        for key, entry in raw.items():
+            name = str(key).strip()
+            if not name:
+                continue
+            if want is not None and name not in want:
+                continue
+            if not isinstance(entry, dict):
+                skipped.append({"name": name, "reason": "not_object"})
+                continue
+            if name in presets and not overwrite and mode_n == "merge":
+                skipped.append({"name": name, "reason": "exists"})
+                continue
+            steps = [
+                str(s).strip().lower()
+                for s in (entry.get("steps") or [])
+                if str(s).strip()
+            ]
+            if not steps:
+                skipped.append({"name": name, "reason": "empty_steps"})
+                continue
+            if validate_steps:
+                bad = [s for s in steps if s not in known]
+                if bad:
+                    skipped.append({
+                        "name": name,
+                        "reason": "unknown_steps",
+                        "unknown": bad,
+                    })
+                    continue
+            presets[name] = {
+                "name": name,
+                "steps": steps,
+                "step_count": len(steps),
+                "note": str(entry.get("note") or ""),
+                "updated_at": datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+            }
+            imported.append(name)
+
+        store["presets"] = presets
+        self._write_pipeline_presets(store)
+        final = self.list_selection_pipeline_presets()
+        return {
+            "ok": True,
+            "path": str(p.resolve()),
+            "mode": mode_n,
+            "imported": imported,
+            "imported_count": len(imported),
+            "skipped": skipped,
+            "skipped_count": len(skipped),
+            "total_presets": final.get("count"),
+            "agent_note": (
+                "Pipeline presets imported. Export: export_selection_pipeline_presets. "
+                "Run: run_selection_pipeline_preset."
+            ),
+        }
+
     def _selection_sets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_sets.json"
 

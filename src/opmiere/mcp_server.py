@@ -6875,6 +6875,38 @@ def run_selection_pipeline_preset(
 
 
 @mcp.tool()
+def export_selection_pipeline_presets(
+    path: str | None = None,
+    names: list[str] | None = None,
+    filename: str = "selection_pipeline_presets_export.json",
+) -> dict:
+    """Export selection pipeline presets to JSON."""
+    return _require_editor().export_selection_pipeline_presets(
+        path=path,
+        names=names,
+        filename=filename,
+    )
+
+
+@mcp.tool()
+def import_selection_pipeline_presets(
+    path: str,
+    mode: str = "merge",
+    overwrite: bool = True,
+    names: list[str] | None = None,
+    validate_steps: bool = True,
+) -> dict:
+    """Import selection pipeline presets from JSON (merge|replace)."""
+    return _require_editor().import_selection_pipeline_presets(
+        path,
+        mode=mode,
+        overwrite=overwrite,
+        names=names,
+        validate_steps=validate_steps,
+    )
+
+
+@mcp.tool()
 def save_selection_set(
     name: str,
     clip_ids: list[str],
