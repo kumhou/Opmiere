@@ -14081,6 +14081,60 @@ async function exportSelectionReportPackUi() {
   }
 }
 
+async function selectionExportSummaryUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for export summary";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      validate_ok?: boolean;
+      duration_seconds?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_export_summary", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpSum · n=${r.clip_count ?? "?"} ok=${r.validate_ok ?? "?"} dur=${r.duration_seconds ?? "?"}s`;
+  } catch (e) {
+    setProOut(`ExpSum failed: ${e}`);
+    $("status-msg").textContent = `ExpSum failed: ${e}`;
+  }
+}
+
+async function exportSelectionFormatsPackUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for formats pack";
+    return;
+  }
+  $("status-msg").textContent = "Exporting selection formats pack…";
+  try {
+    const r = await postJson<{
+      out_dir?: string;
+      count?: number;
+      ok?: boolean;
+      error_count?: number;
+    }>("/api/edit/export_selection_formats_pack", {
+      clip_ids: ids,
+      include_mp4: true,
+      include_webm: false,
+      include_gif: true,
+      include_audio: true,
+      gif_width: 240,
+      gif_fps: 8,
+      gif_max_duration_seconds: 3,
+      normalize_preset: null,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FmtPack · n=${r.count ?? "?"} ok=${r.ok ?? "?"} err=${r.error_count ?? 0} → ${r.out_dir || "?"}`;
+  } catch (e) {
+    setProOut(`FmtPack failed: ${e}`);
+    $("status-msg").textContent = `FmtPack failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -18164,6 +18218,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-stills-def-sel", () => void exportSelectionStillsDefaultUi());
   proBind("btn-rep-exp-sel", () => void repairAndExportSelectionUi());
   proBind("btn-report-pack-sel", () => void exportSelectionReportPackUi());
+  proBind("btn-exp-sum-sel", () => void selectionExportSummaryUi());
+  proBind("btn-fmt-pack-sel", () => void exportSelectionFormatsPackUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

@@ -11242,6 +11242,68 @@ def export_selection_report_pack_api(
         ) from e
 
 
+class SelectionExportSummaryBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_export_summary")
+def selection_export_summary_api(
+    body: SelectionExportSummaryBody,
+) -> dict[str, Any]:
+    """Export briefing for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_export_summary(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_export_summary failed: {e}",
+        ) from e
+
+
+class ExportSelectionFormatsPackBody(BaseModel):
+    clip_ids: list[str]
+    out_dir: str | None = None
+    include_mp4: bool = True
+    include_webm: bool = True
+    include_gif: bool = True
+    include_audio: bool = True
+    webm_crf: int = 32
+    webm_width: int | None = 720
+    gif_fps: float = 12.0
+    gif_width: int = 480
+    gif_max_duration_seconds: float = 12.0
+    normalize_preset: str | None = None
+    name_prefix: str = "selection"
+
+
+@app.post("/api/edit/export_selection_formats_pack")
+def export_selection_formats_pack_api(
+    body: ExportSelectionFormatsPackBody,
+) -> dict[str, Any]:
+    """Multi-format union export pack."""
+    ed = _ed()
+    try:
+        return ed.export_selection_formats_pack(
+            body.clip_ids,
+            out_dir=body.out_dir,
+            include_mp4=body.include_mp4,
+            include_webm=body.include_webm,
+            include_gif=body.include_gif,
+            include_audio=body.include_audio,
+            webm_crf=body.webm_crf,
+            webm_width=body.webm_width,
+            gif_fps=body.gif_fps,
+            gif_width=body.gif_width,
+            gif_max_duration_seconds=body.gif_max_duration_seconds,
+            normalize_preset=body.normalize_preset,
+            name_prefix=body.name_prefix,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_formats_pack failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

@@ -13458,6 +13458,149 @@ class Editor:
             ),
         }
 
+    def selection_export_summary(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Read-only export briefing: span, duration, validate.ok, suggested filenames."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        span = self.selection_span(ids)
+        durs = self.selection_duration_report(ids)
+        val = self.validate_selection(ids, set_work_area=False)
+        fps = float(self.project.timebase.fps or 30.0)
+        return {
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "span": span,
+            "duration_seconds": durs.get("union_span_seconds"),
+            "sum_clip_seconds": durs.get("sum_clip_duration_seconds"),
+            "fps": fps,
+            "validate_ok": bool(val.get("ok")),
+            "hard_fails": val.get("hard_fails"),
+            "soft_warns": val.get("soft_warns"),
+            "suggested": {
+                "mp4": "selection.mp4",
+                "webm": "selection.webm",
+                "gif": "selection.gif",
+                "audio": "selection_mix.wav",
+                "formats_pack_dir": "exports/selection_formats",
+            },
+            "tools": {
+                "mp4": "export_selection_mp4_default",
+                "webm": "export_selection_webm_default",
+                "gif": "export_selection_gif_default",
+                "audio": "export_selection_audio_default",
+                "all": "export_selection_formats_pack",
+            },
+            "agent_note": (
+                "Briefing only. Multi-format: export_selection_formats_pack."
+            ),
+        }
+
+    def export_selection_formats_pack(
+        self,
+        clip_ids: list[str],
+        *,
+        out_dir: str | Path | None = None,
+        include_mp4: bool = True,
+        include_webm: bool = True,
+        include_gif: bool = True,
+        include_audio: bool = True,
+        webm_crf: int = 32,
+        webm_width: int | None = 720,
+        gif_fps: float = 12.0,
+        gif_width: int = 480,
+        gif_max_duration_seconds: float = 12.0,
+        normalize_preset: str | None = None,
+        name_prefix: str = "selection",
+    ) -> dict[str, Any]:
+        """Export selection union as multiple formats into one folder.
+
+        Default: exports/selection_formats/
+        """
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        ids = list(dict.fromkeys(clip_ids))
+        root = (
+            Path(out_dir)
+            if out_dir is not None
+            else Path(self.bundle.root) / "exports" / "selection_formats"
+        )
+        root.mkdir(parents=True, exist_ok=True)
+        written: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        def _try(label: str, fn) -> None:
+            try:
+                r = fn()
+                path = None
+                if isinstance(r, dict):
+                    path = r.get("path") or r.get("output_path")
+                written.append({
+                    "format": label,
+                    "path": path,
+                    "ok": bool(path and Path(str(path)).is_file()),
+                    "result": r if isinstance(r, dict) else {"value": r},
+                })
+            except Exception as e:
+                errors.append({"format": label, "error": str(e)[:300]})
+
+        if include_mp4:
+            dest = root / f"{name_prefix}.mp4"
+
+            def _mp4():
+                return self.export_selection_mp4(
+                    ids, dest, normalize_preset=normalize_preset,
+                )
+
+            _try("mp4", _mp4)
+        if include_webm:
+            dest = root / f"{name_prefix}.webm"
+
+            def _webm():
+                return self.export_selection_webm(
+                    ids, dest, crf=int(webm_crf), width=webm_width,
+                )
+
+            _try("webm", _webm)
+        if include_gif:
+            dest = root / f"{name_prefix}.gif"
+
+            def _gif():
+                return self.export_selection_gif(
+                    ids,
+                    dest,
+                    fps=float(gif_fps),
+                    width=int(gif_width),
+                    max_duration_seconds=float(gif_max_duration_seconds),
+                )
+
+            _try("gif", _gif)
+        if include_audio:
+            dest = root / f"{name_prefix}.wav"
+
+            def _aud():
+                return self.export_selection_audio(ids, dest)
+
+            _try("audio", _aud)
+
+        ok_n = sum(1 for w in written if w.get("ok"))
+        return {
+            "out_dir": str(root.resolve()),
+            "count": ok_n,
+            "written": written,
+            "errors": errors,
+            "error_count": len(errors),
+            "ok": ok_n > 0 and len(errors) == 0,
+            "clip_ids": ids,
+            "agent_note": (
+                "Union-span multi-format pack. Per-clip packs: "
+                "export_selection_clips_*_pack."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

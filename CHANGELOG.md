@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.93 — 2026-07-17
+
+### Added
+- `selection_export_summary` / `export_selection_formats_pack` + **ExpSum** / **FmtPack**
+
 ## 0.6.92 — 2026-07-17
 
 ### Added

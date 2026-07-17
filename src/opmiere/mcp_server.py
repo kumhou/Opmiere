@@ -6691,6 +6691,46 @@ def export_selection_report_pack(
 
 
 @mcp.tool()
+def selection_export_summary(clip_ids: list[str]) -> dict:
+    """Read-only export briefing for selection."""
+    return _require_editor().selection_export_summary(clip_ids)
+
+
+@mcp.tool()
+def export_selection_formats_pack(
+    clip_ids: list[str],
+    out_dir: str | None = None,
+    include_mp4: bool = True,
+    include_webm: bool = True,
+    include_gif: bool = True,
+    include_audio: bool = True,
+    webm_crf: int = 32,
+    webm_width: int | None = 720,
+    gif_fps: float = 12.0,
+    gif_width: int = 480,
+    gif_max_duration_seconds: float = 12.0,
+    normalize_preset: str | None = None,
+    name_prefix: str = "selection",
+) -> dict:
+    """Export selection union as mp4/webm/gif/audio into one folder."""
+    return _require_editor().export_selection_formats_pack(
+        clip_ids,
+        out_dir=out_dir,
+        include_mp4=include_mp4,
+        include_webm=include_webm,
+        include_gif=include_gif,
+        include_audio=include_audio,
+        webm_crf=webm_crf,
+        webm_width=webm_width,
+        gif_fps=gif_fps,
+        gif_width=gif_width,
+        gif_max_duration_seconds=gif_max_duration_seconds,
+        normalize_preset=normalize_preset,
+        name_prefix=name_prefix,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
