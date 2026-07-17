@@ -12455,6 +12455,89 @@ class Editor:
             ),
         }
 
+    def selection_levels_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Read gain_db / opacity / speed for each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        non_default = 0
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                tr, _ = self._find_clip_and_track(cid)
+                gain = float(self.get_clip_gain_db(cid))
+                opacity = float(self.get_clip_opacity(cid))
+                speed = float(clip.speed or 1.0)
+                if abs(gain) > 1e-6 or abs(opacity - 1.0) > 1e-6 or abs(speed - 1.0) > 1e-6:
+                    non_default += 1
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "kind": tr.kind,
+                    "gain_db": gain,
+                    "opacity": opacity,
+                    "speed": speed,
+                    "muted": bool(clip.muted),
+                })
+            except Exception as e:
+                rows.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(rows),
+            "non_default_count": non_default,
+            "clips": rows,
+            "agent_note": (
+                "Read-only. Set: set_selection_gain / set_selection_opacity / "
+                "set_selection_speed."
+            ),
+        }
+
+    def selection_link_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Report link_group membership for selection (+ peer counts)."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        linked = 0
+        groups: dict[str, list[str]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            clip = self._find_clip(cid)
+            gid = clip.link_group
+            if gid:
+                linked += 1
+                groups.setdefault(str(gid), []).append(cid)
+            peer_n = 0
+            peers: list[str] = []
+            if gid:
+                try:
+                    lg = self.linked_group(cid)
+                    peers = list(lg.get("clip_ids") or lg.get("members") or [])
+                    peer_n = len(peers)
+                except Exception:
+                    peers = [cid]
+                    peer_n = 1
+            rows.append({
+                "clip_id": cid,
+                "link_group": gid,
+                "linked": bool(gid),
+                "peer_count": peer_n,
+                "peers": peers,
+            })
+        return {
+            "count": len(rows),
+            "linked_count": linked,
+            "group_count": len(groups),
+            "groups": groups,
+            "clips": rows,
+            "agent_note": (
+                "Read-only. Link: link_selection. Unlink: unlink_selection."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

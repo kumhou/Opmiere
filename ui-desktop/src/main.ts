@@ -13643,6 +13643,47 @@ async function selectionTransitionReportUi() {
   }
 }
 
+async function selectionLevelsReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for levels report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      non_default_count?: number;
+    }>("/api/edit/selection_levels_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LvlRep · n=${r.count ?? "?"} nondef=${r.non_default_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LvlRep failed: ${e}`);
+    $("status-msg").textContent = `LvlRep failed: ${e}`;
+  }
+}
+
+async function selectionLinkReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for link report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      linked_count?: number;
+      group_count?: number;
+    }>("/api/edit/selection_link_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LinkRep · n=${r.count ?? "?"} linked=${r.linked_count ?? "?"} groups=${r.group_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LinkRep failed: ${e}`);
+    $("status-msg").textContent = `LinkRep failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17708,6 +17749,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fade-clr-sel", () => void clearSelectionFadesUi());
   proBind("btn-fade-rep-sel", () => void selectionFadesReportUi());
   proBind("btn-x-rep-sel", () => void selectionTransitionReportUi());
+  proBind("btn-lvl-rep-sel", () => void selectionLevelsReportUi());
+  proBind("btn-link-rep-sel", () => void selectionLinkReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

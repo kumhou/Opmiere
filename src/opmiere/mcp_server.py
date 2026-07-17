@@ -6436,6 +6436,18 @@ def selection_transition_report(clip_ids: list[str]) -> dict:
 
 
 @mcp.tool()
+def selection_levels_report(clip_ids: list[str]) -> dict:
+    """Read gain/opacity/speed for selection clips."""
+    return _require_editor().selection_levels_report(clip_ids)
+
+
+@mcp.tool()
+def selection_link_report(clip_ids: list[str]) -> dict:
+    """Report link_group membership for selection."""
+    return _require_editor().selection_link_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

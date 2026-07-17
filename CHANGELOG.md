@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.84 — 2026-07-17
+
+### Added
+- `selection_levels_report` / `selection_link_report` + **LvlRep** / **LinkRep**
+
 ## 0.6.83 — 2026-07-17
 
 ### Added

@@ -10798,6 +10798,42 @@ def selection_transition_report_api(
         ) from e
 
 
+class SelectionLevelsReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_levels_report")
+def selection_levels_report_api(
+    body: SelectionLevelsReportBody,
+) -> dict[str, Any]:
+    """Gain/opacity/speed report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_levels_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_levels_report failed: {e}",
+        ) from e
+
+
+class SelectionLinkReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_link_report")
+def selection_link_report_api(
+    body: SelectionLinkReportBody,
+) -> dict[str, Any]:
+    """Link-group report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_link_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_link_report failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0
