@@ -16703,6 +16703,76 @@ class Editor:
             ),
         }
 
+    def set_selection_set_gain(
+        self,
+        name: str,
+        db: float,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_gain (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_gain(ids, float(db))
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "db": float(db),
+            "agent_note": (
+                "Gain on named set. Levels: "
+                "selection_set_levels_report. Meta: "
+                "set_selection_set_meta."
+            ),
+        }
+
+    def set_selection_set_meta(
+        self,
+        name: str,
+        *,
+        clip_name: str | None = None,
+        color: str | None = None,
+        clear_name: bool = False,
+        clear_color: bool = False,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then set_selection_meta (writes).
+
+        ``clip_name`` maps to set_selection_meta(name=...) to avoid clashing
+        with the selection-set name argument.
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.set_selection_meta(
+            ids,
+            name=clip_name,
+            color=color,
+            clear_name=clear_name,
+            clear_color=clear_color,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Name/color on named set. Report: "
+                "selection_set_meta_report. Gain: "
+                "set_selection_set_gain."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16750,6 +16820,8 @@ class Editor:
                     {"id": "selection_set_agent_card", "writes": False},
                     {"id": "mute_selection_set", "writes": True},
                     {"id": "set_selection_set_fades", "writes": True},
+                    {"id": "set_selection_set_gain", "writes": True},
+                    {"id": "set_selection_set_meta", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

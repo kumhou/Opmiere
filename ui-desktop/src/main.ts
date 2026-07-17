@@ -16254,6 +16254,74 @@ async function setSelectionSetFadesUi() {
   }
 }
 
+async function setSelectionSetGainUi() {
+  try {
+    const name = await promptSelectionSetName("Set gain on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "GainSet cancelled";
+      return;
+    }
+    const dbRaw = window.prompt("gain dB", "0");
+    if (dbRaw === null) {
+      $("status-msg").textContent = "GainSet cancelled";
+      return;
+    }
+    const db = Number(dbRaw);
+    $("status-msg").textContent = `GainSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      db?: number;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_gain", {
+      name,
+      db: Number.isFinite(db) ? db : 0,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `GainSet · ${r.selection_set || name} db=${r.db ?? db} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`GainSet failed: ${e}`);
+    $("status-msg").textContent = `GainSet failed: ${e}`;
+  }
+}
+
+async function setSelectionSetMetaUi() {
+  try {
+    const name = await promptSelectionSetName("Set meta on named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "MetaSet cancelled";
+      return;
+    }
+    const clip_name = window.prompt("clip_name (label, empty=skip)", "");
+    if (clip_name === null) {
+      $("status-msg").textContent = "MetaSet cancelled";
+      return;
+    }
+    const color = window.prompt("color (e.g. red, empty=skip)", "");
+    if (color === null) {
+      $("status-msg").textContent = "MetaSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `MetaSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+    }>("/api/edit/set_selection_set_meta", {
+      name,
+      clip_name: clip_name.trim() || null,
+      color: color.trim() || null,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MetaSet · ${r.selection_set || name} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MetaSet failed: ${e}`);
+    $("status-msg").textContent = `MetaSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20844,6 +20912,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-acard", () => void selectionSetAgentCardUi());
   proBind("btn-mute-set", () => void muteSelectionSetUi());
   proBind("btn-fade-set", () => void setSelectionSetFadesUi());
+  proBind("btn-gain-set", () => void setSelectionSetGainUi());
+  proBind("btn-meta-set", () => void setSelectionSetMetaUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

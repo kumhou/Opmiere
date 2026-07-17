@@ -7807,6 +7807,43 @@ def set_selection_set_fades(
 
 
 @mcp.tool()
+def set_selection_set_gain(
+    name: str,
+    db: float,
+    set_work_area: bool = False,
+) -> dict:
+    """Set gain (dB) on clips in a named selection set."""
+    return _require_editor().set_selection_set_gain(
+        name,
+        db,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def set_selection_set_meta(
+    name: str,
+    clip_name: str | None = None,
+    color: str | None = None,
+    clear_name: bool = False,
+    clear_color: bool = False,
+    set_work_area: bool = False,
+) -> dict:
+    """Set name/color on clips in a named selection set.
+
+    clip_name is the clip label (not the selection-set name).
+    """
+    return _require_editor().set_selection_set_meta(
+        name,
+        clip_name=clip_name,
+        color=color,
+        clear_name=clear_name,
+        clear_color=clear_color,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

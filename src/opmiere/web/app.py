@@ -13069,6 +13069,62 @@ def set_selection_set_fades_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SetSelectionSetGainBody(BaseModel):
+    name: str
+    db: float
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_gain")
+def set_selection_set_gain_api(
+    body: SetSelectionSetGainBody,
+) -> dict[str, Any]:
+    """Set gain on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_gain(
+            body.name,
+            body.db,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_gain failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SetSelectionSetMetaBody(BaseModel):
+    name: str
+    clip_name: str | None = None
+    color: str | None = None
+    clear_name: bool = False
+    clear_color: bool = False
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/set_selection_set_meta")
+def set_selection_set_meta_api(
+    body: SetSelectionSetMetaBody,
+) -> dict[str, Any]:
+    """Set clip name/color on a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.set_selection_set_meta(
+            body.name,
+            clip_name=body.clip_name,
+            color=body.color,
+            clear_name=body.clear_name,
+            clear_color=body.clear_color,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"set_selection_set_meta failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

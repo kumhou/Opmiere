@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.15 — 2026-07-17
+
+### Added
+- `set_selection_set_gain` / `set_selection_set_meta` + **GainSet** / **MetaSet**
+
 ## 0.9.14 — 2026-07-17
 
 ### Added
