@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.5 — 2026-07-17
+
+### Added
+- `batch_selection_sets_status` / `batch_run_selection_pipeline_preset` + **BatchStat** / **BatchPipe**
+
 ## 0.7.4 — 2026-07-17
 
 ### Added

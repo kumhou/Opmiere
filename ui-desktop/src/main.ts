@@ -14546,6 +14546,81 @@ async function copySelectionPipelinePresetUi() {
   }
 }
 
+async function batchSelectionSetsStatusUi() {
+  if (!state.projectOpen) {
+    $("status-msg").textContent = "Open a project first";
+    return;
+  }
+  $("status-msg").textContent = "Batch selection sets status…";
+  try {
+    const r = await postJson<{
+      ok?: boolean;
+      count?: number;
+      ok_count?: number;
+      fail_count?: number;
+      empty_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/batch_selection_sets_status", {
+      names: null,
+      validate: true,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BatchStat · n=${r.count ?? "?"} ok=${r.ok_count ?? "?"} fail=${r.fail_count ?? 0} empty=${r.empty_count ?? 0}`;
+  } catch (e) {
+    setProOut(`BatchStat failed: ${e}`);
+    $("status-msg").textContent = `BatchStat failed: ${e}`;
+  }
+}
+
+async function batchRunSelectionPipelinePresetUi() {
+  try {
+    const preset = await promptPipelinePresetName("Batch run preset name");
+    if (!preset) {
+      $("status-msg").textContent = "BatchPipe cancelled";
+      return;
+    }
+    const setsRaw = window
+      .prompt(
+        "Selection sets (comma-separated, empty = all)",
+        "",
+      )
+      ?.trim();
+    const selectionSets =
+      setsRaw && setsRaw.length
+        ? setsRaw.split(/[,|]/).map((s) => s.trim()).filter(Boolean)
+        : null;
+    const dry =
+      (window.prompt("Dry-run? y/n", "y")?.trim().toLowerCase() || "y") ===
+      "y";
+    $("status-msg").textContent =
+      `BatchPipe ${preset}${dry ? " (dry)" : ""}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      preset?: string;
+      dry_run?: boolean;
+      count?: number;
+      ok_count?: number;
+      fail_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/batch_run_selection_pipeline_preset", {
+      preset,
+      selection_sets: selectionSets,
+      dry_run: dry,
+      execute_read_only: true,
+      stop_on_error: false,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `BatchPipe · ${r.preset || preset} dry=${r.dry_run ?? dry} ok=${r.ok_count ?? "?"}/${r.count ?? "?"} fail=${r.fail_count ?? 0}`;
+  } catch (e) {
+    setProOut(`BatchPipe failed: ${e}`);
+    $("status-msg").textContent = `BatchPipe failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -19035,6 +19110,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-imp-pipe-pre", () => void importSelectionPipelinePresetsUi());
   proBind("btn-ren-pipe-pre", () => void renameSelectionPipelinePresetUi());
   proBind("btn-copy-pipe-pre", () => void copySelectionPipelinePresetUi());
+  proBind("btn-batch-set-stat", () => void batchSelectionSetsStatusUi());
+  proBind("btn-batch-pipe", () => void batchRunSelectionPipelinePresetUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

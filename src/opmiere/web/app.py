@@ -11451,6 +11451,62 @@ def dry_run_selection_set_pipeline_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class BatchSelectionSetsStatusBody(BaseModel):
+    names: list[str] | None = None
+    validate: bool = True
+
+
+@app.post("/api/edit/batch_selection_sets_status")
+def batch_selection_sets_status_api(
+    body: BatchSelectionSetsStatusBody,
+) -> dict[str, Any]:
+    """Status for many named selection sets."""
+    ed = _ed()
+    try:
+        r = ed.batch_selection_sets_status(
+            body.names,
+            validate=body.validate,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"batch_selection_sets_status failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class BatchRunSelectionPipelinePresetBody(BaseModel):
+    preset: str
+    selection_sets: list[str] | None = None
+    dry_run: bool = True
+    execute_read_only: bool = True
+    stop_on_error: bool = False
+    normalize_preset: str | None = None
+    social_variants: list[str] | None = None
+
+
+@app.post("/api/edit/batch_run_selection_pipeline_preset")
+def batch_run_selection_pipeline_preset_api(
+    body: BatchRunSelectionPipelinePresetBody,
+) -> dict[str, Any]:
+    """Run/dry-run a pipeline preset on many selection sets."""
+    ed = _ed()
+    try:
+        r = ed.batch_run_selection_pipeline_preset(
+            body.preset,
+            selection_sets=body.selection_sets,
+            dry_run=body.dry_run,
+            execute_read_only=body.execute_read_only,
+            stop_on_error=body.stop_on_error,
+            normalize_preset=body.normalize_preset,
+            social_variants=body.social_variants,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"batch_run_selection_pipeline_preset failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

@@ -6823,6 +6823,40 @@ def dry_run_selection_set_pipeline(
 
 
 @mcp.tool()
+def batch_selection_sets_status(
+    names: list[str] | None = None,
+    validate: bool = True,
+) -> dict:
+    """Status for many named selection sets (names=None → all)."""
+    return _require_editor().batch_selection_sets_status(
+        names,
+        validate=validate,
+    )
+
+
+@mcp.tool()
+def batch_run_selection_pipeline_preset(
+    preset: str,
+    selection_sets: list[str] | None = None,
+    dry_run: bool = True,
+    execute_read_only: bool = True,
+    stop_on_error: bool = False,
+    normalize_preset: str | None = None,
+    social_variants: list[str] | None = None,
+) -> dict:
+    """Run/dry-run a pipeline preset on many selection sets (None → all)."""
+    return _require_editor().batch_run_selection_pipeline_preset(
+        preset,
+        selection_sets=selection_sets,
+        dry_run=dry_run,
+        execute_read_only=execute_read_only,
+        stop_on_error=stop_on_error,
+        normalize_preset=normalize_preset,
+        social_variants=social_variants,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],

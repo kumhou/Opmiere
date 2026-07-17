@@ -14080,6 +14080,147 @@ class Editor:
             ),
         }
 
+    def batch_selection_sets_status(
+        self,
+        names: list[str] | None = None,
+        *,
+        validate: bool = True,
+    ) -> dict[str, Any]:
+        """Status for many named selection sets (names=None → all)."""
+        store = self._read_selection_sets()
+        all_sets = store.get("sets") or {}
+        if names is None:
+            keys = sorted(all_sets.keys())
+        else:
+            keys = [str(n).strip() for n in names if str(n).strip()]
+            missing_names = [k for k in keys if k not in all_sets]
+            if missing_names:
+                raise KeyError(
+                    f"unknown selection sets {missing_names}; "
+                    f"known={sorted(all_sets.keys())}"
+                )
+        results: list[dict[str, Any]] = []
+        ok_n = 0
+        empty_n = 0
+        fail_n = 0
+        for key in keys:
+            try:
+                st = self.selection_set_status(
+                    key, validate=validate, set_work_area=False,
+                )
+                results.append(st)
+                if st.get("empty"):
+                    empty_n += 1
+                    fail_n += 1
+                elif st.get("ok"):
+                    ok_n += 1
+                else:
+                    fail_n += 1
+            except Exception as e:
+                fail_n += 1
+                results.append({
+                    "ok": False,
+                    "name": key,
+                    "error": str(e)[:400],
+                })
+        return {
+            "ok": fail_n == 0 and len(results) > 0,
+            "count": len(results),
+            "ok_count": ok_n,
+            "empty_count": empty_n,
+            "fail_count": fail_n,
+            "validate": bool(validate),
+            "results": results,
+            "agent_note": (
+                "Batch set status. Batch pipeline: "
+                "batch_run_selection_pipeline_preset."
+            ),
+        }
+
+    def batch_run_selection_pipeline_preset(
+        self,
+        preset: str,
+        selection_sets: list[str] | None = None,
+        *,
+        dry_run: bool = True,
+        execute_read_only: bool = True,
+        stop_on_error: bool = False,
+        normalize_preset: str | None = None,
+        social_variants: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Run (or dry-run) a pipeline preset on many selection sets.
+
+        selection_sets=None uses all named sets. Default dry_run=True for safety.
+        """
+        preset_key = str(preset or "").strip()
+        if not preset_key:
+            raise ValueError("preset is empty")
+        store = self._read_selection_sets()
+        all_sets = store.get("sets") or {}
+        if selection_sets is None:
+            keys = sorted(all_sets.keys())
+        else:
+            keys = [str(n).strip() for n in selection_sets if str(n).strip()]
+            missing = [k for k in keys if k not in all_sets]
+            if missing:
+                raise KeyError(
+                    f"unknown selection sets {missing}; "
+                    f"known={sorted(all_sets.keys())}"
+                )
+        if not keys:
+            raise ValueError("no selection sets to run")
+
+        results: list[dict[str, Any]] = []
+        ok_n = 0
+        fail_n = 0
+        for key in keys:
+            try:
+                r = self.run_selection_pipeline_preset(
+                    preset_key,
+                    selection_set=key,
+                    dry_run=dry_run,
+                    execute_read_only=execute_read_only,
+                    normalize_preset=normalize_preset,
+                    social_variants=social_variants,
+                    set_work_area=False,
+                )
+                step_ok = bool(r.get("ok"))
+                if step_ok:
+                    ok_n += 1
+                else:
+                    fail_n += 1
+                results.append({
+                    "selection_set": key,
+                    "ok": step_ok,
+                    "result": r,
+                })
+                if not step_ok and stop_on_error:
+                    break
+            except Exception as e:
+                fail_n += 1
+                results.append({
+                    "selection_set": key,
+                    "ok": False,
+                    "error": str(e)[:400],
+                })
+                if stop_on_error:
+                    break
+
+        return {
+            "ok": fail_n == 0 and ok_n > 0,
+            "preset": preset_key,
+            "dry_run": bool(dry_run),
+            "count": len(results),
+            "ok_count": ok_n,
+            "fail_count": fail_n,
+            "stop_on_error": bool(stop_on_error),
+            "results": results,
+            "agent_note": (
+                "Batch preset over named sets. Single: "
+                "run_selection_pipeline_preset. Status: batch_selection_sets_status."
+            ),
+        }
+
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"
 
