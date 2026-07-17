@@ -12445,6 +12445,60 @@ def export_selection_set_agent_card_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class ExportSelectionSetChecklistBody(BaseModel):
+    name: str
+    filename: str | None = None
+    path: str | None = None
+    min_clip_seconds: float = 0.4
+    format: str = "md"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_checklist")
+def export_selection_set_checklist_api(
+    body: ExportSelectionSetChecklistBody,
+) -> dict[str, Any]:
+    """Export checklist for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_checklist(
+            body.name,
+            filename=body.filename,
+            path=body.path,
+            min_clip_seconds=body.min_clip_seconds,
+            format=body.format,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_checklist failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetExportSummaryBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_export_summary")
+def selection_set_export_summary_api(
+    body: SelectionSetExportSummaryBody,
+) -> dict[str, Any]:
+    """Export briefing for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_export_summary(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_export_summary failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class SaveSelectionPipelinePresetBody(BaseModel):
     name: str
     steps: list[str]

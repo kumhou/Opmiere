@@ -15871,10 +15871,104 @@ class Editor:
             "note": loaded.get("note") or "",
             "agent_note": (
                 "Agent card from named set. Storyboard: "
-                "export_selection_set_storyboard. Reports: "
-                "export_selection_set_report_pack."
+                "export_selection_set_storyboard. Checklist: "
+                "export_selection_set_checklist. Briefing: "
+                "selection_set_export_summary."
             ),
         }
+
+    def export_selection_set_checklist(
+        self,
+        name: str,
+        *,
+        filename: str | None = None,
+        path: str | Path | None = None,
+        min_clip_seconds: float = 0.4,
+        format: str = "md",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set and write selection checklist (md|json)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        fmt = (format or "md").lower().strip()
+        default_name = (
+            f"selection_set_{safe}_checklist.json"
+            if fmt == "json"
+            else f"selection_set_{safe}_checklist.md"
+        )
+        r = self.export_selection_checklist(
+            ids,
+            filename=filename or default_name,
+            path=path,
+            min_clip_seconds=min_clip_seconds,
+            format=fmt,
+        )
+        return {
+            **r,
+            "ok": True,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "agent_note": (
+                "Checklist from named set. Export briefing: "
+                "selection_set_export_summary."
+            ),
+        }
+
+    def selection_set_export_summary(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Read-only export briefing for a named selection set."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        safe = "".join(
+            ch if ch.isalnum() or ch in "-_" else "_"
+            for ch in str(name).strip()
+        ) or "set"
+        r = self.selection_export_summary(ids)
+        # rewrite tool pointers to named-set surface
+        r["selection_set"] = name
+        r["note"] = loaded.get("note") or ""
+        r["missing"] = loaded.get("missing") or []
+        r["suggested"] = {
+            "mp4": f"selection_set_{safe}.mp4",
+            "webm": f"selection_set_{safe}.webm",
+            "gif": f"selection_set_{safe}.gif",
+            "audio": f"selection_set_{safe}_mix.wav",
+            "formats_pack_dir": f"exports/selection_set_{safe}_formats",
+            "interchange_dir": f"exports/selection_set_{safe}_interchange",
+        }
+        r["tools"] = {
+            "mp4": "export_selection_set_mp4",
+            "webm": "export_selection_set_webm",
+            "gif": "export_selection_set_gif",
+            "audio": "export_selection_set_audio",
+            "formats_pack": "export_selection_set_formats_pack",
+            "delivery": "finish_selection_set_delivery",
+            "agent_finish": "agent_finish_selection_set",
+            "checklist": "export_selection_set_checklist",
+            "interchange": "export_selection_set_interchange_pack",
+        }
+        r["agent_note"] = (
+            "Briefing for named set. Checklist: export_selection_set_checklist. "
+            "Multi-format: export_selection_set_formats_pack."
+        )
+        return r
 
     def _pipeline_presets_path(self) -> Path:
         return Path(self.bundle.root) / "selection_pipeline_presets.json"

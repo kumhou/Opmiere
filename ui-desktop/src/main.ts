@@ -15541,6 +15541,60 @@ async function exportSelectionSetAgentCardUi() {
   }
 }
 
+async function exportSelectionSetChecklistUi() {
+  try {
+    const name = await promptSelectionSetName("Export set checklist (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetCheck cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetCheck ${name}…`;
+    const r = await postJson<{
+      ok?: boolean;
+      selection_set?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_checklist", {
+      name,
+      format: "md",
+      min_clip_seconds: 0.4,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetCheck · ${r.selection_set || name} n=${r.clip_count ?? "?"} → ${r.path || "?"}`;
+  } catch (e) {
+    setProOut(`SetCheck failed: ${e}`);
+    $("status-msg").textContent = `SetCheck failed: ${e}`;
+  }
+}
+
+async function selectionSetExportSummaryUi() {
+  try {
+    const name = await promptSelectionSetName("Set export summary (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetSum cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetSum ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      validate_ok?: boolean;
+      duration_seconds?: number;
+    }>("/api/edit/selection_set_export_summary", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetSum · ${r.selection_set || name} n=${r.clip_count ?? "?"} ok=${r.validate_ok ?? "?"} dur=${r.duration_seconds ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetSum failed: ${e}`);
+    $("status-msg").textContent = `SetSum failed: ${e}`;
+  }
+}
+
 async function saveSelectionSetUi() {
   const ids = selectionList();
   if (!ids.length) {
@@ -20062,6 +20116,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-review", () => void exportSelectionSetReviewPackageUi());
   proBind("btn-set-story", () => void exportSelectionSetStoryboardUi());
   proBind("btn-set-card", () => void exportSelectionSetAgentCardUi());
+  proBind("btn-set-check", () => void exportSelectionSetChecklistUi());
+  proBind("btn-set-sum", () => void selectionSetExportSummaryUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
   proBind("btn-load-sel-set", () => void loadSelectionSetUi());
   proBind("btn-fin-sel-set", () => void agentFinishSelectionSetUi());

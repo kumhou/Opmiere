@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1 — 2026-07-17
+
+### Added
+- `export_selection_set_checklist` / `selection_set_export_summary` + **SetCheck** / **SetSum**
+
 ## 0.9.0 — 2026-07-17
 
 ### Added

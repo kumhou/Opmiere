@@ -7469,6 +7469,38 @@ def export_selection_set_agent_card(
 
 
 @mcp.tool()
+def export_selection_set_checklist(
+    name: str,
+    filename: str | None = None,
+    path: str | None = None,
+    min_clip_seconds: float = 0.4,
+    format: str = "md",
+    set_work_area: bool = False,
+) -> dict:
+    """Export selection checklist (md|json) for a named selection set."""
+    return _require_editor().export_selection_set_checklist(
+        name,
+        filename=filename,
+        path=path,
+        min_clip_seconds=min_clip_seconds,
+        format=format,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def selection_set_export_summary(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Read-only export briefing for a named selection set."""
+    return _require_editor().selection_set_export_summary(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def save_selection_pipeline_preset(
     name: str,
     steps: list[str],
