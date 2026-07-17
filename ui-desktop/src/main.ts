@@ -17296,6 +17296,72 @@ async function splitSelectionSetEvenlyUi() {
   }
 }
 
+async function snapSelectionSetToPlayheadUi() {
+  try {
+    const name = await promptSelectionSetName("Snap named set to playhead (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SnapSet cancelled";
+      return;
+    }
+    const raw = window.prompt("playhead_frame", "0");
+    if (raw === null) {
+      $("status-msg").textContent = "SnapSet cancelled";
+      return;
+    }
+    const playhead_frame = Number(raw);
+    $("status-msg").textContent = `SnapSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      playhead_frame?: number;
+      clip_count?: number;
+    }>("/api/edit/snap_selection_set_to_playhead", {
+      name,
+      playhead_frame: Number.isFinite(playhead_frame)
+        ? Math.trunc(playhead_frame)
+        : 0,
+      edge: "start",
+      mode: "relative",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SnapSet · ${r.selection_set || name} ph=${r.playhead_frame ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SnapSet failed: ${e}`);
+    $("status-msg").textContent = `SnapSet failed: ${e}`;
+  }
+}
+
+async function splitSelectionSetAtSilencesUi() {
+  try {
+    const name = await promptSelectionSetName("Split named set at silences (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SilSplitSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SilSplitSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      total_splits?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/split_selection_set_at_silences", {
+      name,
+      noise_db: -30,
+      min_duration: 0.25,
+      max_splits: 40,
+      mark: "start",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SilSplitSet · ${r.selection_set || name} splits=${r.total_splits ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SilSplitSet failed: ${e}`);
+    $("status-msg").textContent = `SilSplitSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21920,6 +21986,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-slide-set", () => void slideSelectionSetUi());
   proBind("btn-split-at-set", () => void splitSelectionSetAtUi());
   proBind("btn-split-eq-set", () => void splitSelectionSetEvenlyUi());
+  proBind("btn-snap-set", () => void snapSelectionSetToPlayheadUi());
+  proBind("btn-sil-split-set", () => void splitSelectionSetAtSilencesUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

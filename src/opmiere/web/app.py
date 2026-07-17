@@ -13927,6 +13927,66 @@ def split_selection_set_evenly_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SnapSelectionSetToPlayheadBody(BaseModel):
+    name: str
+    playhead_frame: int
+    edge: str = "start"
+    mode: str = "relative"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/snap_selection_set_to_playhead")
+def snap_selection_set_to_playhead_api(
+    body: SnapSelectionSetToPlayheadBody,
+) -> dict[str, Any]:
+    """Snap a named selection set to playhead."""
+    ed = _ed()
+    try:
+        r = ed.snap_selection_set_to_playhead(
+            body.name,
+            body.playhead_frame,
+            edge=body.edge,
+            mode=body.mode,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"snap_selection_set_to_playhead failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SplitSelectionSetAtSilencesBody(BaseModel):
+    name: str
+    noise_db: float = -30.0
+    min_duration: float = 0.25
+    max_splits: int = 40
+    mark: str = "start"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/split_selection_set_at_silences")
+def split_selection_set_at_silences_api(
+    body: SplitSelectionSetAtSilencesBody,
+) -> dict[str, Any]:
+    """Split a named selection set at silences."""
+    ed = _ed()
+    try:
+        r = ed.split_selection_set_at_silences(
+            body.name,
+            noise_db=body.noise_db,
+            min_duration=body.min_duration,
+            max_splits=body.max_splits,
+            mark=body.mark,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"split_selection_set_at_silences failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

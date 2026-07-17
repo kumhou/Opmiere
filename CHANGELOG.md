@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.32 — 2026-07-17
+
+### Added
+- `snap_selection_set_to_playhead` / `split_selection_set_at_silences` + **SnapSet** / **SilSplitSet**
+
 ## 0.9.31 — 2026-07-17
 
 ### Added

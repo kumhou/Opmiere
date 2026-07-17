@@ -8294,6 +8294,44 @@ def split_selection_set_evenly(
 
 
 @mcp.tool()
+def snap_selection_set_to_playhead(
+    name: str,
+    playhead_frame: int,
+    edge: str = "start",
+    mode: str = "relative",
+    set_work_area: bool = False,
+) -> dict:
+    """Snap a named selection set to the playhead frame."""
+    return _require_editor().snap_selection_set_to_playhead(
+        name,
+        playhead_frame,
+        edge=edge,
+        mode=mode,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def split_selection_set_at_silences(
+    name: str,
+    noise_db: float = -30.0,
+    min_duration: float = 0.25,
+    max_splits: int = 40,
+    mark: str = "start",
+    set_work_area: bool = False,
+) -> dict:
+    """Split clips in a named selection set at detected silences."""
+    return _require_editor().split_selection_set_at_silences(
+        name,
+        noise_db=noise_db,
+        min_duration=min_duration,
+        max_splits=max_splits,
+        mark=mark,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

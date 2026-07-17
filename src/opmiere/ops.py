@@ -17703,6 +17703,79 @@ class Editor:
             ),
         }
 
+    def snap_selection_set_to_playhead(
+        self,
+        name: str,
+        playhead_frame: int,
+        *,
+        edge: str = "start",
+        mode: str = "relative",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then snap_selection_to_playhead (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.snap_selection_to_playhead(
+            ids,
+            int(playhead_frame),
+            edge=str(edge),
+            mode=str(mode),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "playhead_frame": int(playhead_frame),
+            "agent_note": (
+                "Snap named set to playhead. Silence split: "
+                "split_selection_set_at_silences. Move: "
+                "move_selection_set_to_frame."
+            ),
+        }
+
+    def split_selection_set_at_silences(
+        self,
+        name: str,
+        *,
+        noise_db: float = -30.0,
+        min_duration: float = 0.25,
+        max_splits: int = 40,
+        mark: str = "start",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then split_selection_at_silences (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.split_selection_at_silences(
+            ids,
+            noise_db=float(noise_db),
+            min_duration=float(min_duration),
+            max_splits=int(max_splits),
+            mark=str(mark),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Silence razors on named set. Snap: "
+                "snap_selection_set_to_playhead. Re-save set "
+                "for new piece ids."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -17784,6 +17857,8 @@ class Editor:
                     {"id": "slide_selection_set", "writes": True},
                     {"id": "split_selection_set_at", "writes": True},
                     {"id": "split_selection_set_evenly", "writes": True},
+                    {"id": "snap_selection_set_to_playhead", "writes": True},
+                    {"id": "split_selection_set_at_silences", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},
