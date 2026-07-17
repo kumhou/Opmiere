@@ -13038,6 +13038,58 @@ async function clearSelectionWatermarksUi() {
   }
 }
 
+async function safeAreaSelectionUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for safe-area";
+    return;
+  }
+  $("status-msg").textContent = "Applying safe-area to selection…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      error_count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/safe_area_selection", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SafeSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+  } catch (e) {
+    setProOut(`SafeSel failed: ${e}`);
+    $("status-msg").textContent = `SafeSel failed: ${e}`;
+  }
+}
+
+async function clearSelectionSafeAreasUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips to clear safe-area";
+    return;
+  }
+  $("status-msg").textContent = "Clearing selection safe-areas…";
+  try {
+    const r = await postJson<{
+      count?: number;
+      timeline?: TimelineView;
+    }>("/api/edit/clear_selection_safe_areas", {
+      clip_ids: ids,
+      video_only: true,
+    });
+    if (r.timeline) applyTimelineView(r.timeline);
+    else await refresh();
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent = `SafeClr · cleared=${r.count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SafeClr failed: ${e}`);
+    $("status-msg").textContent = `SafeClr failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17079,6 +17131,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-review-pack-sel", () => void exportSelectionReviewPackageUi());
   proBind("btn-wm-sel", () => void watermarkSelectionUi());
   proBind("btn-wm-clr-sel", () => void clearSelectionWatermarksUi());
+  proBind("btn-safe-sel", () => void safeAreaSelectionUi());
+  proBind("btn-safe-clr-sel", () => void clearSelectionSafeAreasUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

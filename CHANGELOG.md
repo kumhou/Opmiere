@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.71 — 2026-07-17
+
+### Added
+- `safe_area_selection` / `clear_selection_safe_areas` + **SafeSel** / **SafeClr**
+
 ## 0.6.70 — 2026-07-17
 
 ### Added

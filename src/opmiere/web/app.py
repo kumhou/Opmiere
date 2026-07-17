@@ -10226,6 +10226,53 @@ def clear_selection_watermarks_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SafeAreaSelectionBody(BaseModel):
+    clip_ids: list[str]
+    action: float = 0.90
+    title: float = 0.80
+    thickness: int = 2
+    video_only: bool = True
+
+
+@app.post("/api/edit/safe_area_selection")
+def safe_area_selection_api(body: SafeAreaSelectionBody) -> dict[str, Any]:
+    """Safe-area overlays on selection."""
+    ed = _ed()
+    try:
+        r = ed.safe_area_selection(
+            body.clip_ids,
+            action=body.action,
+            title=body.title,
+            thickness=body.thickness,
+            video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"safe_area_selection failed: {e}") from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ClearSelectionSafeAreasBody(BaseModel):
+    clip_ids: list[str]
+    video_only: bool = True
+
+
+@app.post("/api/edit/clear_selection_safe_areas")
+def clear_selection_safe_areas_api(
+    body: ClearSelectionSafeAreasBody,
+) -> dict[str, Any]:
+    """Strip safe_area FX from selection."""
+    ed = _ed()
+    try:
+        r = ed.clear_selection_safe_areas(
+            body.clip_ids, video_only=body.video_only,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"clear_selection_safe_areas failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

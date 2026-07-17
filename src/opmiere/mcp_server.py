@@ -6084,6 +6084,35 @@ def clear_selection_watermarks(
 
 
 @mcp.tool()
+def safe_area_selection(
+    clip_ids: list[str],
+    action: float = 0.90,
+    title: float = 0.80,
+    thickness: int = 2,
+    video_only: bool = True,
+) -> dict:
+    """Burn action/title safe-area overlays on selection."""
+    return _require_editor().safe_area_selection(
+        clip_ids,
+        action=action,
+        title=title,
+        thickness=thickness,
+        video_only=video_only,
+    )
+
+
+@mcp.tool()
+def clear_selection_safe_areas(
+    clip_ids: list[str],
+    video_only: bool = True,
+) -> dict:
+    """Remove safe_area effects from selection."""
+    return _require_editor().clear_selection_safe_areas(
+        clip_ids, video_only=video_only,
+    )
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,
