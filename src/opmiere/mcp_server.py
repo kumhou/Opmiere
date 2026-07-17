@@ -9432,6 +9432,38 @@ def reverse_selection_set_order(
 
 
 @mcp.tool()
+def fill_selection_set_gaps(
+    name: str,
+    mode: str = "slug",
+    color: str = "#000000",
+    set_work_area: bool = False,
+) -> dict:
+    """Fill holes between named-set clips (slug solids or close pack)."""
+    return _require_editor().fill_selection_set_gaps(
+        name,
+        mode=mode,
+        color=color,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def retarget_selection_set_media(
+    name: str,
+    media_id: str,
+    keep_source_range: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Point named-set clips at a new media_id."""
+    return _require_editor().retarget_selection_set_media(
+        name,
+        media_id,
+        keep_source_range=keep_source_range,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

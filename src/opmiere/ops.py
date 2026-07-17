@@ -19925,6 +19925,70 @@ class Editor:
             ),
         }
 
+    def fill_selection_set_gaps(
+        self,
+        name: str,
+        *,
+        mode: str = "slug",
+        color: str = "#000000",
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then fill_selection_gaps (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.fill_selection_gaps(
+            ids, mode=str(mode), color=str(color),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Fill holes on named set (slug pads or close pack). "
+                "Retarget media: retarget_selection_set_media. "
+                "Close gaps tracks: close_gaps_on_selection_set_tracks."
+            ),
+        }
+
+    def retarget_selection_set_media(
+        self,
+        name: str,
+        media_id: str,
+        *,
+        keep_source_range: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then retarget_selection_media (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.retarget_selection_media(
+            ids,
+            media_id,
+            keep_source_range=bool(keep_source_range),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Named-set clips retargeted to media_id. Fill gaps: "
+                "fill_selection_set_gaps. Proxy: "
+                "ensure_selection_set_proxies."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20074,6 +20138,8 @@ class Editor:
                     {"id": "trim_selection_set_edges", "writes": True},
                     {"id": "extend_selection_set_to_next", "writes": True},
                     {"id": "reverse_selection_set_order", "writes": True},
+                    {"id": "fill_selection_set_gaps", "writes": True},
+                    {"id": "retarget_selection_set_media", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

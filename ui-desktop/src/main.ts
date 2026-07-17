@@ -19532,6 +19532,73 @@ async function reverseSelectionSetOrderUi() {
   }
 }
 
+async function fillSelectionSetGapsUi() {
+  try {
+    const name = await promptSelectionSetName("Fill gaps named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "FillGapsSet cancelled";
+      return;
+    }
+    const rawMode = window.prompt("mode (slug|close)", "close");
+    if (rawMode === null) {
+      $("status-msg").textContent = "FillGapsSet cancelled";
+      return;
+    }
+    const mode = String(rawMode).trim() || "close";
+    $("status-msg").textContent = `FillGapsSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      mode?: string;
+      clip_count?: number;
+    }>("/api/edit/fill_selection_set_gaps", {
+      name,
+      mode,
+      color: "#000000",
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `FillGapsSet · ${r.selection_set || name} mode=${r.mode ?? mode} n=${r.count ?? "?"} clips=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`FillGapsSet failed: ${e}`);
+    $("status-msg").textContent = `FillGapsSet failed: ${e}`;
+  }
+}
+
+async function retargetSelectionSetMediaUi() {
+  try {
+    const name = await promptSelectionSetName("Retarget media named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "RetargetSet cancelled";
+      return;
+    }
+    const mediaId = window.prompt("media_id", "");
+    if (mediaId === null || !String(mediaId).trim()) {
+      $("status-msg").textContent = "RetargetSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `RetargetSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      media_id?: string;
+      clip_count?: number;
+    }>("/api/edit/retarget_selection_set_media", {
+      name,
+      media_id: String(mediaId).trim(),
+      keep_source_range: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `RetargetSet · ${r.selection_set || name} media=${r.media_id ?? mediaId} changed=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`RetargetSet failed: ${e}`);
+    $("status-msg").textContent = `RetargetSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24224,6 +24291,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-trim-edges-set", () => void trimSelectionSetEdgesUi());
   proBind("btn-ext-next-set", () => void extendSelectionSetToNextUi());
   proBind("btn-rev-order-set", () => void reverseSelectionSetOrderUi());
+  proBind("btn-fill-gaps-set", () => void fillSelectionSetGapsUi());
+  proBind("btn-retarget-set", () => void retargetSelectionSetMediaUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

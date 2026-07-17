@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.66 — 2026-07-17
+
+### Added
+- `fill_selection_set_gaps` / `retarget_selection_set_media` + **FillGapsSet** / **RetargetSet**
+
 ## 0.9.65 — 2026-07-17
 
 ### Added

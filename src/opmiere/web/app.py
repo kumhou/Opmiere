@@ -15813,6 +15813,60 @@ def reverse_selection_set_order_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class FillSelectionSetGapsBody(BaseModel):
+    name: str
+    mode: str = "slug"
+    color: str = "#000000"
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/fill_selection_set_gaps")
+def fill_selection_set_gaps_api(
+    body: FillSelectionSetGapsBody,
+) -> dict[str, Any]:
+    """Fill holes between named-set clips."""
+    ed = _ed()
+    try:
+        r = ed.fill_selection_set_gaps(
+            body.name,
+            mode=body.mode,
+            color=body.color,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"fill_selection_set_gaps failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class RetargetSelectionSetMediaBody(BaseModel):
+    name: str
+    media_id: str
+    keep_source_range: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/retarget_selection_set_media")
+def retarget_selection_set_media_api(
+    body: RetargetSelectionSetMediaBody,
+) -> dict[str, Any]:
+    """Retarget named-set clips to a media_id."""
+    ed = _ed()
+    try:
+        r = ed.retarget_selection_set_media(
+            body.name,
+            body.media_id,
+            keep_source_range=body.keep_source_range,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"retarget_selection_set_media failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
