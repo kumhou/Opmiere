@@ -16891,6 +16891,60 @@ class Editor:
             ),
         }
 
+    def unlink_selection_set(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then unlink_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.unlink_selection(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Unlink clips in named set. Link: "
+                "link_selection_set. Lock tracks: "
+                "lock_selection_set_tracks."
+            ),
+        }
+
+    def lock_selection_set_tracks(
+        self,
+        name: str,
+        *,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then lock_selection_tracks (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.lock_selection_tracks(ids)
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Lock tracks touched by named set. Report: "
+                "selection_set_locked_tracks. Unlink: "
+                "unlink_selection_set."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -16944,6 +16998,8 @@ class Editor:
                     {"id": "set_selection_set_speed", "writes": True},
                     {"id": "link_selection_set", "writes": True},
                     {"id": "set_selection_set_position", "writes": True},
+                    {"id": "unlink_selection_set", "writes": True},
+                    {"id": "lock_selection_set_tracks", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

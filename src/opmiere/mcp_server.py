@@ -7904,6 +7904,30 @@ def set_selection_set_position(
 
 
 @mcp.tool()
+def unlink_selection_set(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Unlink clips in a named selection set."""
+    return _require_editor().unlink_selection_set(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def lock_selection_set_tracks(
+    name: str,
+    set_work_area: bool = False,
+) -> dict:
+    """Lock tracks touched by a named selection set."""
+    return _require_editor().lock_selection_set_tracks(
+        name,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

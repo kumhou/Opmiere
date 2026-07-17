@@ -13229,6 +13229,52 @@ def set_selection_set_position_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class UnlinkSelectionSetBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/unlink_selection_set")
+def unlink_selection_set_api(
+    body: UnlinkSelectionSetBody,
+) -> dict[str, Any]:
+    """Unlink clips in a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.unlink_selection_set(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"unlink_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class LockSelectionSetTracksBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/lock_selection_set_tracks")
+def lock_selection_set_tracks_api(
+    body: LockSelectionSetTracksBody,
+) -> dict[str, Any]:
+    """Lock tracks touched by a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.lock_selection_set_tracks(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"lock_selection_set_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.18 — 2026-07-17
+
+### Added
+- `unlink_selection_set` / `lock_selection_set_tracks` + **UnlinkSet** / **LockSetTr**
+
 ## 0.9.17 — 2026-07-17
 
 ### Added

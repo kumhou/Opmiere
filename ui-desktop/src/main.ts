@@ -16461,6 +16461,55 @@ async function setSelectionSetPositionUi() {
   }
 }
 
+async function unlinkSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Unlink named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "UnlinkSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `UnlinkSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+    }>("/api/edit/unlink_selection_set", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `UnlinkSet · ${r.selection_set || name} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`UnlinkSet failed: ${e}`);
+    $("status-msg").textContent = `UnlinkSet failed: ${e}`;
+  }
+}
+
+async function lockSelectionSetTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Lock tracks of named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "LockSetTr cancelled";
+      return;
+    }
+    $("status-msg").textContent = `LockSetTr ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      clip_count?: number;
+    }>("/api/edit/lock_selection_set_tracks", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `LockSetTr · ${r.selection_set || name} tracks=${r.count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`LockSetTr failed: ${e}`);
+    $("status-msg").textContent = `LockSetTr failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -21057,6 +21106,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-speed-set", () => void setSelectionSetSpeedUi());
   proBind("btn-link-set", () => void linkSelectionSetUi());
   proBind("btn-pos-set", () => void setSelectionSetPositionUi());
+  proBind("btn-unlink-set", () => void unlinkSelectionSetUi());
+  proBind("btn-lock-set-tr", () => void lockSelectionSetTracksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
