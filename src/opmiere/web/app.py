@@ -16339,6 +16339,60 @@ def clear_markers_in_selection_set_span_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetExportPreflightBody(BaseModel):
+    name: str
+    preflight_set_work_area: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_export_preflight")
+def selection_set_export_preflight_api(
+    body: SelectionSetExportPreflightBody,
+) -> dict[str, Any]:
+    """Export preflight for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_export_preflight(
+            body.name,
+            preflight_set_work_area=body.preflight_set_work_area,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_export_preflight failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ExportSelectionSetSocialBody(BaseModel):
+    name: str
+    variant: str = "reels"
+    filename: str | None = None
+    normalize_preset: str | None = None
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/export_selection_set_social")
+def export_selection_set_social_api(
+    body: ExportSelectionSetSocialBody,
+) -> dict[str, Any]:
+    """Export a named selection set to one social canvas."""
+    ed = _ed()
+    try:
+        r = ed.export_selection_set_social(
+            body.name,
+            variant=body.variant,
+            filename=body.filename,
+            normalize_preset=body.normalize_preset,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"export_selection_set_social failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

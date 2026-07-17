@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.75 — 2026-07-17
+
+### Added
+- `selection_set_export_preflight` / `export_selection_set_social` + **PreflightSet** / **ExpSocialSet**
+
 ## 0.9.74 — 2026-07-17
 
 ### Added

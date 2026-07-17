@@ -20568,6 +20568,75 @@ class Editor:
             ),
         }
 
+    def selection_set_export_preflight(
+        self,
+        name: str,
+        *,
+        preflight_set_work_area: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then selection_export_preflight.
+
+        preflight_set_work_area maps to selection_export_preflight(set_work_area=...).
+        set_work_area is only for load_selection_set.
+        """
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.selection_export_preflight(
+            ids, set_work_area=bool(preflight_set_work_area),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Export preflight for named set. Social export: "
+                "export_selection_set_social. Prep: "
+                "prepare_selection_set_export."
+            ),
+        }
+
+    def export_selection_set_social(
+        self,
+        name: str,
+        *,
+        variant: str = "reels",
+        filename: str | None = None,
+        normalize_preset: str | None = None,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named set then export_selection_social (writes file)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.export_selection_social(
+            ids,
+            variant=str(variant),
+            filename=filename,
+            normalize_preset=normalize_preset,
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Single social canvas export for named set. Preflight: "
+                "selection_set_export_preflight. Pack finish: "
+                "finish_selection_set_social_pack."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -20735,6 +20804,8 @@ class Editor:
                     {"id": "finish_selection_set_social_pack", "writes": True},
                     {"id": "markers_in_selection_set_span", "writes": False},
                     {"id": "clear_markers_in_selection_set_span", "writes": True},
+                    {"id": "selection_set_export_preflight", "writes": True},
+                    {"id": "export_selection_set_social", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

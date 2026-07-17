@@ -9760,6 +9760,38 @@ def clear_markers_in_selection_set_span(
 
 
 @mcp.tool()
+def selection_set_export_preflight(
+    name: str,
+    preflight_set_work_area: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Preflight named set: offline/gaps/path-C/proxy + optional work area."""
+    return _require_editor().selection_set_export_preflight(
+        name,
+        preflight_set_work_area=preflight_set_work_area,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def export_selection_set_social(
+    name: str,
+    variant: str = "reels",
+    filename: str | None = None,
+    normalize_preset: str | None = None,
+    set_work_area: bool = False,
+) -> dict:
+    """Export named set to one social canvas (reels/youtube/square/…)."""
+    return _require_editor().export_selection_set_social(
+        name,
+        variant=variant,
+        filename=filename,
+        normalize_preset=normalize_preset,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()

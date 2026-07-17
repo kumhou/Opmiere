@@ -20083,6 +20083,66 @@ async function clearMarkersInSelectionSetSpanUi() {
   }
 }
 
+async function selectionSetExportPreflightUi() {
+  try {
+    const name = await promptSelectionSetName("Export preflight named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "PreflightSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `PreflightSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      soft_ready?: boolean;
+      offline_count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_export_preflight", {
+      name,
+      preflight_set_work_area: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `PreflightSet · ${r.selection_set || name} soft_ready=${r.soft_ready ?? "?"} offline=${r.offline_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`PreflightSet failed: ${e}`);
+    $("status-msg").textContent = `PreflightSet failed: ${e}`;
+  }
+}
+
+async function exportSelectionSetSocialUi() {
+  try {
+    const name = await promptSelectionSetName("Export social named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ExpSocialSet cancelled";
+      return;
+    }
+    const rawVar = window.prompt("variant (reels|shorts|…)", "reels");
+    if (rawVar === null) {
+      $("status-msg").textContent = "ExpSocialSet cancelled";
+      return;
+    }
+    const variant = String(rawVar).trim() || "reels";
+    $("status-msg").textContent = `ExpSocialSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      variant?: string;
+      path?: string;
+      clip_count?: number;
+    }>("/api/edit/export_selection_set_social", {
+      name,
+      variant,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ExpSocialSet · ${r.selection_set || name} variant=${r.variant ?? variant} path=${r.path ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ExpSocialSet failed: ${e}`);
+    $("status-msg").textContent = `ExpSocialSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -24793,6 +24853,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-fin-social-pack-set", () => void finishSelectionSetSocialPackUi());
   proBind("btn-span-mkr-set", () => void markersInSelectionSetSpanUi());
   proBind("btn-clr-span-mkr-set", () => void clearMarkersInSelectionSetSpanUi());
+  proBind("btn-preflight-set", () => void selectionSetExportPreflightUi());
+  proBind("btn-exp-social-set", () => void exportSelectionSetSocialUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());
