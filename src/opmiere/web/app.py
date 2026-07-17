@@ -10908,6 +10908,42 @@ def export_selection_agent_card_api(
         ) from e
 
 
+class SelectionMutedReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_muted_report")
+def selection_muted_report_api(
+    body: SelectionMutedReportBody,
+) -> dict[str, Any]:
+    """Muted report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_muted_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_muted_report failed: {e}",
+        ) from e
+
+
+class SelectionTrackReportBody(BaseModel):
+    clip_ids: list[str]
+
+
+@app.post("/api/edit/selection_track_report")
+def selection_track_report_api(
+    body: SelectionTrackReportBody,
+) -> dict[str, Any]:
+    """Track M/S/L report for selection."""
+    ed = _ed()
+    try:
+        return ed.selection_track_report(body.clip_ids)
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_track_report failed: {e}",
+        ) from e
+
+
 class ExportWebmBody(BaseModel):
     output_path: str | None = None
     start_seconds: float = 0.0

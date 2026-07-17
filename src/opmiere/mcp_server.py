@@ -6478,6 +6478,18 @@ def export_selection_agent_card(
 
 
 @mcp.tool()
+def selection_muted_report(clip_ids: list[str]) -> dict:
+    """Report muted state for selection clips."""
+    return _require_editor().selection_muted_report(clip_ids)
+
+
+@mcp.tool()
+def selection_track_report(clip_ids: list[str]) -> dict:
+    """Tracks touched by selection with M/S/L and clip counts."""
+    return _require_editor().selection_track_report(clip_ids)
+
+
+@mcp.tool()
 def export_webm(
     output_path: str,
     start_seconds: float = 0.0,

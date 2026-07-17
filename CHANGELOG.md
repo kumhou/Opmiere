@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.87 — 2026-07-17
+
+### Added
+- `selection_muted_report` / `selection_track_report` + **MuteRep** / **TrkRep**
+
 ## 0.6.86 — 2026-07-17
 
 ### Added

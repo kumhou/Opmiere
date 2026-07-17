@@ -12673,6 +12673,82 @@ class Editor:
             "agent_note": "Agent card written. In-memory: selection_agent_card.",
         }
 
+    def selection_muted_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Report muted state for each selected clip."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        rows: list[dict[str, Any]] = []
+        muted_n = 0
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                clip = self._find_clip(cid)
+                tr, _ = self._find_clip_and_track(cid)
+                is_muted = bool(clip.muted)
+                if is_muted:
+                    muted_n += 1
+                rows.append({
+                    "clip_id": cid,
+                    "track_id": tr.id,
+                    "kind": tr.kind,
+                    "muted": is_muted,
+                    "track_muted": bool(tr.muted),
+                    "track_solo": bool(tr.solo),
+                })
+            except Exception as e:
+                rows.append({"clip_id": cid, "error": str(e)[:200]})
+        return {
+            "count": len(rows),
+            "muted_count": muted_n,
+            "clips": rows,
+            "agent_note": (
+                "Read-only. Mute: mute_selection / set_clips_muted. "
+                "Unmute: unmute_all_clips or set muted=False."
+            ),
+        }
+
+    def selection_track_report(
+        self,
+        clip_ids: list[str],
+    ) -> dict[str, Any]:
+        """Tracks touched by selection with M/S/L state and clip counts."""
+        if not clip_ids:
+            raise ValueError("clip_ids is empty")
+        by_track: dict[str, dict[str, Any]] = {}
+        for cid in dict.fromkeys(clip_ids):
+            try:
+                tr, clip = self._find_clip_and_track(cid)
+            except Exception as e:
+                continue
+            if tr.id not in by_track:
+                by_track[tr.id] = {
+                    "track_id": tr.id,
+                    "kind": tr.kind,
+                    "name": tr.name,
+                    "muted": bool(tr.muted),
+                    "solo": bool(tr.solo),
+                    "locked": bool(tr.locked),
+                    "clip_ids": [],
+                    "clip_count": 0,
+                }
+            by_track[tr.id]["clip_ids"].append(cid)
+            by_track[tr.id]["clip_count"] += 1
+        tracks = list(by_track.values())
+        return {
+            "track_count": len(tracks),
+            "clip_count": sum(t["clip_count"] for t in tracks),
+            "locked_count": sum(1 for t in tracks if t["locked"]),
+            "muted_count": sum(1 for t in tracks if t["muted"]),
+            "solo_count": sum(1 for t in tracks if t["solo"]),
+            "tracks": tracks,
+            "agent_note": (
+                "Tracks touched by selection. Lock/mute/solo: "
+                "lock_selection_tracks / mute_selection_tracks / solo_selection_tracks."
+            ),
+        }
+
     def detach_audio_all(
         self,
         track_id: str | None = None,

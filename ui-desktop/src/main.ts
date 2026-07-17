@@ -13771,6 +13771,48 @@ async function exportSelectionAgentCardUi() {
   }
 }
 
+async function selectionMutedReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for muted report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      count?: number;
+      muted_count?: number;
+    }>("/api/edit/selection_muted_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `MuteRep · n=${r.count ?? "?"} muted=${r.muted_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`MuteRep failed: ${e}`);
+    $("status-msg").textContent = `MuteRep failed: ${e}`;
+  }
+}
+
+async function selectionTrackReportUi() {
+  const ids = selectionList();
+  if (!ids.length) {
+    $("status-msg").textContent = "Select clips for track report";
+    return;
+  }
+  try {
+    const r = await postJson<{
+      track_count?: number;
+      locked_count?: number;
+      muted_count?: number;
+      solo_count?: number;
+    }>("/api/edit/selection_track_report", { clip_ids: ids });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `TrkRep · tracks=${r.track_count ?? "?"} L=${r.locked_count ?? "?"} M=${r.muted_count ?? "?"} S=${r.solo_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`TrkRep failed: ${e}`);
+    $("status-msg").textContent = `TrkRep failed: ${e}`;
+  }
+}
+
 async function exportWebmUi() {
   if (!state.projectOpen) {
     $("status-msg").textContent = "Open a project first";
@@ -17842,6 +17884,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-meta-rep-sel", () => void selectionMetaReportUi());
   proBind("btn-agent-card-sel", () => void selectionAgentCardUi());
   proBind("btn-agent-card-exp-sel", () => void exportSelectionAgentCardUi());
+  proBind("btn-mute-rep-sel", () => void selectionMutedReportUi());
+  proBind("btn-trk-rep-sel", () => void selectionTrackReportUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());
