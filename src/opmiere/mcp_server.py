@@ -6182,32 +6182,44 @@ def clear_selection_review_overlays(
 
 
 @mcp.tool()
-def vignette_selection(
+def ken_burns_selection(
     clip_ids: list[str],
-    strength: float = 0.45,
+    zoom_start: float = 1.0,
+    zoom_end: float = 1.15,
+    x_start: float = 0.5,
+    y_start: float = 0.5,
+    x_end: float = 0.5,
+    y_end: float = 0.5,
     replace: bool = True,
     video_only: bool = True,
 ) -> dict:
-    """Apply vignette to selection video clips."""
-    return _require_editor().vignette_selection(
+    """Apply Ken Burns zoom/pan to selection."""
+    return _require_editor().ken_burns_selection(
         clip_ids,
-        strength=strength,
+        zoom_start=zoom_start,
+        zoom_end=zoom_end,
+        x_start=x_start,
+        y_start=y_start,
+        x_end=x_end,
+        y_end=y_end,
         replace=replace,
         video_only=video_only,
     )
 
 
 @mcp.tool()
-def film_grain_selection(
+def luma_key_selection(
     clip_ids: list[str],
-    amount: float = 12.0,
+    threshold: float = 0.1,
+    tolerance: float = 0.1,
     replace: bool = True,
     video_only: bool = True,
 ) -> dict:
-    """Apply film grain to selection video clips."""
-    return _require_editor().film_grain_selection(
+    """Apply luma key to selection (brightness matte)."""
+    return _require_editor().luma_key_selection(
         clip_ids,
-        amount=amount,
+        threshold=threshold,
+        tolerance=tolerance,
         replace=replace,
         video_only=video_only,
     )

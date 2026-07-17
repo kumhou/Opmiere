@@ -13199,59 +13199,61 @@ async function clearSelectionReviewOverlaysUi() {
   }
 }
 
-async function vignetteSelectionUi() {
+async function kenBurnsSelectionUi() {
   const ids = selectionList();
   if (!ids.length) {
-    $("status-msg").textContent = "Select clips for vignette";
+    $("status-msg").textContent = "Select clips for Ken Burns";
     return;
   }
-  $("status-msg").textContent = "Applying vignette…";
+  $("status-msg").textContent = "Applying Ken Burns…";
   try {
     const r = await postJson<{
       count?: number;
       error_count?: number;
       timeline?: TimelineView;
-    }>("/api/edit/vignette_selection", {
+    }>("/api/edit/ken_burns_selection", {
       clip_ids: ids,
-      strength: 0.45,
+      zoom_start: 1.0,
+      zoom_end: 1.15,
       video_only: true,
     });
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
     setProOut(JSON.stringify(r, null, 2));
     $("status-msg").textContent =
-      `VigSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+      `KbSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
   } catch (e) {
-    setProOut(`VigSel failed: ${e}`);
-    $("status-msg").textContent = `VigSel failed: ${e}`;
+    setProOut(`KbSel failed: ${e}`);
+    $("status-msg").textContent = `KbSel failed: ${e}`;
   }
 }
 
-async function filmGrainSelectionUi() {
+async function lumaKeySelectionUi() {
   const ids = selectionList();
   if (!ids.length) {
-    $("status-msg").textContent = "Select clips for film grain";
+    $("status-msg").textContent = "Select clips for luma key";
     return;
   }
-  $("status-msg").textContent = "Applying film grain…";
+  $("status-msg").textContent = "Applying luma key…";
   try {
     const r = await postJson<{
       count?: number;
       error_count?: number;
       timeline?: TimelineView;
-    }>("/api/edit/film_grain_selection", {
+    }>("/api/edit/luma_key_selection", {
       clip_ids: ids,
-      amount: 12,
+      threshold: 0.1,
+      tolerance: 0.1,
       video_only: true,
     });
     if (r.timeline) applyTimelineView(r.timeline);
     else await refresh();
     setProOut(JSON.stringify(r, null, 2));
     $("status-msg").textContent =
-      `GrainSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
+      `LumaSel · n=${r.count ?? "?"} err=${r.error_count ?? 0}`;
   } catch (e) {
-    setProOut(`GrainSel failed: ${e}`);
-    $("status-msg").textContent = `GrainSel failed: ${e}`;
+    setProOut(`LumaSel failed: ${e}`);
+    $("status-msg").textContent = `LumaSel failed: ${e}`;
   }
 }
 
@@ -17302,8 +17304,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-tc-clr-sel", () => void clearSelectionTimecodesUi());
   proBind("btn-revov-sel", () => void applySelectionReviewOverlaysUi());
   proBind("btn-revov-clr-sel", () => void clearSelectionReviewOverlaysUi());
-  proBind("btn-vig-sel", () => void vignetteSelectionUi());
-  proBind("btn-grain-sel", () => void filmGrainSelectionUi());
+  proBind("btn-kb-sel", () => void kenBurnsSelectionUi());
+  proBind("btn-luma-sel", () => void lumaKeySelectionUi());
   proBind("btn-webm", () => void exportWebmUi());
   proBind("btn-wa-webm", () => void exportWorkAreaWebmUi());
   proBind("btn-audio-out", () => void exportAudioUi());

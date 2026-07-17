@@ -10382,49 +10382,61 @@ def clear_selection_review_overlays_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
-class VignetteSelectionBody(BaseModel):
+class KenBurnsSelectionBody(BaseModel):
     clip_ids: list[str]
-    strength: float = 0.45
+    zoom_start: float = 1.0
+    zoom_end: float = 1.15
+    x_start: float = 0.5
+    y_start: float = 0.5
+    x_end: float = 0.5
+    y_end: float = 0.5
     replace: bool = True
     video_only: bool = True
 
 
-@app.post("/api/edit/vignette_selection")
-def vignette_selection_api(body: VignetteSelectionBody) -> dict[str, Any]:
-    """Vignette on selection."""
+@app.post("/api/edit/ken_burns_selection")
+def ken_burns_selection_api(body: KenBurnsSelectionBody) -> dict[str, Any]:
+    """Ken Burns on selection."""
     ed = _ed()
     try:
-        r = ed.vignette_selection(
+        r = ed.ken_burns_selection(
             body.clip_ids,
-            strength=body.strength,
+            zoom_start=body.zoom_start,
+            zoom_end=body.zoom_end,
+            x_start=body.x_start,
+            y_start=body.y_start,
+            x_end=body.x_end,
+            y_end=body.y_end,
             replace=body.replace,
             video_only=body.video_only,
         )
     except Exception as e:
-        raise HTTPException(400, f"vignette_selection failed: {e}") from e
+        raise HTTPException(400, f"ken_burns_selection failed: {e}") from e
     return {**r, "timeline": ed.timeline_view()}
 
 
-class FilmGrainSelectionBody(BaseModel):
+class LumaKeySelectionBody(BaseModel):
     clip_ids: list[str]
-    amount: float = 12.0
+    threshold: float = 0.1
+    tolerance: float = 0.1
     replace: bool = True
     video_only: bool = True
 
 
-@app.post("/api/edit/film_grain_selection")
-def film_grain_selection_api(body: FilmGrainSelectionBody) -> dict[str, Any]:
-    """Film grain on selection."""
+@app.post("/api/edit/luma_key_selection")
+def luma_key_selection_api(body: LumaKeySelectionBody) -> dict[str, Any]:
+    """Luma key on selection."""
     ed = _ed()
     try:
-        r = ed.film_grain_selection(
+        r = ed.luma_key_selection(
             body.clip_ids,
-            amount=body.amount,
+            threshold=body.threshold,
+            tolerance=body.tolerance,
             replace=body.replace,
             video_only=body.video_only,
         )
     except Exception as e:
-        raise HTTPException(400, f"film_grain_selection failed: {e}") from e
+        raise HTTPException(400, f"luma_key_selection failed: {e}") from e
     return {**r, "timeline": ed.timeline_view()}
 
 

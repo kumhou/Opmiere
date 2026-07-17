@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.75 — 2026-07-17
+
+### Added
+- `ken_burns_selection` / `luma_key_selection` + **KbSel** / **LumaSel**
+
+### Fixed
+- Remove duplicate `vignette_selection` / `film_grain_selection` defs + duplicate HTTP/MCP routes from 0.6.74
+
 ## 0.6.74 — 2026-07-17
 
 ### Added

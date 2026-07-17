@@ -11715,15 +11715,20 @@ class Editor:
             "agent_note": "Review overlays stripped; grade/other FX kept.",
         }
 
-    def vignette_selection(
+    def ken_burns_selection(
         self,
         clip_ids: list[str],
         *,
-        strength: float = 0.45,
+        zoom_start: float = 1.0,
+        zoom_end: float = 1.15,
+        x_start: float = 0.5,
+        y_start: float = 0.5,
+        x_end: float = 0.5,
+        y_end: float = 0.5,
         replace: bool = True,
         video_only: bool = True,
     ) -> dict[str, Any]:
-        """Apply vignette to every selected video clip."""
+        """Apply Ken Burns zoom/pan to selection (stills & B-roll)."""
         if not clip_ids:
             raise ValueError("clip_ids is empty")
         done: list[dict[str, Any]] = []
@@ -11735,7 +11740,16 @@ class Editor:
                 if video_only and tr.kind != "video":
                     skipped.append({"clip_id": cid, "reason": "not_video"})
                     continue
-                r = self.apply_vignette(cid, strength=strength, replace=replace)
+                r = self.apply_ken_burns(
+                    cid,
+                    zoom_start=zoom_start,
+                    zoom_end=zoom_end,
+                    x_start=x_start,
+                    y_start=y_start,
+                    x_end=x_end,
+                    y_end=y_end,
+                    replace=replace,
+                )
                 if isinstance(r, dict):
                     r = dict(r)
                     r["clip_id"] = cid
@@ -11743,24 +11757,26 @@ class Editor:
             except Exception as e:
                 errors.append({"clip_id": cid, "error": str(e)[:200]})
         return {
-            "strength": float(strength),
+            "zoom_start": float(zoom_start),
+            "zoom_end": float(zoom_end),
             "count": len(done),
             "applied": done,
             "skipped": skipped,
             "errors": errors,
             "error_count": len(errors),
-            "agent_note": "Vignette on selection. Single-clip: apply_vignette.",
+            "agent_note": "Ken Burns on selection. Single-clip: apply_ken_burns.",
         }
 
-    def film_grain_selection(
+    def luma_key_selection(
         self,
         clip_ids: list[str],
         *,
-        amount: float = 12.0,
+        threshold: float = 0.1,
+        tolerance: float = 0.1,
         replace: bool = True,
         video_only: bool = True,
     ) -> dict[str, Any]:
-        """Apply film grain to every selected video clip."""
+        """Apply luma_key brightness matte to selection (overlay plates)."""
         if not clip_ids:
             raise ValueError("clip_ids is empty")
         done: list[dict[str, Any]] = []
@@ -11772,7 +11788,12 @@ class Editor:
                 if video_only and tr.kind != "video":
                     skipped.append({"clip_id": cid, "reason": "not_video"})
                     continue
-                r = self.apply_film_grain(cid, amount=amount, replace=replace)
+                r = self.apply_luma_key(
+                    cid,
+                    threshold=threshold,
+                    tolerance=tolerance,
+                    replace=replace,
+                )
                 if isinstance(r, dict):
                     r = dict(r)
                     r["clip_id"] = cid
@@ -11780,13 +11801,14 @@ class Editor:
             except Exception as e:
                 errors.append({"clip_id": cid, "error": str(e)[:200]})
         return {
-            "amount": float(amount),
+            "threshold": float(threshold),
+            "tolerance": float(tolerance),
             "count": len(done),
             "applied": done,
             "skipped": skipped,
             "errors": errors,
             "error_count": len(errors),
-            "agent_note": "Film grain on selection. Single-clip: apply_film_grain.",
+            "agent_note": "Luma key on selection. Single-clip: apply_luma_key.",
         }
 
     def detach_audio_all(
