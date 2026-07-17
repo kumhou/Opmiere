@@ -14905,6 +14905,64 @@ def reverse_selection_set_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class StabilizeSelectionSetBody(BaseModel):
+    name: str
+    replace: bool = True
+    strength: float = 1.0
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/stabilize_selection_set")
+def stabilize_selection_set_api(
+    body: StabilizeSelectionSetBody,
+) -> dict[str, Any]:
+    """Deshake-stabilize a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.stabilize_selection_set(
+            body.name,
+            replace=body.replace,
+            strength=body.strength,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"stabilize_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class ReframeSelectionSetBody(BaseModel):
+    name: str
+    aspect: str = "9:16"
+    anchor: str = "center"
+    video_only: bool = True
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/reframe_selection_set")
+def reframe_selection_set_api(
+    body: ReframeSelectionSetBody,
+) -> dict[str, Any]:
+    """Crop-reframe a named selection set to a target aspect."""
+    ed = _ed()
+    try:
+        r = ed.reframe_selection_set(
+            body.name,
+            aspect=body.aspect,
+            anchor=body.anchor,
+            video_only=body.video_only,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"reframe_selection_set failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""

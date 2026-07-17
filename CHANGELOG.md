@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.50 — 2026-07-17
+
+### Added
+- `stabilize_selection_set` / `reframe_selection_set` + **StabSet** / **ReframeSet**
+
 ## 0.9.49 — 2026-07-17
 
 ### Added

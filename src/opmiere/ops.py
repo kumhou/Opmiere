@@ -18850,6 +18850,76 @@ class Editor:
             ),
         }
 
+    def stabilize_selection_set(
+        self,
+        name: str,
+        *,
+        replace: bool = True,
+        strength: float = 1.0,
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then stabilize_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.stabilize_selection(
+            ids,
+            replace=bool(replace),
+            strength=float(strength),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Deshake on named set. Reframe: "
+                "reframe_selection_set. Reverse: "
+                "reverse_selection_set."
+            ),
+        }
+
+    def reframe_selection_set(
+        self,
+        name: str,
+        aspect: str = "9:16",
+        *,
+        anchor: str = "center",
+        video_only: bool = True,
+        set_work_area: bool = False,
+    ) -> dict[str, Any]:
+        """Load named selection set then reframe_selection (writes)."""
+        loaded = self.load_selection_set(
+            name, set_work_area=set_work_area, drop_missing=True,
+        )
+        ids = list(loaded.get("clip_ids") or [])
+        if not ids:
+            raise ValueError(f"selection set {name!r} has no live clips")
+        rep = self.reframe_selection(
+            ids,
+            aspect=str(aspect),
+            anchor=str(anchor),
+            video_only=bool(video_only),
+        )
+        return {
+            **rep,
+            "selection_set": name,
+            "clip_ids": ids,
+            "clip_count": len(ids),
+            "missing": loaded.get("missing") or [],
+            "agent_note": (
+                "Crop reframe on named set. Stabilize: "
+                "stabilize_selection_set. Social export: "
+                "export_selection_set_social_pack."
+            ),
+        }
+
     @staticmethod
     def selection_set_tool_catalog() -> dict[str, Any]:
         """Catalog of named selection-set tools by category (read-only)."""
@@ -18967,6 +19037,8 @@ class Editor:
                     {"id": "noise_reduction_selection_set", "writes": True},
                     {"id": "audio_eq_selection_set", "writes": True},
                     {"id": "reverse_selection_set", "writes": True},
+                    {"id": "stabilize_selection_set", "writes": True},
+                    {"id": "reframe_selection_set", "writes": True},
                     {"id": "batch_selection_sets_status", "writes": False},
                     {"id": "batch_validate_selection_sets", "writes": False},
                     {"id": "batch_repair_selection_sets", "writes": True},

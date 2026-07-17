@@ -18483,6 +18483,76 @@ async function reverseSelectionSetUi() {
   }
 }
 
+async function stabilizeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Stabilize named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "StabSet cancelled";
+      return;
+    }
+    if (!window.confirm(`Stabilize (deshake re-encode) set "${name}"?`)) {
+      $("status-msg").textContent = "StabSet cancelled";
+      return;
+    }
+    $("status-msg").textContent = `StabSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+      strength?: number;
+    }>("/api/edit/stabilize_selection_set", {
+      name,
+      replace: true,
+      strength: 1,
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `StabSet · ${r.selection_set || name} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`StabSet failed: ${e}`);
+    $("status-msg").textContent = `StabSet failed: ${e}`;
+  }
+}
+
+async function reframeSelectionSetUi() {
+  try {
+    const name = await promptSelectionSetName("Reframe named set (set name)");
+    if (!name) {
+      $("status-msg").textContent = "ReframeSet cancelled";
+      return;
+    }
+    const rawAspect = window.prompt("aspect", "9:16");
+    if (rawAspect === null) {
+      $("status-msg").textContent = "ReframeSet cancelled";
+      return;
+    }
+    const aspect = String(rawAspect).trim() || "9:16";
+    $("status-msg").textContent = `ReframeSet ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      aspect?: string;
+      count?: number;
+      error_count?: number;
+      clip_count?: number;
+    }>("/api/edit/reframe_selection_set", {
+      name,
+      aspect,
+      anchor: "center",
+      video_only: true,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `ReframeSet · ${r.selection_set || name} aspect=${r.aspect ?? aspect} applied=${r.count ?? "?"} err=${r.error_count ?? "?"} n=${r.clip_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`ReframeSet failed: ${e}`);
+    $("status-msg").textContent = `ReframeSet failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -23143,6 +23213,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-nr-set", () => void noiseReductionSelectionSetUi());
   proBind("btn-eq-set", () => void audioEqSelectionSetUi());
   proBind("btn-rev-set", () => void reverseSelectionSetUi());
+  proBind("btn-stab-set", () => void stabilizeSelectionSetUi());
+  proBind("btn-reframe-set", () => void reframeSelectionSetUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

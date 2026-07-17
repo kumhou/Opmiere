@@ -8876,6 +8876,42 @@ def reverse_selection_set(
 
 
 @mcp.tool()
+def stabilize_selection_set(
+    name: str,
+    replace: bool = True,
+    strength: float = 1.0,
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Deshake-stabilize video clips in a named selection set."""
+    return _require_editor().stabilize_selection_set(
+        name,
+        replace=replace,
+        strength=strength,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
+def reframe_selection_set(
+    name: str,
+    aspect: str = "9:16",
+    anchor: str = "center",
+    video_only: bool = True,
+    set_work_area: bool = False,
+) -> dict:
+    """Crop-reframe clips in a named selection set to a target aspect."""
+    return _require_editor().reframe_selection_set(
+        name,
+        aspect=aspect,
+        anchor=anchor,
+        video_only=video_only,
+        set_work_area=set_work_area,
+    )
+
+
+@mcp.tool()
 def selection_set_tool_catalog() -> dict:
     """Catalog of named selection-set tools by category."""
     return _require_editor().selection_set_tool_catalog()
