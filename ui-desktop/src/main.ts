@@ -15817,6 +15817,58 @@ async function selectionSetDurationReportUi() {
   }
 }
 
+async function selectionSetPathCReportUi() {
+  try {
+    const name = await promptSelectionSetName("Set path-C report (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetPathC cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetPathC ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      clip_count?: number;
+      not_ready_count?: number;
+      path_c_ready?: boolean;
+    }>("/api/edit/selection_set_path_c_report", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetPathC · ${r.selection_set || name} n=${r.clip_count ?? "?"} not_ready=${r.not_ready_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetPathC failed: ${e}`);
+    $("status-msg").textContent = `SetPathC failed: ${e}`;
+  }
+}
+
+async function selectionSetLockedTracksUi() {
+  try {
+    const name = await promptSelectionSetName("Set locked tracks (set name)");
+    if (!name) {
+      $("status-msg").textContent = "SetLocks cancelled";
+      return;
+    }
+    $("status-msg").textContent = `SetLocks ${name}…`;
+    const r = await postJson<{
+      selection_set?: string;
+      locked_count?: number;
+      unlocked_count?: number;
+      clip_count?: number;
+    }>("/api/edit/selection_set_locked_tracks", {
+      name,
+      set_work_area: false,
+    });
+    setProOut(JSON.stringify(r, null, 2));
+    $("status-msg").textContent =
+      `SetLocks · ${r.selection_set || name} locked=${r.locked_count ?? "?"} unlocked=${r.unlocked_count ?? "?"}`;
+  } catch (e) {
+    setProOut(`SetLocks failed: ${e}`);
+    $("status-msg").textContent = `SetLocks failed: ${e}`;
+  }
+}
+
 async function selectionSetToolCatalogUi() {
   $("status-msg").textContent = "Loading selection set tool catalog…";
   try {
@@ -20391,6 +20443,8 @@ window.addEventListener("DOMContentLoaded", () => {
   proBind("btn-set-offline", () => void selectionSetOfflineMediaUi());
   proBind("btn-set-proxy", () => void selectionSetProxyReportUi());
   proBind("btn-set-dur", () => void selectionSetDurationReportUi());
+  proBind("btn-set-pathc", () => void selectionSetPathCReportUi());
+  proBind("btn-set-locks", () => void selectionSetLockedTracksUi());
   proBind("btn-set-tools", () => void selectionSetToolCatalogUi());
   proBind("btn-set-tools-exp", () => void exportSelectionSetToolCatalogUi());
   proBind("btn-save-sel-set", () => void saveSelectionSetUi());

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.7 — 2026-07-17
+
+### Added
+- `selection_set_path_c_report` / `selection_set_locked_tracks` + **SetPathC** / **SetLocks**
+
 ## 0.9.6 — 2026-07-17
 
 ### Added

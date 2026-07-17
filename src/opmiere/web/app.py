@@ -12695,6 +12695,52 @@ def selection_set_duration_report_api(
     return {**r, "timeline": ed.timeline_view()}
 
 
+class SelectionSetPathCReportBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_path_c_report")
+def selection_set_path_c_report_api(
+    body: SelectionSetPathCReportBody,
+) -> dict[str, Any]:
+    """path-C report for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_path_c_report(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_path_c_report failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
+class SelectionSetLockedTracksBody(BaseModel):
+    name: str
+    set_work_area: bool = False
+
+
+@app.post("/api/edit/selection_set_locked_tracks")
+def selection_set_locked_tracks_api(
+    body: SelectionSetLockedTracksBody,
+) -> dict[str, Any]:
+    """Locked tracks for a named selection set."""
+    ed = _ed()
+    try:
+        r = ed.selection_set_locked_tracks(
+            body.name,
+            set_work_area=body.set_work_area,
+        )
+    except Exception as e:
+        raise HTTPException(
+            400, f"selection_set_locked_tracks failed: {e}",
+        ) from e
+    return {**r, "timeline": ed.timeline_view()}
+
+
 @app.get("/api/edit/selection_set_tool_catalog")
 def selection_set_tool_catalog_api() -> dict[str, Any]:
     """List named selection-set tools by category."""
